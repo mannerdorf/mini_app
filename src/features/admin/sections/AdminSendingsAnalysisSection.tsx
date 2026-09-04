@@ -304,7 +304,14 @@ export function AdminSendingsAnalysisSection({
       </Typography.Body>
 
       <div className="filters-container filters-row-scroll" style={{ marginBottom: "0.75rem" }}>
-        <ListDateFilterControl {...dateFilterControls} apiDateRange={apiDateRange} />
+        <ListDateFilterControl
+          {...dateFilterControls}
+          apiDateRange={apiDateRange}
+          onResetFilters={() => {
+            setRouteFilter("all");
+            setIsRouteDropdownOpen(false);
+          }}
+        />
         <div className="filter-group" style={{ flexShrink: 0 }}>
           <div ref={routeButtonRef} style={{ display: "inline-flex" }}>
             <Button

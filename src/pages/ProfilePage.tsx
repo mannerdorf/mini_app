@@ -40,6 +40,9 @@ const HaulzSendingsAnalysisPage = lazy(() =>
 const HaulzDeliveredWithoutAppPage = lazy(() =>
   import("./HaulzDeliveredWithoutAppPage").then((m) => ({ default: m.HaulzDeliveredWithoutAppPage })),
 );
+const HaulzCargoTimelinePage = lazy(() =>
+  import("./HaulzCargoTimelinePage").then((m) => ({ default: m.HaulzCargoTimelinePage })),
+);
 
 function HaulzAnalyticsPageLoader() {
   return (
@@ -175,7 +178,9 @@ export function ProfilePage({
 
     useEffect(() => {
         if (
-            (currentView === "haulzSendingsAnalysis" || currentView === "haulzDeliveredWithoutApp") &&
+            (currentView === "haulzSendingsAnalysis" ||
+                currentView === "haulzDeliveredWithoutApp" ||
+                currentView === "haulzCargoTimeline") &&
             activeAccount?.permissions?.haulz !== true
         ) {
             setCurrentView("haulz");
@@ -247,7 +252,11 @@ export function ProfilePage({
         );
     }
 
-    if (currentView === "haulzSendingsAnalysis" || currentView === "haulzDeliveredWithoutApp") {
+    if (
+        currentView === "haulzSendingsAnalysis" ||
+        currentView === "haulzDeliveredWithoutApp" ||
+        currentView === "haulzCargoTimeline"
+    ) {
         if (!activeAccount || activeAccount.permissions?.haulz !== true) {
             return null;
         }
@@ -262,6 +271,17 @@ export function ProfilePage({
             return (
                 <Suspense fallback={<HaulzAnalyticsPageLoader />}>
                     <HaulzSendingsAnalysisPage
+                        auth={auth}
+                        useServiceRequest={useServiceRequest}
+                        onBack={() => setCurrentView("haulz")}
+                    />
+                </Suspense>
+            );
+        }
+        if (currentView === "haulzCargoTimeline") {
+            return (
+                <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+                    <HaulzCargoTimelinePage
                         auth={auth}
                         useServiceRequest={useServiceRequest}
                         onBack={() => setCurrentView("haulz")}

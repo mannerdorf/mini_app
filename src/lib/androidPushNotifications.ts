@@ -13,7 +13,7 @@ import {
 export type NativePushPlatform = "ios" | "android";
 
 /** Visible on Профиль → Уведомления. If the iPhone does not show this mark, TestFlight is an old IPA. */
-export const NATIVE_PUSH_CLIENT_MARK = "push-js 12";
+export const NATIVE_PUSH_CLIENT_MARK = "push-js 13";
 
 let listenersAttached = false;
 let currentLogin = "";
@@ -159,13 +159,23 @@ export async function enableNativePushNotifications(
     currentLogin = normalizedLogin;
     currentInn = inn || "";
     const stored = tokenForLogin(normalizedLogin);
-    if (stored) {
+    const isIos = Capacitor.getPlatform() === "ios";
+    // Android: re-send cached token immediately. iOS: always wait for native registration —
+    // APNs/FCM tokens rotate and the cached value is often stale after TestFlight updates.
+    if (stored && !isIos) {
       try {
         await persistToken(normalizedLogin, stored, inn);
         await PushNotifications.register();
         return { ok: true };
       } catch {
         /* ask native for a fresh token */
+      }
+    }
+    if (stored && isIos) {
+      try {
+        await persistToken(normalizedLogin, stored, inn);
+      } catch {
+        /* wait for fresh token below */
       }
     }
 

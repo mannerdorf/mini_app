@@ -4,11 +4,14 @@
 
 import {
   PROXY_API_BASE_URL,
+  PROXY_API_CARGO_TIMELINE_REPORT_URL,
   PROXY_API_INVOICES_URL,
   PROXY_API_SENDINGS_URL,
 } from "../../constants/config";
 import { apiFetchJson } from "../../utils";
 import type { SendingItem } from "../lib/adminSendingsAnalytics";
+import type { CargoTimelineReport } from "../../lib/adminCargoTimelineReport";
+import type { CargoTimelineDelayFilter } from "../../lib/cargoTimelineReportShared";
 import type { AuthData, CargoItem } from "../types";
 import type { AdminPerevozkiDateField } from "./admin/perevozki";
 
@@ -99,4 +102,26 @@ export async function fetchHaulzInvoices(
         []
       : [];
   return Array.isArray(list) ? list : [];
+}
+
+export async function fetchHaulzCargoTimelineReport(
+  auth: AuthData,
+  params: {
+    dateFrom: string;
+    dateTo: string;
+    routeFilter?: "all" | "MSK-KGD" | "KGD-MSK";
+    delayFilter?: CargoTimelineDelayFilter;
+  },
+  useServiceRequest: boolean,
+): Promise<CargoTimelineReport> {
+  const data = await apiFetchJson<CargoTimelineReport>(PROXY_API_CARGO_TIMELINE_REPORT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...authBody(auth),
+      ...params,
+      serviceMode: useServiceRequest,
+    }),
+  });
+  return data;
 }

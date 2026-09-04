@@ -14,9 +14,10 @@ export function usePushSelectedInnSync(useServiceRequest: boolean) {
 
   useEffect(() => {
     const login = activeAccount?.login?.trim().toLowerCase() ?? "";
-    if (!login || useServiceRequest) return;
+    if (!login) return;
 
     const inn = resolveAccountActiveInn(activeAccount, auth);
+    if (useServiceRequest && !inn) return;
     if (!inn) return;
 
     const key = `${login}:${inn}`;

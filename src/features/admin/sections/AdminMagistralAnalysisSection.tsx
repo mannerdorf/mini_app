@@ -287,7 +287,16 @@ export function AdminMagistralAnalysisSection({ adminToken }: { adminToken: stri
       </Typography.Body>
 
       <div className="filters-container filters-row-scroll" style={{ marginBottom: "0.75rem" }}>
-        <ListDateFilterControl {...dateFilterControls} apiDateRange={apiDateRange} />
+        <ListDateFilterControl
+          {...dateFilterControls}
+          apiDateRange={apiDateRange}
+          onResetFilters={() => {
+            setPeriodField("vr");
+            setRouteFilter("all");
+            setIsPeriodFieldDropdownOpen(false);
+            setIsRouteDropdownOpen(false);
+          }}
+        />
         <div className="filter-group" style={{ flexShrink: 0 }}>
           <div ref={periodFieldButtonRef} style={{ display: "inline-flex" }}>
             <Button

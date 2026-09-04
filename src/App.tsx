@@ -95,11 +95,12 @@ function AppRoot() {
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();
         if (!auth || !login || !isNativePush) return;
-        if (useServiceRequest) return;
         const inn =
             activeAccount?.activeCustomerInn?.trim() ||
             activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
             undefined;
+        // В служебном режиме без выбранной компании автопуш не привязан к ИНН — токен не синхронизируем.
+        if (useServiceRequest && !inn) return;
         void import("./lib/androidPushNotifications").then(({ syncNativePushNotifications }) =>
             syncNativePushNotifications(login, inn),
         );
@@ -110,6 +111,45 @@ function AppRoot() {
         activeAccount?.customers,
         useServiceRequest,
         isNativePush,
+    ]);
+    useEffect(() => {
+        if (!auth || !isNativePush) return;
+        let cancelled = false;
+        let removeListener: (() => void) | undefined;
+
+        void import("@capacitor/app").then(({ App }) =>
+            App.addListener("appStateChange", ({ isActive }) => {
+                if (!isActive || cancelled) return;
+                const login = activeAccount?.login?.trim().toLowerCase();
+                if (!login) return;
+                const inn =
+                    activeAccount?.activeCustomerInn?.trim() ||
+                    activeAccount?.customers?.find((c) => c.inn)?.inn?.trim() ||
+                    undefined;
+                if (useServiceRequest && !inn) return;
+                void import("./lib/androidPushNotifications").then(({ syncNativePushNotifications }) =>
+                    syncNativePushNotifications(login, inn),
+                );
+            }).then((handle) => {
+                if (cancelled) {
+                    void handle.remove();
+                    return;
+                }
+                removeListener = () => void handle.remove();
+            }),
+        );
+
+        return () => {
+            cancelled = true;
+            removeListener?.();
+        };
+    }, [
+        auth,
+        isNativePush,
+        activeAccount?.login,
+        activeAccount?.activeCustomerInn,
+        activeAccount?.customers,
+        useServiceRequest,
     ]);
     const {
         showDashboard,

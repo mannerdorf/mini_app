@@ -4,6 +4,7 @@ import { Button, Typography } from "@maxhub/max-ui";
 import * as dateUtils from "../../lib/dateUtils";
 import { FilterDialog } from "../../components/shared/FilterDialog";
 import { FilterDropdownPortal } from "../../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton";
 import { formatDateFilterButtonLabel } from "./formatDateFilterLabel";
 import type { PersistedDateFilterControls } from "./usePersistedDateFilter";
 
@@ -13,6 +14,7 @@ const MONTH_NAMES = dateUtils.MONTH_NAMES;
 export type ListDateFilterControlProps = PersistedDateFilterControls & {
   apiDateRange: { dateFrom: string; dateTo: string };
   className?: string;
+  onResetFilters?: () => void;
 };
 
 export function ListDateFilterControl({
@@ -30,6 +32,7 @@ export function ListDateFilterControl({
   selectedWeekForFilter,
   setSelectedWeekForFilter,
   className,
+  onResetFilters,
 }: ListDateFilterControlProps) {
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "years" | "weeks">("main");
@@ -44,6 +47,7 @@ export function ListDateFilterControl({
 
   return (
     <>
+      <ResetAllFiltersButton onReset={onResetFilters} />
       <div className={className ?? "filter-group"} style={{ flexShrink: 0 }}>
         <div ref={dateButtonRef} style={{ display: "inline-flex" }}>
           <Button

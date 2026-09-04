@@ -9,6 +9,8 @@ import {
   type CargoTimelineDelayFilter,
   type CargoTimelineReportRow,
 } from "../../../api/client/admin/cargoTimelineReport";
+import { fetchHaulzCargoTimelineReport } from "../../../api/client/haulzAnalytics";
+import type { AuthData } from "../../../types";
 import {
   CARGO_TIMELINE_NORM_HOURS,
   formatTimelineGapHours,
@@ -103,7 +105,15 @@ function CargoTimelineExpanded({ row }: { row: CargoTimelineReportRow }) {
   );
 }
 
-export function AdminCargoTimelineSection({ adminToken }: { adminToken: string }) {
+export function AdminCargoTimelineSection({
+  adminToken,
+  auth,
+  useServiceRequest = false,
+}: {
+  adminToken?: string;
+  auth?: AuthData;
+  useServiceRequest?: boolean;
+}) {
   const dateFilterControls = usePersistedDateFilter();
   const { apiDateRange } = useListDateRange({
     dateFilter: dateFilterControls.dateFilter,
@@ -127,16 +137,31 @@ export function AdminCargoTimelineSection({ adminToken }: { adminToken: string }
   const [expandedCargo, setExpandedCargo] = useState<string | null>(null);
 
   const loadReport = useCallback(async () => {
-    if (!adminToken) return;
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchAdminCargoTimelineReport(adminToken, {
-        dateFrom: apiDateRange.dateFrom,
-        dateTo: apiDateRange.dateTo,
-        routeFilter,
-        delayFilter,
-      });
+      let data;
+      if (adminToken) {
+        data = await fetchAdminCargoTimelineReport(adminToken, {
+          dateFrom: apiDateRange.dateFrom,
+          dateTo: apiDateRange.dateTo,
+          routeFilter,
+          delayFilter,
+        });
+      } else if (auth?.login && auth?.password) {
+        data = await fetchHaulzCargoTimelineReport(
+          auth,
+          {
+            dateFrom: apiDateRange.dateFrom,
+            dateTo: apiDateRange.dateTo,
+            routeFilter,
+            delayFilter,
+          },
+          useServiceRequest,
+        );
+      } else {
+        return;
+      }
       setReport(data);
     } catch (e: unknown) {
       setError((e as Error)?.message || "Ошибка загрузки");
@@ -144,7 +169,7 @@ export function AdminCargoTimelineSection({ adminToken }: { adminToken: string }
     } finally {
       setLoading(false);
     }
-  }, [adminToken, apiDateRange.dateFrom, apiDateRange.dateTo, routeFilter, delayFilter]);
+  }, [adminToken, auth, useServiceRequest, apiDateRange.dateFrom, apiDateRange.dateTo, routeFilter, delayFilter]);
 
   useEffect(() => {
     void loadReport();
@@ -170,7 +195,16 @@ export function AdminCargoTimelineSection({ adminToken }: { adminToken: string }
       </Typography.Body>
 
       <div className="filters-container filters-row-scroll" style={{ marginBottom: "0.75rem" }}>
-        <ListDateFilterControl {...dateFilterControls} apiDateRange={apiDateRange} />
+        <ListDateFilterControl
+          {...dateFilterControls}
+          apiDateRange={apiDateRange}
+          onResetFilters={() => {
+            setRouteFilter("all");
+            setDelayFilter("all");
+            setIsRouteDropdownOpen(false);
+            setIsDelayDropdownOpen(false);
+          }}
+        />
         <div className="filter-group" style={{ flexShrink: 0 }}>
           <div ref={routeButtonRef} style={{ display: "inline-flex" }}>
             <Button

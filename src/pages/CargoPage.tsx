@@ -4,6 +4,7 @@ import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../components/ui/ResetAllFiltersButton";
 import { FilterDialog } from "../components/shared/FilterDialog";
 import { normalizeStatus, getFilterKeyByStatus, BILL_STATUS_MAP, STATUS_MAP } from "../lib/statusUtils";
 import type { BillStatusFilterKey } from "../lib/statusUtils";
@@ -22,6 +23,7 @@ import {
 } from "./cargoPipeline";
 import { formatTypeFilterSetLabel, initSharedFilterSets, resolveCargoActiveFilters, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
 import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
+import { useResetAllFiltersListener } from "../hooks/useResetAllFiltersListener";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
@@ -275,6 +277,35 @@ export function CargoPage({
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const resetCargoPageFilters = useCallback(() => {
+        const init = initSharedFilterSets();
+        setStatusFilterSet(init.statusFilterSet);
+        setBillStatusFilterSet(init.billStatusFilterSet);
+        setTypeFilterSet(init.typeFilterSet);
+        setRouteFilterSet(init.routeFilterSet);
+        setSenderFilter("");
+        setReceiverFilter("");
+        setTransportFilter("");
+        setTransportSearchQuery("");
+        setLastMileFilter("all");
+        setPickupLogisticsFilter("all");
+        setRoleFilter("all");
+        setSortBy("datePrih");
+        setSortOrder("desc");
+        setIsStatusDropdownOpen(false);
+        setIsRoleDropdownOpen(false);
+        setIsSenderDropdownOpen(false);
+        setIsReceiverDropdownOpen(false);
+        setIsBillStatusDropdownOpen(false);
+        setIsTypeDropdownOpen(false);
+        setIsRouteDropdownOpen(false);
+        setIsLastMileDropdownOpen(false);
+        setIsPickupLogisticsDropdownOpen(false);
+        setIsTransportDropdownOpen(false);
+        setIsDateDropdownOpen(false);
+    }, []);
+    useResetAllFiltersListener(resetCargoPageFilters);
 
     // Favorites State
     const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -661,6 +692,7 @@ export function CargoPage({
             </Flex>
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                    <ResetAllFiltersButton />
                     <Button
                         className="filter-button"
                         style={{ padding: '0.5rem', minWidth: 'auto' }}

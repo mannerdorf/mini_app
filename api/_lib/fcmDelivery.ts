@@ -277,6 +277,7 @@ export async function sendFcmToLogin(
       apns: {
         headers: {
           "apns-priority": "10",
+          "apns-push-type": "alert",
         },
         payload: {
           aps: {
