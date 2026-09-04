@@ -125,17 +125,11 @@
 }
 
 .cargo-logistics-badges__meta {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: flex-start;
     gap: 0.35rem;
     width: 100%;
-    overflow-x: auto;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-}
-
-.cargo-logistics-badges__meta::-webkit-scrollbar {
-    display: none;
+    overflow: visible;
 }
 
 .cargo-logistics-badges__meta-route,
@@ -222,19 +216,12 @@
 .cargo-inner-table .cargo-logistics-badges__flow {
     display: flex;
     flex-direction: row;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.28rem;
     width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-}
-
-.cargo-inner-table .cargo-logistics-badges__flow::-webkit-scrollbar {
-    display: none;
+    overflow: visible;
 }
 
 .cargo-inner-table .cargo-logistics-badges__flow > * {
@@ -273,11 +260,13 @@
     padding: 0 0.12rem 0.28rem !important;
     vertical-align: top;
     min-width: 0;
+    overflow: visible;
 }
 
 .cargo-inner-table__badges-cell .cargo-logistics-badges {
     width: 100%;
     max-width: 100%;
+    overflow: visible;
 }
 
 .cargo-inner-table__row--main > td {
@@ -350,6 +339,12 @@
     gap: 0.28rem;
     min-width: 0;
     width: 100%;
+    overflow: visible;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__col-number,
+.documents-acts-inner-table .cargo-inner-table__col-number {
+    overflow: visible;
 }
 
 .documents-invoice-table-badges {
@@ -383,19 +378,13 @@
 .documents-invoices-inner-table .documents-invoice-table-badges__meta,
 .documents-acts-inner-table .documents-invoice-table-badges__meta {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: flex-start;
     gap: 0.35rem;
     width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    scrollbar-width: none;
-}
-
-.documents-invoices-inner-table .documents-invoice-table-badges__meta::-webkit-scrollbar,
-.documents-acts-inner-table .documents-invoice-table-badges__meta::-webkit-scrollbar {
-    display: none;
+    overflow: visible;
 }
 
 .documents-invoices-inner-table .documents-invoice-table-badges__meta-left,
@@ -560,10 +549,13 @@
     }
 
     .cargo-inner-table .cargo-logistics-badges__meta {
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: flex-start;
         justify-content: flex-start;
         width: 100%;
-        overflow-x: auto;
+        overflow: visible;
+        gap: 0.22rem;
     }
 
     .cargo-inner-table .cargo-logistics-badges__meta-right {
@@ -573,8 +565,9 @@
     }
 
     .cargo-inner-table .cargo-logistics-badges__flow {
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
         flex-direction: row;
+        overflow: visible;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__delivery-inline {
@@ -593,10 +586,21 @@
 
     .documents-invoices-inner-table .documents-invoice-table-badges__meta,
     .documents-acts-inner-table .documents-invoice-table-badges__meta {
-        flex-wrap: nowrap;
+        flex-wrap: wrap;
+        flex-direction: column;
+        align-items: flex-start;
         justify-content: flex-start;
         width: 100%;
-        overflow-x: auto;
+        overflow: visible;
+        gap: 0.22rem;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-route,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-route,
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-bill,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-bill {
+        flex: 0 0 auto;
+        max-width: 100%;
     }
 
     .documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
@@ -738,21 +742,27 @@
         width: 18%;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__col-number,
-    .documents-acts-inner-table .cargo-inner-table__col-number {
-        width: 56%;
+    /* Перевозки: узкая колонка № (бейджи в отдельной строке таблицы) */
+    .cargo-inner-table:not(.documents-invoices-inner-table):not(.documents-acts-inner-table) .cargo-inner-table__col-number {
+        width: 22%;
     }
 
-    .cargo-inner-table .cargo-inner-table__col-number {
-        width: 22%;
+    /* Счета/УПД: широкая колонка № — маршрут + статус оплаты должны помещаться */
+    .documents-invoices-inner-table .cargo-inner-table__col-number,
+    .documents-acts-inner-table.documents-invoices-inner-table .cargo-inner-table__col-number,
+    .documents-acts-inner-table .cargo-inner-table__col-number {
+        width: 48% !important;
+        overflow: visible;
     }
 
     .cargo-inner-table__badges-cell {
         width: auto !important;
+        overflow: visible !important;
     }
 
     .cargo-inner-table .cargo-inner-table__row--badges .cargo-logistics-badges__flow {
-        overflow-x: auto;
+        flex-wrap: wrap;
+        overflow: visible;
         max-width: 100%;
     }
 

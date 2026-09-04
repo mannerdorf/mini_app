@@ -82,7 +82,15 @@ function CargoInnerTableRows({
   const badges = (
     <CargoLogisticsBadges item={item} showPayment={showSums} showRouteInline />
   );
-  const badgesColSpan = showOrderCol ? 4 : 3;
+  /* Мобильная: бейджи под всеми колонками строки (кроме иконки типа с rowSpan). */
+  const badgesColSpan =
+    (showOrderCol ? 1 : 0) +
+    3 /* number, date, plan */ +
+    1 /* status (скрыта, но в DOM) */ +
+    1 /* route desktop (скрыта) */ +
+    1 /* mest */ +
+    1 /* pw */ +
+    (showSums ? 1 : 0); /* sum stacked — скрыта, но в DOM */
 
   if (isMobile) {
     return (
@@ -117,15 +125,14 @@ function CargoInnerTableRows({
           <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
             {planDateContent}
           </td>
-          <td rowSpan={2} className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
-          <td rowSpan={2} className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
+          <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
+          <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
             <RouteBadge route={getCargoItemRouteLabel(item)} />
           </td>
-          <td rowSpan={2} className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+          <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
             {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
           </td>
           <td
-            rowSpan={2}
             className="cargo-inner-table__col-pw"
             style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", minWidth: "4rem" }}
           >
@@ -137,7 +144,7 @@ function CargoInnerTableRows({
             )}
           </td>
           {showSums && (
-            <td rowSpan={2} className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+            <td className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
               {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
             </td>
           )}
