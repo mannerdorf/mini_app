@@ -1,4 +1,4 @@
-/* HAULZ линейка веса — экран + печать absolute-шкалы */
+/* HAULZ линейка веса — экран + печать absolute-шкалы (строки по ширине листа) */
 
 .haulz-weight-ruler__field {
     display: flex;
@@ -9,64 +9,51 @@
     color: var(--color-text-secondary);
 }
 
-.haulz-weight-ruler-strip {
-    overflow-x: auto;
+.haulz-weight-ruler-frame {
     max-width: 100%;
     border: 1px solid var(--color-border);
     border-radius: 8px;
     background: #fff;
-    padding: 0.5rem;
+    padding: 0.6rem;
 }
 
-.haulz-weight-ruler-strip__inner {
+.haulz-weight-ruler-rows {
     display: flex;
     flex-direction: column;
-    gap: 0.15rem;
-    width: max-content;
-    min-width: 100%;
+    gap: 0.85rem;
 }
 
-.haulz-weight-ruler-strip__tracks {
-    display: grid;
-    gap: 1px;
-    background: #111;
-    border: 1px solid #111;
+.haulz-weight-ruler-row__meta {
+    font-size: 0.7rem;
+    color: #555;
+    margin-bottom: 0.2rem;
 }
 
-.haulz-weight-ruler-strip__track {
-    display: flex;
-    height: 6px;
+.haulz-weight-ruler-row__strip {
+    overflow-x: auto;
+    max-width: 100%;
 }
 
-.haulz-weight-ruler-strip--preview .haulz-weight-ruler-strip__track {
-    height: 5px;
-}
-
-.haulz-weight-ruler-strip__cell {
-    width: 10px;
-    flex: 0 0 10px;
+.haulz-weight-ruler-row__svg {
     background: #fff;
-    box-sizing: border-box;
+    /* Критично для печати: чёрные fill в SVG / фоны */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
 }
 
-.haulz-weight-ruler-strip__cell.is-black {
-    background: #111;
-}
-
-.haulz-weight-ruler-strip__labels {
+.haulz-weight-ruler-row__labels {
     display: flex;
     margin-top: 0.15rem;
 }
 
-.haulz-weight-ruler-strip__label {
-    width: 10px;
-    flex: 0 0 10px;
+.haulz-weight-ruler-row__label {
+    flex: 0 0 auto;
     text-align: center;
     position: relative;
-    min-height: 2.4rem;
+    box-sizing: border-box;
 }
 
-.haulz-weight-ruler-strip__tick {
+.haulz-weight-ruler-row__tick {
     display: block;
     width: 1px;
     height: 6px;
@@ -74,7 +61,7 @@
     background: #999;
 }
 
-.haulz-weight-ruler-strip__label.is-major .haulz-weight-ruler-strip__kg {
+.haulz-weight-ruler-row__label.is-major .haulz-weight-ruler-row__kg {
     display: block;
     font-size: 0.55rem;
     font-weight: 700;
@@ -86,17 +73,32 @@
     margin-top: 0.85rem;
 }
 
-.haulz-weight-ruler-strip__label.is-major .haulz-weight-ruler-strip__cm {
+.haulz-weight-ruler-row__label.is-major .haulz-weight-ruler-row__cm {
     display: none;
 }
 
+/* На экране печатный блок скрыт; в @media print — единственное содержимое */
 .haulz-weight-ruler__print-root {
     display: none;
 }
 
 @media print {
+    @page {
+        size: A4 landscape;
+        margin: 8mm;
+    }
+
+    html,
+    body {
+        background: #fff !important;
+        color: #000 !important;
+        height: auto !important;
+        overflow: visible !important;
+    }
+
+    /* Убираем оболочку приложения, оставляем только линейку */
     body * {
-        visibility: hidden !important;
+        visibility: hidden;
     }
 
     .haulz-weight-ruler__print-root,
@@ -106,7 +108,6 @@
 
     .no-print {
         display: none !important;
-        visibility: hidden !important;
     }
 
     .haulz-weight-ruler__print-root {
@@ -115,55 +116,70 @@
         left: 0;
         top: 0;
         width: 100%;
-        padding: 8mm;
+        padding: 0;
+        margin: 0;
         color: #000;
         background: #fff;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
     }
 
     .haulz-weight-ruler__print-header {
-        font-size: 10pt;
+        font-size: 9pt;
         font-weight: 600;
-        margin-bottom: 4mm;
+        margin-bottom: 3mm;
+        color: #000 !important;
     }
 
-    .haulz-weight-ruler-strip--print {
-        overflow: visible;
+    .haulz-weight-ruler-frame--print {
         border: none;
         border-radius: 0;
         padding: 0;
         max-width: none;
+        background: #fff;
+        overflow: visible;
     }
 
-    .haulz-weight-ruler-strip--print .haulz-weight-ruler-strip__cell {
-        /* 1 см шкалы = 1 см на бумаге */
-        width: 1cm;
-        flex-basis: 1cm;
+    .haulz-weight-ruler-rows {
+        gap: 6mm;
     }
 
-    .haulz-weight-ruler-strip--print .haulz-weight-ruler-strip__label {
-        width: 1cm;
-        flex-basis: 1cm;
-        min-height: 18mm;
+    .haulz-weight-ruler-row {
+        break-inside: avoid;
+        page-break-inside: avoid;
     }
 
-    .haulz-weight-ruler-strip--print .haulz-weight-ruler-strip__track {
-        height: 2.2mm;
-    }
-
-    .haulz-weight-ruler-strip--print .haulz-weight-ruler-strip__label.is-major .haulz-weight-ruler-strip__kg {
+    .haulz-weight-ruler-row__meta {
         font-size: 7pt;
-        margin-top: 6mm;
+        color: #333 !important;
+        margin-bottom: 1mm;
     }
 
-    .haulz-weight-ruler-strip--print .haulz-weight-ruler-strip__label.is-major .haulz-weight-ruler-strip__cm {
-        display: block;
+    .haulz-weight-ruler-row__strip {
+        overflow: visible;
+        max-width: none;
+    }
+
+    .haulz-weight-ruler-row__svg {
+        max-width: none !important;
+    }
+
+    .haulz-weight-ruler-row__label.is-major .haulz-weight-ruler-row__kg {
         font-size: 6pt;
-        color: #444;
-        margin-top: 1mm;
+        margin-top: 5mm;
+        color: #000 !important;
     }
 
-    @page {
-        size: landscape;
-        margin: 8mm;
+    .haulz-weight-ruler-row__label.is-major .haulz-weight-ruler-row__cm {
+        display: block;
+        font-size: 5.5pt;
+        color: #333 !important;
+        margin-top: 0.5mm;
+    }
+
+    .haulz-weight-ruler-row__tick {
+        background: #666 !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
     }
 }

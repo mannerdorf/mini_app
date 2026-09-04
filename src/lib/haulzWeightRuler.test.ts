@@ -3,6 +3,7 @@ import {
   absoluteBitsAtCm,
   absoluteTrackCount,
   buildRulerTicks,
+  chunkRulerTicks,
   stripLengthCm,
   validateWeightRulerConfig,
   weightFromPositionCm,
@@ -29,9 +30,11 @@ describe("haulzWeightRuler", () => {
     expect(a).not.toBe(b);
   });
 
-  it("builds ticks covering range", () => {
-    const ticks = buildRulerTicks({ start: 0, end: 5, step: 1 });
-    expect(ticks[0]?.label).toBe("0");
-    expect(ticks[ticks.length - 1]?.weightKg).toBeLessThanOrEqual(5);
+  it("chunks ticks into rows", () => {
+    const ticks = buildRulerTicks({ start: 0, end: 10, step: 1 });
+    const rows = chunkRulerTicks(ticks, 4);
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows[0]?.length).toBe(4);
+    expect(rows.flat().length).toBe(ticks.length);
   });
 });

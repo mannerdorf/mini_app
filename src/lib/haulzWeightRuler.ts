@@ -124,3 +124,16 @@ export function buildRulerTicks(cfg: HaulzWeightRulerConfig): RulerTick[] {
   }
   return ticks;
 }
+
+/** Разбить ленту на строки по ширине листа (см в строке). */
+export function chunkRulerTicks<T>(ticks: T[], cmPerRow: number): T[][] {
+  const size = Math.max(1, Math.floor(cmPerRow));
+  const rows: T[][] = [];
+  for (let i = 0; i < ticks.length; i += size) {
+    rows.push(ticks.slice(i, i + size));
+  }
+  return rows;
+}
+
+/** Сколько см помещается в строку печати (A4 landscape ≈ 27 см полезных). */
+export const PRINT_CM_PER_ROW = 25;

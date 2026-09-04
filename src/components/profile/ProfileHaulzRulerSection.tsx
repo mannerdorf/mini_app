@@ -5,20 +5,26 @@ import {
   absoluteBitsAtCm,
   absoluteTrackCount,
   buildRulerTicks,
+  chunkRulerTicks,
   DEFAULT_WEIGHT_RULER_CONFIG,
   formatWeightKg,
   loadWeightRulerConfig,
   parseWeightRulerNumber,
+  PRINT_CM_PER_ROW,
   saveWeightRulerConfig,
   stripLengthCm,
   validateWeightRulerConfig,
   weightFromPositionCm,
   type HaulzWeightRulerConfig,
+  type RulerTick,
 } from "../../lib/haulzWeightRuler";
 
 type Props = {
   onBack: () => void;
 };
+
+const PREVIEW_CM_PER_ROW = 20;
+const PREVIEW_MAX_CM = 80;
 
 /** HAULZ → Линейка веса: калибровка начало/конец/шаг + печать absolute-шкалы. */
 export function ProfileHaulzRulerSection({ onBack }: Props) {
@@ -43,6 +49,20 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
     [config, validationError],
   );
 
+  const printRows = useMemo(
+    () => chunkRulerTicks(ticks, PRINT_CM_PER_ROW),
+    [ticks],
+  );
+
+  const previewTicks = useMemo(
+    () => ticks.filter((t) => t.cm <= Math.min(PREVIEW_MAX_CM, Math.ceil(lengthCm))),
+    [ticks, lengthCm],
+  );
+  const previewRows = useMemo(
+    () => chunkRulerTicks(previewTicks, PREVIEW_CM_PER_ROW),
+    [previewTicks],
+  );
+
   const scannedWeight = useMemo(() => {
     const cm = parseWeightRulerNumber(scanCm);
     if (cm == null || validationError) return null;
@@ -64,11 +84,13 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
       return;
     }
     saveWeightRulerConfig(config);
-    window.print();
+    // Дать браузеру отрисовать print-root до диалога печати
+    requestAnimationFrame(() => {
+      window.print();
+    });
   }, [config, validationError]);
 
   const trackCount = absoluteTrackCount(Math.max(1, lengthCm));
-  const previewTicks = ticks.filter((t) => t.cm <= Math.min(40, Math.ceil(lengthCm)));
 
   return (
     <div className="w-full haulz-weight-ruler">
@@ -82,7 +104,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
       <Panel className="haulz-weight-ruler__panel no-print" style={{ padding: "1rem", marginBottom: "1rem" }}>
         <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
           Absolute-линейка как для ДШВ: сканер читает позицию в см, приложение переводит в кг.
-          Шаг — сколько кг на 1 см ленты. Печать — шкала с дорожками Gray и подписями веса.
+          Шаг — сколько кг на 1 см ленты. Печать — строки по {PRINT_CM_PER_ROW} см (ширина листа), продолжение ниже до конца диапазона.
         </Typography.Body>
 
         <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
@@ -105,6 +127,8 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
             Длина ленты: <strong>{formatWeightKg(lengthCm)} см</strong>
             {" · "}
             точек: <strong>{ticks.length}</strong>
+            {" · "}
+            строк печати: <strong>{printRows.length}</strong>
             {" · "}
             дорожек: <strong>{trackCount}</strong>
             {" · "}
@@ -154,26 +178,26 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
         </Flex>
       </Panel>
 
-      {!validationError && previewTicks.length > 0 ? (
+      {!validationError && previewRows.length > 0 ? (
         <div className="haulz-weight-ruler__preview no-print" aria-label="Превью линейки">
           <Typography.Label style={{ marginBottom: "0.35rem", display: "block" }}>
-            Превью (первые {previewTicks.length - 1} см)
+            Превью (до {previewTicks[previewTicks.length - 1]?.cm ?? 0} см, перенос по {PREVIEW_CM_PER_ROW} см)
           </Typography.Label>
-          <div className="haulz-weight-ruler-strip haulz-weight-ruler-strip--preview">
-            <RulerAbsoluteStrip ticks={previewTicks} trackCount={trackCount} />
+          <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--preview">
+            <RulerWrappedStrip rows={previewRows} trackCount={trackCount} cellPx={10} />
           </div>
         </div>
       ) : null}
 
-      {/* Печатная область */}
-      {!validationError && ticks.length > 0 ? (
-        <div className="haulz-weight-ruler__print-root print-only" aria-hidden>
+      {!validationError && printRows.length > 0 ? (
+        <div className="haulz-weight-ruler__print-root" aria-hidden>
           <div className="haulz-weight-ruler__print-header">
             HAULZ линейка веса · {formatWeightKg(config.start)}–{formatWeightKg(config.end)} кг · шаг{" "}
-            {formatWeightKg(config.step)} кг/см · длина {formatWeightKg(lengthCm)} см
+            {formatWeightKg(config.step)} кг/см · длина {formatWeightKg(lengthCm)} см · {printRows.length} стр. строк по{" "}
+            {PRINT_CM_PER_ROW} см
           </div>
-          <div className="haulz-weight-ruler-strip haulz-weight-ruler-strip--print">
-            <RulerAbsoluteStrip ticks={ticks} trackCount={trackCount} />
+          <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--print">
+            <RulerWrappedStrip rows={printRows} trackCount={trackCount} cellCm={1} />
           </div>
         </div>
       ) : null}
@@ -181,45 +205,122 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
   );
 }
 
-function RulerAbsoluteStrip({
+function RulerWrappedStrip({
+  rows,
+  trackCount,
+  cellPx,
+  cellCm,
+}: {
+  rows: RulerTick[][];
+  trackCount: number;
+  cellPx?: number;
+  cellCm?: number;
+}) {
+  return (
+    <div className="haulz-weight-ruler-rows">
+      {rows.map((row, rowIdx) => {
+        const from = row[0];
+        const to = row[row.length - 1];
+        return (
+          <div key={`row-${rowIdx}-${from?.cm}`} className="haulz-weight-ruler-row">
+            <div className="haulz-weight-ruler-row__meta">
+              строка {rowIdx + 1}: {from?.cm}–{to?.cm} см · {from?.label}–{to?.label} кг
+            </div>
+            <RulerAbsoluteRow ticks={row} trackCount={trackCount} cellPx={cellPx} cellCm={cellCm} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Одна строка absolute-шкалы: SVG (печатается без «Background graphics»). */
+function RulerAbsoluteRow({
   ticks,
   trackCount,
+  cellPx = 10,
+  cellCm,
 }: {
-  ticks: ReturnType<typeof buildRulerTicks>;
+  ticks: RulerTick[];
   trackCount: number;
+  cellPx?: number;
+  cellCm?: number;
 }) {
   if (ticks.length === 0) return null;
+
+  const useCm = cellCm != null && cellCm > 0;
+  const cellW = useCm ? cellCm! : cellPx;
+  const trackH = useCm ? 0.22 : 5;
+  const gap = useCm ? 0.04 : 1;
+  const tracksH = trackCount * trackH + (trackCount - 1) * gap;
+  const svgW = ticks.length * cellW;
+  const labelH = useCm ? 1.6 : 36;
+  const unit = useCm ? "cm" : undefined;
+
+  const rects: React.ReactNode[] = [];
+  for (let t = 0; t < trackCount; t++) {
+    const y = t * (trackH + gap);
+    let runStart = -1;
+    for (let i = 0; i <= ticks.length; i++) {
+      const black = i < ticks.length ? absoluteBitsAtCm(ticks[i]!.cm, trackCount)[t] === true : false;
+      if (black && runStart < 0) runStart = i;
+      if ((!black || i === ticks.length) && runStart >= 0) {
+        const w = (i - runStart) * cellW;
+        rects.push(
+          <rect
+            key={`t${t}-${runStart}`}
+            x={runStart * cellW}
+            y={y}
+            width={w}
+            height={trackH}
+            fill="#000"
+          />,
+        );
+        runStart = -1;
+      }
+    }
+  }
+
   return (
-    <div className="haulz-weight-ruler-strip__inner">
-      <div className="haulz-weight-ruler-strip__tracks" style={{ gridTemplateRows: `repeat(${trackCount}, 1fr)` }}>
-        {Array.from({ length: trackCount }, (_, trackIdx) => (
-          <div key={trackIdx} className="haulz-weight-ruler-strip__track">
-            {ticks.map((tick) => {
-              const bits = absoluteBitsAtCm(tick.cm, trackCount);
-              const black = bits[trackIdx];
-              return (
-                <span
-                  key={`${trackIdx}-${tick.cm}`}
-                  className={`haulz-weight-ruler-strip__cell${black ? " is-black" : ""}`}
-                />
-              );
-            })}
-          </div>
-        ))}
-      </div>
-      <div className="haulz-weight-ruler-strip__labels">
+    <div className="haulz-weight-ruler-row__strip">
+      <svg
+        className="haulz-weight-ruler-row__svg"
+        width={useCm ? undefined : svgW}
+        height={useCm ? undefined : tracksH + 2}
+        viewBox={`0 0 ${svgW} ${tracksH}`}
+        style={
+          useCm
+            ? { width: `${svgW}${unit}`, height: `${tracksH}${unit}`, display: "block" }
+            : { display: "block" }
+        }
+        xmlns="http://www.w3.org/2000/svg"
+      >
+        <rect x={0} y={0} width={svgW} height={tracksH} fill="#fff" stroke="#000" strokeWidth={useCm ? 0.03 : 1} />
+        {rects}
+      </svg>
+      <div
+        className="haulz-weight-ruler-row__labels"
+        style={{
+          width: useCm ? `${svgW}${unit}` : svgW,
+          minHeight: useCm ? `${labelH}${unit}` : labelH,
+        }}
+      >
         {ticks.map((tick) => (
           <div
             key={`lbl-${tick.cm}`}
-            className={`haulz-weight-ruler-strip__label${tick.major ? " is-major" : ""}`}
+            className={`haulz-weight-ruler-row__label${tick.major ? " is-major" : ""}`}
+            style={{
+              width: useCm ? `${cellW}${unit}` : cellW,
+              flexBasis: useCm ? `${cellW}${unit}` : cellW,
+            }}
           >
             {tick.major ? (
               <>
-                <span className="haulz-weight-ruler-strip__kg">{tick.label}</span>
-                <span className="haulz-weight-ruler-strip__cm">{tick.cm}</span>
+                <span className="haulz-weight-ruler-row__kg">{tick.label}</span>
+                <span className="haulz-weight-ruler-row__cm">{tick.cm}</span>
               </>
             ) : (
-              <span className="haulz-weight-ruler-strip__tick" />
+              <span className="haulz-weight-ruler-row__tick" aria-hidden />
             )}
           </div>
         ))}
