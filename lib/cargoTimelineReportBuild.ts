@@ -12,6 +12,14 @@ import {
 } from "./cargoTimelineReport.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
 
+export const CARGO_TIMELINE_MAX_PERIOD_DAYS = 7;
+
+function inclusiveDaySpan(dateFrom: string, dateTo: string): number {
+  const from = new Date(`${dateFrom}T12:00:00`);
+  const to = new Date(`${dateTo}T12:00:00`);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000) + 1;
+}
+
 const GETAPI_BASE = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const UPSTREAM_TIMEOUT_MS = 20_000;
@@ -160,8 +168,11 @@ export function parseCargoTimelineReportParams(body: Record<string, unknown>): B
   if (dateFrom > dateTo) {
     return { error: "dateFrom не может быть позже dateTo" };
   }
+  if (inclusiveDaySpan(dateFrom, dateTo) > CARGO_TIMELINE_MAX_PERIOD_DAYS) {
+    return { error: `Период не может быть больше ${CARGO_TIMELINE_MAX_PERIOD_DAYS} дней` };
+  }
 
-  const routeFilterRaw = String(body.routeFilter ?? "all").trim();
+  const routeFilterRaw = String(body.routeFilter ?? "MSK-KGD").trim();
   const routeFilter = routeFilterRaw === "MSK-KGD" || routeFilterRaw === "KGD-MSK" ? routeFilterRaw : "all";
   const delayFilterRaw = String(body.delayFilter ?? "all").trim();
   const delayFilter: CargoTimelineDelayFilter =

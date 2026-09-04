@@ -15,6 +15,8 @@ export type ListDateFilterControlProps = PersistedDateFilterControls & {
   apiDateRange: { dateFrom: string; dateTo: string };
   className?: string;
   onResetFilters?: () => void;
+  /** Только выбор календарной недели (пн–вс), без месяца/года/произвольного периода. */
+  weekOnly?: boolean;
 };
 
 export function ListDateFilterControl({
@@ -33,6 +35,7 @@ export function ListDateFilterControl({
   setSelectedWeekForFilter,
   className,
   onResetFilters,
+  weekOnly = false,
 }: ListDateFilterControlProps) {
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "years" | "weeks">("main");
@@ -54,7 +57,7 @@ export function ListDateFilterControl({
             className="filter-button"
             onClick={() => {
               setIsDateDropdownOpen(!isDateDropdownOpen);
-              setDateDropdownMode("main");
+              if (!weekOnly) setDateDropdownMode("main");
             }}
           >
             Дата:{" "}
@@ -73,7 +76,33 @@ export function ListDateFilterControl({
           isOpen={isDateDropdownOpen}
           onClose={() => setIsDateDropdownOpen(false)}
         >
-          {dateDropdownMode === "months" ? (
+          {weekOnly || dateDropdownMode === "weeks" ? (
+            <>
+              {!weekOnly ? (
+                <div
+                  className="dropdown-item"
+                  onClick={() => setDateDropdownMode("main")}
+                  style={{ fontWeight: 600 }}
+                >
+                  ← Назад
+                </div>
+              ) : null}
+              {getWeeksList(16).map((w) => (
+                <div
+                  key={w.monday}
+                  className="dropdown-item"
+                  onClick={() => {
+                    setDateFilter("неделя");
+                    setSelectedWeekForFilter(w.monday);
+                    setIsDateDropdownOpen(false);
+                    if (!weekOnly) setDateDropdownMode("main");
+                  }}
+                >
+                  <Typography.Body>{w.label}</Typography.Body>
+                </div>
+              ))}
+            </>
+          ) : dateDropdownMode === "months" ? (
             <>
               <div
                 className="dropdown-item"
@@ -121,30 +150,6 @@ export function ListDateFilterControl({
                   }}
                 >
                   <Typography.Body>{y}</Typography.Body>
-                </div>
-              ))}
-            </>
-          ) : dateDropdownMode === "weeks" ? (
-            <>
-              <div
-                className="dropdown-item"
-                onClick={() => setDateDropdownMode("main")}
-                style={{ fontWeight: 600 }}
-              >
-                ← Назад
-              </div>
-              {getWeeksList(16).map((w) => (
-                <div
-                  key={w.monday}
-                  className="dropdown-item"
-                  onClick={() => {
-                    setDateFilter("неделя");
-                    setSelectedWeekForFilter(w.monday);
-                    setIsDateDropdownOpen(false);
-                    setDateDropdownMode("main");
-                  }}
-                >
-                  <Typography.Body>{w.label}</Typography.Body>
                 </div>
               ))}
             </>

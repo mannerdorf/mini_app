@@ -18,6 +18,7 @@ import {
 import { formatTimelineDate } from "../../../lib/dateUtils";
 import { ListDateFilterControl, useListDateRange, usePersistedDateFilter } from "../../listWorkspace";
 import { routeKeyToCargoLabel, type RouteFilterKey } from "../../../lib/sharedListFilters";
+import { CARGO_TIMELINE_DATE_FILTER_STORAGE_KEY } from "../../../lib/cargoTimelineReportShared";
 import type { PerevozkaTimelineStep } from "../../../types";
 
 function formatGapCell(hours: number | null, overdue: boolean): React.ReactNode {
@@ -114,7 +115,7 @@ export function AdminCargoTimelineSection({
   auth?: AuthData;
   useServiceRequest?: boolean;
 }) {
-  const dateFilterControls = usePersistedDateFilter();
+  const dateFilterControls = usePersistedDateFilter({ storageKey: CARGO_TIMELINE_DATE_FILTER_STORAGE_KEY });
   const { apiDateRange } = useListDateRange({
     dateFilter: dateFilterControls.dateFilter,
     customDateFrom: dateFilterControls.customDateFrom,
@@ -124,7 +125,7 @@ export function AdminCargoTimelineSection({
     selectedWeekForFilter: dateFilterControls.selectedWeekForFilter,
   });
 
-  const [routeFilter, setRouteFilter] = useState<"all" | RouteFilterKey>("all");
+  const [routeFilter, setRouteFilter] = useState<"all" | RouteFilterKey>("MSK-KGD");
   const [delayFilter, setDelayFilter] = useState<CargoTimelineDelayFilter>("all");
   const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
   const [isDelayDropdownOpen, setIsDelayDropdownOpen] = useState(false);
@@ -135,6 +136,12 @@ export function AdminCargoTimelineSection({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [expandedCargo, setExpandedCargo] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (dateFilterControls.dateFilter !== "неделя") {
+      dateFilterControls.setDateFilter("неделя");
+    }
+  }, [dateFilterControls.dateFilter, dateFilterControls.setDateFilter]);
 
   const loadReport = useCallback(async () => {
     setLoading(true);
@@ -198,8 +205,11 @@ export function AdminCargoTimelineSection({
         <ListDateFilterControl
           {...dateFilterControls}
           apiDateRange={apiDateRange}
+          weekOnly
           onResetFilters={() => {
-            setRouteFilter("all");
+            dateFilterControls.setDateFilter("неделя");
+            dateFilterControls.setSelectedWeekForFilter(null);
+            setRouteFilter("MSK-KGD");
             setDelayFilter("all");
             setIsRouteDropdownOpen(false);
             setIsDelayDropdownOpen(false);

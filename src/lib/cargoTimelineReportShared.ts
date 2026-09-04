@@ -1,4 +1,7 @@
 export const CARGO_TIMELINE_NORM_HOURS = 24;
+/** Максимальный период запроса отчёта (календарные дни, вкл. границы). */
+export const CARGO_TIMELINE_MAX_PERIOD_DAYS = 7;
+export const CARGO_TIMELINE_DATE_FILTER_STORAGE_KEY = "haulz.cargoTimelineDateFilter";
 
 export type CargoTimelineStep = {
   label: string;
