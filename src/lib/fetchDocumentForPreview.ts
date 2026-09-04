@@ -1,4 +1,4 @@
-import { apiFetchJson, decodeBase64Payload } from "../utils";
+import { fetchDownloadDocument } from "./downloadDocumentDirect";
 import { buildDownloadRequestBody } from "./downloadRequestBody";
 import { transliterateFilename } from "./formatUtils";
 import type { AuthData } from "../types";
@@ -31,17 +31,13 @@ export async function fetchDocumentForPreview(
   };
   const body =
     auth?.login && auth?.password ? buildDownloadRequestBody(auth, payload) : payload;
-  const data = await apiFetchJson<{ data?: string; name?: string; isHtml?: boolean }>("/api/download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!data?.data || !data.name) throw new Error("Документ не найден");
-  const byteArray = decodeBase64Payload(data.data);
+  const data = await fetchDownloadDocument(body);
+  const { decodeBase64Payload } = await import("../utils");
+  const byteArray = decodeBase64Payload(String(data.data));
   const mime = data.isHtml ? "text/html;charset=utf-8" : "application/pdf";
   return {
     blob: new Blob([byteArray], { type: mime }),
-    fileName: transliterateFilename(data.name),
+    fileName: transliterateFilename(data.name || `${params.metod}_${params.number}.pdf`),
     isHtml: Boolean(data.isHtml),
   };
 }

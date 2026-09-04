@@ -224,19 +224,17 @@ export function DocumentsInvoiceTableBadges({
       ) : null}
       {(showBill || showRoute) && (
         <div className="documents-invoice-table-badges__meta">
-          <div className="documents-invoice-table-badges__meta-left">
-            {showRoute ? (
-              <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
-                {perevozkiLoading ? (
-                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                ) : (
-                  <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge>
-                )}
-              </span>
-            ) : null}
-          </div>
-          <div className="documents-invoice-table-badges__meta-right">
-            {showBill ? (
+          {showRoute ? (
+            <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap documents-invoice-table-badges__meta-route">
+              {perevozkiLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
+              ) : (
+                <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge>
+              )}
+            </span>
+          ) : null}
+          {showBill ? (
+            <span className="documents-invoice-table-badges__meta-bill">
               <AppBadge
                 tone="neutral"
                 className="documents-invoice-inner-badge"
@@ -244,8 +242,8 @@ export function DocumentsInvoiceTableBadges({
               >
                 {billStatus}
               </AppBadge>
-            ) : null}
-          </div>
+            </span>
+          ) : null}
         </div>
       )}
     </div>

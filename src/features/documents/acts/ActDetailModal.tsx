@@ -96,7 +96,7 @@ export function ActDetailModal({
         const metod = DOCUMENT_METHODS[label] ?? label;
         const isInvoiceDoc = label === "СЧЕТ";
         const numberForApi = isInvoiceDoc
-            ? (invoiceNum ? String(invoiceNum).trim() : formatPerevozkaNumberForApi(cargoNumber))
+            ? String(cargoNumber).trim()
             : formatPerevozkaNumberForApi(cargoNumber);
         setDownloading(label);
         setDownloadError(null);

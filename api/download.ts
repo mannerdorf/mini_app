@@ -455,7 +455,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("❌ No file data in response. Keys:", Object.keys(jsonResponse));
           // Файл не найден — не причина для бана
           return res.status(404).json({
-            error: "File not found",
+            error: "Файл не найден",
             message: `Документ ${metod} для перевозки ${number} не найден`,
             request_id: ctx.requestId,
           });

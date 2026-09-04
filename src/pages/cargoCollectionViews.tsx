@@ -39,6 +39,182 @@ function plannedArrivalIso(item: CargoItem, routeTypePlanDays: Map<string, numbe
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+function cargoInnerTableNumberColor(
+  item: CargoItem,
+  workScheduleByInn: Record<string, WorkSchedule>,
+): string | undefined {
+  const s = getSlaInfo(item, workScheduleByInn);
+  return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined;
+}
+
+type CargoInnerTableRowsProps = {
+  item: CargoItem;
+  rowKey: string | number;
+  isMobile: boolean;
+  showOrderCol: boolean;
+  showSums: boolean;
+  workScheduleByInn: Record<string, WorkSchedule>;
+  routeTypePlanDays: Map<string, number>;
+  onSelectCargo: (item: CargoItem) => void;
+};
+
+function CargoInnerTableRows({
+  item,
+  rowKey,
+  isMobile,
+  showOrderCol,
+  showSums,
+  workScheduleByInn,
+  routeTypePlanDays,
+  onSelectCargo,
+}: CargoInnerTableRowsProps) {
+  const openCargo = () => onSelectCargo(item);
+  const rowClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    openCargo();
+  };
+  const rowStyle = { borderBottom: "1px solid var(--color-border)", cursor: "pointer" as const };
+  const numberColor = cargoInnerTableNumberColor(item, workScheduleByInn);
+  const planDateContent = (() => {
+    const iso = plannedArrivalIso(item, routeTypePlanDays);
+    return iso ? <DateText value={iso} omitYear={isMobile} /> : "—";
+  })();
+  const badges = (
+    <CargoLogisticsBadges item={item} showPayment={showSums} showRouteInline />
+  );
+  const badgesColSpan = showOrderCol ? 4 : 3;
+
+  if (isMobile) {
+    return (
+      <React.Fragment key={rowKey}>
+        <tr
+          className="cargo-inner-table__row cargo-inner-table__row--main"
+          style={rowStyle}
+          onClick={rowClick}
+          title="Открыть карточку перевозки"
+        >
+          <td rowSpan={2} className="cargo-inner-table__col-type" style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
+            <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
+          </td>
+          <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
+            <ClickableCargoNumber
+              number={item.Number}
+              onOpen={openCargo}
+              className="cargo-inner-table__number"
+              style={{ color: numberColor }}
+            />
+          </td>
+          {showOrderCol && (
+            <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
+              {(item as { Order?: string }).Order != null && String((item as { Order?: string }).Order).trim() !== ""
+                ? String((item as { Order?: string }).Order).trim()
+                : "—"}
+            </td>
+          )}
+          <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}>
+            <DateText value={item.DatePrih} omitYear={isMobile} />
+          </td>
+          <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
+            {planDateContent}
+          </td>
+          <td rowSpan={2} className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
+          <td rowSpan={2} className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
+            <RouteBadge route={getCargoItemRouteLabel(item)} />
+          </td>
+          <td rowSpan={2} className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+            {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
+          </td>
+          <td
+            rowSpan={2}
+            className="cargo-inner-table__col-pw"
+            style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", minWidth: "4rem" }}
+          >
+            <span className="cargo-inner-table__pw-line">{item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}</span>
+            {showSums && (
+              <span className="cargo-inner-table__sum-mobile-line">
+                {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
+              </span>
+            )}
+          </td>
+          {showSums && (
+            <td rowSpan={2} className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+              {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
+            </td>
+          )}
+        </tr>
+        <tr
+          className="cargo-inner-table__row cargo-inner-table__row--badges"
+          style={rowStyle}
+          onClick={rowClick}
+          title="Открыть карточку перевозки"
+        >
+          <td colSpan={badgesColSpan} className="cargo-inner-table__badges-cell">
+            {badges}
+          </td>
+        </tr>
+      </React.Fragment>
+    );
+  }
+
+  return (
+    <tr
+      key={rowKey}
+      className="cargo-inner-table__row"
+      style={rowStyle}
+      onClick={rowClick}
+      title="Открыть карточку перевозки"
+    >
+      <td className="cargo-inner-table__col-type" style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
+        <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
+      </td>
+      <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
+        <div className="cargo-inner-table-badges-anchor">
+          <ClickableCargoNumber
+            number={item.Number}
+            onOpen={openCargo}
+            className="cargo-inner-table__number"
+            style={{ color: numberColor }}
+          />
+          {badges}
+        </div>
+      </td>
+      {showOrderCol && (
+        <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
+          {(item as { Order?: string }).Order != null && String((item as { Order?: string }).Order).trim() !== ""
+            ? String((item as { Order?: string }).Order).trim()
+            : "—"}
+        </td>
+      )}
+      <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}>
+        <DateText value={item.DatePrih} omitYear={isMobile} />
+      </td>
+      <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
+        {planDateContent}
+      </td>
+      <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
+      <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
+        <RouteBadge route={getCargoItemRouteLabel(item)} />
+      </td>
+      <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+        {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
+      </td>
+      <td className="cargo-inner-table__col-pw" style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", minWidth: "4rem" }}>
+        <span className="cargo-inner-table__pw-line">{item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}</span>
+        {showSums && (
+          <span className="cargo-inner-table__sum-mobile-line">
+            {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
+          </span>
+        )}
+      </td>
+      {showSums && (
+        <td className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
+          {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
+        </td>
+      )}
+    </tr>
+  );
+}
+
 type CargoCustomerTableProps = {
   showSums: boolean;
   /** Одна компания: сразу таблица перевозок без строки-свёртки по заказчику. */
@@ -194,53 +370,17 @@ export function CargoCustomerTable({
             </thead>
             <tbody>
               {sortInnerItems(listItems).map((item, j) => (
-                <tr
+                <CargoInnerTableRows
                   key={item.Number || j}
-                  className="cargo-inner-table__row"
-                  style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
-                  onClick={(e) => { e.stopPropagation(); onSelectCargo(item); }}
-                  title="Открыть карточку перевозки"
-                >
-                  <td className="cargo-inner-table__col-type" style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
-                    <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
-                  </td>
-                  <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
-                    <div className="cargo-inner-table-badges-anchor">
-                      <ClickableCargoNumber
-                        number={item.Number}
-                        onOpen={() => onSelectCargo(item)}
-                        className="cargo-inner-table__number"
-                        style={{ color: (() => { const s = getSlaInfo(item, workScheduleByInn); return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined; })() }}
-                      />
-                      <CargoLogisticsBadges
-                        item={item}
-                        showPayment={showSums}
-                        showRouteInline
-                      />
-                    </div>
-                  </td>
-                  {showOrderCol && (
-                    <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
-                      {(item as { Order?: string }).Order != null && String((item as { Order?: string }).Order).trim() !== "" ? String((item as { Order?: string }).Order).trim() : "—"}
-                    </td>
-                  )}
-                  <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}><DateText value={item.DatePrih} omitYear={isMobile} /></td>
-                  <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
-                    {(() => { const iso = plannedArrivalIso(item, routeTypePlanDays); return iso ? <DateText value={iso} omitYear={isMobile} /> : "—"; })()}
-                  </td>
-                  <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
-                  <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
-                  <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>{item.Mest != null ? Math.round(Number(item.Mest)) : "—"}</td>
-                  <td className="cargo-inner-table__col-pw" style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", minWidth: "4rem" }}>
-                    <span className="cargo-inner-table__pw-line">{item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}</span>
-                    {showSums && <span className="cargo-inner-table__sum-mobile-line">{item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}</span>}
-                  </td>
-                  {showSums && (
-                    <td className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                      {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
-                    </td>
-                  )}
-                </tr>
+                  item={item}
+                  rowKey={item.Number || j}
+                  isMobile={isMobile}
+                  showOrderCol={showOrderCol}
+                  showSums={showSums}
+                  workScheduleByInn={workScheduleByInn}
+                  routeTypePlanDays={routeTypePlanDays}
+                  onSelectCargo={onSelectCargo}
+                />
               ))}
             </tbody>
           </table>
@@ -861,91 +1001,21 @@ export function CargoCustomerTable({
                         </thead>
                         <tbody>
                           {sortInnerItems(row.items).map((item, j) => (
-                            <tr
+                            <CargoInnerTableRows
                               key={item.Number || j}
-                              className="cargo-inner-table__row"
-                              style={{ borderBottom: "1px solid var(--color-border)", cursor: "pointer" }}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectCargo(item);
-                              }}
-                              title="Открыть карточку перевозки"
-                            >
-                              <td className="cargo-inner-table__col-type" style={{ padding: "0.35rem 0.3rem", textAlign: "center" }}>
-                                <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
-                              </td>
-                              <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
-                                <div className="cargo-inner-table-badges-anchor">
-                                  <ClickableCargoNumber
-                                    number={item.Number}
-                                    onOpen={() => onSelectCargo(item)}
-                                    className="cargo-inner-table__number"
-                                    style={{
-                                      color: (() => {
-                                        const s = getSlaInfo(item, workScheduleByInn);
-                                        return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined;
-                                      })(),
-                                    }}
-                                  />
-                                  <CargoLogisticsBadges
-                                    item={item}
-                                    showPayment={showSums}
-                                    showRouteInline
-                                  />
-                                </div>
-                              </td>
-                              {row.items.some(
+                              item={item}
+                              rowKey={item.Number || j}
+                              isMobile={isMobile}
+                              showOrderCol={row.items.some(
                                 (i: unknown) =>
                                   (i as { Order?: string }).Order != null &&
-                                  String((i as { Order?: string }).Order).trim() !== ""
-                              ) && (
-                                <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
-                                  {(item as { Order?: string }).Order != null &&
-                                  String((item as { Order?: string }).Order).trim() !== ""
-                                    ? String((item as { Order?: string }).Order).trim()
-                                    : "—"}
-                                </td>
+                                  String((i as { Order?: string }).Order).trim() !== "",
                               )}
-                              <td className="cargo-inner-table__col-date" style={{ padding: "0.35rem 0.3rem" }}>
-                                <DateText value={item.DatePrih} omitYear={isMobile} />
-                              </td>
-                              <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
-                                {(() => {
-                                  const iso = plannedArrivalIso(item, routeTypePlanDays);
-                                  return iso ? <DateText value={iso} omitYear={isMobile} /> : "—";
-                                })()}
-                              </td>
-                              <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
-                              <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
-                                <RouteBadge route={getCargoItemRouteLabel(item)} />
-                              </td>
-                              <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                                {item.Mest != null ? Math.round(Number(item.Mest)) : "—"}
-                              </td>
-                              <td
-                                className="cargo-inner-table__col-pw"
-                                style={{
-                                  padding: "0.35rem 0.3rem",
-                                  textAlign: "right",
-                                  whiteSpace: "nowrap",
-                                  minWidth: "4rem",
-                                }}
-                              >
-                                <span className="cargo-inner-table__pw-line">
-                                  {item.PW != null ? `${Math.round(Number(item.PW))} кг` : "—"}
-                                </span>
-                                {showSums && (
-                                  <span className="cargo-inner-table__sum-mobile-line">
-                                    {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
-                                  </span>
-                                )}
-                              </td>
-                              {showSums && (
-                                <td className="cargo-inner-table__col-sum cargo-inner-table__col-sum--stacked-mobile" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>
-                                  {item.Sum != null ? formatCurrency(item.Sum as number, true) : "—"}
-                                </td>
-                              )}
-                            </tr>
+                              showSums={showSums}
+                              workScheduleByInn={workScheduleByInn}
+                              routeTypePlanDays={routeTypePlanDays}
+                              onSelectCargo={onSelectCargo}
+                            />
                           ))}
                         </tbody>
                       </table>

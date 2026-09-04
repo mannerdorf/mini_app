@@ -33,6 +33,12 @@ export function humanizeStatus(status: number): string {
 
 /** Извлекает текст ошибки из ответа (без служебных символов JSON). Учитывает 1С: { Success, Error }. */
 export function extractErrorMessage(payload: unknown): string {
+    const raw = extractErrorMessageRaw(payload);
+    if (/^file not found$/i.test(raw)) return "Файл не найден";
+    return raw;
+}
+
+function extractErrorMessageRaw(payload: unknown): string {
     if (payload == null) return "";
     if (typeof payload === "object") {
         const o = payload as Record<string, unknown>;

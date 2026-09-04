@@ -110,11 +110,9 @@ export function InvoiceDetailModal({
         setDownloading(label);
         setDownloadError(null);
         try {
-            const apiNumber = isReestr
-                ? numberToUse
-                : isInvoiceDoc && !cargoNumber && invoiceNumber
-                  ? String(invoiceNumber).trim()
-                  : formatPerevozkaNumberForApi(numberToUse);
+            const apiNumber = isReestr || isInvoiceDoc
+                ? String(numberToUse).trim()
+                : formatPerevozkaNumberForApi(numberToUse);
             await downloadDocumentDirect(auth, {
                 metod,
                 number: apiNumber,

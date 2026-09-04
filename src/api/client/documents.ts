@@ -4,6 +4,7 @@
 
 import { apiFetchJson } from "../../utils";
 import { toAbsoluteApiUrl } from "../../lib/absoluteApiUrl";
+import { fetchDownloadDocument } from "../../lib/downloadDocumentDirect";
 import { documentsAuthHeaders, documentsFetchJson, type DocumentsAuth } from "./documentsAuth";
 
 export type { DocumentsAuth } from "./documentsAuth";
@@ -230,13 +231,7 @@ export type DownloadDocumentPayload = {
 export async function postDownloadDocument(
   body: Record<string, unknown>
 ): Promise<DownloadDocumentPayload> {
-  const data = await apiFetchJson<DownloadDocumentPayload>("/api/download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!data?.data) throw new Error("Документ не найден");
-  return data;
+  return fetchDownloadDocument(body);
 }
 
 export async function postOrderCreate(body: {

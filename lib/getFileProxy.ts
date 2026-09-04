@@ -321,7 +321,7 @@ export async function proxyGetFileDownload(
           }
 
           res.status(404).json({
-            error: "File not found",
+            error: "Файл не найден",
             message: `Документ ${metod} для перевозки ${number} не найден`,
             request_id: requestId,
           });
