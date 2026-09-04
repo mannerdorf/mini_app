@@ -78,6 +78,11 @@ export function ProfileHaulzSection({
                         {RED_RETURNS_LABEL}
                     </Button>
                 )}
+                {activeAccount?.permissions?.haulz === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzRuler")}>
+                        Линейка
+                    </Button>
+                )}
             </Flex>
         </div>
     );

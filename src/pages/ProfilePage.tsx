@@ -21,6 +21,7 @@ import { HaulzReturnsPage } from "./HaulzReturnsPage";
 import { HaulzCalculatorPage } from "./HaulzCalculatorPage";
 import { HaulzCalcRequestsPage } from "./HaulzCalcRequestsPage";
 import { ProfileParcelScannerSection } from "../components/profile/ProfileParcelScannerSection";
+import { ProfileHaulzRulerSection } from "../components/profile/ProfileHaulzRulerSection";
 import { ProfileExpenseRequestsSection } from "../components/profile/ProfileExpenseRequestsSection";
 import { ProfileApiKeysSection } from "../components/profile/ProfileApiKeysSection";
 import {
@@ -370,6 +371,13 @@ export function ProfilePage({
                 onBack={() => setCurrentView("main")}
             />
         );
+    }
+
+    if (currentView === "haulzRuler") {
+        if (!activeAccount || activeAccount.permissions?.haulz !== true) {
+            return null;
+        }
+        return <ProfileHaulzRulerSection onBack={() => setCurrentView("haulz")} />;
     }
 
     if (currentView === 'expenseRequests') {
