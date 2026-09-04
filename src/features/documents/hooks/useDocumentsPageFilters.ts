@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
     initSharedFilterSets,
     saveSharedListFilters,
@@ -8,6 +8,8 @@ import {
     type SharedBillStatusKey,
     type TypeFilterKey,
 } from "../../../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../../../lib/pullRefreshEvents";
+import { useResetAllFiltersListener } from "../../../hooks/useResetAllFiltersListener";
 
 export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
     const [customerFilter, setCustomerFilter] = useState<string>("");
@@ -48,6 +50,45 @@ export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
             routeFilterSet,
         }));
     }, [deliveryStatusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setDeliveryStatusFilterSet(init.statusFilterSet);
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
+
+    const resetDocumentsPageFilters = useCallback(() => {
+        const init = initSharedFilterSets();
+        setCustomerFilter("");
+        setActCustomerFilter("");
+        setEdoStatusFilterSet(new Set());
+        setDeliveryStatusFilterSet(init.statusFilterSet);
+        setBillStatusFilterSet(init.billStatusFilterSet);
+        setTypeFilterSet(init.typeFilterSet);
+        setRouteFilterSet(init.routeFilterSet);
+        setInvoiceFavoritesOnly(false);
+        setTransportFilter("");
+        setTransportSearchQuery("");
+        setSortBy("date");
+        setSortOrder("desc");
+        setIsCustomerDropdownOpen(false);
+        setIsActCustomerDropdownOpen(false);
+        setIsBillStatusDropdownOpen(false);
+        setIsTypeDropdownOpen(false);
+        setIsRouteDropdownOpen(false);
+        setIsDeliveryStatusDropdownOpen(false);
+        setIsRouteCargoDropdownOpen(false);
+        setIsTransportDropdownOpen(false);
+        setIsEdoStatusDropdownOpen(false);
+        setIsDateDropdownOpen(false);
+    }, []);
+    useResetAllFiltersListener(resetDocumentsPageFilters);
 
     useEffect(() => {
         if (effectiveServiceMode) return;

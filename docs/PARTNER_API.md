@@ -130,7 +130,7 @@ curl -s -X POST "https://api.haulz.ru/api/partner/v1/orders/create" \
   }'
 ```
 
-Метод 1С настраивается через `ONE_C_ZAYAVKA_UPLOAD_METOD` (по умолчанию `LoadZayavka`).
+Метод 1С по умолчанию — `PostZayavka2` (`ONE_C_ZAYAVKA_UPLOAD_URL`). Legacy: `ONE_C_ZAYAVKA_UPLOAD_METOD` → `GETAPI?metod=…`.
 
 **Тело запроса:** как у соответствующих кэшированных методов приложения (`/api/perevozki`, `/api/sendings`, `/api/orders`) для зарегистрированного пользователя, **без** `login` / `password` в JSON.
 

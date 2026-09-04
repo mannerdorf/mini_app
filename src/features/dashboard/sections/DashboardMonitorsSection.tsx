@@ -28,6 +28,7 @@ export function DashboardMonitorsSection({ page }: Props) {
                     showSums={page.showSums}
                     onOpen={page.onOpenDocumentsInvoices}
                     onOpenInvoice={page.onOpenInvoice}
+                    onOpenCargo={page.onOpenCargo}
                 />
             )}
         </>

@@ -1,42 +1,8 @@
-import { resolveApiOrigin } from "../../lib/resolveApiOrigin";
-
-function toAbsoluteApiUrl(pathOrUrl: string): string {
-  const raw = String(pathOrUrl || "").trim();
-  if (!raw) return raw;
-  if (/^https?:\/\//i.test(raw)) return raw;
-  const path = raw.startsWith("/") ? raw : `/${raw}`;
-
-  // Preview/Production на Vercel: всегда боевой API (VPS), иначе Functions дают 404/405.
-  // Для submit-1c тоже форсим VPS — nested /api/orders/* на Vercel ломается.
-  if (typeof window !== "undefined") {
-    const host = String(window.location.hostname || "").toLowerCase();
-    if (host === "vercel.app" || host.endsWith(".vercel.app")) {
-      return `https://haulz.space${path}`;
-    }
-  }
-
-  // Оформление в 1С: на VPS live только /api/orders/submit-1c (origin/main).
-  // Всегда бьём в haulz.space, чтобы не зависеть от same-origin Vercel/preview.
-  if (
-    path === "/api/orders/submit-1c" ||
-    path === "/api/documents/order-submit-1c" ||
-    path === "/api/order-submit-1c"
-  ) {
-    return `https://haulz.space${path}`;
-  }
-
-  const origin = resolveApiOrigin().replace(/\/+$/, "");
-  if (!origin) return path;
-  if (typeof window !== "undefined") {
-    const page = String(window.location.origin || "").replace(/\/+$/, "");
-    if (page && page === origin) return path;
-  }
-  return `${origin}${path}`;
-}
+import { toAbsoluteApiUrl } from "../../lib/absoluteApiUrl";
 
 /**
  * POST JSON с явным методом через XHR.
- * URL резолвится через resolveApiOrigin (Vercel preview → haulz.space API).
+ * URL резолвится через resolveApiOrigin (Capacitor → haulz.space).
  */
 export function postJsonXhr(
   url: string,
@@ -62,7 +28,7 @@ export function postJsonXhr(
       }
       resolve({ status: xhr.status, data, responseText, url: absoluteUrl, method: "POST" });
     };
-    xhr.onerror = () => reject(new Error(`Network error: POST ${absoluteUrl}`));
+    xhr.onerror = () => reject(new Error("Нет связи с сервером. Проверьте интернет и повторите."));
     xhr.ontimeout = () => reject(new Error(`Timeout: POST ${absoluteUrl}`));
     xhr.timeout = 120_000;
     xhr.send(body);

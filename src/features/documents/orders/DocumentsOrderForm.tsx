@@ -32,6 +32,7 @@ import {
   DocumentsOrderCargoSection,
   type DocumentsOrderCargoState,
 } from "./DocumentsOrderCargoSection";
+import { resolveDocumentsOrderLegParty } from "../../../../lib/documentsOrderLegParty";
 import {
   DocumentsOrderQuoteSummary,
 } from "./DocumentsOrderQuoteSummary";
@@ -60,18 +61,7 @@ function resolveLegEndpoint(state: PvzSelectionState) {
 }
 
 function legParty(state: PvzSelectionState): DeliveryParty {
-  const party: DeliveryParty = { mode: state.deliveryMode };
-  if (state.addressKind === "custom" && state.addr?.point) {
-    const inn = state.inn.replace(/\D/g, "");
-    if (inn) party.inn = inn;
-    const companyName = state.companyName.trim();
-    if (companyName) party.companyName = companyName;
-    const phone = state.phone.trim();
-    if (phone) party.phone = phone;
-    const fullName = state.contactName.trim();
-    if (fullName) party.fullName = fullName;
-  }
-  return party;
+  return resolveDocumentsOrderLegParty(state);
 }
 
 type Props = {
@@ -336,7 +326,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   const canSubmit = Boolean(
     canQuote &&
       quote &&
-      quote.mainlineMode === mainlineMode &&
       !loading &&
       !orderLoading &&
       punktOtpravki &&
@@ -354,7 +343,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     if (!punktOtpravki || !punktNaznacheniya) return "Укажите пункты отправки и назначения";
     if (loading) return "Дождитесь окончания расчёта";
     if (!quote) return "Дождитесь расчёта стоимости";
-    if (quote.mainlineMode !== mainlineMode) return "Дождитесь пересчёта выбранного тарифа";
     return null;
   }, [
     orderLoading,
@@ -366,7 +354,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     punktNaznacheniya,
     loading,
     quote,
-    mainlineMode,
   ]);
 
   const toggleExtra = (code: string) => {
@@ -428,6 +415,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
           ? cargo.tableRows.map((row) => ({
               posylka: row.posylka,
               perevozka: row.perevozka,
+              idOtpravleniya: row.idOtpravleniya,
+              items: row.items?.map((item) => ({
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+              })),
             }))
           : undefined,
       });

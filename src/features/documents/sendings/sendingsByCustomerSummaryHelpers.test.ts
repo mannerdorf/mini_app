@@ -163,7 +163,7 @@ describe("sortByCargoSummaries", () => {
 describe("sumByCargoSummaryTotals", () => {
   it("sums count and weight across cargo rows", () => {
     const rows = buildByCargoSummaries(sampleParcels, {}, new Map(), new Map());
-    expect(sumByCargoSummaryTotals(rows)).toEqual({ count: 3, volume: 6, weight: 1200, paidWeight: 1200 });
+    expect(sumByCargoSummaryTotals(rows)).toEqual({ count: 3, volume: 6, weight: 1200, paidWeight: 1200, cost: 0 });
   });
 });
 

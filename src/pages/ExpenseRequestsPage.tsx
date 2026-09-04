@@ -20,6 +20,7 @@ import {
     postMyDepartmentTimesheetForExpense,
     postMyExpenseRequest,
 } from "../api/client/expenseRequestsUser";
+import { usePullRefreshListener } from "../hooks/usePullRefreshListener";
 
 const VAT_RATES = [
     { value: "", label: "Без НДС" },
@@ -205,6 +206,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     useEffect(() => {
         fetchExpenseRequests();
     }, [fetchExpenseRequests]);
+
+    usePullRefreshListener(fetchExpenseRequests);
 
     // --- Fetch department from employee directory ---
     useEffect(() => {

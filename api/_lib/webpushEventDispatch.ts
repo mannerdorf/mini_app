@@ -4,12 +4,13 @@ import {
   getCargoStageEventsOnStateChange,
   getPaymentKey,
   hasBillSignal,
+  hasBillNumberForPush,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
   notificationItemInn,
   type CargoStageEventId,
 } from "../../lib/notificationPoll.js";
-import { invertScopesByInn, loadPushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
+import { invertScopesByInn, loadEffectivePushLoginScopes, normalizeNotificationInn } from "../../lib/notificationInnScope.js";
 import { acquireWebPushDedupeKey, sendWebPushToLogin } from "./webpushDelivery.js";
 import { sendFcmToLogin } from "./fcmDelivery.js";
 import { wasSuccessfulNotificationDelivery } from "./notificationDeliveryDedupe.js";
@@ -25,10 +26,13 @@ import {
 } from "../../lib/notificationCargoOwnerInn.js";
 import {
   loadCargoPayloadsByNumbers,
+  loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../../lib/notificationCargoPayloadEnrich.js";
 import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
-import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../../lib/pushNotificationTemplates.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../../lib/pushNotificationTemplates.js";
+import { cargoPlannedDeliveryDateFromItem } from "../../lib/cargoDateFilter.js";
+import { dispatchPlannedDeliveryDatePush } from "../../lib/dispatchPlannedDeliveryDatePush.js";
 
 type CargoSnapshotItem = {
   inn?: unknown;
@@ -89,10 +93,12 @@ async function ensureNotificationTables(pool: Pool) {
       cargo_number text not null,
       state text,
       state_bill text,
+      plan_date text,
       updated_at timestamptz not null default now(),
       primary key (inn, cargo_number)
     )`
   );
+  await pool.query(`alter table cargo_last_state add column if not exists plan_date text`);
   await pool.query(
     `create table if not exists notification_deliveries (
       id uuid primary key default gen_random_uuid(),
@@ -185,7 +191,7 @@ export async function dispatchWebPushCargoEvents(params: {
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
-  const scopes = await loadPushLoginScopes(pool);
+  const scopes = await loadEffectivePushLoginScopes(pool);
   const loginsByInn = invertScopesByInn(scopes);
   const scopedPairs: Array<{ login: string; inn: string }> = [];
   for (const inn of inns) {
@@ -282,8 +288,8 @@ export async function dispatchWebPushCargoEvents(params: {
     };
   }
 
-  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null }>(
-    `select inn, cargo_number, state, state_bill
+  const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null; plan_date: string | null }>(
+    `select inn, cargo_number, state, state_bill, plan_date
      from cargo_last_state
      where cargo_number = any($2::text[])
        and (
@@ -292,11 +298,17 @@ export async function dispatchWebPushCargoEvents(params: {
        )`,
     [inns, cargoNumbers]
   );
-  const lastState = new Map<string, { state: string | null; stateBill: string | null }>();
+  const lastState = new Map<string, { state: string | null; stateBill: string | null; planDate: string | null }>();
   for (const row of lastStateRows.rows) {
     const innKey = normalizeNotificationInn(row.inn) || String(row.inn || "").trim();
-    lastState.set(`${innKey}::${row.cargo_number}`, { state: row.state, stateBill: row.state_bill });
+    lastState.set(`${innKey}::${row.cargo_number}`, {
+      state: row.state,
+      stateBill: row.state_bill,
+      planDate: row.plan_date ? String(row.plan_date).trim() : null,
+    });
   }
+
+  const planDateChanges: Array<{ cargoNumber: string; date: string }> = [];
 
   let changed = 0;
   let attempted = 0;
@@ -306,7 +318,18 @@ export async function dispatchWebPushCargoEvents(params: {
   let cleanedSubscriptions = 0;
   const nowBucket = Math.floor(Date.now() / (1000 * dedupeTtlSeconds));
   const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+  const cargoNumbersByInn = new Map<string, string[]>();
+  for (const row of prepared) {
+    const list = cargoNumbersByInn.get(row.inn) || [];
+    if (!list.includes(row.cargoNumber)) list.push(row.cargoNumber);
+    cargoNumbersByInn.set(row.inn, list);
+  }
+  const invoiceByInnAndCargo = new Map<string, Map<string, Record<string, unknown>>>();
+  for (const [inn, nums] of cargoNumbersByInn) {
+    invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
+  }
   const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+  const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
   const perevozkaCreds = getPerevozkiServiceCredentials();
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
@@ -319,19 +342,42 @@ export async function dispatchWebPushCargoEvents(params: {
     ];
     if (eventsToSend.length > 0) changed += 1;
 
+    const planDate = cargoPlannedDeliveryDateFromItem(item.raw as Record<string, unknown>);
+    const prevPlanDate = prev?.planDate ?? null;
+    const planDateNotifyFirstSeen = isFirstSeen && notifyFirstSeen && planDate;
+    if (
+      planDate &&
+      planDate !== prevPlanDate &&
+      (!isFirstSeen || planDateNotifyFirstSeen)
+    ) {
+      planDateChanges.push({ cargoNumber: item.cargoNumber, date: planDate });
+    }
+
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    let deferBillStateUpdate = false;
+    let deferCargoStateUpdate = false;
 
     for (const event of eventsToSend) {
       const templateItem = await resolveCargoItemForPushTemplate({
         item: item.raw as Record<string, unknown>,
         event,
         payloadByNumber,
+        invoiceByCargoNumber: invoiceByInnAndCargo.get(item.inn),
         customerInn: item.inn,
         serviceLogin: perevozkaCreds?.login,
         servicePassword: perevozkaCreds?.password,
         perevozkaCache: perevozkaDetailCache,
+        invoiceLiveCache,
       });
+      if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
+        deferBillStateUpdate = true;
+        continue;
+      }
+      if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+        deferCargoStateUpdate = true;
+        continue;
+      }
       const message = formatPushNotificationMessage(event, item.cargoNumber, templateItem, pushTemplates);
       for (const [login, eventsEnabled] of subscribers.entries()) {
         if (
@@ -464,15 +510,34 @@ export async function dispatchWebPushCargoEvents(params: {
     }
 
     try {
+      const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
+      const stateToPersist = deferCargoStateUpdate ? (prev?.state ?? null) : item.state;
       await pool.query(
-        `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
-         values ($1,$2,$3,$4,now())
+        `insert into cargo_last_state (inn, cargo_number, state, state_bill, plan_date, updated_at)
+         values ($1,$2,$3,$4,$5,now())
          on conflict (inn, cargo_number)
-         do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-        [item.inn, item.cargoNumber, item.state, item.stateBill]
+         do update set state = excluded.state, state_bill = excluded.state_bill,
+           plan_date = excluded.plan_date,
+           updated_at = now()`,
+        [item.inn, item.cargoNumber, stateToPersist, stateBillToPersist, planDate || null]
       );
     } catch {
       // State persistence is best-effort when DB schema differs.
+    }
+  }
+
+  if (planDateChanges.length > 0) {
+    try {
+      const planResult = await dispatchPlannedDeliveryDatePush({
+        pool,
+        plans: planDateChanges,
+      });
+      attempted += planResult.attempted;
+      delivered += planResult.delivered;
+      failed += planResult.failed;
+      deduped += planResult.skipped;
+    } catch {
+      // plan-date push is best-effort
     }
   }
 

@@ -374,8 +374,8 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                     Свернуть
                                 </Button>
                             </Flex>
-                            <div style={{ overflowX: 'auto', maxHeight: 420, overflowY: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                            <div className="dashboard-scroll-table-wrap" style={{ maxHeight: 420, overflowY: 'auto' }}>
+                                <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                     <thead>
                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-card)' }}>
                                             <th style={{ padding: '0.4rem 0.45rem', textAlign: 'left', fontWeight: 600, width: 28 }}>#</th>
@@ -400,26 +400,27 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                                 <React.Fragment key={customerRow.customer}>
                                                     <tr
                                                         onClick={() => page.setExpandedCombinedLogisticsCustomer(expanded ? null : customerRow.customer)}
+                                                        className="dashboard-scroll-table__data-row"
                                                         style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', background: expanded ? 'var(--color-bg-card)' : undefined }}
                                                         title={expanded ? 'Свернуть перевозки' : 'Показать перевозки'}
                                                     >
-                                                        <td style={{ padding: '0.4rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
-                                                        <td className="customer-col" style={{ padding: '0.4rem 0.45rem', fontWeight: 600 }}>
+                                                        <td data-label="#" style={{ padding: '0.4rem 0.45rem', color: 'var(--color-text-secondary)' }}>{idx + 1}</td>
+                                                        <td data-label="Заказчик" className="customer-col" style={{ padding: '0.4rem 0.45rem', fontWeight: 600 }}>
                                                             {expanded ? <ArrowUp className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} /> : <ArrowDown className="w-3 h-3" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} />}
                                                             {stripOoo(customerRow.customer)}
                                                         </td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.count.toLocaleString('ru-RU')}</td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.w).toLocaleString('ru-RU')}</td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.vol.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}</td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.pw).toLocaleString('ru-RU')}</td>
-                                                        <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.mest).toLocaleString('ru-RU')}</td>
-                                                        {page.showSums && <td style={{ padding: '0.4rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(customerRow.sum, true)}</td>}
+                                                        <td data-label="Перевозки" style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.count.toLocaleString('ru-RU')}</td>
+                                                        <td data-label="Кг" style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.w).toLocaleString('ru-RU')}</td>
+                                                        <td data-label="Объём" style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{customerRow.vol.toLocaleString('ru-RU', { maximumFractionDigits: 2 })}</td>
+                                                        <td data-label="Плат. вес" style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.pw).toLocaleString('ru-RU')}</td>
+                                                        <td data-label="Мест" style={{ padding: '0.4rem 0.45rem', textAlign: 'right' }}>{Math.round(customerRow.mest).toLocaleString('ru-RU')}</td>
+                                                        {page.showSums && <td data-label="Рубли" style={{ padding: '0.4rem 0.45rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(customerRow.sum, true)}</td>}
                                                     </tr>
                                                     {expanded && (
-                                                        <tr>
+                                                        <tr className="dashboard-scroll-table__detail-row">
                                                             <td colSpan={page.showSums ? 8 : 7} style={{ padding: '0.45rem 0.55rem', borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-primary)' }}>
-                                                                <div style={{ overflowX: 'auto' }}>
-                                                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem' }}>
+                                                                <div className="dashboard-scroll-table-wrap">
+                                                                    <table className="dashboard-scroll-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.76rem' }}>
                                                                         <thead>
                                                                             <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
                                                                                 <th style={{ padding: '0.3rem', textAlign: 'left', fontWeight: 600 }}>Перевозка</th>
@@ -439,17 +440,17 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                                                                     ? leafRowClickProps(() => page.onOpenCargo(cargoNum, item), 'Открыть карточку перевозки')
                                                                                     : null;
                                                                                 return (
-                                                                                <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} style={{ borderBottom: '1px solid var(--color-border)', ...(leafOpen?.style ?? {}) }} onClick={leafOpen?.onClick} title={leafOpen?.title}>
-                                                                                    <td style={{ padding: '0.3rem' }}>
+                                                                                <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} className="dashboard-scroll-table__data-row" style={{ borderBottom: '1px solid var(--color-border)', ...(leafOpen?.style ?? {}) }} onClick={leafOpen?.onClick} title={leafOpen?.title}>
+                                                                                    <td data-label="Перевозка" style={{ padding: '0.3rem' }}>
                                                                                         <ClickableCargoNumber number={cargoNum} onOpen={(n) => page.onOpenCargo?.(n, item)} />
                                                                                     </td>
-                                                                                    <td style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
-                                                                                    <td style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
-                                                                                    <td style={{ padding: '0.3rem' }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
-                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)).toLocaleString('ru-RU') : '—'}</td>
-                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW)).toLocaleString('ru-RU')} кг` : '—'}</td>
-                                                                                    <td style={{ padding: '0.3rem', textAlign: 'right' }}>{((item as any).Value ?? (item as any).Volume ?? (item as any).V) != null ? Number((item as any).Value ?? (item as any).Volume ?? (item as any).V).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—'}</td>
-                                                                                    {page.showSums && <td style={{ padding: '0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(Number(item.Sum ?? 0), true)}</td>}
+                                                                                    <td data-label="Дата" style={{ padding: '0.3rem' }}><DateText value={item.DatePrih} /></td>
+                                                                                    <td data-label="Статус" style={{ padding: '0.3rem' }}>{normalizeStatus(item.State)}</td>
+                                                                                    <td data-label="Маршрут" style={{ padding: '0.3rem' }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
+                                                                                    <td data-label="Мест" style={{ padding: '0.3rem', textAlign: 'right' }}>{item.Mest != null ? Math.round(Number(item.Mest)).toLocaleString('ru-RU') : '—'}</td>
+                                                                                    <td data-label="Плат. вес" style={{ padding: '0.3rem', textAlign: 'right' }}>{item.PW != null ? `${Math.round(Number(item.PW)).toLocaleString('ru-RU')} кг` : '—'}</td>
+                                                                                    <td data-label="Объём" style={{ padding: '0.3rem', textAlign: 'right' }}>{((item as any).Value ?? (item as any).Volume ?? (item as any).V) != null ? Number((item as any).Value ?? (item as any).Volume ?? (item as any).V).toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—'}</td>
+                                                                                    {page.showSums && <td data-label="Сумма" style={{ padding: '0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{formatCurrency(Number(item.Sum ?? 0), true)}</td>}
                                                                                 </tr>
                                                                             );})}
                                                                         </tbody>

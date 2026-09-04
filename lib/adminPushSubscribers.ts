@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { loadPushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "./notificationInnScope.js";
 
 export type AdminPushSubscriberCompany = {
   inn: string;
@@ -69,7 +69,7 @@ export async function loadAdminPushSubscribers(pool: Pool): Promise<AdminPushSub
   const logins = tokenRows.rows.map((row) => String(row.login || "").trim().toLowerCase()).filter(Boolean);
   if (logins.length === 0) return [];
 
-  const scopes = await loadPushLoginScopes(pool);
+  const scopes = await loadEffectivePushLoginScopes(pool);
   const nameByInn = new Map<string, string>();
   const accountInnsByLogin = new Map<string, Set<string>>();
   const profileByLogin = new Map<string, { inn: string; companyName: string }>();

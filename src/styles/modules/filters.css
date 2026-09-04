@@ -161,6 +161,9 @@
     font-size: var(--font-size-subhead, 14px);
     color: var(--color-text-primary);
     transition: background-color 0.15s;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
 }
 .dropdown-item * {
     color: inherit;

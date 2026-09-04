@@ -1,15 +1,21 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef } from "react";
+import { Loader2 } from "lucide-react";
 import { Container } from "@maxhub/max-ui";
+import { Capacitor } from "@capacitor/core";
 import { AppHeader } from "./AppHeader";
 import { AppTabBar } from "./AppTabBar";
 import { AppShellModals } from "./AppShellModals";
 import { AppMainContent } from "./AppMainContent";
 import { AppRuntimeProvider } from "../contexts/AppRuntimeContext";
+import { DateFilterProvider } from "../contexts/DateFilterContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useActiveCustomerInnSync } from "../hooks/useActiveCustomerInnSync";
+import { usePushSelectedInnSync } from "../hooks/usePushSelectedInnSync";
 import { resolveAccountActiveInn } from "../lib/accountCustomer";
 import { useAppShell } from "../contexts/AppShellContext";
 import { stripOoo } from "../lib/formatUtils";
+import { dispatchPullRefresh } from "../lib/pullRefreshEvents";
+import { useNativePullToRefresh } from "../hooks/useNativePullToRefresh";
 import type { useLegalCompliance } from "../hooks/useLegalCompliance";
 import type { FormEvent } from "react";
 
@@ -21,8 +27,6 @@ type Props = {
   useServiceRequest: boolean;
   setUseServiceRequest: React.Dispatch<React.SetStateAction<boolean>>;
   serviceModeUnlocked: boolean;
-  serviceRefreshSpinning: boolean;
-  setServiceRefreshSpinning: React.Dispatch<React.SetStateAction<boolean>>;
   showDashboard: boolean;
   profileSaasShellActive: boolean;
   showCustomerColumn: boolean;
@@ -48,8 +52,6 @@ export function AppAuthenticatedLayout({
   useServiceRequest,
   setUseServiceRequest,
   serviceModeUnlocked,
-  serviceRefreshSpinning,
-  setServiceRefreshSpinning,
   showDashboard,
   profileSaasShellActive,
   showCustomerColumn,
@@ -70,7 +72,29 @@ export function AppAuthenticatedLayout({
 }: Props) {
   const { auth, activeAccount } = useAuth();
   const { desktopExpanded } = useAppShell();
+  const appMainRef = useRef<HTMLDivElement>(null);
+  const nativePullRefreshEnabled = Capacitor.isNativePlatform();
+
+  const handlePullRefresh = useCallback(async () => {
+    dispatchPullRefresh();
+    await new Promise((resolve) => window.setTimeout(resolve, 400));
+  }, []);
+
+  const { pullDistance, refreshing: pullRefreshing } = useNativePullToRefresh(
+    appMainRef,
+    handlePullRefresh,
+    nativePullRefreshEnabled,
+  );
+
+  useEffect(() => {
+    if (!nativePullRefreshEnabled) return;
+    const el = appMainRef.current;
+    if (!el) return;
+    el.scrollLeft = 0;
+  }, [nativePullRefreshEnabled, showDashboard, useServiceRequest]);
+
   useActiveCustomerInnSync();
+  usePushSelectedInnSync(useServiceRequest);
 
   return (
     <Container
@@ -82,30 +106,44 @@ export function AppAuthenticatedLayout({
         useServiceRequest={useServiceRequest}
         setUseServiceRequest={setUseServiceRequest}
         serviceModeUnlocked={serviceModeUnlocked}
-        serviceRefreshSpinning={serviceRefreshSpinning}
-        setServiceRefreshSpinning={setServiceRefreshSpinning}
         onLogout={onLogout}
       />
-      <div className={`app-main${desktopExpanded ? " app-main-wide" : ""}`}>
-        <div className="w-full">
-          <AppRuntimeProvider
-            value={{
-              useServiceRequest,
-              searchText,
-              activeInn: resolveAccountActiveInn(activeAccount, auth),
-              activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
-              showCustomerColumn,
-            }}
+      <div
+        ref={appMainRef}
+        className={`app-main${desktopExpanded ? " app-main-wide" : ""}${nativePullRefreshEnabled ? " app-main--pull-refresh" : ""}`}
+      >
+        {nativePullRefreshEnabled ? (
+          <div
+            className="native-pull-refresh-indicator"
+            style={{ height: `${Math.max(pullDistance, pullRefreshing ? 72 : 0)}px` }}
+            aria-hidden={pullDistance <= 0 && !pullRefreshing}
           >
-            <AppMainContent
-              showDashboard={showDashboard}
-              useServiceRequest={useServiceRequest}
-              setIsOfferOpen={setIsOfferOpen}
-              setIsPersonalConsentOpen={setIsPersonalConsentOpen}
-              openSecretPinModal={openSecretPinModal}
-              profileSaasShellActive={profileSaasShellActive}
-            />
-          </AppRuntimeProvider>
+            <div className="native-pull-refresh-indicator__inner">
+              <Loader2 className={`w-4 h-4${pullRefreshing ? " animate-spin" : ""}`} />
+            </div>
+          </div>
+        ) : null}
+        <div className="w-full">
+          <DateFilterProvider>
+            <AppRuntimeProvider
+              value={{
+                useServiceRequest,
+                searchText,
+                activeInn: resolveAccountActiveInn(activeAccount, auth),
+                activeCustomerName: stripOoo(activeAccount?.customer ?? ""),
+                showCustomerColumn,
+              }}
+            >
+              <AppMainContent
+                showDashboard={showDashboard}
+                useServiceRequest={useServiceRequest}
+                setIsOfferOpen={setIsOfferOpen}
+                setIsPersonalConsentOpen={setIsPersonalConsentOpen}
+                openSecretPinModal={openSecretPinModal}
+                profileSaasShellActive={profileSaasShellActive}
+              />
+            </AppRuntimeProvider>
+          </DateFilterProvider>
         </div>
       </div>
       <AppTabBar showDashboard={showDashboard} />

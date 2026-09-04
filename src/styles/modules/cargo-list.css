@@ -45,7 +45,8 @@
 .documents-page .documents-edo-monitor-card.cargo-card,
 .documents-page .documents-edo-monitor-table.cargo-card,
 .documents-page .documents-invoice-card.cargo-card {
-    overflow: visible;
+    overflow-x: hidden;
+    overflow-y: visible;
 }
 
 .documents-invoice-card__edo-badges {
@@ -77,6 +78,22 @@
 .documents-invoice-card .documents-edo-card-badge,
 .documents-edo-cargo-card .documents-edo-card-badge {
     flex-shrink: 0;
+}
+
+/* Счёт / УПД: маршрут — в правом углу строки (мобильная и десктопная карточка) */
+.documents-invoice-card__route-row {
+    width: 100%;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+.documents-invoice-card__route-row-left {
+    min-width: 0;
+}
+
+.documents-invoice-card__route-badge {
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .documents-edo-card-badge--compact {
@@ -286,10 +303,10 @@
     }
 }
 
-/* Модалка счёта: столбец «Маршрут» в таблице номенклатуры — на мобильной без переноса */
+/* Модалка счёта/УПД: маршрут без min-width — иначе горизонтальный скролл внутри карточки */
 @media (max-width: 768px) {
-    .invoice-detail-table .invoice-detail-table-route {
-        white-space: nowrap;
-        min-width: 6.5rem;
+    .entity-detail-modal-table-wrap .invoice-detail-table .invoice-detail-table-route {
+        white-space: normal;
+        min-width: 0;
     }
 }

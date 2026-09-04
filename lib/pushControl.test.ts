@@ -50,4 +50,21 @@ describe("isPushEventAllowedForInn", () => {
       }),
     ).toBe(false);
   });
+
+  it("falls back to prefs for new event ids missing from activation registry", () => {
+    expect(
+      isPushEventAllowedForInn({
+        activation: { bill_created: true },
+        prefs: {},
+        eventId: "planned_delivery_date",
+      }),
+    ).toBe(true);
+    expect(
+      isPushEventAllowedForInn({
+        activation: { bill_created: true },
+        prefs: {},
+        eventId: "app_update",
+      }),
+    ).toBe(true);
+  });
 });

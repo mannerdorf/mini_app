@@ -131,6 +131,21 @@ export function isOutstandingFinanceInvoice(
   return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber) > 0.005;
 }
 
+/**
+ * Задолженность для монитора и раздела «Счета»: статус «Не оплачен».
+ * Частично оплаченные и «не указан» с остатком — не включаем (только явный unpaid).
+ */
+export function isOutstandingDebtInvoice(
+  inv: Record<string, unknown>,
+  cargoSumPaidByNumber?: Map<string, number>,
+  getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+): boolean {
+  const key = getInvoicePaymentFilterKey(inv);
+  if (key === "paid" || key === "cancelled" || key === "partial" || key === "unknown") return false;
+  if (key === "unpaid") return true;
+  return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber) > 0.005;
+}
+
 /** Остаток к оплате: сумма счёта − оплачено. */
 export function invoiceBalance(
   inv: Record<string, unknown>,

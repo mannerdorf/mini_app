@@ -9,6 +9,7 @@ import { usePerevozki, usePerevozkiMulti, usePrevPeriodPerevozki } from "../hook
 import { getWebApp, isMaxWebApp } from "../webApp";
 import { sendMaxTestMessage } from "../api/client/dashboard";
 import { fetchMyPaymentCalendar } from "../api/client/scheduling";
+import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
 import { useDashboardFilters } from "../features/dashboard/hooks/useDashboardFilters";
 import { useDashboardMonitors } from "../features/dashboard/hooks/useDashboardMonitors";
 import { useDashboardCargoMetrics } from "../features/dashboard/hooks/useDashboardCargoMetrics";
@@ -174,11 +175,24 @@ export function useDashboardPageState({
     const { calendarInvoiceItems, mutateCalendarInvoices } = monitors;
 
     useEffect(() => {
-        if (!useServiceRequest) return;
-        const handler = () => void mutatePerevozki(undefined, { revalidate: true });
-        window.addEventListener('haulz-service-refresh', handler);
-        return () => window.removeEventListener('haulz-service-refresh', handler);
-    }, [useServiceRequest, mutatePerevozki]);
+        const revalidate = () => {
+            void mutatePerevozki(undefined, { revalidate: true });
+            void mutateCalendarInvoices(undefined, { revalidate: true });
+        };
+        const onServiceRefresh = () => {
+            if (!useServiceRequest) return;
+            revalidate();
+        };
+        const onPullRefresh = () => {
+            revalidate();
+        };
+        window.addEventListener("haulz-service-refresh", onServiceRefresh);
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+        return () => {
+            window.removeEventListener("haulz-service-refresh", onServiceRefresh);
+            window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, onPullRefresh);
+        };
+    }, [useServiceRequest, mutatePerevozki, mutateCalendarInvoices]);
 
     useEffect(() => {
         if (!showPaymentCalendar || !auth?.login || !auth?.password) return;

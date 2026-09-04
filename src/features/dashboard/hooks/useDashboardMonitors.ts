@@ -79,7 +79,7 @@ export function useDashboardMonitors({
         enabled: monitorFetchEnabled,
     });
 
-    /** Монитор задолженности — 3 мес., только неоплаченные; стартует с задержкой. */
+    /** Монитор задолженности — 3 мес.; фильтр задолженности на клиенте (isOutstandingDebtInvoice). */
     const {
         items: debtInvoiceItems,
         loading: debtInvoicesLoading,
@@ -91,7 +91,6 @@ export function useDashboardMonitors({
         activeInn: auth?.inn || undefined,
         useServiceRequest,
         monitor: "debt",
-        unpaidOnly: true,
         enabled: monitorFetchEnabled && debtInvoicesEnabled,
     });
 

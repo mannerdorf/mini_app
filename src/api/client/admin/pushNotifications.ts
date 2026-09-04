@@ -221,6 +221,7 @@ export async function postAdminPushSend(
     url?: string;
     dryRun?: boolean;
     limit?: number;
+    event?: "broadcast" | "app_update";
   },
 ): Promise<AdminPushSendResult> {
   const res = await fetch("/api/admin-push-send", {

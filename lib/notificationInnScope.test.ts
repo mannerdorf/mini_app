@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   applyCompanyInnsToScope,
+  collectAllowedPushInns,
   invertScopesByInn,
   loginAllowsPushInn,
   normalizeNotificationInn,
+  resolveEffectivePushInns,
   resolvePushInnsForLogin,
   type PushLoginScope,
 } from "./notificationInnScope.js";
@@ -58,6 +60,159 @@ describe("resolvePushInnsForLogin", () => {
     });
     expect(boundFromProfile).toBe(false);
     expect([...inns].sort()).toEqual(["7707083893", "7820046291"]);
+  });
+});
+
+describe("resolveEffectivePushInns", () => {
+  it("uses selected INN for serviceWide user when selection is in allowed companies", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "390103058713",
+    });
+    expect([...effective]).toEqual(["390103058713"]);
+  });
+
+  it("uses selected INN when not serviceWide and selection is in allowed companies", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "390103058713",
+    });
+    expect([...effective]).toEqual(["390103058713"]);
+  });
+
+  it("falls back to profile INN when selected is missing", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "",
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
+
+  it("ignores selected INN outside allowed companies", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291"],
+      selectedInn: "7707083893",
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
+
+  it("returns empty for serviceWide without profile INN when nothing selected", () => {
+    const scope: PushLoginScope = {
+      login: "svc",
+      inns: new Set(),
+      serviceWide: true,
+      boundFromProfile: false,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291"],
+      selectedInn: "",
+    });
+    expect(effective.size).toBe(0);
+  });
+
+  it("uses selected INN for serviceWide without profile INN when user picked a company", () => {
+    const scope: PushLoginScope = {
+      login: "svc",
+      inns: new Set(),
+      serviceWide: true,
+      boundFromProfile: false,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: ["7820046291", "390103058713"],
+      selectedInn: "390103058713",
+    });
+    expect([...effective]).toEqual(["390103058713"]);
+  });
+
+  it("uses selected INN from directory for serviceWide user with profile INN", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: true,
+    });
+    expect([...effective]).toEqual(["7722461620"]);
+  });
+
+  it("falls back to profile INN when directory flag is false", () => {
+    const scope: PushLoginScope = {
+      login: "notification",
+      inns: new Set(["7820046291"]),
+      serviceWide: true,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: false,
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
+
+  it("ignores directory selection for non-serviceWide users", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: [],
+      selectedInn: "7722461620",
+      selectedInDirectory: true,
+    });
+    expect([...effective]).toEqual(["7820046291"]);
+  });
+});
+
+describe("collectAllowedPushInns", () => {
+  it("merges scope and company INNs", () => {
+    const scope: PushLoginScope = {
+      login: "user",
+      inns: new Set(["7820046291"]),
+      serviceWide: false,
+      boundFromProfile: true,
+    };
+    const allowed = collectAllowedPushInns(scope, ["390103058713"]);
+    expect([...allowed].sort()).toEqual(["390103058713", "7820046291"]);
   });
 });
 

@@ -8,10 +8,13 @@ import { PUSH_NOTIFICATION_EVENTS } from "./notificationEmailPrefs.js";
 import {
   formatTelegramMessage,
   pickBillNumber,
+  pickBillSumRaw,
   type CargoEvent,
 } from "./notificationPoll.js";
-import { extractCargoLastMileMeta } from "./cargoLastMileMeta.js";
+import { extractCargoLastMileMeta, hasLastMileForPush } from "./cargoLastMileMeta.js";
 import { formatInvoiceNumberDisplay } from "./weeklySummaryInvoiceTable.js";
+import { cargoPlannedDeliveryDateFromItem } from "./cargoDateFilter.js";
+import { formatPushPlanDateDisplay } from "./formatPushPlanDate.js";
 
 export { PUSH_NOTIFICATION_EVENTS };
 
@@ -94,31 +97,120 @@ export const PUSH_TEMPLATE_VARIABLES = [
     key: "driver_tel",
     hint: "Телефон экспедитора (из 1С: LMDriverTel или DriverTel)",
   },
+  {
+    key: "plan_date",
+    hint: "Плановая дата доставки / прибытия на терминал (ДД.ММ.ГГГГ)",
+  },
+  {
+    key: "version_name",
+    hint: "Номер версии приложения (для шаблона «Новая версия»)",
+  },
+  {
+    key: "in_transit",
+    hint: "Ежедневная сводка: перевозок в пути (не доставлены)",
+  },
+  {
+    key: "ready_for_pickup",
+    hint: "Ежедневная сводка: готово к выдаче",
+  },
+  {
+    key: "unpaid_count",
+    hint: "Ежедневная сводка: число неоплаченных счетов",
+  },
+  {
+    key: "unpaid_sum",
+    hint: "Ежедневная сводка: сумма неоплаченных счетов, ₽",
+  },
 ] as const;
 
 function eventLabel(eventId: PushNotificationTemplateEventId): string {
   if (eventId === "bill_created") return "Создан счёт";
   if (eventId === "bill_paid") return "Счёт оплачен";
   if (eventId === "daily_summary") return "Ежедневная сводка";
+  if (eventId === "planned_delivery_date") return "Плановая дата доставки";
+  if (eventId === "app_update") return "Новая версия приложения";
   const stage = CARGO_NOTIFICATION_STAGES.find((s) => s.id === eventId);
   return stage?.label ?? eventId;
 }
 
 function defaultBodyTemplate(eventId: PushNotificationTemplateEventId): string {
   if (eventId === "bill_created") {
-    return "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.";
+    return "Вам выставлен счет № {bill_number} по перевозке № {cargo_number} на сумму {bill_sum} ₽.";
   }
   if (eventId === "bill_paid") {
-    return "Счет по перевозке № {cargo_number} оплачен.";
+    return "Счет № {bill_number} по перевозке № {cargo_number} оплачен.";
   }
   if (eventId === "daily_summary") {
-    return "Доброе утро! Ежедневная сводка HAULZ на 10:00.";
+    return (
+      "В пути: {in_transit}\n" +
+      "Готово к выдаче: {ready_for_pickup}\n" +
+      "Неоплаченные счета: {unpaid_count} шт. на сумму {unpaid_sum} ₽"
+    );
+  }
+  if (eventId === "planned_delivery_date") {
+    return "Перевозка № {cargo_number} плановая дата доставки {plan_date}";
+  }
+  if (eventId === "app_update") {
+    return "Вышла новая версия — обновите приложение";
   }
   return "{stage_label}. № {cargo_number}";
 }
 
-function defaultTitleTemplate(_eventId: PushNotificationTemplateEventId): string {
+export const LAST_MILE_PUSH_TEMPLATE_VARS = ["driver", "driver_tel", "auto_reg", "auto_type"] as const;
+
+export function pushTemplateBodyNeedsLastMile(bodyTemplate: string): boolean {
+  return LAST_MILE_PUSH_TEMPLATE_VARS.some((key) =>
+    new RegExp(`\\{${key}\\}`, "i").test(String(bodyTemplate ?? "")),
+  );
+}
+
+export function shouldDeferLastMilePush(
+  event: CargoEvent | PushNotificationTemplateEventId,
+  item: Record<string, unknown> | null | undefined,
+  templates?: PushNotificationTemplateMap | null,
+): boolean {
+  const eventId = event as PushNotificationTemplateEventId;
+  if (eventId !== "delivery_scheduled" && eventId !== "delivered" && eventId !== "arrived") {
+    return false;
+  }
+  const custom = templates?.get(eventId);
+  const bodyTemplate =
+    custom && custom.enabled !== false && custom.bodyTemplate.trim()
+      ? custom.bodyTemplate
+      : defaultBodyTemplate(eventId);
+  if (!pushTemplateBodyNeedsLastMile(bodyTemplate)) return false;
+  return !hasLastMileForPush(item);
+}
+
+function defaultTitleTemplate(eventId: PushNotificationTemplateEventId): string {
+  if (eventId === "daily_summary") return "HAULZ: ежедневная сводка";
   return "HAULZ";
+}
+
+function isBillPushEvent(eventId: PushNotificationTemplateEventId): boolean {
+  return eventId === "bill_created" || eventId === "bill_paid";
+}
+
+/** Шаблон bill_created/bill_paid без {bill_number} не покажет номер счёта — подменяем дефолтом. */
+function billEventBodyNeedsBillNumberUpgrade(
+  eventId: PushNotificationTemplateEventId,
+  bodyTemplate: string,
+): boolean {
+  if (!isBillPushEvent(eventId)) return false;
+  return !/\{bill_number\}/i.test(String(bodyTemplate ?? ""));
+}
+
+/** Если в тексте нет номера счёта, но он есть в контексте — рендерим дефолтный шаблон. */
+function finalizeBillPushBody(
+  eventId: PushNotificationTemplateEventId,
+  body: string,
+  ctx: Record<string, string>,
+): string {
+  if (!isBillPushEvent(eventId)) return body;
+  const bill = ctx.bill_number?.trim();
+  if (!bill || bill === "—") return body;
+  if (body.includes(bill)) return body;
+  return renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim();
 }
 
 export function defaultPushNotificationTemplates(): PushNotificationTemplateRow[] {
@@ -149,15 +241,7 @@ export function buildPushTemplateContext(
 ): Record<string, string> {
   const anyItem = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
   const n = String(cargoNumber || "").trim();
-  const billSumRaw = pickFirst(anyItem, [
-    "SumDoc",
-    "SumBill",
-    "AmountBill",
-    "СуммаДокумента",
-    "Sum",
-    "Amount",
-    "Сумма",
-  ]);
+  const billSumRaw = pickBillSumRaw(anyItem);
   const billSumNum =
     typeof billSumRaw === "number" ? billSumRaw : parseFloat(String(billSumRaw ?? "").replace(",", "."));
   const billSum = Number.isFinite(billSumNum)
@@ -169,6 +253,19 @@ export function buildPushTemplateContext(
   const lastMile = extractCargoLastMileMeta(anyItem);
   const billNumberRaw = pickBillNumber(anyItem);
   const billNumber = billNumberRaw ? formatInvoiceNumberDisplay(billNumberRaw) : "—";
+  const planRaw =
+    pickFirst(anyItem, [
+      "DateArrivalPlan",
+      "DateDeliveryPlan",
+      "DeliveryDatePlan",
+      "PlanDate",
+      "DatePlan",
+      "PlannedDeliveryDate",
+      "plan_date",
+    ]) ?? cargoPlannedDeliveryDateFromItem(anyItem);
+  const planDate = formatPushPlanDateDisplay(planRaw);
+  const versionName =
+    String(anyItem.version_name ?? anyItem.versionName ?? anyItem.VersionName ?? "").trim() || "—";
 
   return {
     cargo_number: n,
@@ -186,6 +283,8 @@ export function buildPushTemplateContext(
     auto_type: lastMile.autoType || "—",
     driver: lastMile.driver || "—",
     driver_tel: lastMile.driverTel || "—",
+    plan_date: planDate,
+    version_name: versionName,
   };
 }
 
@@ -212,11 +311,33 @@ export function formatPushNotificationMessage(
   const eventId = event as PushNotificationTemplateEventId;
   const custom = templates?.get(eventId);
 
-  if (custom && custom.enabled && custom.bodyTemplate.trim()) {
+  if (custom && custom.enabled === false) {
+    return { title: "HAULZ", body: "", usedCustomTemplate: true };
+  }
+
+  if (custom && custom.enabled !== false && custom.bodyTemplate.trim()) {
+    const body = finalizeBillPushBody(
+      eventId,
+      renderPushTemplateString(custom.bodyTemplate, ctx).trim(),
+      ctx,
+    );
     return {
       title: renderPushTemplateString(custom.titleTemplate || "HAULZ", ctx).trim() || "HAULZ",
-      body: renderPushTemplateString(custom.bodyTemplate, ctx).trim(),
+      body,
       usedCustomTemplate: true,
+    };
+  }
+
+  if ((PUSH_NOTIFICATION_EVENTS as readonly string[]).includes(eventId)) {
+    const body = finalizeBillPushBody(
+      eventId,
+      renderPushTemplateString(defaultBodyTemplate(eventId), ctx).trim(),
+      ctx,
+    );
+    return {
+      title: renderPushTemplateString(defaultTitleTemplate(eventId), ctx).trim() || "HAULZ",
+      body,
+      usedCustomTemplate: false,
     };
   }
 
@@ -241,6 +362,8 @@ export const PUSH_TEMPLATE_SAMPLE_ITEM: Record<string, unknown> = {
   LMAutoType: "Мерседес",
   LMDriver: "Ругалев Иван Федорович",
   LMDriverTel: "+79953889445",
+  DateArrivalPlan: "2026-08-28",
+  version_name: "1.3.8",
 };
 
 export async function ensurePushNotificationTemplatesTable(pool: {
@@ -270,6 +393,13 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
     });
   }
 
+  /** Старые дефолты без {bill_number} — подменяем на актуальные, если админ не кастомизировал иначе. */
+  const legacyDefaultBodies: Partial<Record<PushNotificationTemplateEventId, string>> = {
+    bill_created: "Вам выставлен счет по перевозке № {cargo_number} на сумму {bill_sum} ₽.",
+    bill_paid: "Счет по перевозке № {cargo_number} оплачен.",
+    daily_summary: "Доброе утро! Ежедневная сводка HAULZ на 10:00.",
+  };
+
   try {
     await ensurePushNotificationTemplatesTable(pool);
     const { rows } = await pool.query<{
@@ -284,9 +414,16 @@ export async function loadPushNotificationTemplates(pool: Pool): Promise<PushNot
     for (const row of rows) {
       const eventId = String(row.event_id || "").trim() as PushNotificationTemplateEventId;
       if (!PUSH_NOTIFICATION_EVENTS.includes(eventId)) continue;
+      let bodyTemplate = String(row.body_template || "");
+      const legacy = legacyDefaultBodies[eventId];
+      if (legacy && bodyTemplate.trim() === legacy) {
+        bodyTemplate = defaultBodyTemplate(eventId);
+      } else if (billEventBodyNeedsBillNumberUpgrade(eventId, bodyTemplate)) {
+        bodyTemplate = defaultBodyTemplate(eventId);
+      }
       map.set(eventId, {
         titleTemplate: String(row.title_template || "HAULZ").trim() || "HAULZ",
-        bodyTemplate: String(row.body_template || ""),
+        bodyTemplate,
         enabled: row.enabled !== false,
         updatedAt:
           row.updated_at instanceof Date

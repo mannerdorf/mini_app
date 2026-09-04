@@ -138,3 +138,155 @@ export function invertScopesByInn(scopes: Map<string, PushLoginScope>): Map<stri
   }
   return byInn;
 }
+
+/** Все ИНН, к которым логин может быть привязан (профиль + account_companies). */
+export function collectAllowedPushInns(
+  scope: PushLoginScope | undefined,
+  companyInns: Iterable<string>,
+): Set<string> {
+  const allowed = new Set<string>();
+  if (scope) {
+    for (const inn of scope.inns) allowed.add(inn);
+  }
+  for (const raw of companyInns) {
+    const inn = normalizeNotificationInn(raw);
+    if (inn) allowed.add(inn);
+  }
+  return allowed;
+}
+
+/**
+ * Эффективный скоуп автопуша:
+ * — serviceWide без своего ИНН и без выбора → пусто;
+ * — push_selected_inn из шапки (валидный среди профиля + account_companies) → только он;
+ * — serviceWide + выбор из cache_customers (справочник, не account_companies) → только он;
+ * — иначе базовый scope.inns (профиль / все компании).
+ */
+export function resolveEffectivePushInns(params: {
+  scope: PushLoginScope;
+  allowedCompanyInns: Iterable<string>;
+  selectedInn?: string | null;
+  /** ИНН из push_selected_inn есть в cache_customers (для access_all / service_mode). */
+  selectedInDirectory?: boolean;
+}): Set<string> {
+  const { scope } = params;
+  const allowed = collectAllowedPushInns(scope, params.allowedCompanyInns);
+  const selected = normalizeNotificationInn(params.selectedInn);
+
+  if (selected) {
+    if (allowed.has(selected)) {
+      return new Set([selected]);
+    }
+    if (scope.serviceWide && params.selectedInDirectory) {
+      return new Set([selected]);
+    }
+  }
+
+  if (scope.serviceWide && scope.inns.size === 0) return new Set();
+
+  return new Set(scope.inns);
+}
+
+type Queryable = {
+  query: <T extends Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<{ rows: T[] }>;
+};
+
+async function loadCompanyInnsByLogin(pool: Queryable): Promise<Map<string, string[]>> {
+  const byLogin = new Map<string, string[]>();
+  try {
+    const companies = await pool.query<{ login: string; inn: string }>(
+      `SELECT lower(trim(login)) AS login, inn
+       FROM account_companies
+       WHERE inn IS NOT NULL AND trim(inn) <> ''`,
+    );
+    for (const row of companies.rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      const inn = normalizeNotificationInn(row.inn);
+      if (!login || !inn) continue;
+      const list = byLogin.get(login) || [];
+      list.push(inn);
+      byLogin.set(login, list);
+    }
+  } catch {
+    // account_companies may be missing
+  }
+  return byLogin;
+}
+
+async function loadValidDirectoryInns(pool: Queryable, inns: Iterable<string>): Promise<Set<string>> {
+  const normalized = [...new Set([...inns].map(normalizeNotificationInn).filter(Boolean))];
+  if (normalized.length === 0) return new Set();
+  try {
+    const { rows } = await pool.query<{ inn: string }>(
+      `SELECT inn
+       FROM cache_customers
+       WHERE regexp_replace(coalesce(inn, ''), '\\D', '', 'g') = ANY($1::text[])`,
+      [normalized],
+    );
+    const out = new Set<string>();
+    for (const row of rows) {
+      const inn = normalizeNotificationInn(row.inn);
+      if (inn) out.add(inn);
+    }
+    return out;
+  } catch {
+    return new Set();
+  }
+}
+
+async function loadPushSelectedInnByLogin(pool: Queryable): Promise<Map<string, string>> {
+  const byLogin = new Map<string, string>();
+  try {
+    const { rows } = await pool.query<{ login: string; preferences: unknown }>(
+      `SELECT lower(trim(login)) AS login, preferences
+       FROM notification_preferences_state
+       WHERE coalesce(trim(login), '') <> ''`,
+    );
+    for (const row of rows) {
+      const login = String(row.login || "").trim().toLowerCase();
+      if (!login) continue;
+      const prefs = row.preferences && typeof row.preferences === "object" ? (row.preferences as Record<string, unknown>) : {};
+      const inn = normalizeNotificationInn(prefs.push_selected_inn);
+      if (inn) byLogin.set(login, inn);
+    }
+  } catch {
+    // notification_preferences_state may be missing
+  }
+  return byLogin;
+}
+
+/** Скоуп автопуша с учётом push_selected_inn из notification_preferences_state. */
+export async function loadEffectivePushLoginScopes(
+  pool: Queryable,
+): Promise<Map<string, PushLoginScope>> {
+  const base = await loadPushLoginScopes(pool);
+  const companyInnsByLogin = await loadCompanyInnsByLogin(pool);
+  const selectedByLogin = await loadPushSelectedInnByLogin(pool);
+
+  const directoryCandidates: string[] = [];
+  for (const [login, scope] of base.entries()) {
+    if (!scope.serviceWide) continue;
+    const selected = selectedByLogin.get(login);
+    if (!selected) continue;
+    const allowed = collectAllowedPushInns(scope, companyInnsByLogin.get(login) || []);
+    if (!allowed.has(normalizeNotificationInn(selected))) {
+      directoryCandidates.push(selected);
+    }
+  }
+  const validDirectoryInns = await loadValidDirectoryInns(pool, directoryCandidates);
+
+  for (const [login, scope] of base.entries()) {
+    const companyInns = companyInnsByLogin.get(login) || [];
+    const selected = selectedByLogin.get(login);
+    const selectedNorm = normalizeNotificationInn(selected);
+    const effective = resolveEffectivePushInns({
+      scope,
+      allowedCompanyInns: companyInns,
+      selectedInn: selected,
+      selectedInDirectory: Boolean(selectedNorm && validDirectoryInns.has(selectedNorm)),
+    });
+    base.set(login, { ...scope, inns: effective });
+  }
+
+  return base;
+}

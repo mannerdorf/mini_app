@@ -469,3 +469,21 @@ export function fileToBase64(file: File): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
+
+/** Уникальные ИДОтправления (16 символов) для мест заявки — кэш на сервере. */
+export async function allocateDocumentsSendingIds(
+  auth: DocumentsAuthScope,
+  params: { count: number; nomerZayavki?: string },
+): Promise<string[]> {
+  const res = await fetch("/api/documents/allocate-sending-ids", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: authBody(auth, {
+      count: params.count,
+      nomerZayavki: params.nomerZayavki || undefined,
+    }),
+  });
+  const data = (await res.json().catch(() => ({}))) as { ids?: string[]; error?: string };
+  if (!res.ok) throw new Error(parseError(res, data));
+  return Array.isArray(data.ids) ? data.ids : [];
+}

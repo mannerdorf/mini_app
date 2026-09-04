@@ -108,11 +108,221 @@
     display: none;
 }
 
-.cargo-inner-table__badges {
+.cargo-inner-table__badges,
+.cargo-logistics-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    min-width: 0;
+}
+
+.cargo-logistics-badges__flow,
+.cargo-logistics-badges__meta {
     display: flex;
     align-items: center;
     flex-wrap: wrap;
+    gap: 0.28rem;
+    min-width: 0;
+}
+
+.cargo-logistics-badges__arrow {
+    flex-shrink: 0;
+    color: var(--color-text-secondary);
+    font-size: 0.68rem;
+    line-height: 1;
+    opacity: 0.55;
+    user-select: none;
+}
+
+.cargo-list-item .cargo-logistics-badges {
+    flex: 1 1 auto;
+}
+
+/* Табличный режим перевозок: бейджи по уровням, перенос строк, без обрезки и наложения */
+.cargo-inner-table .cargo-logistics-badges,
+.cargo-inner-table .cargo-inner-table__badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.3rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.cargo-inner-table .cargo-logistics-badges__flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
     gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+    align-self: stretch;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-left,
+.cargo-inner-table .cargo-logistics-badges__meta-right {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-left {
+    justify-content: flex-start;
+}
+
+.cargo-inner-table .cargo-logistics-badges__meta-right {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.cargo-inner-table .cargo-logistics-badges__arrow {
+    display: none !important;
+}
+
+.cargo-inner-table .cargo-logistics-badges .max-badge,
+.cargo-inner-table .cargo-logistics-badges .app-badge,
+.cargo-inner-table .cargo-inner-table__route-inline {
+    flex-shrink: 0;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0;
+    box-sizing: border-box;
+    white-space: nowrap;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+.cargo-inner-table .cargo-inner-table__route-inline {
+    flex-basis: auto;
+}
+
+/* Документы (счета/УПД): бейджи под номером — две строки */
+.documents-invoice-table-badges-anchor {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.documents-invoice-table-badges {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoice-table-badges__flow,
+.documents-invoice-table-badges__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.28rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__flow {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta,
+.documents-acts-inner-table .documents-invoice-table-badges__meta {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-left,
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-left,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-left,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-left {
+    justify-content: flex-start;
+}
+
+.documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+.documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+    justify-content: flex-end;
+    margin-left: auto;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__col-status,
+.documents-acts-inner-table .cargo-inner-table__col-status {
+    display: none;
+}
+
+/* Документы (счета/УПД): бейджи в таблице — перенос по строкам, без обрезки */
+.documents-invoices-inner-table .documents-invoices-inner-table__badges,
+.documents-acts-inner-table .documents-invoices-inner-table__badges {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 0.28rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.documents-invoices-inner-table .documents-invoice-inner-badge-wrap,
+.documents-acts-inner-table .documents-invoice-inner-badge-wrap {
+    display: inline-flex;
+    align-items: center;
+    width: auto;
+    max-width: none;
+}
+
+.documents-invoices-inner-table .documents-invoice-inner-badge,
+.documents-invoices-inner-table .documents-invoices-inner-table__badges .max-badge,
+.documents-invoices-inner-table .documents-invoices-inner-table__badges .app-badge,
+.documents-acts-inner-table .documents-invoice-inner-badge,
+.documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
+.documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
+    flex-shrink: 0;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: nowrap;
+}
+
+.documents-invoices-inner-table .cargo-inner-table__route-inline,
+.documents-acts-inner-table .cargo-inner-table__route-inline {
+    flex-basis: auto;
 }
 
 .cargo-inner-table__delivery-inline {
@@ -200,7 +410,8 @@
     }
 
     .cargo-inner-table__route-inline {
-        display: block;
+        display: inline-flex;
+        align-items: center;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__delivery-inline {
@@ -214,22 +425,32 @@
     .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile,
     .documents-invoices-inner-table .documents-invoices-inner-table__badges,
     .documents-acts-inner-table .cargo-inner-table__badges--stack-mobile,
-    .documents-acts-inner-table .documents-invoices-inner-table__badges {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.16rem;
+    .documents-acts-inner-table .documents-invoices-inner-table__badges,
+    .documents-invoices-inner-table .documents-invoice-table-badges,
+    .documents-acts-inner-table .documents-invoice-table-badges {
+        flex-wrap: nowrap;
+        align-items: flex-start;
+        gap: 0.22rem;
         width: 100%;
-        max-width: 5.35rem;
+        max-width: none;
     }
 
-    .documents-invoices-inner-table .documents-invoice-inner-badge-wrap {
-        display: block;
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta {
+        align-self: stretch;
         width: 100%;
     }
 
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+        margin-left: auto;
+        justify-content: flex-end;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-inner-badge-wrap,
     .documents-acts-inner-table .documents-invoice-inner-badge-wrap {
-        display: block;
-        width: 100%;
+        display: inline-flex;
+        width: auto;
     }
 
     .documents-invoices-inner-table .documents-invoice-inner-badge,
@@ -237,22 +458,15 @@
     .documents-acts-inner-table .documents-invoice-inner-badge,
     .documents-acts-inner-table .documents-invoices-inner-table__badges .max-badge,
     .documents-acts-inner-table .documents-invoices-inner-table__badges .app-badge {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
-        min-width: 0;
-        height: 1.2rem !important;
-        min-height: 1.2rem !important;
-        max-height: 1.2rem !important;
-        box-sizing: border-box;
-        text-align: center;
-        font-size: 0.56rem !important;
-        padding: 0 0.22rem !important;
-        line-height: 1 !important;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        font-size: 0.62rem !important;
+        padding: 0.18rem 0.45rem !important;
+        line-height: 1.2 !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        width: auto !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__route-inline {
@@ -353,12 +567,13 @@
         width: 18%;
     }
 
-    .documents-invoices-inner-table .cargo-inner-table__col-number {
-        width: 18%;
+    .documents-invoices-inner-table .cargo-inner-table__col-number,
+    .documents-acts-inner-table .cargo-inner-table__col-number {
+        width: 56%;
     }
 
     .cargo-inner-table .cargo-inner-table__col-number {
-        width: 17%;
+        width: 14%;
     }
 
     .cargo-inner-table .cargo-inner-table__col-date,
@@ -373,16 +588,19 @@
     }
 
     .cargo-inner-table .cargo-inner-table__col-date {
-        width: 16%;
+        width: 14%;
     }
 
     .cargo-inner-table .cargo-inner-table__col-plan-date {
-        width: 16%;
+        width: 14%;
         white-space: nowrap;
     }
 
     .cargo-inner-table .cargo-inner-table__col-status {
-        width: 26%;
+        width: 34%;
+        min-width: 6.5rem;
+        overflow: visible;
+        vertical-align: top !important;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-status,
@@ -446,64 +664,88 @@
         height: 0.82rem;
     }
 
-    .cargo-inner-table__badges,
-    .cargo-inner-table__badges--stack-mobile {
+    .cargo-inner-table .cargo-inner-table__badges--stack-mobile,
+    .cargo-inner-table .cargo-logistics-badges,
+    .cargo-inner-table .cargo-inner-table__badges {
+        display: flex;
         flex-direction: column;
         align-items: stretch;
-        gap: 0.16rem;
-        max-width: 5.35rem;
-    }
-
-    .cargo-inner-table__badges--stack-mobile > .cargo-inner-table__route-inline {
-        display: block;
+        gap: 0.28rem;
         width: 100%;
+        min-width: 0;
     }
 
-    .cargo-inner-table__badges .max-badge,
-    .cargo-inner-table__badges .app-badge,
-    .cargo-inner-table__badges .cargo-last-mile-self,
-    .cargo-inner-table__badges .cargo-last-mile-delivery,
-    .cargo-inner-table__badges .cargo-pickup-pickup,
-    .cargo-inner-table__badges .cargo-pickup-terminal-to,
-    .cargo-inner-table__badges--stack-mobile .max-badge,
-    .cargo-inner-table__badges--stack-mobile .app-badge,
-    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-self,
-    .cargo-inner-table__badges--stack-mobile .cargo-last-mile-delivery,
-    .cargo-inner-table__badges--stack-mobile .cargo-pickup-pickup,
-    .cargo-inner-table__badges--stack-mobile .cargo-pickup-terminal-to {
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        width: 100% !important;
+    .cargo-inner-table .cargo-logistics-badges__flow {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        align-content: flex-start;
+        gap: 0.22rem;
+        row-gap: 0.22rem;
+        width: 100%;
         min-width: 0;
-        height: 1.2rem !important;
-        min-height: 1.2rem !important;
-        max-height: 1.2rem !important;
-        box-sizing: border-box;
-        font-size: 0.56rem !important;
-        padding: 0 0.22rem !important;
-        line-height: 1 !important;
-        max-width: 100%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        text-align: center;
     }
+
+    .cargo-inner-table .cargo-logistics-badges__meta {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.28rem;
+        width: 100%;
+        min-width: 0;
+        align-self: stretch;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges__meta-left {
+        flex: 1 1 auto;
+        justify-content: flex-start;
+        min-width: 0;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges__meta-right {
+        flex: 0 0 auto;
+        justify-content: flex-end;
+        margin-left: auto;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges .max-badge,
+    .cargo-inner-table .cargo-logistics-badges .app-badge,
+    .cargo-inner-table .cargo-inner-table__route-inline {
+        display: inline-flex !important;
+        align-items: center !important;
+        flex-shrink: 0;
+        font-size: 0.58rem !important;
+        padding: 0.16rem 0.38rem !important;
+        line-height: 1.15 !important;
+        height: auto !important;
+        min-height: 1.05rem !important;
+        max-height: none !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: nowrap;
+    }
+
+    .cargo-inner-table .cargo-inner-table__route-inline {
+        display: inline-flex !important;
+        align-items: center;
+        max-width: 100%;
+    }
+
 
     .cargo-inner-table .cargo-inner-table__col-route .app-badge,
     .documents-invoices-inner-table .cargo-inner-table__col-route .app-badge {
-        font-size: 0.56rem !important;
-        padding: 0 0.22rem !important;
-        height: 1.2rem !important;
-        min-height: 1.2rem !important;
-        max-height: 1.2rem !important;
-        max-width: 100%;
+        font-size: 0.62rem !important;
+        padding: 0.18rem 0.45rem !important;
+        height: auto !important;
+        min-height: 0 !important;
+        max-height: none !important;
+        max-width: none;
         white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        display: flex !important;
+        overflow: visible;
+        text-overflow: clip;
+        display: inline-flex !important;
         align-items: center !important;
-        justify-content: center !important;
     }
 }
 

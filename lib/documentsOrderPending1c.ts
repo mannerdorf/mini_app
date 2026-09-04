@@ -1,5 +1,5 @@
 import type { Pool } from "pg";
-import { buildDocumentsOrderZayavkaPayload } from "./documentsOrderZayavkaPayload.js";
+import { buildDocumentsOrderZayavkaPayload, mapLegacyTableRowInput } from "./documentsOrderZayavkaPayload.js";
 import {
   fivepostBatchIdFromTableRows,
   loadFivepostRowsByBatchIds,
@@ -10,6 +10,7 @@ import {
   normalizeZayavkaUploadPayload,
   type ZayavkaUploadPayload,
 } from "./post1cZayavkaUpload.js";
+import { finalizeZayavkaPayloadFor1c } from "./finalizeZayavkaPayloadFor1c.js";
 
 export const PENDING_ORDER_ZAYAVKA_ROW_TYPE = "zayavka_1c";
 
@@ -41,7 +42,12 @@ export async function resolveZayavkaPayloadForPendingOrder(
 ): Promise<ZayavkaUploadPayload | null> {
   const tableRows = Array.isArray(row.table_rows) ? row.table_rows : [];
   const stored = extractStoredZayavkaPayload(tableRows);
-  if (stored) return stored;
+  if (stored) {
+    return finalizeZayavkaPayloadFor1c(pool, stored, {
+      nomerZayavki: row.nomer_zayavki,
+      tableRows,
+    });
+  }
 
   const source = tableRowByType(tableRows, "source");
   const contacts = tableRowByType(tableRows, "contacts");
@@ -70,13 +76,7 @@ export async function resolveZayavkaPayloadForPendingOrder(
   const legacyBlock = tableRowByType(tableRows, "legacy_parcels");
   const legacyRaw = Array.isArray(legacyBlock?.rows) ? legacyBlock.rows : [];
   const tableRowsInput = legacyRaw.length
-    ? legacyRaw.map((r) => {
-        const o = r && typeof r === "object" ? (r as Record<string, unknown>) : {};
-        return {
-          posylka: String(o.posylka ?? o.Posylka ?? ""),
-          perevozka: String(o.perevozka ?? o.Perevozka ?? ""),
-        };
-      })
+    ? legacyRaw.map((r) => mapLegacyTableRowInput(r))
     : undefined;
 
   const payload = buildDocumentsOrderZayavkaPayload({
@@ -94,5 +94,9 @@ export async function resolveZayavkaPayloadForPendingOrder(
   });
 
   const normalized = normalizeZayavkaUploadPayload(payload);
-  return normalized.ok ? normalized.payload : null;
+  if (!normalized.ok) return null;
+  return finalizeZayavkaPayloadFor1c(pool, normalized.payload, {
+    nomerZayavki: row.nomer_zayavki,
+    tableRows,
+  });
 }

@@ -377,7 +377,14 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
   const pickupDate = dateOnly(row.data_zabora);
   const route = resolvePendingRouteFields(tableRows, row.punkt_otpravki, row.punkt_naznacheniya);
 
-  const customerRequestNumber = String(source?.customerRequestNumber ?? "").trim();
+  const customerRequestNumber = (() => {
+    const fromSource = String(source?.customerRequestNumber ?? "").trim();
+    if (fromSource) return fromSource;
+    const zayavkaRow = tableRowByType(tableRows, "zayavka_1c");
+    const payload = zayavkaRow?.payload ?? zayavkaRow?.order;
+    if (!payload || typeof payload !== "object") return "";
+    return String((payload as Record<string, unknown>).НомерЗаявкиКлиента ?? "").trim();
+  })();
   const statusLabel = resolvePendingOrderStatusLabel(tableRows);
 
   return {

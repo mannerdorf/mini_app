@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest";
-import { extractZayavkaBody, normalizeZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
+import { describe, expect, it, afterEach } from "vitest";
+import {
+  extractZayavkaBody,
+  normalizeZayavkaUploadPayload,
+  sanitizeZayavkaUpstreamRequestForSandbox,
+  buildZayavkaUpstreamRequestMeta,
+  buildZayavkaUploadUrl,
+  POST_ZAYAVKA_URL,
+} from "./post1cZayavkaUpload.js";
 
 const SAMPLE = {
   ЗаказчикИНН: "7701234567",
@@ -59,5 +66,69 @@ describe("normalizeZayavkaUploadPayload", () => {
   it("rejects empty parcels", () => {
     const r = normalizeZayavkaUploadPayload({ ...SAMPLE, Посылки: [] });
     expect(r.ok).toBe(false);
+  });
+
+  it("truncates goods Name and ТМЦ to 49 characters", () => {
+    const longName = "А".repeat(60);
+    const r = normalizeZayavkaUploadPayload({
+      ...SAMPLE,
+      Посылки: [
+        {
+          ...SAMPLE.Посылки[0],
+          Товары: [{ ...SAMPLE.Посылки[0].Товары[0], Name: longName, ТМЦ: longName }],
+        },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const good = r.payload.Посылки[0].Товары[0];
+    expect(good.Name).toHaveLength(49);
+    expect(good.ТМЦ).toHaveLength(49);
+  });
+});
+
+describe("sanitizeZayavkaUpstreamRequestForSandbox", () => {
+  it("masks Auth and Authorization headers", () => {
+    const norm = normalizeZayavkaUploadPayload(SAMPLE);
+    expect(norm.ok).toBe(true);
+    if (!norm.ok) return;
+    const meta = buildZayavkaUpstreamRequestMeta(norm.payload);
+    meta.headers.Auth = "Basic user@example.com:secret123";
+    meta.headers.Authorization = "Basic YWRtaW46anVlYmZueWU=";
+    const safe = sanitizeZayavkaUpstreamRequestForSandbox(meta);
+    expect(safe?.headers.Auth).toBe("Basic user@example.com:***");
+    expect(safe?.headers.Authorization).toBe("Basic ***");
+  });
+});
+
+describe("buildZayavkaUploadUrl", () => {
+  const prevUrl = process.env.ONE_C_ZAYAVKA_UPLOAD_URL;
+  const prevMetod = process.env.ONE_C_ZAYAVKA_UPLOAD_METOD;
+
+  afterEach(() => {
+    if (prevUrl === undefined) delete process.env.ONE_C_ZAYAVKA_UPLOAD_URL;
+    else process.env.ONE_C_ZAYAVKA_UPLOAD_URL = prevUrl;
+    if (prevMetod === undefined) delete process.env.ONE_C_ZAYAVKA_UPLOAD_METOD;
+    else process.env.ONE_C_ZAYAVKA_UPLOAD_METOD = prevMetod;
+  });
+
+  it("defaults to PostZayavka2", () => {
+    delete process.env.ONE_C_ZAYAVKA_UPLOAD_URL;
+    delete process.env.ONE_C_ZAYAVKA_UPLOAD_METOD;
+    expect(buildZayavkaUploadUrl()).toBe(POST_ZAYAVKA_URL);
+    expect(buildZayavkaUploadUrl()).toContain("PostZayavka2");
+    expect(buildZayavkaUploadUrl()).not.toContain("GETAPI");
+  });
+
+  it("uses explicit URL override", () => {
+    process.env.ONE_C_ZAYAVKA_UPLOAD_URL = "https://example.test/PostZayavka2";
+    expect(buildZayavkaUploadUrl()).toBe("https://example.test/PostZayavka2");
+  });
+
+  it("supports legacy GETAPI metod when set", () => {
+    delete process.env.ONE_C_ZAYAVKA_UPLOAD_URL;
+    process.env.ONE_C_ZAYAVKA_UPLOAD_METOD = "LoadZayavka";
+    expect(buildZayavkaUploadUrl()).toContain("GETAPI");
+    expect(buildZayavkaUploadUrl()).toContain("metod=LoadZayavka");
   });
 });

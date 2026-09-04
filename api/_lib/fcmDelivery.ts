@@ -96,6 +96,15 @@ type FirebaseMessaging = {
         channelId?: string;
       };
     };
+    apns?: {
+      headers?: Record<string, string>;
+      payload?: {
+        aps?: {
+          sound?: string;
+          badge?: number;
+        };
+      };
+    };
   }): Promise<{
     successCount: number;
     failureCount: number;
@@ -263,6 +272,17 @@ export async function sendFcmToLogin(
         notification: {
           icon: "ic_stat_haulz",
           color: "#3655FF",
+        },
+      },
+      apns: {
+        headers: {
+          "apns-priority": "10",
+          "apns-push-type": "alert",
+        },
+        payload: {
+          aps: {
+            sound: "default",
+          },
         },
       },
     });

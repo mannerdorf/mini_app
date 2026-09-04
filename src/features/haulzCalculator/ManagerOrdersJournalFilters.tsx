@@ -1,13 +1,16 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import { Button, Typography } from "@maxhub/max-ui";
 import { ChevronDown } from "lucide-react";
 import { FilterDropdownPortal } from "../../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton";
+import { useResetAllFiltersListener } from "../../hooks/useResetAllFiltersListener";
 import { stripOoo } from "../../lib/formatUtils";
 import {
   HAULZ_CALC_DRAFT_STATUS_LABELS,
   type HaulzCalcDraftStatus,
 } from "../../../lib/haulzCalculator/draftStatus";
 import type { ManagerJournalFilters } from "./filterManagerJournalRows";
+import { EMPTY_MANAGER_JOURNAL_FILTERS } from "./filterManagerJournalRows";
 import { haulzCalcDraftStatusBadgeClass } from "./haulzCalcDraftStatusBadge";
 
 type FilterOptions = {
@@ -70,6 +73,12 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
   const closeAll = () => setOpenKey(null);
   const toggle = (key: string) => setOpenKey((prev) => (prev === key ? null : key));
 
+  const resetJournalFilters = useCallback(() => {
+    onChange(EMPTY_MANAGER_JOURNAL_FILTERS);
+    closeAll();
+  }, [onChange]);
+  useResetAllFiltersListener(resetJournalFilters);
+
   const hasActiveFilters = Boolean(
     filters.orderDate ||
       filters.pickupDate ||
@@ -83,6 +92,7 @@ export function ManagerOrdersJournalFilters({ filters, onChange, options }: Prop
   return (
     <div className="filters-container filters-row-scroll haulz-calc-manager-journal-filters">
       <div className="filter-group" style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexShrink: 0 }}>
+        <ResetAllFiltersButton onReset={resetJournalFilters} />
         <FilterDropdownButton
           label="Дата заявки"
           valueLabel={filters.orderDate ? formatFilterDate(filters.orderDate) : "Все"}

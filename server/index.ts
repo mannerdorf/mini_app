@@ -44,11 +44,19 @@ const FIVEPOST_TRANSLATE_TIMEOUT_MS = Number(
   process.env.HAULZ_FIVEPOST_TRANSLATE_TIMEOUT_MS || 300_000,
 );
 const DAILY_SUMMARY_TIMEOUT_MS = Number(process.env.HAULZ_DAILY_SUMMARY_TIMEOUT_MS || 300_000);
+/** Возвраты КГД: multipart Excel + processJob (много УЛ) часто > 90s. */
+const HAULZ_RETURNS_TIMEOUT_MS = Number(process.env.HAULZ_RETURNS_TIMEOUT_MS || 300_000);
 
 function requestHardTimeoutMs(pathname: string): number {
   if (pathname === "/api/documents/fivepost-translate") return FIVEPOST_TRANSLATE_TIMEOUT_MS;
   if (pathname === "/api/notification-daily-summary") return DAILY_SUMMARY_TIMEOUT_MS;
+  if (pathname.startsWith("/api/haulz-returns/")) return HAULZ_RETURNS_TIMEOUT_MS;
   return REQUEST_HARD_TIMEOUT_MS;
+}
+
+function isMultipartRequest(req: http.IncomingMessage): boolean {
+  const ct = String(req.headers["content-type"] || "").toLowerCase();
+  return ct.includes("multipart/form-data");
 }
 
 const server = http.createServer(async (req, res) => {
@@ -113,7 +121,9 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const body = await readRequestBody(req);
+    // Multipart: не буферизуем тело — formidable читает живой стрим.
+    // Иначе stream уже пуст → parseMultipart висит до hard timeout (504 Gateway timeout).
+    const body = isMultipartRequest(req) ? undefined : await readRequestBody(req);
     const vercelReq = toVercelRequest(req, body);
     for (const [key, value] of Object.entries(matched.params)) {
       (vercelReq as VercelRequest & { params?: Record<string, string> }).params = {
@@ -146,6 +156,7 @@ server.requestTimeout = Math.max(
   REQUEST_HARD_TIMEOUT_MS,
   FIVEPOST_TRANSLATE_TIMEOUT_MS,
   DAILY_SUMMARY_TIMEOUT_MS,
+  HAULZ_RETURNS_TIMEOUT_MS,
 ) + 5_000;
 server.headersTimeout = Math.min(60_000, REQUEST_HARD_TIMEOUT_MS);
 server.keepAliveTimeout = 65_000;

@@ -1,12 +1,12 @@
 /**
- * Типографика HTML-писем HAULZ: один шрифт (Inter, SIL OFL), без uppercase в CSS.
+ * Типографика HTML-писем HAULZ: Inter (SIL OFL — бесплатно для коммерции).
+ * Fallback только system-ui / sans-serif — без Arial/Helvetica/Segoe.
  */
 
 export const HAULZ_EMAIL_FONT_URL =
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap";
 
-export const HAULZ_EMAIL_FONT_FAMILY =
-  "'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif";
+export const HAULZ_EMAIL_FONT_FAMILY = "'Inter',system-ui,sans-serif";
 
 export const HAULZ_EMAIL_HEAD_LINKS = `<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>

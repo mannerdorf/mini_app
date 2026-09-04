@@ -16,6 +16,7 @@ export type { HaulzCalculatorFormState, HaulzCalcDraftStatus };
 
 export type DocumentsOrderJournalView = {
   customerName: string;
+  customerRequestNumber: string;
   senderPoint: string;
   destinationPoint: string;
   senderName: string;

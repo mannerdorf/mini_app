@@ -8,8 +8,20 @@ import {
   mergePushPreferences,
   mergePushPreferencesForSave,
   pushPreferencesForClient,
+  readPushSelectedInn,
   shouldSendDailySummaryPush,
 } from "./notificationEmailPrefs.js";
+
+describe("readPushSelectedInn", () => {
+  it("reads plain INN strings", () => {
+    expect(readPushSelectedInn("7722461620")).toBe("7722461620");
+    expect(readPushSelectedInn("ИНН 7722 461620")).toBe("7722461620");
+  });
+
+  it("reads push_selected_inn from objects", () => {
+    expect(readPushSelectedInn({ push_selected_inn: "7722461620" })).toBe("7722461620");
+  });
+});
 
 describe("mergePushPreferences", () => {
   it("keeps cargo stages off when only bills were saved", () => {
@@ -199,6 +211,8 @@ describe("isPushNotificationEnabled", () => {
   it("keeps bills and daily summary on by default", () => {
     expect(isPushNotificationEnabled({}, "bill_created")).toBe(true);
     expect(isPushNotificationEnabled({}, "daily_summary")).toBe(true);
+    expect(isPushNotificationEnabled({}, "planned_delivery_date")).toBe(true);
+    expect(isPushNotificationEnabled({}, "app_update")).toBe(true);
     expect(isPushNotificationEnabled({ bill_created: false }, "bill_created")).toBe(false);
   });
 });

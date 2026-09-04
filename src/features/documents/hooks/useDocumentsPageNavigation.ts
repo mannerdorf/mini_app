@@ -67,8 +67,8 @@ export function useDocumentsPageNavigation({
     }, [tableModeByCustomer]);
 
     const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
-    const tableModeEffective = tableModeByCustomer;
+    const tableModeFlatDirect = tableModeByCustomer && effectiveServiceMode && !tableModeGroupedByCustomer;
+    const tableModeEffective = tableModeByCustomer && effectiveServiceMode;
 
     const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
 

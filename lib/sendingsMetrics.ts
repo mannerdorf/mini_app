@@ -1,9 +1,13 @@
+import type { Pool } from "pg";
 import {
   buildCargoDepartureByNumber,
   calcTransitHours,
+  liveInTransitHoursFromMetrics,
   parseDateTimeValue,
   pickSendingDepartureStart,
 } from "./transitDateTime.js";
+import { loadCacheBlob, readDocumentsFromCacheByPeriod } from "./documentCacheRead.js";
+import { isNormalizedCacheReady, readNormalizedByDocNumbers } from "./documentCacheNormalized.js";
 
 type SendingMetricRow = {
   customerInn: string;
@@ -639,4 +643,190 @@ export async function upsertSendingsMetrics(pool: { query: (sql: string, params?
   );
 
   return { updated: merged.length };
+}
+
+function sendingHasReadyMetric(row: any): boolean {
+  return Boolean(row?.first_ready_at_metric ?? row?.first_ready_at);
+}
+
+function sendingMetricLookupKey(customerInn: string, sendingNumber: string): string {
+  return `${normalizeInn(customerInn)}|${String(sendingNumber || "").trim()}`;
+}
+
+function applyComputedSendingMetric(row: any, metric: SendingMetricRow): any {
+  if (!metric.firstReadyAt) return row;
+  const sendStartIso = dateToIso(metric.sendStartAt);
+  const firstReadyIso = dateToIso(metric.firstReadyAt);
+  return {
+    ...row,
+    in_transit_hours: liveInTransitHoursFromMetrics(
+      sendStartIso,
+      firstReadyIso,
+      metric.inTransitHours,
+    ),
+    send_start_at_metric: sendStartIso,
+    first_ready_at_metric: firstReadyIso,
+  };
+}
+
+async function attachSendingsMetricsFromDb(pool: Pool, list: any[]): Promise<any[]> {
+  const keys = list
+    .map((row) => ({
+      customer_inn: normalizeInn(pickSendingInn(row)),
+      sending_number: pickSendingNumber(row),
+    }))
+    .filter((k) => k.sending_number);
+  if (!keys.length) return list;
+
+  const metricsRes = await pool.query(
+    `with src as (
+       select *
+       from jsonb_to_recordset($1::jsonb) as x(customer_inn text, sending_number text)
+     ),
+     s_numbers as (
+       select distinct sending_number from src where sending_number <> ''
+     )
+     select m.customer_inn, m.sending_number, m.in_transit_hours, m.send_start_at, m.first_ready_at
+     from sendings_metrics m
+     join s_numbers n on n.sending_number = m.sending_number`,
+    [JSON.stringify(keys)],
+  );
+
+  const byInnAndSending = new Map<string, (typeof metricsRes.rows)[number]>();
+  const bySendingUnique = new Map<string, (typeof metricsRes.rows)[number]>();
+  const sendingCounts = new Map<string, number>();
+
+  metricsRes.rows.forEach((row) => {
+    const inn = normalizeInn(row.customer_inn);
+    const sending = String(row.sending_number || "").trim();
+    if (!sending) return;
+    byInnAndSending.set(`${inn}|${sending}`, row);
+    sendingCounts.set(sending, (sendingCounts.get(sending) || 0) + 1);
+  });
+  metricsRes.rows.forEach((row) => {
+    const sending = String(row.sending_number || "").trim();
+    if (!sending) return;
+    if ((sendingCounts.get(sending) || 0) === 1) {
+      bySendingUnique.set(sending, row);
+    }
+  });
+
+  return list.map((row) => {
+    const inn = normalizeInn(pickSendingInn(row));
+    const sending = pickSendingNumber(row);
+    const metric = byInnAndSending.get(`${inn}|${sending}`) ?? bySendingUnique.get(sending);
+    if (!metric) return row;
+    return {
+      ...row,
+      in_transit_hours: liveInTransitHoursFromMetrics(
+        metric.send_start_at,
+        metric.first_ready_at,
+        metric.in_transit_hours,
+      ),
+      send_start_at_metric: metric.send_start_at,
+      first_ready_at_metric: metric.first_ready_at,
+    };
+  });
+}
+
+function pickPerevozkiCargoNumber(cargo: any): string {
+  return normalizeCargoNumber(
+    cargo?.Number ?? cargo?.number ?? cargo?.НомерПеревозки ?? cargo?.CargoNumber ?? cargo?.NumberPerevozki,
+  );
+}
+
+async function loadPerevozkiForSendingsMetrics(
+  pool: Pool,
+  list: any[],
+  dateFrom?: string,
+  dateTo?: string,
+): Promise<any[]> {
+  const cargoNumbers = new Set<string>();
+  for (const row of list) {
+    for (const number of getSendingCargoNumbers(row)) {
+      cargoNumbers.add(number);
+    }
+  }
+
+  const byNumber = new Map<string, any>();
+  const addCargo = (cargo: any) => {
+    const raw = pickPerevozkiCargoNumber(cargo);
+    if (!raw || byNumber.has(raw)) return;
+    byNumber.set(raw, cargo);
+  };
+
+  if (cargoNumbers.size > 0) {
+    if (await isNormalizedCacheReady(pool, "perevozki")) {
+      const rows = await readNormalizedByDocNumbers(pool, "perevozki", [...cargoNumbers]);
+      rows.forEach(addCargo);
+    } else {
+      const blob = await loadCacheBlob(pool, "perevozki");
+      blob.forEach((cargo) => {
+        const raw = pickPerevozkiCargoNumber(cargo);
+        if (raw && cargoNumbers.has(raw)) addCargo(cargo);
+      });
+    }
+  }
+
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/;
+  if (dateFrom && dateTo && dateRe.test(dateFrom) && dateRe.test(dateTo)) {
+    try {
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "perevozki", dateFrom, dateTo);
+      items.forEach(addCargo);
+    } catch {
+      // fallback не блокирует ответ
+    }
+  }
+
+  return Array.from(byNumber.values());
+}
+
+/** Метрики отправок: сначала sendings_metrics, затем расчёт из кэша перевозок. */
+export async function attachSendingsMetrics(
+  pool: Pool,
+  list: any[],
+  options?: { dateFrom?: string; dateTo?: string },
+): Promise<any[]> {
+  if (!Array.isArray(list) || list.length === 0) return list;
+
+  const withDb = await attachSendingsMetricsFromDb(pool, list);
+  if (!withDb.some((row) => !sendingHasReadyMetric(row))) return withDb;
+
+  const perevozkiRows = await loadPerevozkiForSendingsMetrics(pool, list, options?.dateFrom, options?.dateTo);
+  if (perevozkiRows.length === 0) return withDb;
+
+  const computed = buildSendingsMetrics(list, perevozkiRows);
+  const byInnAndSending = new Map<string, SendingMetricRow>();
+  const bySendingUnique = new Map<string, SendingMetricRow>();
+  const sendingCounts = new Map<string, number>();
+
+  computed.forEach((row) => {
+    byInnAndSending.set(sendingMetricLookupKey(row.customerInn, row.sendingNumber), row);
+    sendingCounts.set(row.sendingNumber, (sendingCounts.get(row.sendingNumber) || 0) + 1);
+  });
+  computed.forEach((row) => {
+    if ((sendingCounts.get(row.sendingNumber) || 0) === 1) {
+      bySendingUnique.set(row.sendingNumber, row);
+    }
+  });
+
+  const result = withDb.map((row) => {
+    if (sendingHasReadyMetric(row)) return row;
+    const inn = pickSendingInn(row);
+    let sendingNumber = pickSendingNumber(row);
+    const cargoNumbers = getSendingCargoNumbers(row);
+    if (!sendingNumber && cargoNumbers.length > 0) sendingNumber = cargoNumbers[0];
+    const metric =
+      byInnAndSending.get(sendingMetricLookupKey(inn, sendingNumber)) ??
+      bySendingUnique.get(sendingNumber);
+    if (!metric?.firstReadyAt) return row;
+    return applyComputedSendingMetric(row, metric);
+  });
+
+  const toPersist = computed.filter((row) => row.firstReadyAt);
+  if (toPersist.length > 0) {
+    void upsertSendingsMetrics(pool, toPersist).catch(() => {});
+  }
+
+  return result;
 }

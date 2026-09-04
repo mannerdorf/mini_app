@@ -101,25 +101,10 @@ export function normalizeAnalyticsDashboardPermissions(perms: Record<string, boo
 
 export function applyPermissionsToggle(prev: Record<string, boolean>, key: string): Record<string, boolean> {
   const nextVal = !prev[key];
-
-  if (key === "red_returns" && nextVal) {
-    const next = PERMISSION_KEYS.reduce<Record<string, boolean>>((acc, { key: k }) => {
-      acc[k] = false;
-      return acc;
-    }, {});
-    next.red_returns = true;
-    return normalizeAnalyticsDashboardPermissions(next);
-  }
-
   const next = { ...prev, [key]: nextVal };
   if (key === "analytics" && !nextVal) next.dashboard = false;
   if (key === "dashboard" && nextVal && !prev.analytics) next.analytics = true;
-  if (key !== "red_returns" && nextVal && prev.red_returns) next.red_returns = false;
-  return next;
-}
-
-export function isPermissionLockedByRedReturns(key: string, perms: Record<string, boolean>): boolean {
-  return perms.red_returns === true && key !== "red_returns";
+  return normalizeAnalyticsDashboardPermissions(next);
 }
 
 export function isDashboardPermissionDisabled(key: string, perms: Record<string, boolean>): boolean {

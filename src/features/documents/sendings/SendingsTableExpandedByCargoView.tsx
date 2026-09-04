@@ -2,7 +2,7 @@ import React from "react";
 import { DateText } from "../../../components/ui/DateText";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { stripOoo } from "../../../lib/formatUtils";
+import { formatCurrency, stripOoo } from "../../../lib/formatUtils";
 import { SendingsTableSummarySortTh } from "./SendingsTableSummarySortTh";
 import {
   buildByCargoSummaries,
@@ -26,8 +26,14 @@ type Props = Pick<
   | "cargoStateByNumber"
   | "cargoPlanDateByNumber"
   | "cargoCustomerByNumber"
+  | "cargoSumByNumber"
+  | "showSums"
   | "handleOpenCargo"
 >;
+
+function formatSendingCostCell(cost: number): React.ReactNode {
+  return cost > 0 ? formatCurrency(cost, true) : "—";
+}
 
 export function SendingsTableExpandedByCargoView(props: Props) {
   const {
@@ -42,10 +48,12 @@ export function SendingsTableExpandedByCargoView(props: Props) {
     cargoStateByNumber,
     cargoPlanDateByNumber,
     cargoCustomerByNumber,
+    cargoSumByNumber,
+    showSums,
     handleOpenCargo,
   } = props;
 
-  const summaryRows = buildByCargoSummaries(parcelsToRender, row, cargoStateByNumber, cargoCustomerByNumber);
+  const summaryRows = buildByCargoSummaries(parcelsToRender, row, cargoStateByNumber, cargoCustomerByNumber, cargoSumByNumber);
   const sortedSummaryRows = sortByCargoSummaries(summaryRows, sendingsSummarySortColumn, sendingsSummarySortOrder);
   const totals = sumByCargoSummaryTotals(summaryRows);
 
@@ -60,6 +68,9 @@ export function SendingsTableExpandedByCargoView(props: Props) {
           <SendingsTableSummarySortTh label="Объем" column="volume" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
           <SendingsTableSummarySortTh label="Вес" column="weight" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
           <SendingsTableSummarySortTh label="Платный вес" column="paidWeight" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
+          {showSums && (
+            <SendingsTableSummarySortTh label="Стоимость" column="cost" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} align="right" />
+          )}
           <SendingsTableSummarySortTh label="Заказчик" column="customer" sortColumn={sendingsSummarySortColumn} sortOrder={sendingsSummarySortOrder} onSort={handleSendingsSummarySort} />
           <th style={{ padding: "0.35rem 0.3rem", textAlign: "left", fontWeight: 600, lineHeight: 1.15 }}>
             Плановая дата прибытия
@@ -103,6 +114,9 @@ export function SendingsTableExpandedByCargoView(props: Props) {
               <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.volume)}</td>
               <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.weight)}</td>
               <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingSummaryNum(summary.paidWeight)}</td>
+              {showSums && (
+                <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap" }}>{formatSendingCostCell(summary.cost)}</td>
+              )}
               <td style={{ padding: "0.35rem 0.3rem" }}>{stripOoo(summary.customer) || "—"}</td>
               <td style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
                 {planDate ? (
@@ -122,6 +136,9 @@ export function SendingsTableExpandedByCargoView(props: Props) {
           <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>{formatSendingSummaryNum(totals.volume)}</td>
           <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>{formatSendingSummaryNum(totals.weight)}</td>
           <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>{formatSendingSummaryNum(totals.paidWeight)}</td>
+          {showSums && (
+            <td style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>{formatSendingCostCell(totals.cost)}</td>
+          )}
           <td style={{ padding: "0.35rem 0.3rem", fontWeight: 700 }}>—</td>
           <td style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap", fontWeight: 700 }}>
             {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : "нет"}

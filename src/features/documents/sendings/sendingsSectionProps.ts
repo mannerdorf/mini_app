@@ -46,7 +46,7 @@ export type SendingsSectionProps = {
   setSendingsSummaryGroupBy: React.Dispatch<React.SetStateAction<"customer" | "receiver">>;
   sendingsSummarySortColumn: any;
   sendingsSummarySortOrder: any;
-  handleSendingsSummarySort: (column: "index" | "cargo" | "status" | "count" | "volume" | "weight" | "paidWeight" | "customer" | "density") => void;
+  handleSendingsSummarySort: (column: "index" | "cargo" | "status" | "count" | "volume" | "weight" | "paidWeight" | "cost" | "customer" | "density") => void;
   cargoStateByNumber: any;
   cargoPlanDateByNumber: Map<string, string>;
   cargoReceiverByNumber: any;

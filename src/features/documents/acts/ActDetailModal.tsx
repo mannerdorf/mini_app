@@ -1,16 +1,20 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Download, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText, transliterateFilename } from "../../../lib/formatUtils";
+import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
-import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
-import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
+import { DocumentDetailLineCards } from "../components/DocumentDetailLineCards";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
+import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
+import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
+import { fetchDocumentPdfPreview } from "../../../lib/fetchDocumentForPreview";
+import { revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { saveBlobFile } from "../../../lib/saveBlobFile";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -19,11 +23,8 @@ type ActDetailModalProps = {
     item: any;
     isOpen: boolean;
     onClose: () => void;
-    /** При клике по номеру счёта — открыть счёт (передать найденный объект счёта из списка) */
     onOpenInvoice?: (invoiceItem: any) => void;
-    /** Список счетов для поиска по номеру (чтобы открыть счёт по клику) */
     invoices?: any[];
-    /** При клике по номеру перевозки — открыть карточку перевозки */
     onOpenCargo?: (cargoNumber: string) => void;
     auth?: AuthData | null;
     cargoStateByNumber?: Map<string, string>;
@@ -31,19 +32,16 @@ type ActDetailModalProps = {
     perevozkiLoading?: boolean;
 };
 
-/** Числовая часть номера без префикса и ведущих нулей (0000-000113, 000113, 113 → 113) */
 function normNum(s: string | undefined | null): string {
     const v = String(s ?? "").trim().replace(/^0000-/, "").replace(/^0+/, "") || "0";
     return v;
 }
 
-/** Канонический формат номера счёта по маске 0000-XXXXXX (113 → 0000-000113) */
 function toCanonicalInvoiceNum(s: string | undefined | null): string {
     const n = normNum(s);
     return "0000-" + n.padStart(6, "0");
 }
 
-/** Проверка совпадения номеров счёта: маска 0000-000113, учитываем все форматы */
 function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined | null): boolean {
     if (!a && !b) return true;
     if (!a || !b) return false;
@@ -55,33 +53,6 @@ function invoiceNumbersMatch(a: string | undefined | null, b: string | undefined
     const numA = parseInt(normNum(sa), 10);
     const numB = parseInt(normNum(sb), 10);
     return !isNaN(numA) && !isNaN(numB) && numA === numB;
-}
-
-/** Первый номер перевозки из списка номенклатуры УПД */
-function getFirstCargoNumberFromAct(item: any): string | null {
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
-    for (let i = 0; i < list.length; i++) {
-        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-        if (!text) continue;
-        const parts = parseCargoNumbersFromText(text);
-        const cargo = parts.find((p) => p.type === "cargo");
-        if (cargo?.value) return cargo.value;
-    }
-    return null;
-}
-
-function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
-    const text = String(row?.Operation ?? row?.Name ?? "").trim();
-    if (!text) return null;
-    const parts = parseCargoNumbersFromText(text);
-    const cargo = parts.find((p) => p.type === "cargo");
-    return cargo?.value ?? null;
-}
-
-function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
-    if (!map || !key) return undefined;
-    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
-    return map.get(key) ?? map.get(norm(key));
 }
 
 export function ActDetailModal({
@@ -98,6 +69,14 @@ export function ActDetailModal({
 }: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+
+    useEffect(() => {
+        if (!isOpen && pdfViewer) {
+            void revokePdfPreview(pdfViewer);
+            setPdfViewer(null);
+        }
+    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
 
@@ -107,14 +86,13 @@ export function ActDetailModal({
     const invoiceNum = item?.Invoice ?? item?.invoice ?? item?.Счёт ?? item?.Счет ?? item?.invoiceNumber ?? "";
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> =
         Array.isArray(item?.List) ? item.List : [];
-    const cargoNumber = getFirstCargoNumberFromAct(item);
+    const cargoNumber = getFirstCargoNumberFromInvoice(item);
 
     const getInvNum = (inv: any) => String(inv?.Number ?? inv?.number ?? inv?.Номер ?? inv?.N ?? inv?.numberDoc ?? "").trim();
     const invoiceItem = invoiceNum && invoices.length > 0
         ? invoices.find((inv) => invoiceNumbersMatch(getInvNum(inv), invoiceNum))
         : null;
 
-    /** ЭДО по кнопкам документов: из связанного счёта, иначе с УПД */
     const edoSource = invoiceItem ?? item;
 
     const handleDownload = async (label: string) => {
@@ -127,56 +105,23 @@ export function ActDetailModal({
             return;
         }
         const metod = DOCUMENT_METHODS[label] ?? label;
+        const isInvoiceDoc = label === "СЧЕТ";
+        const numberForApi = isInvoiceDoc
+            ? (invoiceNum ? String(invoiceNum).trim() : formatPerevozkaNumberForApi(cargoNumber))
+            : formatPerevozkaNumberForApi(cargoNumber);
         setDownloading(label);
         setDownloadError(null);
         try {
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    login: auth.login,
-                    password: auth.password,
-                    metod,
-                    number: cargoNumber,
-                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-                }),
-            });
-            if (!res.ok) {
-                let msg =
-                    res.status === 404
-                        ? "Документ не найден"
-                        : res.status >= 500
-                            ? "Ошибка сервера"
-                            : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.message);
-                    } else if (errData?.error && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.error);
-                    }
-                } catch {
-                    /* ignore */
-                }
-                throw new Error(msg);
+            if (pdfViewer) {
+                await revokePdfPreview(pdfViewer);
             }
-            const data = await res.json();
-            if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteCharacters = atob(data.data);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = transliterateFilename(data.name || `${label}_${cargoNumber}.pdf`);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (e: any) {
-            setDownloadError(e?.message ?? "Ошибка загрузки");
+            const preview = await fetchDocumentPdfPreview(auth, {
+                metod,
+                number: numberForApi,
+            });
+            setPdfViewer(preview);
+        } catch (e: unknown) {
+            setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
         } finally {
             setDownloading(null);
         }
@@ -294,7 +239,7 @@ export function ActDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Download className="w-4 h-4" aria-hidden />
+                                        <Eye className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     <EdoDocMiniBadge info={edo} />
@@ -308,45 +253,25 @@ export function ActDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
+                {pdfViewer && (
+                    <PdfPreviewPanel
+                        preview={pdfViewer}
+                        onDownload={(blob, name) => saveBlobFile(blob, name)}
+                        onClose={() => {
+                            void revokePdfPreview(pdfViewer);
+                            setPdfViewer(null);
+                        }}
+                    />
+                )}
 
                 {list.length > 0 ? (
-                    <div className="entity-detail-modal-table-wrap">
-                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem", color: "var(--color-text-primary)" }}>
-                            <thead>
-                                <tr style={{ background: "var(--color-bg-hover)" }}>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Услуга</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Статус перевозки</th>
-                                    <th className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600, color: "var(--color-text-primary)" }}>Маршрут</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Кол-во</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Цена</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600, color: "var(--color-text-primary)" }}>Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromRow(row);
-                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
-                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
-                                    return (
-                                    <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                        <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220, color: "var(--color-text-primary)" }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
-                                            {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
-                                        </td>
-                                        <td style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <StatusBadge status={deliveryState} />}
-                                        </td>
-                                        <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", color: "var(--color-text-primary)" }}>
-                                            {perevozkiLoading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} /> : <RouteBadge route={route} />}
-                                        </td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Quantity ?? "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Price != null ? formatCurrency(row.Price) : "—"}</td>
-                                        <td style={{ padding: "0.5rem 0.4rem", textAlign: "right", color: "var(--color-text-primary)" }}>{row.Sum != null ? formatCurrency(row.Sum) : "—"}</td>
-                                    </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DocumentDetailLineCards
+                        rows={list}
+                        perevozkiLoading={perevozkiLoading}
+                        cargoStateByNumber={cargoStateByNumber}
+                        cargoRouteByNumber={cargoRouteByNumber}
+                        renderServiceCell={renderServiceCell}
+                    />
                 ) : (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет табличной части</Typography.Body>
                 )}

@@ -56,8 +56,12 @@ export function shouldServeFromDocumentCache(
 }
 
 export function getPerevozkiServiceCredentials(): { login: string; password: string } | null {
-  const login = String(process.env.PEREVOZKI_SERVICE_LOGIN ?? "").trim();
-  const password = String(process.env.PEREVOZKI_SERVICE_PASSWORD ?? "").trim();
+  const login = String(
+    process.env.PEREVOZKI_SERVICE_LOGIN ?? process.env.POLL_SERVICE_LOGIN ?? "",
+  ).trim();
+  const password = String(
+    process.env.PEREVOZKI_SERVICE_PASSWORD ?? process.env.POLL_SERVICE_PASSWORD ?? "",
+  ).trim();
   if (!login || !password) return null;
   return { login, password };
 }

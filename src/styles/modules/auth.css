@@ -56,7 +56,8 @@
     font-size: clamp(1.85rem, 9vw, 2.45rem);
     letter-spacing: 0.1em;
     line-height: 1;
-    font-family: Arial, Helvetica, "Segoe UI", sans-serif;
+    /* SIL OFL — не Arial/Helvetica (проприетарные) */
+    font-family: "Manrope", "DM Sans", system-ui, sans-serif;
     white-space: nowrap;
 }
 

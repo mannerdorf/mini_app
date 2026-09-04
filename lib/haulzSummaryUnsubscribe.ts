@@ -88,7 +88,7 @@ export function renderUnsubscribeResultHtml(ok: boolean, message: string): strin
   const color = ok ? "#059669" : "#b91c1c";
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title></head>
-<body style="margin:0;padding:24px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;color:#1f2937;">
+<body style="margin:0;padding:24px;font-family:system-ui,sans-serif;background:#f3f4f6;color:#1f2937;">
   <div style="max-width:480px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e7eb;">
     <h1 style="margin:0 0 12px;font-size:20px;color:${color};">${title}</h1>
     <p style="margin:0 0 16px;font-size:15px;line-height:1.5;">${message}</p>

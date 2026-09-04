@@ -2013,7 +2013,7 @@ body.haulz-calc-map-screen-open {
   box-sizing: border-box;
   resize: vertical;
   min-height: 6rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: ui-monospace, "Liberation Mono", monospace;
   font-size: 0.68rem;
   line-height: 1.35;
   padding: 0.55rem 0.6rem;
@@ -2256,7 +2256,7 @@ body.haulz-calc-map-screen-open {
 
 .hr-calc-admin-input--code {
   width: 7.5rem;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: ui-monospace, "Liberation Mono", monospace;
   font-size: 0.8125rem;
 }
 
@@ -3277,7 +3277,7 @@ body.haulz-calc-map-screen-open {
   border-radius: 8px;
   background: #0f172a;
   color: #e2e8f0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-family: ui-monospace, "Liberation Mono", monospace;
   font-size: 0.75rem;
   line-height: 1.45;
   white-space: pre;

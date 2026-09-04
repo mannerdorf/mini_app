@@ -13,10 +13,11 @@ import {
   getPaymentKey,
   fetchPerevozkiByInn,
   hasBillSignal,
+  hasBillNumberForPush,
   isCargoStageNotificationEnabled,
   isRecentNotificationItem,
 } from "../lib/notificationPoll.js";
-import { loadPushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
+import { loadEffectivePushLoginScopes, normalizeNotificationInn } from "../lib/notificationInnScope.js";
 import { wasSuccessfulNotificationDelivery } from "./_lib/notificationDeliveryDedupe.js";
 import {
   isPushEventAllowedForInn,
@@ -31,9 +32,11 @@ import {
 } from "../lib/notificationCargoOwnerInn.js";
 import {
   loadCargoPayloadsByNumbers,
+  loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../lib/notificationCargoPayloadEnrich.js";
-import { loadPushNotificationTemplates, formatPushNotificationMessage } from "../lib/pushNotificationTemplates.js";
+import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../lib/pushNotificationTemplates.js";
+import { getPerevozkiServiceCredentials } from "../lib/cacheHistoryDays.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
@@ -116,7 +119,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const appDomain = getPublicApiOrigin();
 
   try {
-    const scopes = await loadPushLoginScopes(pool);
+    const scopes = await loadEffectivePushLoginScopes(pool);
     const pushTemplates = await loadPushNotificationTemplates(pool);
     const loginInnPairs: Array<{ login: string; inn: string }> = [];
     for (const scope of scopes.values()) {
@@ -289,7 +292,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       const subscribers = subscribersByInn.get(inn) || [];
       const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
+      const invoiceByCargoNumber = await loadInvoicePayloadsByCargoNumbers(pool, inn, cargoNumbers);
       const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
+      const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
+      const perevozkaCreds = getPerevozkiServiceCredentials();
 
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
@@ -317,16 +323,29 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (payKey === "paid" && prevPayKey !== "paid") eventsToSend.push("bill_paid");
         }
 
+        let deferBillStateUpdate = false;
+        let deferCargoStateUpdate = false;
+
         for (const event of eventsToSend) {
           const templateItem = await resolveCargoItemForPushTemplate({
             item: item as Record<string, unknown>,
             event,
             payloadByNumber,
+            invoiceByCargoNumber,
             customerInn: cargoInn,
-            serviceLogin: POLL_SERVICE_LOGIN,
-            servicePassword: POLL_SERVICE_PASSWORD,
+            serviceLogin: perevozkaCreds?.login ?? POLL_SERVICE_LOGIN,
+            servicePassword: perevozkaCreds?.password ?? POLL_SERVICE_PASSWORD,
             perevozkaCache: perevozkaDetailCache,
+            invoiceLiveCache,
           });
+          if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
+            deferBillStateUpdate = true;
+            continue;
+          }
+          if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+            deferCargoStateUpdate = true;
+            continue;
+          }
           const message = formatPushNotificationMessage(event, number, templateItem, pushTemplates);
           const text = message.body;
           const title = message.title;
@@ -424,11 +443,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           }
         }
 
+        const stateBillToPersist = deferBillStateUpdate ? (last?.state_bill ?? null) : currentStateBill;
+        const stateToPersist = deferCargoStateUpdate ? (last?.state ?? null) : currentState;
         await pool.query(
           `insert into cargo_last_state (inn, cargo_number, state, state_bill, updated_at)
            values ($1, $2, $3, $4, now())
            on conflict (inn, cargo_number) do update set state = excluded.state, state_bill = excluded.state_bill, updated_at = now()`,
-          [cargoInn, number, currentState, currentStateBill]
+          [cargoInn, number, stateToPersist, stateBillToPersist]
         );
       }
     }

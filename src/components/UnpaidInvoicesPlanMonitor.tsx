@@ -1,15 +1,20 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { ChevronRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { AppBadge } from "./shared/AppBadge";
-import { DateText } from "./ui/DateText";
-import { ClickableInvoiceNumber, leafRowClickProps } from "./ui/EntityLinks";
-import { formatCurrency, stripOoo } from "../lib/formatUtils";
+import { ClickableInvoiceNumber, ClickableCargoNumber, leafRowClickProps } from "./ui/EntityLinks";
+import { formatCurrency, formatInvoiceNumber, stripOoo } from "../lib/formatUtils";
 import { StatusBadge } from "./shared/StatusBadges";
 import {
   computeUnpaidInvoicesByPlan,
+  computeUnbilledCargoByPlan,
+  groupUnpaidInvoicesByCustomer,
+  groupUnbilledCargoByCustomer,
+  mergeUnpaidMonitorCustomerGroups,
   PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS,
   type UnpaidInvoicePlanRow,
+  type UnbilledCargoPlanRow,
+  type UnpaidMonitorCustomerGroup,
 } from "../lib/unpaidInvoicesByPlan";
 import type { CargoItem } from "../types";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -23,12 +28,13 @@ type Props = {
   showSums?: boolean;
   onOpen?: () => void;
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+  onOpenCargo?: (cargoNumber: string) => void;
 };
 
-/** Вертикальный скролл таблицы при большом числе счетов (все строки в DOM, сумма — по полному списку). */
+/** Вертикальный скролл списка при большом числе счетов. */
 const UNPAID_MONITOR_SCROLL_AFTER_ROWS = 8;
 
-function priorityBadge(row: UnpaidInvoicePlanRow) {
+function priorityBadge(row: Pick<UnpaidInvoicePlanRow, "priority" | "planDate">) {
   if (row.priority === "high") {
     return (
       <AppBadge tone="danger" title="Плановая дата прибытия на терминал в ближайшие 7 дней или просрочена">
@@ -50,6 +56,90 @@ function priorityBadge(row: UnpaidInvoicePlanRow) {
   );
 }
 
+function amountClassName(priority: UnpaidInvoicePlanRow["priority"]): string {
+  return priority === "high" ? "unpaid-plan-monitor__amount unpaid-plan-monitor__amount--high" : "unpaid-plan-monitor__amount";
+}
+
+function UnbilledCargoDetailRow({
+  row,
+  showSums,
+  onOpenCargo,
+}: {
+  row: UnbilledCargoPlanRow;
+  showSums: boolean;
+  onOpenCargo?: (cargoNumber: string) => void;
+}) {
+  const rowOpen = onOpenCargo
+    ? leafRowClickProps(() => onOpenCargo(row.cargoNumber), "Открыть перевозку")
+    : null;
+  return (
+    <div className="unpaid-plan-monitor__detail-row unpaid-plan-monitor__detail-row--unbilled" {...(rowOpen ?? {})}>
+      <div className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--cargo">
+        <ClickableCargoNumber number={row.cargoNumber} onOpen={onOpenCargo} />
+      </div>
+      <div className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--status">
+        {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
+          <StatusBadge status={row.cargoState} />
+        ) : (
+          "—"
+        )}
+      </div>
+      {showSums && (
+        <div className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum ${amountClassName(row.priority)}`}>
+          {formatCurrency(row.sum, true)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UnpaidInvoiceDetailRow({
+  row,
+  showSums,
+  onOpenInvoice,
+  compact = false,
+}: {
+  row: UnpaidInvoicePlanRow;
+  showSums: boolean;
+  onOpenInvoice?: (invoice: Record<string, unknown>) => void;
+  compact?: boolean;
+}) {
+  const rowOpen = onOpenInvoice
+    ? leafRowClickProps(() => onOpenInvoice(row.invoice), "Открыть счёт")
+    : null;
+  return (
+    <div
+      className={`unpaid-plan-monitor__detail-row${compact ? " unpaid-plan-monitor__detail-row--compact" : ""}`}
+      {...(rowOpen ?? {})}
+    >
+      {!compact && (
+        <div className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--invoice">
+          <ClickableInvoiceNumber
+            number={row.invoiceNumber}
+            invoice={row.invoice}
+            onOpen={onOpenInvoice}
+          />
+        </div>
+      )}
+      <div className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--status">
+        {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
+          <StatusBadge status={row.cargoState} />
+        ) : (
+          "—"
+        )}
+      </div>
+      <div className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--cargo">
+        {row.cargoNumber ? formatInvoiceNumber(row.cargoNumber) : "—"}
+      </div>
+      {showSums && (
+        <div className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum ${amountClassName(row.priority)}`}>
+          {formatCurrency(row.balance, true)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UnpaidInvoicesPlanMonitor({
   invoices,
   cargoItems,
@@ -58,23 +148,83 @@ export function UnpaidInvoicesPlanMonitor({
   showSums = true,
   onOpen,
   onOpenInvoice,
+  onOpenCargo,
 }: Props) {
-  const { showCustomerColumn } = useAppRuntime();
+  const { showCustomerColumn, useServiceRequest } = useAppRuntime();
+  const groupedByCustomer = showCustomerColumn && useServiceRequest;
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
   const rows = useMemo(
     () => computeUnpaidInvoicesByPlan(invoices, cargoItems),
     [invoices, cargoItems],
   );
+  const unbilledRows = useMemo(
+    () => (groupedByCustomer ? computeUnbilledCargoByPlan(cargoItems) : []),
+    [groupedByCustomer, cargoItems],
+  );
+  const customerGroups = useMemo(
+    () => (groupedByCustomer ? groupUnpaidInvoicesByCustomer(rows) : []),
+    [groupedByCustomer, rows],
+  );
+  const mergedCustomerGroups = useMemo((): UnpaidMonitorCustomerGroup[] => {
+    if (!groupedByCustomer) return [];
+    return mergeUnpaidMonitorCustomerGroups(
+      customerGroups,
+      groupUnbilledCargoByCustomer(unbilledRows),
+    );
+  }, [groupedByCustomer, customerGroups, unbilledRows]);
 
   const highCount = rows.filter((r) => r.priority === "high").length;
   const totalBalance = rows.reduce((acc, r) => acc + r.balance, 0);
-  const tableScrollable = rows.length > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
-  const isEmpty = !loading && rows.length === 0;
+  const unbilledCount = unbilledRows.length;
+  const unbilledSum = unbilledRows.reduce((acc, r) => acc + r.sum, 0);
+  const combinedTotal = totalBalance + unbilledSum;
+  const listScrollable = (groupedByCustomer ? mergedCustomerGroups.length : rows.length) > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
+  const isEmpty = !loading && rows.length === 0 && unbilledCount === 0;
   const HeadIcon = isEmpty ? CheckCircle2 : AlertCircle;
   const headIconColor = isEmpty ? "#10b981" : "var(--color-primary-blue)";
+
+  const subtitleText = useMemo(() => {
+    if (loading) return "Загрузка счетов…";
+    if (cargoLoading) return "Счета загружены, уточняем плановые даты…";
+    if (isEmpty) return "Задолженностей нет — все счета оплачены";
+    const parts: string[] = [];
+    if (rows.length > 0) {
+      parts.push(
+        `${rows.length} к оплате за 3 мес.${showSums ? ` · ${formatCurrency(totalBalance, true)}` : ""}`,
+      );
+      parts.push(`высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`);
+    }
+    if (groupedByCustomer) {
+      parts.push(
+        `невыст.: ${unbilledCount} перев.${showSums ? ` · ${formatCurrency(unbilledSum, true)}` : ""}`,
+      );
+      if (showSums && (rows.length > 0 || unbilledCount > 0)) {
+        parts.push(`всего ${formatCurrency(combinedTotal, true)}`);
+      }
+    }
+    return parts.join(" · ");
+  }, [
+    loading,
+    cargoLoading,
+    isEmpty,
+    rows.length,
+    showSums,
+    totalBalance,
+    highCount,
+    groupedByCustomer,
+    unbilledCount,
+    unbilledSum,
+    combinedTotal,
+  ]);
 
   const cardClass = `unpaid-plan-monitor cargo-card${
     highCount > 0 ? " unpaid-plan-monitor--alert" : isEmpty ? " unpaid-plan-monitor--ok" : ""
   }`;
+
+  const toggleExpanded = (key: string) => {
+    setExpandedKey((prev) => (prev === key ? null : key));
+  };
 
   return (
     <div className={cardClass}>
@@ -91,13 +241,7 @@ export function UnpaidInvoicesPlanMonitor({
             <div style={{ minWidth: 0, textAlign: "left" }}>
               <Typography.Body className="unpaid-plan-monitor__title">Монитор задолженности</Typography.Body>
               <Typography.Label className="unpaid-plan-monitor__subtitle">
-                {loading
-                  ? "Загрузка счетов…"
-                  : cargoLoading
-                    ? "Счета загружены, уточняем плановые даты…"
-                  : isEmpty
-                    ? "Задолженностей нет — все счета оплачены"
-                    : `${rows.length} к оплате за 3 мес.${showSums ? ` · всего ${formatCurrency(totalBalance, true)}` : ""} · высокий приоритет: ${highCount} (до ${PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS} дн. до плана)`}
+                {subtitleText}
               </Typography.Label>
             </div>
           </Flex>
@@ -126,73 +270,218 @@ export function UnpaidInvoicesPlanMonitor({
         </>
       ) : (
         <>
-        <div
-          className={
-            tableScrollable
-              ? "unpaid-plan-monitor__table-wrap unpaid-plan-monitor__table-wrap--scroll"
-              : "unpaid-plan-monitor__table-wrap"
-          }
-        >
-          <table className="unpaid-plan-monitor__table">
-            <thead>
-              <tr>
-                <th>Счёт</th>
-                {showCustomerColumn && <th className="customer-col">Заказчик</th>}
-                <th className="unpaid-plan-monitor__col-status">Статус перевозки</th>
-                <th
-                  className="unpaid-plan-monitor__col-plan-arrival"
-                  title="Плановая дата прибытия на терминал"
-                >
-                  Плановая дата прибытия на терминал
-                </th>
-                <th>Приоритет</th>
-                {showSums && <th style={{ textAlign: "right" }}>К оплате</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row) => {
-                const rowOpen = onOpenInvoice
-                  ? leafRowClickProps(() => onOpenInvoice(row.invoice), "Открыть счёт")
-                  : null;
-                return (
-                  <tr key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`} {...(rowOpen ?? {})}>
-                    <td>
-                      <ClickableInvoiceNumber
-                        number={row.invoiceNumber}
-                        invoice={row.invoice}
-                        onOpen={onOpenInvoice}
-                      />
-                    </td>
-                    {showCustomerColumn && (
-                      <td className="customer-col" title={row.customer}>{stripOoo(row.customer)}</td>
-                    )}
-                    <td className="unpaid-plan-monitor__col-status">
-                      {row.cargoState != null && String(row.cargoState).trim() !== "" ? (
-                        <StatusBadge status={row.cargoState} />
-                      ) : (
-                        "—"
+          <div
+            className={
+              listScrollable
+                ? "unpaid-plan-monitor__list-wrap unpaid-plan-monitor__list-wrap--scroll"
+                : "unpaid-plan-monitor__list-wrap"
+            }
+          >
+            <div
+              className={`unpaid-plan-monitor__list-header${
+                groupedByCustomer
+                  ? " unpaid-plan-monitor__list-header--customer-unbilled"
+                  : " unpaid-plan-monitor__list-header--invoice"
+              }`}
+            >
+              {groupedByCustomer ? (
+                <>
+                  <span>Заказчик</span>
+                  <span>Приоритет</span>
+                  <span>Невыст.</span>
+                  {showSums && <span>К оплате</span>}
+                </>
+              ) : (
+                <>
+                  <span>Счёт</span>
+                  <span>Приоритет</span>
+                  {showSums && <span>К оплате</span>}
+                </>
+              )}
+            </div>
+
+            {groupedByCustomer
+              ? (
+                <>
+                  {mergedCustomerGroups.map((group) => {
+                  const key = group.customer;
+                  const isExpanded = expandedKey === key;
+                  return (
+                    <div key={key} className="unpaid-plan-monitor__group">
+                      <button
+                        type="button"
+                        className="unpaid-plan-monitor__summary-row unpaid-plan-monitor__summary-row--customer-unbilled"
+                        onClick={() => toggleExpanded(key)}
+                        aria-expanded={isExpanded}
+                        title={isExpanded ? "Свернуть" : "Подробнее"}
+                      >
+                        <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--customer" title={group.customer}>
+                          {stripOoo(group.customer)}
+                        </span>
+                        <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--priority">
+                          {priorityBadge(group)}
+                        </span>
+                        <span
+                          className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--unbilled${
+                            group.unbilledCount > 0 ? " unpaid-plan-monitor__cell--unbilled--has" : ""
+                          }`}
+                          title={
+                            group.unbilledCount > 0
+                              ? `${group.unbilledCount} перев. · статус счёта не указан`
+                              : "Нет перевозок со статусом счёта «Не указан»"
+                          }
+                        >
+                          {group.unbilledCount > 0
+                            ? showSums
+                              ? `${group.unbilledCount} · ${formatCurrency(group.unbilledSum, true)}`
+                              : String(group.unbilledCount)
+                            : "—"}
+                        </span>
+                        {showSums && (
+                          <span className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum ${amountClassName(group.priority)}`}>
+                            {group.balance > 0 ? formatCurrency(group.balance, true) : "—"}
+                          </span>
+                        )}
+                        <ChevronDown
+                          className={`unpaid-plan-monitor__row-chevron${isExpanded ? " unpaid-plan-monitor__row-chevron--open" : ""}`}
+                          aria-hidden
+                        />
+                      </button>
+                      {isExpanded && (
+                        <div className="unpaid-plan-monitor__details">
+                          {group.items.length > 0 && (
+                            <>
+                              <div className="unpaid-plan-monitor__details-section-title">Неоплаченные счета</div>
+                              <div className="unpaid-plan-monitor__details-header">
+                                <span>Счёт</span>
+                                <span>Статус перевозки</span>
+                                <span>Перевозка</span>
+                                {showSums && <span>К оплате</span>}
+                              </div>
+                              {group.items.map((row) => (
+                                <UnpaidInvoiceDetailRow
+                                  key={`${row.invoiceNumber}-${row.cargoNumber ?? ""}`}
+                                  row={row}
+                                  showSums={showSums}
+                                  onOpenInvoice={onOpenInvoice}
+                                />
+                              ))}
+                            </>
+                          )}
+                          {group.unbilledItems.length > 0 && (
+                            <>
+                              <div className="unpaid-plan-monitor__details-section-title">Невыставленные перевозки (статус счёта не указан)</div>
+                              <div className="unpaid-plan-monitor__details-header unpaid-plan-monitor__details-header--unbilled">
+                                <span>Перевозка</span>
+                                <span>Статус</span>
+                                {showSums && <span>Стоимость</span>}
+                              </div>
+                              {group.unbilledItems.map((row) => (
+                                <UnbilledCargoDetailRow
+                                  key={row.cargoNumber}
+                                  row={row}
+                                  showSums={showSums}
+                                  onOpenCargo={onOpenCargo}
+                                />
+                              ))}
+                            </>
+                          )}
+                        </div>
                       )}
-                    </td>
-                    <td className="unpaid-plan-monitor__col-plan-arrival">
-                      {row.planDateKey ? <DateText value={row.planDateKey} /> : "—"}
-                    </td>
-                    <td>{priorityBadge(row)}</td>
+                    </div>
+                  );
+                })}
+                  <div
+                    className="unpaid-plan-monitor__totals-row unpaid-plan-monitor__summary-row--customer-unbilled"
+                    aria-label="Итого по монитору задолженности"
+                  >
+                    <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--customer unpaid-plan-monitor__cell--totals-label">
+                      Итого
+                    </span>
+                    <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--priority" aria-hidden />
+                    <span
+                      className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--unbilled${
+                        unbilledCount > 0 ? " unpaid-plan-monitor__cell--unbilled--has" : ""
+                      }`}
+                      title={
+                        unbilledCount > 0
+                          ? `${unbilledCount} перев. · статус счёта не указан`
+                          : "Нет перевозок со статусом счёта «Не указан»"
+                      }
+                    >
+                      {unbilledCount > 0
+                        ? showSums
+                          ? `${unbilledCount} · ${formatCurrency(unbilledSum, true)}`
+                          : String(unbilledCount)
+                        : showSums
+                          ? formatCurrency(0, true)
+                          : "0"}
+                    </span>
                     {showSums && (
-                      <td style={{ textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>
-                        {formatCurrency(row.balance, true)}
-                      </td>
+                      <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum unpaid-plan-monitor__cell--totals-sum">
+                        {formatCurrency(totalBalance, true)}
+                      </span>
                     )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {onOpen && (
-          <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
-            Все счета в разделе «Счета»
-          </button>
-        )}
+                    <span className="unpaid-plan-monitor__row-chevron-spacer" aria-hidden />
+                  </div>
+                  {showSums && (
+                    <div className="unpaid-plan-monitor__combined-total">
+                      Всего: {formatCurrency(combinedTotal, true)}
+                      <span className="unpaid-plan-monitor__combined-total-breakdown">
+                        {" "}
+                        (к оплате {formatCurrency(totalBalance, true)} + невыст. {formatCurrency(unbilledSum, true)})
+                      </span>
+                    </div>
+                  )}
+                </>
+              )
+              : rows.map((row) => {
+                  const key = `${row.invoiceNumber}-${row.cargoNumber ?? ""}`;
+                  const isExpanded = expandedKey === key;
+                  return (
+                    <div key={key} className="unpaid-plan-monitor__group">
+                      <button
+                        type="button"
+                        className="unpaid-plan-monitor__summary-row unpaid-plan-monitor__summary-row--invoice"
+                        onClick={() => toggleExpanded(key)}
+                        aria-expanded={isExpanded}
+                        title={isExpanded ? "Свернуть" : "Подробнее"}
+                      >
+                        <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--invoice">
+                          {formatInvoiceNumber(row.invoiceNumber)}
+                        </span>
+                        <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--priority">
+                          {priorityBadge(row)}
+                        </span>
+                        {showSums && (
+                          <span className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--sum ${amountClassName(row.priority)}`}>
+                            {formatCurrency(row.balance, true)}
+                          </span>
+                        )}
+                        <ChevronDown
+                          className={`unpaid-plan-monitor__row-chevron${isExpanded ? " unpaid-plan-monitor__row-chevron--open" : ""}`}
+                          aria-hidden
+                        />
+                      </button>
+                      {isExpanded && (
+                        <div className="unpaid-plan-monitor__details unpaid-plan-monitor__details--single">
+                          <div className="unpaid-plan-monitor__details-header unpaid-plan-monitor__details-header--compact">
+                            <span>Статус перевозки</span>
+                            <span>Перевозка</span>
+                            {showSums && <span>К оплате</span>}
+                          </div>
+                          <UnpaidInvoiceDetailRow row={row} showSums={showSums} onOpenInvoice={onOpenInvoice} compact />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+          </div>
+          {onOpen && (
+            <button type="button" className="unpaid-plan-monitor__more" onClick={onOpen}>
+              Все счета в разделе «Счета»
+            </button>
+          )}
         </>
       )}
     </div>

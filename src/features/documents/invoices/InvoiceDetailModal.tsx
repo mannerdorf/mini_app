@@ -1,19 +1,24 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Download, Loader2 } from "lucide-react";
-import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, transliterateFilename, normalizeInvoiceStatus } from "../../../lib/formatUtils";
+import { Eye, Loader2 } from "lucide-react";
+import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import { DateText } from "../../../components/ui/DateText";
-import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { RouteBadge } from "../../../components/shared/CargoTableDisplay";
+import { DocumentDetailLineCards } from "../components/DocumentDetailLineCards";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
-import { PROXY_API_DOWNLOAD_URL } from "../../../constants/config";
 import { DOCUMENT_METHODS } from "../../../documentMethods";
+import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
+import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
+import { saveBlobFile } from "../../../lib/saveBlobFile";
+import { revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { fetchDocumentPdfPreview } from "../../../lib/fetchDocumentForPreview";
+import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -32,32 +37,6 @@ type InvoiceDetailModalProps = {
     onToggleFavorite?: () => void;
 };
 
-function getFirstCargoNumberFromInvoice(item: any): string | null {
-    const list: Array<{ Name?: string; Operation?: string }> = Array.isArray(item?.List) ? item.List : [];
-    for (let i = 0; i < list.length; i++) {
-        const text = String(list[i]?.Operation ?? list[i]?.Name ?? "").trim();
-        if (!text) continue;
-        const parts = parseCargoNumbersFromText(text);
-        const cargo = parts.find((p) => p.type === "cargo");
-        if (cargo?.value) return cargo.value;
-    }
-    return null;
-}
-
-function getCargoNumberFromRow(row: { Operation?: string; Name?: string }): string | null {
-    const text = String(row?.Operation ?? row?.Name ?? "").trim();
-    if (!text) return null;
-    const parts = parseCargoNumbersFromText(text);
-    const cargo = parts.find((p) => p.type === "cargo");
-    return cargo?.value ?? null;
-}
-
-function lookupNorm<T>(map: Map<string, T> | undefined, key: string): T | undefined {
-    if (!map || !key) return undefined;
-    const norm = (s: string) => String(s).replace(/^0+/, "") || s;
-    return map.get(key) ?? map.get(norm(key));
-}
-
 export function InvoiceDetailModal({
     item,
     isOpen,
@@ -73,6 +52,14 @@ export function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+
+    useEffect(() => {
+        if (!isOpen && pdfViewer) {
+            void revokePdfPreview(pdfViewer);
+            setPdfViewer(null);
+        }
+    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
@@ -85,18 +72,6 @@ export function InvoiceDetailModal({
     const invoiceNumber = (item?.Number ?? item?.number ?? "").toString().trim() || null;
     const cust = item?.Customer ?? item?.customer ?? item?.Контрагент ?? item?.Contractor ?? item?.Organization ?? "";
     const sum = invoiceDocSum(item ?? {});
-
-    const formatDateDocForApi = (raw: unknown): string | null => {
-        const s = String(raw ?? "").trim();
-        if (!s) return null;
-        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-        if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T12:00:00`;
-        const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/);
-        if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}T12:00:00`;
-        const parsed = new Date(s);
-        if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 19);
-        return null;
-    };
 
     const handleShare = () => {
         const lines = [
@@ -139,67 +114,26 @@ export function InvoiceDetailModal({
             );
             return;
         }
-        if (isReestr) {
-            const dateDocFormatted = formatDateDocForApi(dateDoc);
-            if (!dateDocFormatted) {
-                setDownloadError("Дата счёта не найдена");
-                return;
-            }
+        const dateDocFormatted = isReestr ? formatDateDocForDownloadApi(dateDoc) : null;
+        if (isReestr && !dateDocFormatted) {
+            setDownloadError("Дата счёта не найдена");
+            return;
         }
         setDownloading(label);
         setDownloadError(null);
         try {
-            const body: Record<string, unknown> = {
-                login: auth.login,
-                password: auth.password,
+            const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
+            if (pdfViewer) {
+                await revokePdfPreview(pdfViewer);
+            }
+            const preview = await fetchDocumentPdfPreview(auth, {
                 metod,
-                number: numberToUse,
-                ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-            };
-            if (isReestr) {
-                body.dateDoc = formatDateDocForApi(dateDoc);
-            }
-            const res = await fetch(PROXY_API_DOWNLOAD_URL, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+                number: apiNumber,
+                ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
-            if (!res.ok) {
-                let msg =
-                    res.status === 404
-                        ? "Документ не найден"
-                        : res.status >= 500
-                          ? "Ошибка сервера"
-                          : "Не удалось получить документ";
-                try {
-                    const errData = await res.json();
-                    if (errData?.message && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.message);
-                    } else if (errData?.error && res.status !== 404 && res.status < 500) {
-                        msg = String(errData.error);
-                    }
-                } catch {
-                    /* ignore */
-                }
-                throw new Error(msg);
-            }
-            const data = await res.json();
-            if (!data?.data || !data.name) throw new Error("Документ не найден");
-            const byteCharacters = atob(data.data);
-            const byteArray = new Uint8Array(byteCharacters.length);
-            for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
-            const blob = new Blob([byteArray], { type: "application/pdf" });
-            const fileName = transliterateFilename(data.name || `${label}_${numberToUse}.pdf`);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        } catch (e: any) {
-            setDownloadError(e?.message ?? "Ошибка загрузки");
+            setPdfViewer(preview);
+        } catch (e: unknown) {
+            setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
         } finally {
             setDownloading(null);
         }
@@ -276,9 +210,12 @@ export function InvoiceDetailModal({
                     <div className="document-buttons">
                         {DOC_BUTTONS.map((label) => {
                             const isReestr = label === "Реестр";
+                            const isInvoiceDoc = label === "СЧЕТ";
                             const canDownload = isReestr
-                                ? !!(invoiceNumber && formatDateDocForApi(dateDoc))
-                                : !!cargoNumber;
+                                ? !!(invoiceNumber && formatDateDocForDownloadApi(dateDoc))
+                                : isInvoiceDoc
+                                  ? !!(cargoNumber || invoiceNumber)
+                                  : !!cargoNumber;
                             const edo = getInvoiceEdoInfoByDocLabel(item, label);
                             return (
                                 <button
@@ -291,7 +228,7 @@ export function InvoiceDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Download className="w-4 h-4" aria-hidden />
+                                        <Eye className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     {!isReestr && <EdoDocMiniBadge info={edo} />}
@@ -305,61 +242,27 @@ export function InvoiceDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
+                {pdfViewer && (
+                    <PdfPreviewPanel
+                        preview={pdfViewer}
+                        onDownload={(blob, name) => saveBlobFile(blob, name)}
+                        onClose={() => {
+                            void revokePdfPreview(pdfViewer);
+                            setPdfViewer(null);
+                        }}
+                    />
+                )}
                 {auth && !isPaid && (
                     <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
                 )}
                 {list.length > 0 ? (
-                    <div className="entity-detail-modal-table-wrap">
-                        <table className="invoice-detail-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                            <thead>
-                                <tr style={{ background: "var(--color-bg-hover)" }}>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Услуга</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>Статус перевозки</th>
-                                    <th className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem", textAlign: "left", fontWeight: 600 }}>
-                                        Маршрут
-                                    </th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Кол-во</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Цена</th>
-                                    <th style={{ padding: "0.5rem 0.4rem", textAlign: "right", fontWeight: 600 }}>Сумма</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {list.map((row, i) => {
-                                    const cargoNum = getCargoNumberFromRow(row);
-                                    const deliveryState = cargoNum ? lookupNorm(cargoStateByNumber, cargoNum) : undefined;
-                                    const route = cargoNum ? lookupNorm(cargoRouteByNumber, cargoNum) : undefined;
-                                    return (
-                                        <tr key={i} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                                            <td style={{ padding: "0.5rem 0.4rem", maxWidth: 220 }} title={stripOoo(String(row.Operation ?? row.Name ?? ""))}>
-                                                {renderServiceCell(String(row.Operation ?? row.Name ?? "—"))}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem" }}>
-                                                {perevozkiLoading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                                                ) : (
-                                                    <StatusBadge status={deliveryState} />
-                                                )}
-                                            </td>
-                                            <td className="invoice-detail-table-route" style={{ padding: "0.5rem 0.4rem" }}>
-                                                {perevozkiLoading ? (
-                                                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
-                                                ) : (
-                                                    <RouteBadge route={route} />
-                                                )}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>{row.Quantity ?? "—"}</td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
-                                                {row.Price != null ? formatCurrency(row.Price) : "—"}
-                                            </td>
-                                            <td style={{ padding: "0.5rem 0.4rem", textAlign: "right" }}>
-                                                {row.Sum != null ? formatCurrency(row.Sum) : "—"}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
+                    <DocumentDetailLineCards
+                        rows={list}
+                        perevozkiLoading={perevozkiLoading}
+                        cargoStateByNumber={cargoStateByNumber}
+                        cargoRouteByNumber={cargoRouteByNumber}
+                        renderServiceCell={renderServiceCell}
+                    />
                 ) : (
                     <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Нет номенклатуры</Typography.Body>
                 )}

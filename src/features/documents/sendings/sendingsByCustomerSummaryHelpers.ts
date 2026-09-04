@@ -1,5 +1,6 @@
 import { normCargoKey } from "../lib/documentsPipeline";
 import { normalizeStatus } from "../../../lib/statusUtils";
+import { sumParcelsFreightCost } from "./sendingsMetrics";
 
 export type CounterpartySummaryRow = {
   party: string;
@@ -7,6 +8,7 @@ export type CounterpartySummaryRow = {
   volume: number;
   weight: number;
   paidWeight: number;
+  cost: number;
   cargoNumbers: string[];
   _index: number;
   selectionKey: string;
@@ -19,6 +21,7 @@ export type CargoSummaryRow = {
   volume: number;
   weight: number;
   paidWeight: number;
+  cost: number;
   partyName: string;
   _idx: number;
 };
@@ -81,21 +84,28 @@ export function buildCounterpartySummaries(
   groupBy: "customer" | "receiver",
   cargoCustomerByNumber: Map<string, string>,
   cargoReceiverByNumber: Map<string, string>,
+  cargoSumByNumber?: Map<string, number>,
 ): CounterpartySummaryRow[] {
-  const byCounterparty = new Map<string, { party: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string> }>();
+  const byCounterparty = new Map<string, { party: string; count: number; volume: number; weight: number; paidWeight: number; cargoNumbers: Set<string>; parcels: any[] }>();
   parcelsToRender.forEach((parcel: any) => {
     const cargo = String(parcel?.Перевозка ?? "").trim();
     const party = resolveSendingPartyFromParcel(parcel, row, groupBy, cargoCustomerByNumber, cargoReceiverByNumber);
-    const prev = byCounterparty.get(party) ?? { party, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>() };
+    const prev = byCounterparty.get(party) ?? { party, count: 0, volume: 0, weight: 0, paidWeight: 0, cargoNumbers: new Set<string>(), parcels: [] as any[] };
     prev.count += 1;
     prev.volume += parseSendingSummaryNumber(parcel?.ОбъемДляОтчета);
     prev.weight += parseSendingSummaryNumber(parcel?.ВесДляОтчета);
     prev.paidWeight += parseSendingSummaryNumber(parcel?.ПлатныйВес);
+    prev.parcels.push(parcel);
     if (cargo) prev.cargoNumbers.add(cargo);
     byCounterparty.set(party, prev);
   });
   return Array.from(byCounterparty.values()).map((summary, index) => ({
-    ...summary,
+    party: summary.party,
+    count: summary.count,
+    volume: summary.volume,
+    weight: summary.weight,
+    paidWeight: summary.paidWeight,
+    cost: sumParcelsFreightCost(summary.parcels, cargoSumByNumber),
     cargoNumbers: Array.from(summary.cargoNumbers),
     _index: index + 1,
     selectionKey: `${rowKey}::${summary.party}`,
@@ -125,6 +135,9 @@ export function sortCounterpartySummaries(
       case "paidWeight":
         cmp = a.paidWeight - b.paidWeight;
         break;
+      case "cost":
+        cmp = a.cost - b.cost;
+        break;
       case "density": {
         const dA = a.volume > 0 ? a.weight / a.volume : -Infinity;
         const dB = b.volume > 0 ? b.weight / b.volume : -Infinity;
@@ -148,20 +161,22 @@ export function buildCargoRowsForParty(
   cargoStateByNumber: Map<string, string>,
   cargoCustomerByNumber: Map<string, string>,
   cargoReceiverByNumber: Map<string, string>,
+  cargoSumByNumber?: Map<string, number>,
 ): CargoSummaryRow[] {
   const cargoNumbersSet = new Set(cargoNumbers.map((c) => normCargoKey(c)));
   const parcelsForParty = parcelsToRender.filter((p: any) => {
     const cargo = String(p?.Перевозка ?? "").trim();
     return cargo && cargoNumbersSet.has(normCargoKey(cargo));
   });
-  const byCargoExpanded = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number }>();
+  const byCargoExpanded = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number; parcels: any[] }>();
   parcelsForParty.forEach((parcel: any) => {
     const cargo = String(parcel?.Перевозка ?? "").trim() || "—";
-    const prev = byCargoExpanded.get(cargo) ?? { cargo, status: "", count: 0, volume: 0, weight: 0, paidWeight: 0 };
+    const prev = byCargoExpanded.get(cargo) ?? { cargo, status: "", count: 0, volume: 0, weight: 0, paidWeight: 0, parcels: [] as any[] };
     prev.count += 1;
     prev.volume += parseSendingSummaryNumber(parcel?.ОбъемДляОтчета);
     prev.weight += parseSendingSummaryNumber(parcel?.ВесДляОтчета);
     prev.paidWeight += parseSendingSummaryNumber(parcel?.ПлатныйВес);
+    prev.parcels.push(parcel);
     if (!prev.status || prev.status === "-") {
       const state = cargo !== "—" ? String(cargoStateByNumber.get(normCargoKey(cargo)) ?? "") : "";
       prev.status = state || prev.status;
@@ -173,7 +188,17 @@ export function buildCargoRowsForParty(
     const sendingCustomer = cargoCustomerByNumber.get(cargoKey) || String(row?.Заказчик ?? row?.Customer ?? "").trim();
     const sendingReceiver = cargoReceiverByNumber.get(cargoKey) || String(row?.Получатель ?? row?.Грузополучатель ?? "").trim();
     const partyName = groupBy === "receiver" ? sendingReceiver : sendingCustomer;
-    return { ...s, status: normalizeStatus(s.status || ""), partyName, _idx: i + 1 };
+    return {
+      cargo: s.cargo,
+      status: normalizeStatus(s.status || ""),
+      count: s.count,
+      volume: s.volume,
+      weight: s.weight,
+      paidWeight: s.paidWeight,
+      cost: sumParcelsFreightCost(s.parcels, cargoSumByNumber),
+      partyName,
+      _idx: i + 1,
+    };
   });
 }
 
@@ -200,6 +225,7 @@ export type ByCargoSummaryRow = {
   volume: number;
   weight: number;
   paidWeight: number;
+  cost: number;
   customer: string;
   _index: number;
 };
@@ -209,15 +235,17 @@ export function buildByCargoSummaries(
   row: any,
   cargoStateByNumber: Map<string, string>,
   cargoCustomerByNumber: Map<string, string>,
+  cargoSumByNumber?: Map<string, number>,
 ): ByCargoSummaryRow[] {
-  const byCargo = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number }>();
+  const byCargo = new Map<string, { cargo: string; status: string; count: number; volume: number; weight: number; paidWeight: number; parcels: any[] }>();
   parcelsToRender.forEach((parcel: any) => {
     const cargo = String(parcel?.Перевозка ?? "").trim() || "—";
-    const prev = byCargo.get(cargo) ?? { cargo, status: "", count: 0, volume: 0, weight: 0, paidWeight: 0 };
+    const prev = byCargo.get(cargo) ?? { cargo, status: "", count: 0, volume: 0, weight: 0, paidWeight: 0, parcels: [] as any[] };
     prev.count += 1;
     prev.volume += parseSendingSummaryNumber(parcel?.ОбъемДляОтчета);
     prev.weight += parseSendingSummaryNumber(parcel?.ВесДляОтчета);
     prev.paidWeight += parseSendingSummaryNumber(parcel?.ПлатныйВес);
+    prev.parcels.push(parcel);
     if (!prev.status || prev.status === "-") {
       const state = cargo !== "—" ? String(cargoStateByNumber.get(normCargoKey(cargo)) ?? "") : "";
       prev.status = state || prev.status;
@@ -229,8 +257,13 @@ export function buildByCargoSummaries(
     const cargoKey = normCargoKey(summary.cargo);
     const sendingCustomer = cargoCustomerByNumber.get(cargoKey) || rowDefaultCustomer;
     return {
-      ...summary,
+      cargo: summary.cargo,
       status: normalizeStatus(summary.status || ""),
+      count: summary.count,
+      volume: summary.volume,
+      weight: summary.weight,
+      paidWeight: summary.paidWeight,
+      cost: sumParcelsFreightCost(summary.parcels, cargoSumByNumber),
       customer: sendingCustomer,
       _index: index + 1,
     };
@@ -266,6 +299,9 @@ export function sortByCargoSummaries(
       case "paidWeight":
         cmp = a.paidWeight - b.paidWeight;
         break;
+      case "cost":
+        cmp = a.cost - b.cost;
+        break;
       case "density": {
         const dA = a.volume > 0 ? a.weight / a.volume : -Infinity;
         const dB = b.volume > 0 ? b.weight / b.volume : -Infinity;
@@ -287,9 +323,10 @@ export function sumByCargoSummaryTotals(rows: ByCargoSummaryRow[]) {
       acc.volume += s.volume;
       acc.weight += s.weight;
       acc.paidWeight += s.paidWeight;
+      acc.cost += s.cost;
       return acc;
     },
-    { count: 0, volume: 0, weight: 0, paidWeight: 0 },
+    { count: 0, volume: 0, weight: 0, paidWeight: 0, cost: 0 },
   );
 }
 

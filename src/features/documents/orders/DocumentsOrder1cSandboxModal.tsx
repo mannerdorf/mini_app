@@ -92,7 +92,7 @@ export function DocumentsOrder1cSandboxModal({ snapshot, onClose }: Props) {
           ) : null}
 
           <label className="documents-order-1c-sandbox-modal__label">
-            {upstream ? "Тело JSON (LoadZayavka)" : "Запрос в 1С"}
+            {upstream ? "Тело JSON (PostZayavka2)" : "Запрос в 1С"}
           </label>
           <textarea
             className="documents-order-1c-sandbox-modal__pre documents-order-1c-sandbox-modal__pre--request"

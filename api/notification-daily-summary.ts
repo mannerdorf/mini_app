@@ -4,13 +4,14 @@ import { sendFcmToLogin } from "./_lib/fcmDelivery.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 import {
   computeDailySummaryStatsFromCache,
-  formatDailySummaryPlainText,
+  formatDailySummaryPushMessage,
   loadDailySummaryCacheIndex,
   loadDailySummaryPrefsByLogin,
   loadLoginInns,
   loadTelegramChatIds,
   sendDailySummaryEmail,
 } from "../lib/notificationDailySummary.js";
+import { loadPushNotificationTemplates } from "../lib/pushNotificationTemplates.js";
 import {
   isPushEventAllowedForInn,
   listLoginsWithFcmTokens,
@@ -93,6 +94,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const prefsByLogin = await loadDailySummaryPrefsByLogin(pool, logins);
     const chatIds = await loadTelegramChatIds(pool, logins);
     const cacheIndex = await loadDailySummaryCacheIndex(pool);
+    const pushTemplates = await loadPushNotificationTemplates(pool);
     const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
     const activationByLogin = await loadPushActivationByLogins(pool, logins);
 
@@ -130,8 +132,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
 
       const stats = computeDailySummaryStatsFromCache(inns, cacheIndex);
-      const text = formatDailySummaryPlainText(stats);
-      const pushBody = text.length > 220 ? `${text.slice(0, 217).trimEnd()}…` : text;
+      const message = formatDailySummaryPushMessage(stats, pushTemplates);
+      if (message.disabled) {
+        skippedByPrefs += 1;
+        continue;
+      }
+      const text = message.plainText;
+      const pushBody = message.body.length > 220 ? `${message.body.slice(0, 217).trimEnd()}…` : message.body;
 
       if (willTelegram && chatId) {
         const sendRes = await sendTelegramMessage(chatId, text);
@@ -149,14 +156,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       if (willPush) {
         const sendResult = await sendFcmToLogin(login, {
-          title: "HAULZ: ежедневная сводка",
+          title: message.title,
           body: pushBody,
           url: "/#/notifications",
           delivery: {
             event: "daily_summary",
             inn: primaryInn,
-            body: text,
-            title: "HAULZ: ежедневная сводка",
+            body: message.body,
+            title: message.title,
           },
         });
         if (sendResult.ok && sendResult.sent > 0) sentPush += 1;
@@ -189,6 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       duration_ms: Date.now() - started,
       cache_cargo_inns: cacheIndex.cargoByInn.size,
       cache_invoice_inns: cacheIndex.invoicesByInn.size,
+      cache_source: cacheIndex.source,
       errors_count: errors.length,
       errors: errors.slice(0, 30),
       request_id: ctx.requestId,

@@ -4,6 +4,7 @@ import {
   createHaulzReturnsJob,
   getHaulzReturnsJob,
   processHaulzReturnsJob,
+  saveHaulzReturnsWorkbook,
   uploadHaulzReturnsFilesSequentially,
   type HaulzReturnsUploadItem,
 } from "../../../api/client/haulzReturns";
@@ -125,13 +126,8 @@ export function useHaulzUpload({
         ...ulPrio2.map((slot) => ({ role: "ul_prio2" as const, file: slot.file })),
       ];
 
-      const newJobId = await createHaulzReturnsJob(auth, title);
-
-      await uploadHaulzReturnsFilesSequentially(auth, newJobId, uploadQueue, (current, total, fileName) => {
-        setUploadProgress({ current, total, fileName });
-      });
-      setUploadProgress(null);
-
+      // Сначала локальная сборка — не зависит от загрузки Excel на сервер.
+      setUploadProgress({ current: 0, total: uploadQueue.length, fileName: "сборка…" });
       const otpravka = parseOtpravkaBuffer(await otpravkaFile.arrayBuffer(), otpravkaFile.name);
       const ulPrio1Parsed = [];
       for (const slot of ulPrio1) {
@@ -144,17 +140,47 @@ export function useHaulzUpload({
       const wbLocal = normalizeWorkbookColumns(
         buildWorkbook({ otpravka, ulPrio1: ulPrio1Parsed, ulPrio2: ulPrio2Parsed }),
       );
-
-      await processHaulzReturnsJob(auth, newJobId);
-      setJobId(newJobId);
+      setWorkbook(wbLocal);
       setActiveTab("itog");
       setWorkbookTableCollapsed(false);
+
+      const newJobId = await createHaulzReturnsJob(auth, title);
+      setJobId(newJobId);
+
+      let uploadError: string | null = null;
+      try {
+        await uploadHaulzReturnsFilesSequentially(auth, newJobId, uploadQueue, (current, total, fileName) => {
+          setUploadProgress({ current, total, fileName });
+        });
+      } catch (e: unknown) {
+        uploadError = (e as Error)?.message || "Ошибка загрузки файлов";
+      }
+      setUploadProgress(null);
+
+      if (!uploadError) {
+        try {
+          await processHaulzReturnsJob(auth, newJobId);
+        } catch (e: unknown) {
+          uploadError = (e as Error)?.message || "Ошибка обработки на сервере";
+        }
+      }
+
+      // Если upload/process упали — всё равно сохраняем локальный workbook (как 5 POST).
+      if (uploadError) {
+        try {
+          await saveHaulzReturnsWorkbook(auth, newJobId, wbLocal);
+        } catch {
+          // локальный wb уже на экране
+        }
+        setError(`${uploadError}. Показана локальная сборка — можно работать с таблицей.`);
+      }
+
       try {
         const loaded = await getHaulzReturnsJob(auth, newJobId);
         setStoredFiles(loaded.files);
         let wb = loaded.workbook
           ? normalizeWorkbookColumns(await hydrateDeferredItogSheet(loaded.workbook, newJobId))
-          : (await buildLocalWorkbookPreview()) ?? wbLocal;
+          : wbLocal;
         setWorkbook(wb);
         await refreshJobs();
       } catch {
@@ -172,7 +198,6 @@ export function useHaulzUpload({
     ulPrio1,
     ulPrio2,
     refreshJobs,
-    buildLocalWorkbookPreview,
     hydrateDeferredItogSheet,
     setJobId,
     setStoredFiles,

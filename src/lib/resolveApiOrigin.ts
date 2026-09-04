@@ -1,7 +1,5 @@
 import { DEFAULT_APP_URL, usesSameOriginBrowserApi } from "../../lib/haulzDomains";
-import { PARTNER_API_PUBLIC_ORIGIN } from "../constants/partnerApi";
-
-const FALLBACK_API_ORIGIN = PARTNER_API_PUBLIC_ORIGIN;
+import { isCapacitorNative } from "./capacitorPlatform";
 
 const normalizeOrigin = (value: string): string => value.trim().replace(/\/+$/, "");
 
@@ -17,34 +15,33 @@ const normalizeApiOrigin = (value: string): string => {
   }
 };
 
-const isCapacitorNative = (): boolean => {
-  if (typeof window === "undefined") return false;
-  const protocol = String(window.location?.protocol || "").toLowerCase();
-  if (protocol === "capacitor:" || protocol === "ionic:") return true;
-  return typeof window.Capacitor?.isNativePlatform === "function" ? !!window.Capacitor.isNativePlatform() : false;
-};
-
 /**
  * Базовый origin для fetch `/api/*`.
- * Web на haulz.space / haulz.ru → same-origin (nginx /api → VPS).
- * Vercel preview / *.vercel.app → https://haulz.space (иначе Functions 405 на nested routes).
- * Capacitor / VITE_API_ORIGIN → api.haulz.space.
+ * Браузер на haulz.space / haulz.ru → same-origin (nginx проксирует /api на VPS).
+ * Capacitor (iOS/Android) → https://haulz.space (не api.haulz.space — там нестабильный TLS).
+ * Vercel preview → haulz.space.
  */
 export function resolveApiOrigin(): string {
   const envOrigin = normalizeApiOrigin(String(import.meta.env.VITE_API_ORIGIN || ""));
+
+  if (isCapacitorNative()) {
+    if (envOrigin && !usesSameOriginBrowserApi(envOrigin)) return envOrigin;
+    return envOrigin || DEFAULT_APP_URL;
+  }
+
   if (envOrigin) return envOrigin;
-  if (typeof window !== "undefined" && !isCapacitorNative()) {
+  if (typeof window !== "undefined") {
     const pageOrigin = normalizeOrigin(window.location.origin);
     if (usesSameOriginBrowserApi(pageOrigin)) return pageOrigin;
     try {
       const host = new URL(pageOrigin).hostname.toLowerCase();
       if (host === "vercel.app" || host.endsWith(".vercel.app")) {
-        return normalizeApiOrigin(DEFAULT_APP_URL) || "https://haulz.space";
+        return DEFAULT_APP_URL;
       }
     } catch {
       // ignore
     }
     return pageOrigin;
   }
-  return FALLBACK_API_ORIGIN;
+  return DEFAULT_APP_URL;
 }

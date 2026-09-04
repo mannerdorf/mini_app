@@ -165,6 +165,67 @@ export function initSharedFilterSets(): {
   };
 }
 
+const emptyBillStatusSet = (): Set<SharedBillStatusKey> => new Set();
+const emptyCargoStatusSet = (): Set<CargoStatusFilterKey> => new Set();
+const emptyTypeSet = (): Set<TypeFilterKey> => new Set();
+const emptyRouteSet = (): Set<RouteFilterKey> => new Set();
+
+/** Фильтры, которые реально применяются на «Главной» (только те, что есть в UI дашборда). */
+export function resolveDashboardActiveFilters(params: {
+  useServiceRequest: boolean;
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+}): {
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+} {
+  return {
+    billStatusFilterSet: params.useServiceRequest ? params.billStatusFilterSet : emptyBillStatusSet(),
+    typeFilterSet: params.typeFilterSet,
+    routeFilterSet: params.routeFilterSet,
+  };
+}
+
+/** Фильтры, которые реально применяются на «Грузах» (только те, что есть в UI вкладки). */
+export function resolveCargoActiveFilters(params: {
+  showSums: boolean;
+  statusFilterSet: Set<CargoStatusFilterKey>;
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+}): {
+  statusFilterSet: Set<CargoStatusFilterKey>;
+  billStatusFilterSet: Set<SharedBillStatusKey>;
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+} {
+  return {
+    statusFilterSet: params.statusFilterSet,
+    billStatusFilterSet: params.showSums ? params.billStatusFilterSet : emptyBillStatusSet(),
+    typeFilterSet: params.typeFilterSet,
+    routeFilterSet: params.routeFilterSet,
+  };
+}
+
+/** Фильтры отправок: тип, маршрут и статус доставки (без статуса счёта). */
+export function resolveSendingsActiveFilters(params: {
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+  deliveryStatusFilterSet: Set<CargoStatusFilterKey>;
+}): {
+  typeFilterSet: Set<TypeFilterKey>;
+  routeFilterSet: Set<RouteFilterKey>;
+  deliveryStatusFilterSet: Set<CargoStatusFilterKey>;
+} {
+  return {
+    typeFilterSet: params.typeFilterSet,
+    routeFilterSet: params.routeFilterSet,
+    deliveryStatusFilterSet: params.deliveryStatusFilterSet,
+  };
+}
+
 export function formatTypeFilterSetLabel(typeFilterSet: Set<TypeFilterKey>): string {
   if (typeFilterSet.size === 0) return "Все";
   const ordered = TYPE_KEYS.filter((k) => typeFilterSet.has(k)).map((k) => TYPE_FILTER_LABELS[k]);

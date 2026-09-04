@@ -31,7 +31,7 @@ html.guest-mode #root {
   min-height: 100dvh;
   background: #f3f4f6;
   color: #1f2937;
-  font-family: "DM Sans", "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: "DM Sans", "Manrope", system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }

@@ -1,10 +1,11 @@
 /**
  * Загрузка заявки в 1С (DeliveryWebService) — формат PostB/HAULZ.
- * Метод по умолчанию: GETAPI?metod=LoadZayavka (POST JSON).
- * Переопределение: ONE_C_ZAYAVKA_UPLOAD_METOD / ONE_C_ZAYAVKA_UPLOAD_URL.
+ * По умолчанию: POST JSON → …/PostZayavka2.
+ * Переопределение: ONE_C_ZAYAVKA_UPLOAD_URL или legacy ONE_C_ZAYAVKA_UPLOAD_METOD (GETAPI?metod=…).
  */
 
 export const GETAPI_BASE = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
+export const POST_ZAYAVKA_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/PostZayavka2";
 export const GETAPI_SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export type ZayavkaGoodsRow = {
@@ -87,13 +88,22 @@ function normalizeNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+export const GOODS_NAME_1C_MAX_LENGTH = 49;
+
+/** Обрезает наименование товара под лимит поля Name в 1С. */
+export function truncateGoodsNameFor1c(value: unknown, fallback = ""): string {
+  const name = normalizeText(value) || fallback;
+  if (!name) return "";
+  return name.length > GOODS_NAME_1C_MAX_LENGTH ? name.slice(0, GOODS_NAME_1C_MAX_LENGTH) : name;
+}
+
 function normalizeGoods(raw: unknown): ZayavkaGoodsRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const idOtpravleniya = normalizeText(o.ИДОтправления ?? o.IdOtpravleniya ?? o.sendingId);
   const id = normalizeText(o.ID ?? o.Id ?? o.id ?? o.sku);
-  const name = normalizeText(o.Name ?? o.name ?? o.Наименование);
-  const tmc = normalizeText(o.ТМЦ ?? o.TMC ?? o.tmc ?? name);
+  const name = truncateGoodsNameFor1c(o.Name ?? o.name ?? o.Наименование);
+  const tmc = truncateGoodsNameFor1c(o.ТМЦ ?? o.TMC ?? o.tmc ?? name, name);
   const qty = normalizeNumber(o.Количество ?? o.Quantity ?? o.quantity, 0);
   const cost = normalizeNumber(
     o.ОбъявленнаяСтоимостьТовара ?? o.DeclaredValue ?? o.declaredValue,
@@ -211,10 +221,14 @@ export function get1cOrderUploadCredentials(): { login: string; password: string
 export function buildZayavkaUploadUrl(): string {
   const explicit = String(process.env.ONE_C_ZAYAVKA_UPLOAD_URL ?? "").trim();
   if (explicit) return explicit;
-  const metod = String(process.env.ONE_C_ZAYAVKA_UPLOAD_METOD ?? "LoadZayavka").trim() || "LoadZayavka";
-  const url = new URL(GETAPI_BASE);
-  url.searchParams.set("metod", metod);
-  return url.toString();
+  // Legacy: явный metod → GETAPI?metod=… (раньше LoadZayavka).
+  const metod = String(process.env.ONE_C_ZAYAVKA_UPLOAD_METOD ?? "").trim();
+  if (metod) {
+    const url = new URL(GETAPI_BASE);
+    url.searchParams.set("metod", metod);
+    return url.toString();
+  }
+  return POST_ZAYAVKA_URL;
 }
 
 /** Метаданные HTTP-запроса, который бэкенд отправляет в 1С (для песочницы). */
@@ -231,6 +245,31 @@ export function buildZayavkaUpstreamRequestMeta(payload: ZayavkaUploadPayload): 
     },
     body: payload,
   };
+}
+
+/** Убирает пароли из заголовков перед показом в UI-песочнице. */
+export function sanitizeZayavkaUpstreamRequestForSandbox(
+  meta: ZayavkaUpstreamRequestMeta | undefined | null,
+): ZayavkaUpstreamRequestMeta | null {
+  if (!meta) return null;
+  const headers = { ...meta.headers };
+  for (const key of ["Auth", "Authorization"] as const) {
+    const raw = headers[key];
+    if (!raw) continue;
+    const basic = raw.match(/^Basic\s+(.+)$/i);
+    if (!basic) {
+      headers[key] = "***";
+      continue;
+    }
+    const cred = basic[1];
+    if (cred.includes(":")) {
+      const login = cred.split(":")[0];
+      headers[key] = `Basic ${login}:***`;
+    } else {
+      headers[key] = "Basic ***";
+    }
+  }
+  return { ...meta, headers };
 }
 
 function parseJsonLoose(text: string): unknown {

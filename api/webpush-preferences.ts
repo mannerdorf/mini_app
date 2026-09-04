@@ -13,6 +13,7 @@ import {
   mergePushPreferencesForSave,
   normalizeNotificationPreferencesState,
   pushPreferencesForClient,
+  serializeNotificationPreferencesState,
 } from "../lib/notificationEmailPrefs.js";
 import { syncPushActivationForLogin, writePushControlJournal } from "../lib/pushControl.js";
 
@@ -154,6 +155,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     webpush: { ...DEFAULT_PREFS.webpush, ...webpush },
     push: pushSaved,
     email: { ...DEFAULT_EMAIL_PREFS, ...email },
+    push_selected_inn: existingState.pushSelectedInn,
   });
 
   try {
@@ -163,7 +165,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
          VALUES ($1, $2::jsonb, now())
          ON CONFLICT (login)
          DO UPDATE SET preferences = excluded.preferences, updated_at = now()`,
-        [login, JSON.stringify(current)]
+        [login, JSON.stringify(serializeNotificationPreferencesState(current))]
       );
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;

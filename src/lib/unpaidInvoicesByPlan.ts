@@ -1,6 +1,12 @@
-import { buildCargoSumPaidByNumber, invoiceBalance, invoiceDocSum } from "../../lib/invoiceAmounts.js";
-import { parseCargoNumbersFromText } from "./formatUtils";
-import { getInvoicePaymentFilterKey } from "./statusUtils";
+import {
+  buildCargoSumPaidByNumber,
+  invoiceBalance,
+  invoiceDocSum,
+  isOutstandingDebtInvoice,
+} from "../../lib/invoiceAmounts.js";
+import { parseCargoNumbersFromText, stripOoo } from "./formatUtils";
+import { getCargoRoleSet } from "./cargoUtils";
+import { getInvoicePaymentFilterKey, getPaymentFilterKey } from "./statusUtils";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "./cargoPlannedDelivery";
 import type { CargoItem } from "../types";
 
@@ -24,6 +30,15 @@ export type UnpaidInvoicePlanRow = {
   priority: InvoicePlanPriority;
   paymentKey: ReturnType<typeof getInvoicePaymentFilterKey>;
 };
+
+function monitorCustomerKey(name: string): string {
+  const label = stripOoo(String(name ?? "").trim());
+  return label.toUpperCase() || "—";
+}
+
+function monitorCustomerLabel(name: string): string {
+  return stripOoo(String(name ?? "").trim()) || "—";
+}
 
 function normCargoKey(num: string | null | undefined): string {
   if (num == null) return "";
@@ -109,16 +124,6 @@ function earliestPlanForInvoice(
   return { planDate: earliest, cargoNumber };
 }
 
-function isOutstandingInvoice(
-  inv: Record<string, unknown>,
-  cargoSumPaidByNumber: Map<string, number>,
-): boolean {
-  const key = getInvoicePaymentFilterKey(inv);
-  if (key === "paid" || key === "cancelled") return false;
-  if (key === "unpaid" || key === "partial") return true;
-  return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice) > 0.005;
-}
-
 export function computeUnpaidInvoicesByPlan(
   invoices: Record<string, unknown>[],
   cargoItems: CargoItem[],
@@ -133,7 +138,7 @@ export function computeUnpaidInvoicesByPlan(
   const rows: UnpaidInvoicePlanRow[] = [];
 
   for (const inv of invoices) {
-    if (!isOutstandingInvoice(inv, cargoSumPaidByNumber)) continue;
+    if (!isOutstandingDebtInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice)) continue;
     const sum = invoiceDocSum(inv);
     const balance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
     if (sum <= 0 && balance <= 0) continue;
@@ -188,4 +193,256 @@ export function computeUnpaidInvoicesByPlan(
   });
 
   return rows;
+}
+
+export type UnpaidInvoiceCustomerGroup = {
+  customer: string;
+  priority: InvoicePlanPriority;
+  balance: number;
+  items: UnpaidInvoicePlanRow[];
+};
+
+export type UnbilledCargoPlanRow = {
+  cargo: CargoItem;
+  cargoNumber: string;
+  customer: string;
+  sum: number;
+  cargoState: unknown;
+  planDate: Date | null;
+  planDateKey: string | null;
+  daysUntilPlan: number | null;
+  priority: InvoicePlanPriority;
+};
+
+export type UnbilledCargoCustomerGroup = {
+  customer: string;
+  priority: InvoicePlanPriority;
+  sum: number;
+  count: number;
+  items: UnbilledCargoPlanRow[];
+};
+
+/** Объединённая группа для монитора в служебном режиме. */
+export type UnpaidMonitorCustomerGroup = UnpaidInvoiceCustomerGroup & {
+  unbilledItems: UnbilledCargoPlanRow[];
+  unbilledSum: number;
+  unbilledCount: number;
+};
+
+function parseCargoSum(item: CargoItem): number {
+  const raw = item.Sum ?? (item as Record<string, unknown>).sum;
+  if (raw === undefined || raw === null || (typeof raw === "string" && raw.trim() === "")) return 0;
+  const num = typeof raw === "string" ? parseFloat(raw.replace(",", ".")) : Number(raw);
+  return Number.isFinite(num) ? num : 0;
+}
+
+function cargoCustomerName(item: CargoItem): string {
+  return String(
+    item.Customer ??
+      (item as Record<string, unknown>).customer ??
+      (item as Record<string, unknown>).Заказчик ??
+      "",
+  ).trim();
+}
+
+function cargoBillStatusKey(item: CargoItem): ReturnType<typeof getPaymentFilterKey> {
+  const stateBill = String(
+    item.StateBill ??
+      (item as Record<string, unknown>).stateBill ??
+      (item as Record<string, unknown>).StatusBill ??
+      "",
+  ).trim();
+  return getPaymentFilterKey(stateBill || undefined);
+}
+
+/** Невыставлено: перевозки заказчика, у которых статус счёта «Не указан». */
+function isUnbilledCustomerCargo(item: CargoItem): boolean {
+  if (!getCargoRoleSet(item).has("Customer")) return false;
+  if (cargoBillStatusKey(item) !== "unknown") return false;
+  if (parseCargoSum(item) <= 0.005) return false;
+  return cargoCustomerName(item).length > 0;
+}
+
+function planPriorityForDate(
+  planDate: Date | null,
+  withinDays: number,
+  today: Date,
+  dayMs: number,
+): Pick<UnbilledCargoPlanRow, "planDateKey" | "daysUntilPlan" | "priority"> {
+  if (!planDate) {
+    return { planDateKey: null, daysUntilPlan: null, priority: "low" };
+  }
+  const planDateKey = dateToKey(planDate);
+  const daysUntilPlan = Math.round((startOfDay(planDate).getTime() - today.getTime()) / dayMs);
+  const priority: InvoicePlanPriority = daysUntilPlan <= withinDays ? "high" : "low";
+  return { planDateKey, daysUntilPlan, priority };
+}
+
+/** Перевозки заказчика без выставленного счёта (3 мес., те же данные perevozki). */
+export function computeUnbilledCargoByPlan(
+  cargoItems: CargoItem[],
+  options?: { highPriorityWithinDays?: number },
+): UnbilledCargoPlanRow[] {
+  const withinDays = options?.highPriorityWithinDays ?? PLAN_ARRIVAL_HIGH_PRIORITY_WITHIN_DAYS;
+  const planDays = buildRouteTypePlanDaysMap(cargoItems);
+  const today = startOfDay(new Date());
+  const dayMs = 24 * 60 * 60 * 1000;
+  const rows: UnbilledCargoPlanRow[] = [];
+
+  for (const item of cargoItems) {
+    if (!isUnbilledCustomerCargo(item)) continue;
+    const cargoNumber = String(item.Number ?? "").trim();
+    if (!cargoNumber) continue;
+    const customer = cargoCustomerName(item) || "—";
+    const sum = parseCargoSum(item);
+    const planDate = getEffectivePlannedDeliveryDate(item, planDays);
+    const { planDateKey, daysUntilPlan, priority } = planPriorityForDate(planDate, withinDays, today, dayMs);
+    rows.push({
+      cargo: item,
+      cargoNumber,
+      customer,
+      sum,
+      cargoState: item.State ?? null,
+      planDate,
+      planDateKey,
+      daysUntilPlan,
+      priority,
+    });
+  }
+
+  rows.sort((a, b) => {
+    const prio = (p: InvoicePlanPriority) => (p === "high" ? 0 : p === "low" ? 1 : 2);
+    const pd = prio(a.priority) - prio(b.priority);
+    if (pd !== 0) return pd;
+    if (a.planDate && b.planDate) return a.planDate.getTime() - b.planDate.getTime();
+    if (a.planDate) return -1;
+    if (b.planDate) return 1;
+    return b.sum - a.sum;
+  });
+
+  return rows;
+}
+
+export function groupUnbilledCargoByCustomer(rows: UnbilledCargoPlanRow[]): UnbilledCargoCustomerGroup[] {
+  const map = new Map<string, UnbilledCargoPlanRow[]>();
+  for (const row of rows) {
+    const key = monitorCustomerKey(row.customer);
+    const list = map.get(key) ?? [];
+    list.push(row);
+    map.set(key, list);
+  }
+  const groups: UnbilledCargoCustomerGroup[] = [];
+  for (const [, items] of map) {
+    groups.push({
+      customer: monitorCustomerLabel(items[0]?.customer ?? "—"),
+      priority: groupPriority(items),
+      sum: items.reduce((acc, row) => acc + row.sum, 0),
+      count: items.length,
+      items,
+    });
+  }
+  groups.sort((a, b) => compareUnpaidPlanGroups(
+    { customer: a.customer, priority: a.priority, balance: a.sum, items: [] },
+    { customer: b.customer, priority: b.priority, balance: b.sum, items: [] },
+  ));
+  return groups;
+}
+
+/** Счета + невыставленные перевозки по одному заказчику (служебный режим). */
+export function mergeUnpaidMonitorCustomerGroups(
+  invoiceGroups: UnpaidInvoiceCustomerGroup[],
+  unbilledGroups: UnbilledCargoCustomerGroup[],
+): UnpaidMonitorCustomerGroup[] {
+  const map = new Map<string, UnpaidMonitorCustomerGroup>();
+
+  for (const group of invoiceGroups) {
+    map.set(monitorCustomerKey(group.customer), {
+      ...group,
+      customer: monitorCustomerLabel(group.customer),
+      unbilledItems: [],
+      unbilledSum: 0,
+      unbilledCount: 0,
+    });
+  }
+
+  for (const unbilled of unbilledGroups) {
+    const key = monitorCustomerKey(unbilled.customer);
+    const existing = map.get(key);
+    if (existing) {
+      existing.unbilledItems = unbilled.items;
+      existing.unbilledSum = unbilled.sum;
+      existing.unbilledCount = unbilled.count;
+      existing.priority =
+        existing.priority === "high" || unbilled.priority === "high" ? "high" : "low";
+      continue;
+    }
+    map.set(key, {
+      customer: monitorCustomerLabel(unbilled.customer),
+      priority: unbilled.priority,
+      balance: 0,
+      items: [],
+      unbilledItems: unbilled.items,
+      unbilledSum: unbilled.sum,
+      unbilledCount: unbilled.count,
+    });
+  }
+
+  const merged = [...map.values()];
+  merged.sort((a, b) => {
+    const prio = (p: InvoicePlanPriority) => (p === "high" ? 0 : p === "low" ? 1 : 2);
+    const pd = prio(a.priority) - prio(b.priority);
+    if (pd !== 0) return pd;
+    const aPlan =
+      a.items.find((row) => row.planDate)?.planDate ??
+      a.unbilledItems.find((row) => row.planDate)?.planDate ??
+      null;
+    const bPlan =
+      b.items.find((row) => row.planDate)?.planDate ??
+      b.unbilledItems.find((row) => row.planDate)?.planDate ??
+      null;
+    if (aPlan && bPlan) return aPlan.getTime() - bPlan.getTime();
+    if (aPlan) return -1;
+    if (bPlan) return 1;
+    return b.balance + b.unbilledSum - (a.balance + a.unbilledSum);
+  });
+
+  return merged;
+}
+
+function groupPriority(items: Array<{ priority: InvoicePlanPriority }>): InvoicePlanPriority {
+  return items.some((row) => row.priority === "high") ? "high" : "low";
+}
+
+function compareUnpaidPlanGroups(a: UnpaidInvoiceCustomerGroup, b: UnpaidInvoiceCustomerGroup): number {
+  const prio = (p: InvoicePlanPriority) => (p === "high" ? 0 : p === "low" ? 1 : 2);
+  const pd = prio(a.priority) - prio(b.priority);
+  if (pd !== 0) return pd;
+  const aPlan = a.items.find((row) => row.planDate)?.planDate ?? null;
+  const bPlan = b.items.find((row) => row.planDate)?.planDate ?? null;
+  if (aPlan && bPlan) return aPlan.getTime() - bPlan.getTime();
+  if (aPlan) return -1;
+  if (bPlan) return 1;
+  return b.balance - a.balance;
+}
+
+/** Группировка неоплаченных счетов по заказчику (монитор на главной в служебном режиме). */
+export function groupUnpaidInvoicesByCustomer(rows: UnpaidInvoicePlanRow[]): UnpaidInvoiceCustomerGroup[] {
+  const map = new Map<string, UnpaidInvoicePlanRow[]>();
+  for (const row of rows) {
+    const key = monitorCustomerKey(row.customer);
+    const list = map.get(key) ?? [];
+    list.push(row);
+    map.set(key, list);
+  }
+  const groups: UnpaidInvoiceCustomerGroup[] = [];
+  for (const [, items] of map) {
+    groups.push({
+      customer: monitorCustomerLabel(items[0]?.customer ?? "—"),
+      priority: groupPriority(items),
+      balance: items.reduce((acc, row) => acc + row.balance, 0),
+      items,
+    });
+  }
+  groups.sort(compareUnpaidPlanGroups);
+  return groups;
 }

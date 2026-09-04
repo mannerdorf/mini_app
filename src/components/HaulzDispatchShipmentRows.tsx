@@ -9,7 +9,7 @@ import { ClickableCargoNumber, leafRowClickProps } from "./ui/EntityLinks";
 import { RouteBadge, CargoTransportTypeIcon, getCargoItemRouteLabel } from "./shared/CargoTableDisplay";
 import { getSlaPlanDeadlineMs } from "../lib/cargoUtils";
 import type { WorkSchedule } from "../lib/slaWorkSchedule";
-import { getDispatchStatusDateValue, rowIsOutsideSla } from "./haulzDispatchTableUtils";
+import { rowIsOutsideSla } from "./haulzDispatchTableUtils";
 
 export type HaulzDispatchShipmentRowsProps = {
     rows: CargoItem[];
@@ -48,7 +48,6 @@ export function HaulzDispatchShipmentRows({
             {rows.map((row, ridx) => {
                 const num = String(row.Number ?? "").trim();
                 const cust = stripOoo(String(row.Customer ?? (row as { customer?: string }).customer ?? "—"));
-                const statusDateIso = getDispatchStatusDateValue(row);
                 const datePrihRaw = String(row.DatePrih ?? "").trim();
                 const pw = typeof row.PW === "string" ? parseFloat(row.PW) || 0 : Number(row.PW) || 0;
                 const sum = typeof row.Sum === "string" ? parseFloat(row.Sum) || 0 : Number(row.Sum) || 0;
@@ -62,7 +61,7 @@ export function HaulzDispatchShipmentRows({
                 return (
                     <React.Fragment key={num ? `${rowKeyPrefix}-${num}` : `${rowKeyPrefix}-i-${ridx}`}>
                         <tr
-                            className="haulz-dispatch-table__row"
+                            className={`haulz-dispatch-table__row dashboard-scroll-table__data-row${nestedFirstColumn ? " haulz-dispatch-table__row--nested" : ""}`}
                             onClick={(e) => {
                                 e.stopPropagation();
                                 if (!num) return;
@@ -80,6 +79,7 @@ export function HaulzDispatchShipmentRows({
                             title={num ? (expanded ? "Свернуть статусы" : "Показать статусы перевозки") : undefined}
                         >
                             <td
+                                data-label="№"
                                 className={
                                     nestedFirstColumn
                                         ? "haulz-dispatch-table__cell haulz-dispatch-table__cell--num-nested"
@@ -89,31 +89,28 @@ export function HaulzDispatchShipmentRows({
                                 <ClickableCargoNumber number={num} onOpen={(n) => onOpenCargo(n, row)} />
                             </td>
                             {showCustomerColumn && (
-                                <td className="haulz-dispatch-table__cell customer-col haulz-dispatch-table__cell--customer" title={cust}>
+                                <td data-label="Заказчик" className="haulz-dispatch-table__cell customer-col haulz-dispatch-table__cell--customer" title={cust}>
                                     {cust}
                                 </td>
                             )}
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--muted status-date-col">
-                                {statusDateIso ? <DateText value={statusDateIso} /> : "—"}
-                            </td>
-                            <td className="haulz-dispatch-table__cell">
+                            <td data-label="Приход" className="haulz-dispatch-table__cell">
                                 {datePrihRaw ? <DateText value={datePrihRaw} /> : "—"}
                             </td>
-                            <td className="haulz-dispatch-table__cell">
+                            <td data-label="Маршрут" className="haulz-dispatch-table__cell">
                                 <RouteBadge route={getCargoItemRouteLabel(row)} />
                             </td>
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--icon">
+                            <td data-label="Тип" className="haulz-dispatch-table__cell haulz-dispatch-table__cell--icon">
                                 <CargoTransportTypeIcon item={row} />
                             </td>
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--num-value">
+                            <td data-label="Плат. вес" className="haulz-dispatch-table__cell haulz-dispatch-table__cell--num-value">
                                 {Math.round(pw).toLocaleString("ru-RU")}
                             </td>
-                            <td className="haulz-dispatch-table__cell haulz-dispatch-table__cell--num-value">
+                            <td data-label="Сумма" className="haulz-dispatch-table__cell haulz-dispatch-table__cell--num-value">
                                 {formatCurrency(sum, true)}
                             </td>
                         </tr>
                         {expanded && expandedDispatchItem && (
-                            <tr className="haulz-dispatch-table__detail-row">
+                            <tr className="haulz-dispatch-table__detail-row dashboard-scroll-table__detail-row">
                                 <td
                                     colSpan={dispatchTableColCount}
                                     className="haulz-dispatch-table__detail-cell"

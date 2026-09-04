@@ -35,6 +35,8 @@ export function draftToManagerJournalRow(draft: HaulzCalcDraft): ManagerJournalR
       ДатаЗабораПлан: journal.pickupDate,
       PickupDatePlan: journal.pickupDate,
       НомерЗаявки: draft.nomerZayavki,
+      НомерЗаявкиКлиента: journal.customerRequestNumber,
+      ClientRequestNumber: journal.customerRequestNumber,
       ЗаказчикНаименование: customerName,
       ОтправительНаименование: journal.senderName,
       ПолучательНаименование: journal.receiverName,

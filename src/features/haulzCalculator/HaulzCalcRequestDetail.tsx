@@ -118,6 +118,7 @@ function DocumentsOrderJournalBlock({ journal }: { journal: DocumentsOrderJourna
         }}
       >
         <JournalGridRow label="Заказчик:" value={journal.customerName} />
+        <JournalGridRow label="Номер заявки заказчика:" value={journal.customerRequestNumber} />
         <JournalGridRow label="Пункт отправки:" value={journal.senderPoint} />
         <JournalGridRow label="Отправитель:" value={journal.senderName} />
         <JournalGridRow label="Пункт назначения:" value={journal.destinationPoint} />

@@ -4,6 +4,7 @@ import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
+import { ResetAllFiltersButton } from "../components/ui/ResetAllFiltersButton";
 import { FilterDialog } from "../components/shared/FilterDialog";
 import { normalizeStatus, getFilterKeyByStatus, BILL_STATUS_MAP, STATUS_MAP } from "../lib/statusUtils";
 import type { BillStatusFilterKey } from "../lib/statusUtils";
@@ -20,14 +21,15 @@ import {
     buildGroupedByCustomer,
     sortGroupedByCustomer,
 } from "./cargoPipeline";
-import { formatTypeFilterSetLabel, initSharedFilterSets, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
+import { formatTypeFilterSetLabel, initSharedFilterSets, resolveCargoActiveFilters, saveSharedListFilters, sharedFromFilterSets, type TypeFilterKey } from "../lib/sharedListFilters";
+import { HAULZ_PULL_REFRESH_EVENT } from "../lib/pullRefreshEvents";
+import { useResetAllFiltersListener } from "../hooks/useResetAllFiltersListener";
 import { buildTransportOptionsFromSendingsInPeriod, buildTransportLinkedCargoNumbersInPeriod, collectSendingFreightCargoNumbers, filterItemsForHeaderCustomer, normCargoKey } from "../features/documents/lib/documentsPipeline";
 import { useCargoTransportFilter, usePerevozkiMultiAccounts, useSendings } from "../hooks/useApi";
 import { useCargoNomenclatureSearch } from "../hooks/useCargoNomenclatureSearch";
 import { CARGO_ROLE_FILTER_LABELS, pickupLogisticsFilterLabel, type CargoRoleFilterKey } from "../lib/cargoUtils";
 import { cargoTransportTypeLabel, getCargoTransportType } from "../lib/cargoTransportType";
 import { buildRouteTypePlanDaysMap, getEffectivePlannedDeliveryDate } from "../lib/cargoPlannedDelivery";
-import { ServiceRefreshFrom1cButton } from "../components/ServiceRefreshFrom1cButton";
 import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
@@ -199,6 +201,17 @@ export function CargoPage({
     useEffect(() => {
         saveSharedListFilters(sharedFromFilterSets({ statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet }));
     }, [statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet]);
+    useEffect(() => {
+        const reloadSharedFilters = () => {
+            const init = initSharedFilterSets();
+            setStatusFilterSet(init.statusFilterSet);
+            setBillStatusFilterSet(init.billStatusFilterSet);
+            setTypeFilterSet(init.typeFilterSet);
+            setRouteFilterSet(init.routeFilterSet);
+        };
+        window.addEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+        return () => window.removeEventListener(HAULZ_PULL_REFRESH_EVENT, reloadSharedFilters);
+    }, []);
     const [lastMileFilter, setLastMileFilter] = useState<'all' | 'self_pickup' | 'delivery'>('all');
     const [pickupLogisticsFilter, setPickupLogisticsFilter] = useState<'all' | 'pickup' | 'terminal_to'>('all');
     const [transportFilter, setTransportFilter] = useState<string>('');
@@ -231,7 +244,8 @@ export function CargoPage({
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
     const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && !tableModeGroupedByCustomer;
+    const tableModeFlatDirect = tableModeByCustomer && effectiveServiceMode && !tableModeGroupedByCustomer;
+    const tableModeEffective = tableModeByCustomer && effectiveServiceMode;
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -263,6 +277,35 @@ export function CargoPage({
     // Sort State
     const [sortBy, setSortBy] = useState<'datePrih' | 'dateVr' | null>('datePrih');
     const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+
+    const resetCargoPageFilters = useCallback(() => {
+        const init = initSharedFilterSets();
+        setStatusFilterSet(init.statusFilterSet);
+        setBillStatusFilterSet(init.billStatusFilterSet);
+        setTypeFilterSet(init.typeFilterSet);
+        setRouteFilterSet(init.routeFilterSet);
+        setSenderFilter("");
+        setReceiverFilter("");
+        setTransportFilter("");
+        setTransportSearchQuery("");
+        setLastMileFilter("all");
+        setPickupLogisticsFilter("all");
+        setRoleFilter("all");
+        setSortBy("datePrih");
+        setSortOrder("desc");
+        setIsStatusDropdownOpen(false);
+        setIsRoleDropdownOpen(false);
+        setIsSenderDropdownOpen(false);
+        setIsReceiverDropdownOpen(false);
+        setIsBillStatusDropdownOpen(false);
+        setIsTypeDropdownOpen(false);
+        setIsRouteDropdownOpen(false);
+        setIsLastMileDropdownOpen(false);
+        setIsPickupLogisticsDropdownOpen(false);
+        setIsTransportDropdownOpen(false);
+        setIsDateDropdownOpen(false);
+    }, []);
+    useResetAllFiltersListener(resetCargoPageFilters);
 
     // Favorites State
     const [favorites, setFavorites] = useState<Set<string>>(new Set());
@@ -486,28 +529,40 @@ export function CargoPage({
     const uniqueSenders = useMemo(() => [...new Set(items.map(i => (i.Sender ?? '').trim()).filter(Boolean))].sort(), [items]);
     const uniqueReceivers = useMemo(() => [...new Set(items.map(i => (i.Receiver ?? (i as any).receiver ?? '').trim()).filter(Boolean))].sort(), [items]);
 
+    const activeListFilters = useMemo(
+        () =>
+            resolveCargoActiveFilters({
+                showSums,
+                statusFilterSet,
+                billStatusFilterSet,
+                typeFilterSet,
+                routeFilterSet,
+            }),
+        [showSums, statusFilterSet, billStatusFilterSet, typeFilterSet, routeFilterSet],
+    );
+
     // Client-side filtering and sorting
     const filteredItems = useMemo(() => {
         return buildFilteredCargoItems({
             items: itemsForFiltering,
             searchText: effectiveSearchText,
-            statusFilterSet,
+            statusFilterSet: activeListFilters.statusFilterSet,
             senderFilter,
             receiverFilter,
             transportFilter: effectiveServiceMode ? transportFilter : '',
             transportLinkedCargoNumbers,
             cargoSearchTextByNumber,
             useServiceRequest: effectiveServiceMode,
-            billStatusFilterSet,
-            typeFilterSet,
-            routeFilterSet,
+            billStatusFilterSet: activeListFilters.billStatusFilterSet,
+            typeFilterSet: activeListFilters.typeFilterSet,
+            routeFilterSet: activeListFilters.routeFilterSet,
             lastMileFilter,
             pickupLogisticsFilter,
             roleFilter: "all",
             sortBy,
             sortOrder,
         });
-    }, [itemsForFiltering, effectiveSearchText, statusFilterSet, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, cargoSearchTextByNumber, billStatusFilterSet, effectiveServiceMode, typeFilterSet, routeFilterSet, lastMileFilter, pickupLogisticsFilter, sortBy, sortOrder]);
+    }, [itemsForFiltering, effectiveSearchText, activeListFilters, senderFilter, receiverFilter, transportFilter, transportLinkedCargoNumbers, cargoSearchTextByNumber, effectiveServiceMode, lastMileFilter, pickupLogisticsFilter, sortBy, sortOrder]);
 
     const summary = useMemo(() => buildCargoSummary(filteredItems), [filteredItems]);
 
@@ -519,12 +574,12 @@ export function CargoPage({
 
     /** Не разворачиваем первого заказчика по умолчанию — только сохраняем выбор, если строка ещё в выборке */
     useEffect(() => {
-        if (!tableModeByCustomer || sortedGroupedByCustomer.length === 0) return;
+        if (!tableModeEffective || sortedGroupedByCustomer.length === 0) return;
         setExpandedTableCustomer((prev) => {
             if (!prev) return null;
             return sortedGroupedByCustomer.some((row) => row.customer === prev) ? prev : null;
         });
-    }, [tableModeByCustomer, sortedGroupedByCustomer]);
+    }, [tableModeEffective, sortedGroupedByCustomer]);
 
     const handleTableSort = (column: typeof tableSortColumn) => {
         if (tableSortColumn === column) {
@@ -625,24 +680,19 @@ export function CargoPage({
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                    {effectiveServiceMode && primaryAuth ? (
-                        <ServiceRefreshFrom1cButton
-                            auth={primaryAuth}
-                            dateFrom={apiDateRange.dateFrom}
-                            dateTo={apiDateRange.dateTo}
-                            kinds={["perevozki"]}
-                            onRefreshed={() => mutatePerevozki(undefined, { revalidate: true })}
-                            compact
-                        />
+                    {effectiveServiceMode ? (
+                        <>
+                            <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
+                            <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
+                                <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
+                            </span>
+                        </>
                     ) : null}
-                    <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
-                    <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
-                        <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
-                    </span>
                 </Flex>
             </Flex>
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
+                    <ResetAllFiltersButton />
                     <Button
                         className="filter-button"
                         style={{ padding: '0.5rem', minWidth: 'auto' }}
@@ -1071,7 +1121,7 @@ export function CargoPage({
                             motionEnabled={cargoMotionEnabled}
                         />
                     </motion.div>
-                ) : filteredItems.length > 0 && !tableModeByCustomer ? (
+                ) : filteredItems.length > 0 && !tableModeEffective ? (
                     <motion.div
                         key="cargo-view-cards"
                         className="cargo-cards-offset-desktop"

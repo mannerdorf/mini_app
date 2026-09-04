@@ -289,7 +289,7 @@ export function useDocumentsCatalogs({
     });
 
     const edoDocumentsSummary = useMemo(
-        () => buildInvoicesSummary(edoCatalog.filteredEdoItems, actsItems, perevozkiItems),
+        () => buildInvoicesSummary(edoCatalog.filteredEdoItems, actsItems, perevozkiItems, { useBalance: false }),
         [edoCatalog.filteredEdoItems, actsItems, perevozkiItems],
     );
 

@@ -28,8 +28,8 @@ export function isHaulzFrontendHostname(hostname: string): boolean {
 }
 
 /**
- * Браузер ходит в /api/* на том же хосте (nginx проксирует на VPS).
- * Не api.haulz.space — меньше нагрузка и стабильнее на мобильных сетях.
+ * Фронтовые хосты (haulz.space / haulz.ru). Не использовать как API origin:
+ * live /api/* отдаёт 301 на api.haulz.space, POST становится GET → 405.
  */
 export function usesSameOriginBrowserApi(origin: string): boolean {
   const normalized = origin.trim().replace(/\/+$/, "");

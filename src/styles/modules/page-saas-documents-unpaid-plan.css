@@ -48,72 +48,232 @@ button.unpaid-plan-monitor:hover {
     justify-content: center;
 }
 
-.unpaid-plan-monitor__table-wrap {
-    overflow-x: auto;
+.unpaid-plan-monitor__list-wrap {
+    overflow-x: hidden;
+    overflow-y: visible;
+    min-width: 0;
+}
+
+.unpaid-plan-monitor__list-wrap--scroll {
+    max-height: min(22rem, 55vh);
     overflow-y: auto;
 }
 
-.unpaid-plan-monitor__table-wrap--scroll {
-    max-height: min(22rem, 55vh);
+.unpaid-plan-monitor__list-header,
+.unpaid-plan-monitor__summary-row,
+.unpaid-plan-monitor__details-header,
+.unpaid-plan-monitor__detail-row {
+    display: grid;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    min-width: 0;
 }
 
-.unpaid-plan-monitor__table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.78rem;
-}
-
-.unpaid-plan-monitor__table th {
+.unpaid-plan-monitor__list-header {
+    padding: 0.3rem 0.45rem 0.3rem 0.35rem;
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
     position: sticky;
     top: 0;
     z-index: 1;
-    background: var(--color-bg-hover);
-    padding: 0.35rem 0.4rem;
+}
+
+.unpaid-plan-monitor__list-header--customer-unbilled,
+.unpaid-plan-monitor__summary-row--customer-unbilled {
+  grid-template-columns: minmax(0, 1fr) auto minmax(3.5rem, auto) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__summary-row--customer-unbilled {
+  grid-template-columns: minmax(0, 1fr) auto minmax(3.5rem, auto) minmax(4.5rem, auto) 1rem;
+}
+
+.unpaid-plan-monitor__list-header--customer-unbilled span:nth-child(3),
+.unpaid-plan-monitor__cell--unbilled {
+  text-align: right;
+  font-size: 0.72rem;
+  color: var(--color-text-secondary);
+}
+
+.unpaid-plan-monitor__cell--unbilled--has {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.unpaid-plan-monitor__details-section-title {
+  padding: 0.35rem 0.1rem 0.15rem;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.unpaid-plan-monitor__details-header--unbilled,
+.unpaid-plan-monitor__detail-row--unbilled {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__list-header--customer,
+.unpaid-plan-monitor__summary-row--customer {
+    grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__list-header--invoice,
+.unpaid-plan-monitor__summary-row--invoice {
+    grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__summary-row--customer,
+.unpaid-plan-monitor__summary-row--invoice {
+    grid-template-columns: minmax(0, 1fr) auto minmax(4.5rem, auto) 1rem;
+}
+
+.unpaid-plan-monitor__list-header--customer span:last-child,
+.unpaid-plan-monitor__list-header--invoice span:last-child,
+.unpaid-plan-monitor__summary-row .unpaid-plan-monitor__cell--sum {
+    text-align: right;
+}
+
+.unpaid-plan-monitor__summary-row {
+    width: 100%;
+    appearance: none;
+    border: none;
+    background: transparent;
+    padding: 0.4rem 0.35rem;
+    margin: 0;
+    font: inherit;
+    font-size: 0.78rem;
+    color: inherit;
     text-align: left;
-    font-weight: 600;
-    white-space: nowrap;
+    cursor: pointer;
     border-bottom: 1px solid var(--color-border);
 }
 
-.unpaid-plan-monitor__table td {
-    padding: 0.35rem 0.4rem;
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: top;
-    max-width: 10rem;
+.unpaid-plan-monitor__summary-row:hover {
+    background: var(--color-bg-hover);
+}
+
+.unpaid-plan-monitor__totals-row {
+    display: grid;
+    align-items: center;
+    gap: 0.35rem 0.5rem;
+    min-width: 0;
+    padding: 0.45rem 0.35rem;
+    font-size: 0.78rem;
+    font-weight: 700;
+    border-top: 1px solid var(--color-border);
+    background: var(--color-bg-hover);
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+}
+
+.unpaid-plan-monitor__cell--totals-label {
+    color: var(--color-text-primary);
+}
+
+.unpaid-plan-monitor__cell--totals-sum {
+    color: var(--color-text-primary);
+}
+
+.unpaid-plan-monitor__row-chevron-spacer {
+    width: 1rem;
+    height: 1rem;
+    justify-self: end;
+}
+
+.unpaid-plan-monitor__combined-total {
+    padding: 0.35rem 0.45rem 0.15rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.35;
+    color: var(--color-text-primary);
+    text-align: right;
+}
+
+.unpaid-plan-monitor__combined-total-breakdown {
+    font-weight: 500;
+    color: var(--color-text-secondary);
+}
+
+.unpaid-plan-monitor__row-chevron {
+    width: 1rem;
+    height: 1rem;
+    color: var(--color-text-secondary);
+    justify-self: end;
+    transition: transform 0.15s ease;
+}
+
+.unpaid-plan-monitor__row-chevron--open {
+    transform: rotate(180deg);
+}
+
+.unpaid-plan-monitor__cell {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
-.unpaid-plan-monitor__col-status {
+.unpaid-plan-monitor__cell--status {
     white-space: normal;
-    max-width: 7.5rem;
 }
 
-.unpaid-plan-monitor__col-status .app-badge {
+.unpaid-plan-monitor__cell--status .app-badge {
     white-space: normal;
     line-height: 1.25;
 }
 
-.unpaid-plan-monitor__col-cargo {
+.unpaid-plan-monitor__cell--sum,
+.unpaid-plan-monitor__amount {
+    text-align: right;
+    font-weight: 600;
     white-space: nowrap;
-    max-width: 6.5rem;
 }
 
-.unpaid-plan-monitor__col-plan-arrival {
-    white-space: nowrap;
-    max-width: 9rem;
+.unpaid-plan-monitor__amount--high {
+    color: #ef4444;
 }
 
-@media (max-width: 768px) {
-    .unpaid-plan-monitor__col-plan-arrival {
-        display: none;
-    }
+.unpaid-plan-monitor__details {
+    padding: 0.25rem 0.35rem 0.45rem;
+    background: var(--color-bg-primary);
+    border-bottom: 1px solid var(--color-border);
+}
 
-    .unpaid-plan-monitor__table th.unpaid-plan-monitor__col-plan-arrival,
-    .unpaid-plan-monitor__table td.unpaid-plan-monitor__col-plan-arrival {
-        display: none;
-    }
+.unpaid-plan-monitor__details-header {
+    padding: 0.25rem 0.1rem 0.35rem;
+    font-size: 0.66rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(3.5rem, auto) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__details-header--compact {
+    grid-template-columns: minmax(0, 1fr) minmax(3.5rem, auto) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__details-header span:last-child {
+    text-align: right;
+}
+
+.unpaid-plan-monitor__detail-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(3.5rem, auto) minmax(4.5rem, auto);
+    padding: 0.35rem 0.1rem;
+    font-size: 0.76rem;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.unpaid-plan-monitor__detail-row--compact {
+    grid-template-columns: minmax(0, 1fr) minmax(3.5rem, auto) minmax(4.5rem, auto);
+}
+
+.unpaid-plan-monitor__detail-row:hover {
+    background: var(--color-bg-hover);
 }
 
 .unpaid-plan-monitor__more {

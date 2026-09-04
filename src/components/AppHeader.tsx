@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   Bell,
-  Loader2,
   LogOut,
   Maximize,
   Minimize2,
   Moon,
-  RefreshCw,
   Search,
   Settings,
   Sun,
@@ -19,6 +17,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useAccountActions } from "../hooks/useAccountActions";
 import { isGlobalSearchTab, isWildberriesTab, useResetGlobalSearchOnWildberries } from "../wb/appWb";
+import { isNativePushEnvironment } from "../lib/androidPushNotifications";
 
 type Props = {
   searchText: string;
@@ -26,8 +25,6 @@ type Props = {
   useServiceRequest: boolean;
   setUseServiceRequest: React.Dispatch<React.SetStateAction<boolean>>;
   serviceModeUnlocked: boolean;
-  serviceRefreshSpinning: boolean;
-  setServiceRefreshSpinning: React.Dispatch<React.SetStateAction<boolean>>;
   onLogout: () => void;
 };
 
@@ -37,8 +34,6 @@ export function AppHeader({
   useServiceRequest,
   setUseServiceRequest,
   serviceModeUnlocked,
-  serviceRefreshSpinning,
-  setServiceRefreshSpinning,
   onLogout,
 }: Props) {
   const { accounts, activeAccountId, activeAccount } = useAuth();
@@ -99,26 +94,6 @@ export function AppHeader({
               >
                 {desktopExpanded ? <Minimize2 className="w-5 h-5" /> : <Maximize className="w-5 h-5" />}
               </Button>
-              {serviceModeUnlocked && useServiceRequest && (
-                <Button
-                  className="search-toggle-button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setServiceRefreshSpinning(true);
-                    window.setTimeout(() => setServiceRefreshSpinning(false), 1500);
-                    window.dispatchEvent(new CustomEvent("haulz-service-refresh"));
-                  }}
-                  title="Обновить из 1С (период текущей вкладки)"
-                  aria-label="Обновить из 1С"
-                  disabled={serviceRefreshSpinning}
-                >
-                  {serviceRefreshSpinning ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4" />
-                  )}
-                </Button>
-              )}
             </Flex>
           )}
         </Flex>
@@ -258,14 +233,16 @@ export function AppHeader({
               {isSearchExpanded ? <X className="w-5 h-5" /> : <Search className="w-5 h-5" />}
             </Button>
           )}
-          <Button
-            className="search-toggle-button"
-            onClick={() => requestProfileView("push")}
-            title="История push-уведомлений"
-            aria-label="История push-уведомлений"
-          >
-            <Bell className="w-5 h-5" />
-          </Button>
+          {isNativePushEnvironment() && (
+            <Button
+              className="search-toggle-button"
+              onClick={() => requestProfileView("push")}
+              title="История push-уведомлений"
+              aria-label="История push-уведомлений"
+            >
+              <Bell className="w-5 h-5" />
+            </Button>
+          )}
           <Button
             className="search-toggle-button"
             onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
