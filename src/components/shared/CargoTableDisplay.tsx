@@ -134,8 +134,7 @@ export function CargoLastMileBadge({ item }: { item: CargoItem }) {
 }
 
 /**
- * Бейджи перевозки: верх — цепочка логистики (забор → магистраль → последняя миля),
- * низ — оплата и маршрут (вторичные метки).
+ * Бейджи перевозки: 1) цепочка логистики; 2) маршрут слева / оплата справа.
  */
 export function CargoLogisticsBadges({
   item,
@@ -167,14 +166,14 @@ export function CargoLogisticsBadges({
       {(showBill || showRouteInline) && (
         <div className="cargo-logistics-badges__meta">
           <div className="cargo-logistics-badges__meta-left">
-            {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
-          </div>
-          <div className="cargo-logistics-badges__meta-right">
             {showRouteInline ? (
               <span className="cargo-inner-table__route-inline">
                 <RouteBadge route={getCargoItemRouteLabel(item)} />
               </span>
             ) : null}
+          </div>
+          <div className="cargo-logistics-badges__meta-right">
+            {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
           </div>
         </div>
       )}
