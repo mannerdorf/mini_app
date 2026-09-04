@@ -35,6 +35,7 @@ import {
   loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../lib/notificationCargoPayloadEnrich.js";
+import { syncCargoPushSnapshots } from "../lib/cargoPushSnapshot.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../lib/pushNotificationTemplates.js";
 import { getPerevozkiServiceCredentials } from "../lib/cacheHistoryDays.js";
 
@@ -293,9 +294,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const subscribers = subscribersByInn.get(inn) || [];
       const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
       const invoiceByCargoNumber = await loadInvoicePayloadsByCargoNumbers(pool, inn, cargoNumbers);
-      const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
-      const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
       const perevozkaCreds = getPerevozkiServiceCredentials();
+
+      const snapshotEntries = items
+        .map((item) => {
+          const number = String(item?.Number ?? item?.number ?? "").trim();
+          if (!number) return null;
+          if (!notificationCargoBelongsToInn(item, inn, ownerInnByCargo, { cacheLoaded: ownerInnCacheLoaded })) {
+            return null;
+          }
+          const cargoInn =
+            resolveNotificationCargoOwnerInn(item, ownerInnByCargo, { strictCache: ownerInnCacheLoaded }) ||
+            normalizeNotificationInn(inn);
+          if (cargoInn !== normalizeNotificationInn(inn)) return null;
+          return { item: item as Record<string, unknown>, customerInn: cargoInn };
+        })
+        .filter((entry): entry is { item: Record<string, unknown>; customerInn: string } => entry != null);
+
+      const snapshotByKey = await syncCargoPushSnapshots(pool, {
+        entries: snapshotEntries,
+        payloadByNumber,
+        invoiceByCargoNumber,
+        serviceLogin: perevozkaCreds?.login ?? POLL_SERVICE_LOGIN,
+        servicePassword: perevozkaCreds?.password ?? POLL_SERVICE_PASSWORD,
+      });
 
       for (const item of items) {
         const number = String(item?.Number ?? item?.number ?? "").trim();
@@ -335,8 +357,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             customerInn: cargoInn,
             serviceLogin: perevozkaCreds?.login ?? POLL_SERVICE_LOGIN,
             servicePassword: perevozkaCreds?.password ?? POLL_SERVICE_PASSWORD,
-            perevozkaCache: perevozkaDetailCache,
-            invoiceLiveCache,
+            snapshotByKey,
           });
           if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
             deferBillStateUpdate = true;

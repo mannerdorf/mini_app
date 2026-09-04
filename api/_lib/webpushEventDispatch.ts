@@ -29,6 +29,7 @@ import {
   loadInvoicePayloadsByCargoNumbers,
   resolveCargoItemForPushTemplate,
 } from "../../lib/notificationCargoPayloadEnrich.js";
+import { syncCargoPushSnapshots } from "../../lib/cargoPushSnapshot.js";
 import { getPerevozkiServiceCredentials } from "../../lib/cacheHistoryDays.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../../lib/pushNotificationTemplates.js";
 import { cargoPlannedDeliveryDateFromItem } from "../../lib/cargoDateFilter.js";
@@ -328,9 +329,17 @@ export async function dispatchWebPushCargoEvents(params: {
   for (const [inn, nums] of cargoNumbersByInn) {
     invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
   }
-  const perevozkaDetailCache = new Map<string, Record<string, unknown> | null>();
-  const invoiceLiveCache = new Map<string, Record<string, unknown> | null>();
   const perevozkaCreds = getPerevozkiServiceCredentials();
+  const snapshotByKey = await syncCargoPushSnapshots(pool, {
+    entries: prepared.map((row) => ({
+      item: row.raw as Record<string, unknown>,
+      customerInn: row.inn,
+    })),
+    payloadByNumber,
+    invoiceByInnAndCargo,
+    serviceLogin: perevozkaCreds?.login,
+    servicePassword: perevozkaCreds?.password,
+  });
   for (const item of prepared) {
     const key = `${item.inn}::${item.cargoNumber}`;
     const prev = lastState.get(key);
@@ -367,8 +376,7 @@ export async function dispatchWebPushCargoEvents(params: {
         customerInn: item.inn,
         serviceLogin: perevozkaCreds?.login,
         servicePassword: perevozkaCreds?.password,
-        perevozkaCache: perevozkaDetailCache,
-        invoiceLiveCache,
+        snapshotByKey,
       });
       if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
         deferBillStateUpdate = true;

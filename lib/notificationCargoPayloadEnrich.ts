@@ -1,8 +1,7 @@
 import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCargoOwnerInn.js";
 import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
-import { hasLastMileForPush, lastMileFieldsForPushMerge } from "./cargoLastMileMeta.js";
-import { fetchPerevozkaRecordForPush } from "./fetchPerevozkaLastMile.js";
-import { fetchInvoicesByInn, hasRealBillNumber } from "./notificationPoll.js";
+import { hasLastMileForPush } from "./cargoLastMileMeta.js";
+import { fetchInvoicesByInn } from "./notificationPoll.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
 import { collectInvoiceLinkedCargoNumbers } from "./weeklySummaryInvoiceTable.js";
 import type { CargoEvent } from "./notificationPoll.js";
@@ -21,7 +20,6 @@ const LAST_MILE_PUSH_EVENTS = new Set<CargoEvent | CargoStageEventId>([
   "arrived",
 ]);
 
-const BILL_PUSH_EVENTS = new Set<CargoEvent | CargoStageEventId>(["bill_created", "bill_paid"]);
 
 const INVOICE_BILL_NUMBER_KEYS = [
   "NumberBill",
@@ -349,7 +347,7 @@ function invoiceLiveCacheKey(cargoNumber: string, customerInn: string): string {
 
 const INVOICE_LIST_CACHE_PREFIX = "invlist::";
 
-async function fetchInvoiceForCargoFrom1c(params: {
+export async function fetchInvoiceForCargoFrom1c(params: {
   cargoNumber: string;
   customerInn: string;
   serviceLogin: string;
@@ -388,7 +386,7 @@ async function fetchInvoiceForCargoFrom1c(params: {
   return null;
 }
 
-/** Готовит запись перевозки для push-шаблона: cache → merge → при необходимости GetPerevozka. */
+/** Готовит запись перевозки для push-шаблона (из snapshot map или fallback enrich). */
 export async function resolveCargoItemForPushTemplate(params: {
   item: Record<string, unknown>;
   event: CargoEvent | CargoStageEventId;
@@ -399,62 +397,25 @@ export async function resolveCargoItemForPushTemplate(params: {
   servicePassword?: string;
   perevozkaCache?: Map<string, Record<string, unknown> | null>;
   invoiceLiveCache?: Map<string, Record<string, unknown> | null>;
+  snapshotByKey?: ReadonlyMap<string, Record<string, unknown>>;
 }): Promise<Record<string, unknown>> {
-  let merged = enrichCargoItemForPushTemplate(params.item, params.payloadByNumber);
-  if (BILL_PUSH_EVENTS.has(params.event)) {
-    if (params.invoiceByCargoNumber && params.invoiceByCargoNumber.size > 0) {
-      merged = enrichBillItemForPushTemplate(merged, params.invoiceByCargoNumber);
-    }
-    if (!hasRealBillNumber(merged)) {
-      const cargoNumber = notificationCargoNumber(merged);
-      const customerInn = String(params.customerInn || "").trim();
-      const login = String(params.serviceLogin || "").trim();
-      const password = String(params.servicePassword || "").trim();
-      if (cargoNumber && customerInn && login && password) {
-        const liveKey = invoiceLiveCacheKey(cargoNumber, customerInn);
-        const liveCache = params.invoiceLiveCache;
-        let liveInvoice: Record<string, unknown> | null = null;
-        if (liveCache?.has(liveKey)) {
-          liveInvoice = liveCache.get(liveKey) ?? null;
-        } else {
-          liveInvoice = await fetchInvoiceForCargoFrom1c({
-            cargoNumber,
-            customerInn,
-            serviceLogin: login,
-            servicePassword: password,
-            invoiceLiveCache: liveCache,
-          });
-          liveCache?.set(liveKey, liveInvoice);
-        }
-        if (liveInvoice) {
-          merged = mergeCargoItemForPushTemplate(merged, invoiceFieldsForPushMerge(liveInvoice));
-        }
-      }
-    }
-  }
-  if (!shouldFetchPerevozkaLastMileForPush(params.event, merged)) return merged;
-
-  const cargoNumber = notificationCargoNumber(merged);
+  const cargoNumber = notificationCargoNumber(params.item);
   const customerInn = String(params.customerInn || "").trim();
-  const login = String(params.serviceLogin || "").trim();
-  const password = String(params.servicePassword || "").trim();
-  if (!cargoNumber || !login || !password) return merged;
-
-  const cacheKey = perevozkaCacheKey(cargoNumber, customerInn);
-  const cache = params.perevozkaCache;
-  if (cache?.has(cacheKey)) {
-    const cached = cache.get(cacheKey);
-    if (cached) merged = mergeCargoItemForPushTemplate(merged, lastMileFieldsForPushMerge(cached), cached);
-    return merged;
+  if (cargoNumber && customerInn && params.snapshotByKey) {
+    const hit = params.snapshotByKey.get(perevozkaCacheKey(cargoNumber, customerInn));
+    if (hit) return hit;
   }
 
-  const detail = await fetchPerevozkaRecordForPush({
-    cargoNumber,
+  const { enrichCargoItemForPushSnapshot } = await import("./cargoPushSnapshot.js");
+  const { merged } = await enrichCargoItemForPushSnapshot({
+    item: params.item,
     customerInn,
-    serviceLogin: login,
-    servicePassword: password,
+    payloadByNumber: params.payloadByNumber,
+    invoiceByCargoNumber: params.invoiceByCargoNumber,
+    serviceLogin: params.serviceLogin,
+    servicePassword: params.servicePassword,
+    perevozkaCache: params.perevozkaCache,
+    invoiceLiveCache: params.invoiceLiveCache,
   });
-  if (cache) cache.set(cacheKey, detail);
-  if (detail) merged = mergeCargoItemForPushTemplate(merged, lastMileFieldsForPushMerge(detail), detail);
   return merged;
 }
