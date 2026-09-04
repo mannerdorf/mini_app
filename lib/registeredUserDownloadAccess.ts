@@ -7,7 +7,15 @@ const INVOICE_DOC_METODS = new Set(["Счет", "Счёт", "РеестрКсч�
 const SKIP_CACHE_FOR_REGISTERED = new Set(["ЭР", "АПП"]);
 const CARGO_CACHE_METODS = new Set(["Акт", "AktSverki", "АктСверки", "Dogovor", "Договор"]);
 
-/** CMS / зарегистрированный пользователь: проверка доступа перед GetFile. */
+function digitsOnly(value: unknown): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+/**
+ * CMS / зарегистрированный пользователь: проверка доступа перед GetFile.
+ * Не делаем «пустых» SELECT data FROM cache_* — assertPartner* уже грузит кэш один раз.
+ * Для Счёта по номеру перевозки сразу идём в cache_perevozki (типичный кейс из UI).
+ */
 export async function assertRegisteredUserDownloadAccess(
   pool: Pool,
   verified: VerifiedRegisteredUser,
@@ -21,8 +29,24 @@ export async function assertRegisteredUserDownloadAccess(
   }
 
   if (INVOICE_DOC_METODS.has(metod)) {
-    const cacheRow = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_invoices WHERE id = 1");
-    if (cacheRow.rows.length === 0) return { ok: true };
+    const isSchet = metod === "Счет" || metod === "Счёт";
+    // Номер перевозки обычно ≥6 цифр (часто padded до 9). Номер счёта/реестра короче.
+    const preferCargo = isSchet && digitsOnly(number).length >= 6;
+
+    if (preferCargo) {
+      const cargoAccess = await assertPartnerDownloadCargoAccess(
+        pool,
+        verified,
+        null,
+        login,
+        metod,
+        number,
+        bodyInn,
+      );
+      if (cargoAccess.ok) return cargoAccess;
+      return assertPartnerDownloadInvoiceAccess(pool, verified, null, login, number, bodyInn);
+    }
+
     const invoiceAccess = await assertPartnerDownloadInvoiceAccess(
       pool,
       verified,
@@ -32,18 +56,13 @@ export async function assertRegisteredUserDownloadAccess(
       bodyInn,
     );
     if (invoiceAccess.ok) return invoiceAccess;
-    // Счёт можно запросить по номеру перевозки (GetFile metod=Счет&Number=000139082).
-    if (metod === "Счет" || metod === "Счёт") {
-      const perevozkiCache = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_perevozki WHERE id = 1");
-      if (perevozkiCache.rows.length === 0) return { ok: true };
+    if (isSchet) {
       return assertPartnerDownloadCargoAccess(pool, verified, null, login, metod, number, bodyInn);
     }
     return invoiceAccess;
   }
 
   if (CARGO_CACHE_METODS.has(metod)) {
-    const cacheRow = await pool.query<{ data: unknown[] }>("SELECT data FROM cache_perevozki WHERE id = 1");
-    if (cacheRow.rows.length === 0) return { ok: true };
     return assertPartnerDownloadCargoAccess(pool, verified, null, login, metod, number, bodyInn);
   }
 
