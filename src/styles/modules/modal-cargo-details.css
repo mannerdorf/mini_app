@@ -314,6 +314,12 @@
 .document-detail-line-card__badges {
     margin-bottom: 0.55rem;
     min-width: 0;
+    width: 100%;
+}
+
+.document-detail-line-card__route-badge {
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .document-detail-line-card__badges .app-badge,

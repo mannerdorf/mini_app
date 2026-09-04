@@ -80,6 +80,22 @@
     flex-shrink: 0;
 }
 
+/* Счёт / УПД: маршрут — в правом углу строки (мобильная и десктопная карточка) */
+.documents-invoice-card__route-row {
+    width: 100%;
+    min-width: 0;
+    gap: 0.5rem;
+}
+
+.documents-invoice-card__route-row-left {
+    min-width: 0;
+}
+
+.documents-invoice-card__route-badge {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
 .documents-edo-card-badge--compact {
     font-size: 0.58rem !important;
     min-height: 1.15rem;

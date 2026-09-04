@@ -48,13 +48,13 @@ export function DocumentDetailLineCards({
                         <Typography.Body className="document-detail-line-card__service" title={stripOoo(serviceRaw)}>
                             {renderServiceCell(serviceRaw)}
                         </Typography.Body>
-                        <Flex align="center" gap="0.35rem" wrap="wrap" className="document-detail-line-card__badges">
+                        <Flex align="center" justify="space-between" gap="0.35rem" className="document-detail-line-card__badges">
                             {perevozkiLoading ? (
                                 <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-text-secondary)" }} />
                             ) : (
                                 <>
                                     <StatusBadge status={deliveryState} />
-                                    <RouteBadge route={route} />
+                                    <RouteBadge route={route} className="document-detail-line-card__route-badge" />
                                 </>
                             )}
                         </Flex>

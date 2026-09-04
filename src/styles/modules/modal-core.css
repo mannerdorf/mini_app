@@ -433,6 +433,18 @@
         max-width: none;
     }
 
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta {
+        align-self: stretch;
+        width: 100%;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+        margin-left: auto;
+        justify-content: flex-end;
+    }
+
     .documents-invoices-inner-table .documents-invoice-inner-badge-wrap,
     .documents-acts-inner-table .documents-invoice-inner-badge-wrap {
         display: inline-flex;

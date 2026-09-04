@@ -144,8 +144,13 @@ export function DocumentsInvoiceCard({
           {sum != null ? formatCurrency(sum) : "—"}
         </Typography.Body>
       </Flex>
-      <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}>
-        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, maxWidth: "70%" }}>
+      <Flex
+        justify="space-between"
+        align="center"
+        className="documents-invoice-card__route-row"
+        style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)" }}
+      >
+        <Flex align="center" gap="0.35rem" wrap="wrap" className="documents-invoice-card__route-row-left" style={{ minWidth: 0, flex: "1 1 auto" }}>
           <Typography.Label
             style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
             title={stripOoo(String(cust || ""))}
@@ -153,13 +158,11 @@ export function DocumentsInvoiceCard({
             {stripOoo(String(cust || "—"))}
           </Typography.Label>
           {innIsEdoPartner(edoPartnerInns, getItemInn(row)) ? <DocumentsEdoPartnerBadge /> : null}
-        </Flex>
-        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
-          {(row.CitySender || row.CityReceiver) ? (
-            <RouteBadge route={formatRouteLabel(row.CitySender, row.CityReceiver)} />
-          ) : null}
           <CargoTransportTypeIcon ak={row.AK} />
         </Flex>
+        {(row.CitySender || row.CityReceiver) ? (
+          <RouteBadge route={formatRouteLabel(row.CitySender, row.CityReceiver)} className="documents-invoice-card__route-badge" />
+        ) : null}
       </Flex>
       {payTill && (
         <Flex
@@ -297,21 +300,26 @@ export function DocumentsActCard({
           </Typography.Body>
         </Flex>
       ) : null}
-      <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: showEdoBadges ? "0.4rem" : 0 }}>
-        <Typography.Label
-          style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}
-          title={stripOoo(String(cust || ""))}
-        >
-          {stripOoo(String(cust || "—"))}
-        </Typography.Label>
-        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
-          {(act.CitySender || act.CityReceiver) ? (
-            <RouteBadge route={formatRouteLabel(act.CitySender, act.CityReceiver)} />
-          ) : invoiceNum ? (
-            <Typography.Label style={{ fontSize: "0.85rem" }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
-          ) : null}
+      <Flex
+        justify="space-between"
+        align="center"
+        className="documents-invoice-card__route-row"
+        style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: showEdoBadges ? "0.4rem" : 0 }}
+      >
+        <Flex align="center" gap="0.35rem" wrap="wrap" className="documents-invoice-card__route-row-left" style={{ minWidth: 0, flex: "1 1 auto" }}>
+          <Typography.Label
+            style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
+            title={stripOoo(String(cust || ""))}
+          >
+            {stripOoo(String(cust || "—"))}
+          </Typography.Label>
           <CargoTransportTypeIcon ak={act.AK} />
         </Flex>
+        {(act.CitySender || act.CityReceiver) ? (
+          <RouteBadge route={formatRouteLabel(act.CitySender, act.CityReceiver)} className="documents-invoice-card__route-badge" />
+        ) : invoiceNum ? (
+          <Typography.Label style={{ fontSize: "0.85rem", flexShrink: 0 }}>Счёт {formatInvoiceNumber(String(invoiceNum))}</Typography.Label>
+        ) : null}
       </Flex>
       {showEdoBadges ? (
         <Flex
@@ -498,8 +506,13 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
           {sum != null ? formatCurrency(sum) : "—"}
         </Typography.Body>
       </Flex>
-      <Flex justify="space-between" align="center" style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}>
-        <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0, maxWidth: "70%" }}>
+      <Flex
+        justify="space-between"
+        align="center"
+        className="documents-invoice-card__route-row"
+        style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.45rem" }}
+      >
+        <Flex align="center" gap="0.35rem" wrap="wrap" className="documents-invoice-card__route-row-left" style={{ minWidth: 0, flex: "1 1 auto" }}>
           <Typography.Label
             style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}
             title={stripOoo(String(cust || ""))}
@@ -507,11 +520,9 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
             {stripOoo(String(cust || "—"))}
           </Typography.Label>
           {innIsEdoPartner(edoPartnerInns, getItemInn(invoice) || getItemInn(cargo)) ? <DocumentsEdoPartnerBadge /> : null}
-        </Flex>
-        <Flex align="center" gap="0.35rem" style={{ flexShrink: 0 }}>
-          {route ? <RouteBadge route={route} /> : null}
           <CargoTransportTypeIcon item={transportSource} />
         </Flex>
+        {route ? <RouteBadge route={route} className="documents-invoice-card__route-badge" /> : null}
       </Flex>
       {invNum ? (
         <Typography.Label style={{ display: "block", fontSize: "0.78rem", color: "var(--color-text-secondary)", marginBottom: "0.4rem" }}>
