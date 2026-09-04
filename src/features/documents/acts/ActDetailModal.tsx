@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Download, Loader2 } from "lucide-react";
+import { Eye, Loader2 } from "lucide-react";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { formatCurrency, formatInvoiceNumber, stripOoo, parseCargoNumbersFromText } from "../../../lib/formatUtils";
 import { DateText } from "../../../components/ui/DateText";
@@ -11,7 +11,10 @@ import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
-import { downloadDocumentDirect } from "../../../lib/downloadDocumentDirect";
+import { fetchDocumentPdfPreview } from "../../../lib/fetchDocumentForPreview";
+import { revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { saveBlobFile } from "../../../lib/saveBlobFile";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -66,6 +69,14 @@ export function ActDetailModal({
 }: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+
+    useEffect(() => {
+        if (!isOpen && pdfViewer) {
+            void revokePdfPreview(pdfViewer);
+            setPdfViewer(null);
+        }
+    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
 
@@ -101,12 +112,16 @@ export function ActDetailModal({
         setDownloading(label);
         setDownloadError(null);
         try {
-            await downloadDocumentDirect(auth, {
+            if (pdfViewer) {
+                await revokePdfPreview(pdfViewer);
+            }
+            const preview = await fetchDocumentPdfPreview(auth, {
                 metod,
                 number: numberForApi,
             });
+            setPdfViewer(preview);
         } catch (e: unknown) {
-            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
+            setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
         } finally {
             setDownloading(null);
         }
@@ -224,7 +239,7 @@ export function ActDetailModal({
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Download className="w-4 h-4" aria-hidden />
+                                        <Eye className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     <EdoDocMiniBadge info={edo} />
@@ -237,6 +252,16 @@ export function ActDetailModal({
                     <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
                         {downloadError}
                     </Typography.Body>
+                )}
+                {pdfViewer && (
+                    <PdfPreviewPanel
+                        preview={pdfViewer}
+                        onDownload={(blob, name) => saveBlobFile(blob, name)}
+                        onClose={() => {
+                            void revokePdfPreview(pdfViewer);
+                            setPdfViewer(null);
+                        }}
+                    />
                 )}
 
                 {list.length > 0 ? (

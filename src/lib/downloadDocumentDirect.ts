@@ -31,7 +31,7 @@ async function saveFetchedDocument(blob: Blob, fileName: string, isHtml?: boolea
   await saveBlobFile(blob, fileName);
 }
 
-/** Скачать документ: на Capacitor — GET бинарный PDF; в браузере — POST JSON. */
+/** Скачать документ: GET бинарный PDF → saveBlobFile. */
 export async function downloadDocumentDirect(
   auth: AuthData | null | undefined,
   params: DownloadDocumentParams,

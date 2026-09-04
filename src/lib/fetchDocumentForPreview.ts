@@ -1,7 +1,7 @@
 import { apiFetch, apiFetchJson, decodeBase64Payload } from "../utils";
 import { toAbsoluteApiUrl } from "./absoluteApiUrl";
-import { isCapacitorNative } from "./capacitorPlatform";
 import { buildDownloadRequestBody } from "./downloadRequestBody";
+import { createPdfPreviewFromBlob, type PdfPreviewState } from "./documentPreview";
 import { transliterateFilename } from "./formatUtils";
 import type { AuthData } from "../types";
 
@@ -108,13 +108,22 @@ export async function fetchViaPostJson(
   };
 }
 
-/** Загрузить документ для inline-просмотра (pdf.js). */
+/** Загрузить документ (GET binary PDF) — рабочий путь для Capacitor и браузера. */
 export async function fetchDocumentForPreview(
   auth: AuthData | null | undefined,
   params: FetchDocumentParams,
 ): Promise<FetchDocumentResult> {
-  if (isCapacitorNative()) {
-    return fetchViaGetBinary(auth, params);
+  return fetchViaGetBinary(auth, params);
+}
+
+/** GET binary → pdf.js inline-просмотр. */
+export async function fetchDocumentPdfPreview(
+  auth: AuthData | null | undefined,
+  params: FetchDocumentParams,
+): Promise<PdfPreviewState> {
+  const { blob, fileName, isHtml } = await fetchViaGetBinary(auth, params);
+  if (isHtml) {
+    throw new Error("Документ в формате HTML — используйте скачивание");
   }
-  return fetchViaPostJson(auth, params);
+  return createPdfPreviewFromBlob(blob, fileName);
 }

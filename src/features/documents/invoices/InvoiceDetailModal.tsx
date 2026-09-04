@@ -15,8 +15,8 @@ import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
-import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
+import { revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { fetchDocumentPdfPreview } from "../../../lib/fetchDocumentForPreview";
 import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
 import { formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
@@ -123,18 +123,14 @@ export function InvoiceDetailModal({
         setDownloadError(null);
         try {
             const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
-            const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
+            if (pdfViewer) {
+                await revokePdfPreview(pdfViewer);
+            }
+            const preview = await fetchDocumentPdfPreview(auth, {
                 metod,
                 number: apiNumber,
                 ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
-            if (isHtml) {
-                throw new Error("Документ в формате HTML — используйте скачивание");
-            }
-            if (pdfViewer) {
-                await revokePdfPreview(pdfViewer);
-            }
-            const preview = await createPdfPreviewFromBlob(blob, fileName);
             setPdfViewer(preview);
         } catch (e: unknown) {
             setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
