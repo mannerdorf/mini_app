@@ -6,6 +6,8 @@ import {
     type DocSectionKey,
 } from "../documentsSectionConstants";
 
+import { hasTableModePreference, readTableModePreference } from "../../../lib/tableModePreference";
+
 const DOCS_TABLE_MODE_KEY = "haulz.docs.tableMode";
 const DOCS_SECTION_KEY = "haulz.docs.section";
 const DOCS_NEW_ORDER_KEY = "haulz.docs.orders.newFormOpen";
@@ -49,14 +51,16 @@ export function useDocumentsPageNavigation({
         }
     }, []);
 
-    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
-        try {
-            const v = localStorage.getItem(DOCS_TABLE_MODE_KEY);
-            return v === "true";
-        } catch {
-            return false;
+    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() =>
+        readTableModePreference(DOCS_TABLE_MODE_KEY),
+    );
+
+    useEffect(() => {
+        if (!effectiveServiceMode) return;
+        if (!hasTableModePreference(DOCS_TABLE_MODE_KEY)) {
+            setTableModeByCustomer(true);
         }
-    });
+    }, [effectiveServiceMode]);
 
     useEffect(() => {
         try {

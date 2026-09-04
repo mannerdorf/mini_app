@@ -68,7 +68,7 @@ export type Account = {
 
 export type Tab = "home" | "cargo" | "docs" | "profile" | "dashboard" | "expense_requests" | "wildberries";
 
-export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "год" | "период";
+export type DateFilter = "все" | "сегодня" | "вчера" | "неделя" | "месяц" | "квартал" | "год" | "период";
 
 export type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "delivered" | "favorites";
 

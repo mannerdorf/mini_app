@@ -186,8 +186,18 @@
     margin-left: auto;
 }
 
-.cargo-inner-table .cargo-logistics-badges__arrow {
-    display: none !important;
+/* Перевозки: бейджи под номером — две строки */
+.cargo-inner-table-badges-anchor {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.28rem;
+    min-width: 0;
+    width: 100%;
+}
+
+.cargo-inner-table .cargo-inner-table__col-status {
+    display: none;
 }
 
 .cargo-inner-table .cargo-logistics-badges .max-badge,
@@ -342,10 +352,10 @@
     display: none;
 }
 
-.documents-invoices-inner-table .cargo-inner-table__delivery-inline,
-.documents-invoices-inner-table .cargo-inner-table__route-inline,
-.documents-acts-inner-table .cargo-inner-table__delivery-inline,
-.documents-acts-inner-table .cargo-inner-table__route-inline {
+.documents-invoices-inner-table .cargo-inner-table__col-route--desktop .cargo-inner-table__route-inline,
+.documents-invoices-inner-table .cargo-inner-table__col-delivery--desktop .cargo-inner-table__delivery-inline,
+.documents-acts-inner-table .cargo-inner-table__col-route--desktop .cargo-inner-table__route-inline,
+.documents-acts-inner-table .cargo-inner-table__col-delivery--desktop .cargo-inner-table__delivery-inline {
     display: none;
 }
 
@@ -412,12 +422,51 @@
         display: block;
     }
 
+    .cargo-inner-table .cargo-logistics-badges .cargo-inner-table__route-inline {
+        display: inline-flex !important;
+        align-items: center;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges__meta {
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges__meta-right {
+        margin-left: auto;
+        flex-shrink: 0;
+    }
+
+    .cargo-inner-table .cargo-logistics-badges__flow {
+        flex-wrap: wrap;
+    }
+
     .documents-invoices-inner-table .cargo-inner-table__delivery-inline {
         display: block;
     }
 
     .documents-acts-inner-table .cargo-inner-table__delivery-inline {
         display: block;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges .cargo-inner-table__route-inline,
+    .documents-acts-inner-table .documents-invoice-table-badges .cargo-inner-table__route-inline {
+        display: inline-flex !important;
+        align-items: center;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta {
+        flex-wrap: nowrap;
+        justify-content: space-between;
+        width: 100%;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-right,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-right {
+        margin-left: auto;
+        flex-shrink: 0;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__badges--stack-mobile,
@@ -559,7 +608,7 @@
     }
 
     .cargo-inner-table .cargo-inner-table__col-number {
-        width: 17%;
+        width: 43%;
     }
 
     .cargo-inner-table .cargo-inner-table__col-date,
@@ -580,10 +629,6 @@
     .cargo-inner-table .cargo-inner-table__col-plan-date {
         width: 16%;
         white-space: nowrap;
-    }
-
-    .cargo-inner-table .cargo-inner-table__col-status {
-        width: 26%;
     }
 
     .documents-invoices-inner-table .cargo-inner-table__col-status,
@@ -701,6 +746,12 @@
 
     .documents-invoices-inner-table .cargo-inner-table__col-finance-desktop-only {
         display: table-cell !important;
+    }
+
+    .documents-invoices-inner-table .documents-invoice-table-badges__meta-left .cargo-inner-table__route-inline,
+    .documents-acts-inner-table .documents-invoice-table-badges__meta-left .cargo-inner-table__route-inline,
+    .cargo-inner-table .cargo-logistics-badges__meta-left .cargo-inner-table__route-inline {
+        display: none !important;
     }
 }
 

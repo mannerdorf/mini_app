@@ -3,12 +3,11 @@ import {
   fetchDogovorContractLabels,
   fetchSverki,
   fetchSverkiRequests,
-  postDownloadDocument,
   postSverkiRequest,
   type SverkiRequestRow,
 } from "../../../api/client/documents";
 import { cachedDocumentMatchesEdoStatusFilter } from "../../../lib/edoStatus";
-import { downloadBase64File } from "../../../utils";
+import { downloadDocumentDirect } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 export type SverkiRow = {
@@ -128,18 +127,13 @@ export function useDocumentsSverki({
     setSverkiDownloadingId(row.id);
     setSverkiDownloadError(null);
     try {
-      const data = await postDownloadDocument({ metod: "АктСверки", number, dateDoc });
-      await downloadBase64File({
-        data: String(data.data),
-        name: data?.name || `АктСверки_${number}.pdf`,
-        isHtml: Boolean(data?.isHtml),
-      });
+      await downloadDocumentDirect(auth, { metod: "АктСверки", number, dateDoc });
     } catch (e: unknown) {
       setSverkiDownloadError((e as Error)?.message || "Ошибка скачивания");
     } finally {
       setSverkiDownloadingId(null);
     }
-  }, []);
+  }, [auth]);
 
   const loadSverkiOrderContracts = useCallback(async () => {
     if (!effectiveActiveInn) {

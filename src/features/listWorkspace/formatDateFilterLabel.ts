@@ -5,6 +5,7 @@ export type DateFilterLabelParams = {
   dateFilter: DateFilter;
   apiDateRange: { dateFrom: string; dateTo: string };
   selectedMonthForFilter: { year: number; month: number } | null;
+  selectedQuarterForFilter: { year: number; quarter: 1 | 2 | 3 | 4 } | null;
   selectedYearForFilter: number | null;
   selectedWeekForFilter: string | null;
 };
@@ -15,6 +16,7 @@ export function formatDateFilterButtonLabel(params: DateFilterLabelParams): stri
     dateFilter,
     apiDateRange,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   } = params;
@@ -22,6 +24,9 @@ export function formatDateFilterButtonLabel(params: DateFilterLabelParams): stri
   if (dateFilter === "период") return "Период";
   if (dateFilter === "месяц" && selectedMonthForFilter) {
     return `${MONTH_NAMES[selectedMonthForFilter.month - 1]} ${selectedMonthForFilter.year}`;
+  }
+  if (dateFilter === "квартал" && selectedQuarterForFilter) {
+    return `${selectedQuarterForFilter.quarter} кв. ${selectedQuarterForFilter.year}`;
   }
   if (dateFilter === "год" && selectedYearForFilter != null) {
     return `${selectedYearForFilter}`;

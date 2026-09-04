@@ -1,6 +1,6 @@
 import {
   DATE_FILTER_STORAGE_KEY,
-  normalizeDateFilterState,
+  getResetDateFilterState,
   saveDateFilterState,
 } from "./dateUtils";
 import { HAULZ_DATE_FILTER_SYNC_EVENT } from "./pullRefreshEvents";
@@ -10,7 +10,7 @@ export const HAULZ_RESET_FILTERS_EVENT = "haulz-reset-filters";
 
 /** Сброс сквозных фильтров (дата + тип/маршрут/счёт) и оповещение страниц. */
 export function resetAllAppFilters(): void {
-  const defaultDate = normalizeDateFilterState(null);
+  const defaultDate = getResetDateFilterState();
   saveDateFilterState(defaultDate, DATE_FILTER_STORAGE_KEY);
   saveSharedListFilters({
     cargoStatusKeys: [],

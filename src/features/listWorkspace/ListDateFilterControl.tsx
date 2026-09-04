@@ -8,7 +8,7 @@ import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton
 import { formatDateFilterButtonLabel } from "./formatDateFilterLabel";
 import type { PersistedDateFilterControls } from "./usePersistedDateFilter";
 
-const { getDateRange, getWeekRange, getYearsList, getWeeksList, getDefaultWeekMonday } = dateUtils;
+const { getDateRange, getWeekRange, getYearsList, getWeeksList, getDefaultWeekMonday, getQuarterRange } = dateUtils;
 const MONTH_NAMES = dateUtils.MONTH_NAMES;
 
 export type ListDateFilterControlProps = PersistedDateFilterControls & {
@@ -29,6 +29,8 @@ export function ListDateFilterControl({
   setCustomDateTo,
   selectedMonthForFilter,
   setSelectedMonthForFilter,
+  selectedQuarterForFilter,
+  setSelectedQuarterForFilter,
   selectedYearForFilter,
   setSelectedYearForFilter,
   selectedWeekForFilter,
@@ -38,7 +40,7 @@ export function ListDateFilterControl({
   weekOnly = false,
 }: ListDateFilterControlProps) {
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-  const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "years" | "weeks">("main");
+  const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "quarters" | "years" | "weeks">("main");
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
   const dateButtonRef = useRef<HTMLDivElement>(null);
   const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,6 +67,7 @@ export function ListDateFilterControl({
               dateFilter,
               apiDateRange,
               selectedMonthForFilter,
+              selectedQuarterForFilter,
               selectedYearForFilter,
               selectedWeekForFilter,
             })}{" "}
@@ -129,6 +132,33 @@ export function ListDateFilterControl({
                 </div>
               ))}
             </>
+          ) : dateDropdownMode === "quarters" ? (
+            <>
+              <div
+                className="dropdown-item"
+                onClick={() => setDateDropdownMode("main")}
+                style={{ fontWeight: 600 }}
+              >
+                ← Назад
+              </div>
+              {([1, 2, 3, 4] as const).map((quarter) => (
+                <div
+                  key={quarter}
+                  className="dropdown-item"
+                  onClick={() => {
+                    const year = new Date().getFullYear();
+                    setDateFilter("квартал");
+                    setSelectedQuarterForFilter({ year, quarter });
+                    setIsDateDropdownOpen(false);
+                    setDateDropdownMode("main");
+                  }}
+                >
+                  <Typography.Body>
+                    {quarter} квартал {new Date().getFullYear()}
+                  </Typography.Body>
+                </div>
+              ))}
+            </>
           ) : dateDropdownMode === "years" ? (
             <>
               <div
@@ -154,8 +184,9 @@ export function ListDateFilterControl({
               ))}
             </>
           ) : (
-            (["сегодня", "вчера", "неделя", "месяц", "год", "период"] as const).map((key) => {
+            (["сегодня", "вчера", "неделя", "месяц", "квартал", "год", "период"] as const).map((key) => {
               const isMonth = key === "месяц";
+              const isQuarter = key === "квартал";
               const isYear = key === "год";
               const isWeek = key === "неделя";
               const doLongPress = isMonth || isYear || isWeek;
@@ -216,6 +247,10 @@ export function ListDateFilterControl({
                       : undefined
                   }
                   onClick={() => {
+                    if (isQuarter) {
+                      setDateDropdownMode("quarters");
+                      return;
+                    }
                     if (doLongPress && wasLongPressRef.current) {
                       wasLongPressRef.current = false;
                       return;
@@ -232,6 +267,8 @@ export function ListDateFilterControl({
                           dateFrom: `${year}-${pad(month)}-01`,
                           dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
                         };
+                      } else if (dateFilter === "квартал" && selectedQuarterForFilter) {
+                        r = getQuarterRange(selectedQuarterForFilter.year, selectedQuarterForFilter.quarter);
                       } else if (dateFilter === "год" && selectedYearForFilter) {
                         r = {
                           dateFrom: `${selectedYearForFilter}-01-01`,
@@ -247,6 +284,7 @@ export function ListDateFilterControl({
                     }
                     setDateFilter(key);
                     if (key === "месяц") setSelectedMonthForFilter(null);
+                    if (key === "квартал") setSelectedQuarterForFilter(null);
                     if (key === "год") setSelectedYearForFilter(null);
                     if (key === "неделя") setSelectedWeekForFilter(getDefaultWeekMonday());
                     setIsDateDropdownOpen(false);
@@ -254,7 +292,7 @@ export function ListDateFilterControl({
                   }}
                 >
                   <Typography.Body>
-                    {key === "год" ? "Год" : key.charAt(0).toUpperCase() + key.slice(1)}
+                    {key === "год" ? "Год" : key === "квартал" ? "Квартал" : key.charAt(0).toUpperCase() + key.slice(1)}
                   </Typography.Body>
                 </div>
               );

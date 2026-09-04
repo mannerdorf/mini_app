@@ -34,8 +34,9 @@ import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
+import { hasTableModePreference, readTableModePreference } from "../lib/tableModePreference";
 
-const { getDateRange, getWeekRange, getWeeksList, getYearsList, getDefaultWeekMonday, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
+const { getDateRange, getWeekRange, getQuarterRange, getWeeksList, getYearsList, getDefaultWeekMonday, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
 const CARGO_STATUS_FILTER_KEYS: CargoStatusFilterKey[] = ["in_transit", "ready", "delivering", "delivered"];
 
@@ -176,6 +177,8 @@ export function CargoPage({
         setCustomDateTo,
         selectedMonthForFilter,
         setSelectedMonthForFilter,
+        selectedQuarterForFilter,
+        setSelectedQuarterForFilter,
         selectedYearForFilter,
         setSelectedYearForFilter,
         selectedWeekForFilter,
@@ -183,7 +186,7 @@ export function CargoPage({
     } = usePersistedDateFilter();
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'years' | 'weeks'>('main');
+    const [dateDropdownMode, setDateDropdownMode] = useState<'main' | 'months' | 'quarters' | 'years' | 'weeks'>('main');
     const monthLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const monthWasLongPressRef = useRef(false);
     const yearLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -235,11 +238,15 @@ export function CargoPage({
     const [isRouteDropdownOpen, setIsRouteDropdownOpen] = useState(false);
     /** В служебном режиме: табличный вид с суммированием по заказчику */
     const CARGO_TABLE_MODE_KEY = 'haulz.cargo.tableMode';
-    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() => {
-        try {
-            return localStorage.getItem(CARGO_TABLE_MODE_KEY) === 'true';
-        } catch { return false; }
-    });
+    const [tableModeByCustomer, setTableModeByCustomer] = useState<boolean>(() =>
+        readTableModePreference(CARGO_TABLE_MODE_KEY),
+    );
+    useEffect(() => {
+        if (!effectiveServiceMode) return;
+        if (!hasTableModePreference(CARGO_TABLE_MODE_KEY)) {
+            setTableModeByCustomer(true);
+        }
+    }, [effectiveServiceMode]);
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
@@ -355,6 +362,7 @@ export function CargoPage({
         customDateFrom,
         customDateTo,
         selectedMonthForFilter,
+        selectedQuarterForFilter,
         selectedYearForFilter,
         selectedWeekForFilter,
     });
@@ -734,6 +742,7 @@ export function CargoPage({
                                 dateFilter,
                                 apiDateRange,
                                 selectedMonthForFilter,
+                                selectedQuarterForFilter,
                                 selectedYearForFilter,
                                 selectedWeekForFilter,
                             })} <ChevronDown className="w-4 h-4"/>
@@ -752,6 +761,21 @@ export function CargoPage({
                                         setDateDropdownMode('main');
                                     }}>
                                         <Typography.Body>{name} {new Date().getFullYear()}</Typography.Body>
+                                    </div>
+                                ))}
+                            </>
+                        ) : dateDropdownMode === 'quarters' ? (
+                            <>
+                                <div className="dropdown-item" onClick={() => setDateDropdownMode('main')} style={{ fontWeight: 600 }}>← Назад</div>
+                                {([1, 2, 3, 4] as const).map((quarter) => (
+                                    <div key={quarter} className="dropdown-item" onClick={() => {
+                                        const year = new Date().getFullYear();
+                                        setDateFilter('квартал');
+                                        setSelectedQuarterForFilter({ year, quarter });
+                                        setIsDateDropdownOpen(false);
+                                        setDateDropdownMode('main');
+                                    }}>
+                                        <Typography.Body>{quarter} квартал {new Date().getFullYear()}</Typography.Body>
                                     </div>
                                 ))}
                             </>
@@ -784,8 +808,9 @@ export function CargoPage({
                                 ))}
                             </>
                         ) : (
-                            ['сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'].map(key => {
+                            ['сегодня', 'вчера', 'неделя', 'месяц', 'квартал', 'год', 'период'].map(key => {
                                 const isMonth = key === 'месяц';
+                                const isQuarter = key === 'квартал';
                                 const isYear = key === 'год';
                                 const isWeek = key === 'неделя';
                                 const doLongPress = isMonth || isYear || isWeek;
@@ -799,6 +824,7 @@ export function CargoPage({
                                         onPointerUp={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onPointerLeave={doLongPress ? () => { if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; } } : undefined}
                                         onClick={() => {
+                                            if (isQuarter) { setDateDropdownMode('quarters'); return; }
                                             if (doLongPress && wasLongPressRef.current) { wasLongPressRef.current = false; return; }
                                             if (key === 'период') {
                                                 let r: { dateFrom: string; dateTo: string };
@@ -808,23 +834,26 @@ export function CargoPage({
                                                     const pad = (n: number) => String(n).padStart(2, '0');
                                                     const lastDay = new Date(year, month, 0).getDate();
                                                     r = { dateFrom: `${year}-${pad(month)}-01`, dateTo: `${year}-${pad(month)}-${pad(lastDay)}` };
+                                                } else if (dateFilter === "квартал" && selectedQuarterForFilter) {
+                                                    r = getQuarterRange(selectedQuarterForFilter.year, selectedQuarterForFilter.quarter);
                                                 } else if (dateFilter === "год" && selectedYearForFilter) {
                                                     r = { dateFrom: `${selectedYearForFilter}-01-01`, dateTo: `${selectedYearForFilter}-12-31` };
                                                 } else if (dateFilter === "неделя" && selectedWeekForFilter) {
                                                     r = getWeekRange(selectedWeekForFilter);
-                                                } else { r = getDateRange(dateFilter); }
+                                                } else { r = getDateRange(dateFilter as DateFilter); }
                                                 setCustomDateFrom(r.dateFrom);
                                                 setCustomDateTo(r.dateTo);
                                             }
-                                            setDateFilter(key as any);
+                                            setDateFilter(key as DateFilter);
                                             if (key === 'месяц') setSelectedMonthForFilter(null);
+                                            if (key === 'квартал') setSelectedQuarterForFilter(null);
                                             if (key === 'год') setSelectedYearForFilter(null);
                                             if (key === 'неделя') setSelectedWeekForFilter(getDefaultWeekMonday());
                                             setIsDateDropdownOpen(false);
                                             if (key === 'период') setIsCustomModalOpen(true);
                                         }}
                                     >
-                                        <Typography.Body>{key === 'год' ? 'Год' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
+                                        <Typography.Body>{key === 'год' ? 'Год' : key === 'квартал' ? 'Квартал' : key.charAt(0).toUpperCase() + key.slice(1)}</Typography.Body>
                                     </div>
                                 );
                             })

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import {
   getDateRange,
   getWeekRange,
+  getQuarterRange,
 } from "../lib/dateUtils";
 import type { DateFilter } from "../types";
 
@@ -10,6 +11,7 @@ type Params = {
   customDateFrom: string;
   customDateTo: string;
   selectedMonthForFilter: { year: number; month: number } | null;
+  selectedQuarterForFilter: import("../lib/dateUtils").QuarterFilterSelection | null;
   selectedYearForFilter: number | null;
   selectedWeekForFilter: string | null;
 };
@@ -62,6 +64,7 @@ export function computeDocumentsApiDateRange(params: Params): { dateFrom: string
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   } = params;
@@ -75,6 +78,8 @@ export function computeDocumentsApiDateRange(params: Params): { dateFrom: string
     } else if (dateFilter === "месяц" && selectedMonthForFilter) {
       const mr = monthRangeOrNull(selectedMonthForFilter.year, selectedMonthForFilter.month);
       api = mr ?? getDateRange(dateFilter);
+    } else if (dateFilter === "квартал" && selectedQuarterForFilter) {
+      api = getQuarterRange(selectedQuarterForFilter.year, selectedQuarterForFilter.quarter);
     } else if (dateFilter === "год" && selectedYearForFilter != null && Number.isFinite(selectedYearForFilter)) {
       const y = selectedYearForFilter;
       api = { dateFrom: `${y}-01-01`, dateTo: `${y}-12-31` };
@@ -107,6 +112,7 @@ export function useDocumentsDateRange(params: Params) {
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   } = params;
@@ -117,6 +123,7 @@ export function useDocumentsDateRange(params: Params) {
       customDateFrom,
       customDateTo,
       selectedMonthForFilter,
+      selectedQuarterForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
     });
@@ -129,6 +136,7 @@ export function useDocumentsDateRange(params: Params) {
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   ]);

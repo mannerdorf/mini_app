@@ -83,6 +83,7 @@ export function useDocumentsPageState({
         customDateFrom: dateFilterState.customDateFrom,
         customDateTo: dateFilterState.customDateTo,
         selectedMonthForFilter: dateFilterState.selectedMonthForFilter,
+        selectedQuarterForFilter: dateFilterState.selectedQuarterForFilter,
         selectedYearForFilter: dateFilterState.selectedYearForFilter,
         selectedWeekForFilter: dateFilterState.selectedWeekForFilter,
     });
@@ -168,6 +169,7 @@ export function useDocumentsPageState({
         customDateFrom: dateFilterState.customDateFrom,
         customDateTo: dateFilterState.customDateTo,
         selectedMonthForFilter: dateFilterState.selectedMonthForFilter,
+        selectedQuarterForFilter: dateFilterState.selectedQuarterForFilter,
         selectedYearForFilter: dateFilterState.selectedYearForFilter,
         selectedWeekForFilter: dateFilterState.selectedWeekForFilter,
     });

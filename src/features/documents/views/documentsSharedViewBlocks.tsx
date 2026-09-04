@@ -191,7 +191,7 @@ export function DocumentsRouteBadge({
   return <RouteBadge route={children} className={className} style={style} />;
 }
 
-/** Бейджи счёта/УПД в таблице: под номером — 1) статус перевозки, 2) оплата слева / маршрут справа. */
+/** Бейджи счёта/УПД в таблице: 1) статус перевозки под номером, 2) маршрут слева / статус счёта справа. */
 export function DocumentsInvoiceTableBadges({
   billStatus,
   billBadgeStyle,
@@ -225,17 +225,6 @@ export function DocumentsInvoiceTableBadges({
       {(showBill || showRoute) && (
         <div className="documents-invoice-table-badges__meta">
           <div className="documents-invoice-table-badges__meta-left">
-            {showBill ? (
-              <AppBadge
-                tone="neutral"
-                className="documents-invoice-inner-badge"
-                style={{ background: billBadgeStyle?.bg, color: billBadgeStyle?.color }}
-              >
-                {billStatus}
-              </AppBadge>
-            ) : null}
-          </div>
-          <div className="documents-invoice-table-badges__meta-right">
             {showRoute ? (
               <span className="cargo-inner-table__route-inline documents-invoice-inner-badge-wrap">
                 {perevozkiLoading ? (
@@ -244,6 +233,17 @@ export function DocumentsInvoiceTableBadges({
                   <DocumentsRouteBadge className="documents-invoice-inner-badge">{routeLabel}</DocumentsRouteBadge>
                 )}
               </span>
+            ) : null}
+          </div>
+          <div className="documents-invoice-table-badges__meta-right">
+            {showBill ? (
+              <AppBadge
+                tone="neutral"
+                className="documents-invoice-inner-badge"
+                style={{ background: billBadgeStyle?.bg, color: billBadgeStyle?.color }}
+              >
+                {billStatus}
+              </AppBadge>
             ) : null}
           </div>
         </div>

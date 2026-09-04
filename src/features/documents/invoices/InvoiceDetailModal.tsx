@@ -122,7 +122,11 @@ export function InvoiceDetailModal({
         setDownloading(label);
         setDownloadError(null);
         try {
-            const apiNumber = isReestr || isInvoiceDoc ? numberToUse : formatPerevozkaNumberForApi(numberToUse);
+            const apiNumber = isReestr
+                ? numberToUse
+                : isInvoiceDoc && !cargoNumber && invoiceNumber
+                  ? String(invoiceNumber).trim()
+                  : formatPerevozkaNumberForApi(numberToUse);
             const { blob, fileName, isHtml } = await fetchDocumentForPreview(auth, {
                 metod,
                 number: apiNumber,

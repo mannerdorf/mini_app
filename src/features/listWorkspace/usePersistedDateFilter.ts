@@ -13,6 +13,7 @@ export type PersistedDateFilterControls = DateFilterState & {
   setCustomDateFrom: (value: string) => void;
   setCustomDateTo: (value: string) => void;
   setSelectedMonthForFilter: (value: { year: number; month: number } | null) => void;
+  setSelectedQuarterForFilter: (value: import("../../lib/dateUtils").QuarterFilterSelection | null) => void;
   setSelectedYearForFilter: (value: number | null) => void;
   setSelectedWeekForFilter: (value: string | null) => void;
 };
@@ -28,6 +29,9 @@ function useLocalPersistedDateFilter(storageKey: string, active: boolean): Persi
   const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(
     () => loadDateFilterState(storageKey).selectedMonthForFilter
   );
+  const [selectedQuarterForFilter, setSelectedQuarterForFilter] = useState(
+    () => loadDateFilterState(storageKey).selectedQuarterForFilter
+  );
   const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(
     () => loadDateFilterState(storageKey).selectedYearForFilter
   );
@@ -42,6 +46,7 @@ function useLocalPersistedDateFilter(storageKey: string, active: boolean): Persi
       customDateFrom,
       customDateTo,
       selectedMonthForFilter,
+      selectedQuarterForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
     }, storageKey);
@@ -52,6 +57,7 @@ function useLocalPersistedDateFilter(storageKey: string, active: boolean): Persi
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   ]);
@@ -61,12 +67,14 @@ function useLocalPersistedDateFilter(storageKey: string, active: boolean): Persi
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
     setDateFilter,
     setCustomDateFrom,
     setCustomDateTo,
     setSelectedMonthForFilter,
+    setSelectedQuarterForFilter,
     setSelectedYearForFilter,
     setSelectedWeekForFilter,
   };

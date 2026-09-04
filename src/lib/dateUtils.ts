@@ -34,17 +34,41 @@ export const DEFAULT_DATE_FROM = getSixMonthsAgoDate();
 export const DEFAULT_DATE_TO = getTodayDate();
 export const DATE_FILTER_STORAGE_KEY = 'haulz.dateFilterState';
 
+export type CalendarQuarter = 1 | 2 | 3 | 4;
+
+export type QuarterFilterSelection = {
+    year: number;
+    quarter: CalendarQuarter;
+};
+
 export type DateFilterState = {
     dateFilter: DateFilter;
     customDateFrom: string;
     customDateTo: string;
     selectedMonthForFilter: { year: number; month: number } | null;
+    selectedQuarterForFilter: QuarterFilterSelection | null;
     selectedYearForFilter: number | null;
     selectedWeekForFilter: string | null;
 };
 
 const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
-const VALID_DATE_FILTERS: DateFilter[] = ['все', 'сегодня', 'вчера', 'неделя', 'месяц', 'год', 'период'];
+const VALID_DATE_FILTERS: DateFilter[] = ['все', 'сегодня', 'вчера', 'неделя', 'месяц', 'квартал', 'год', 'период'];
+const VALID_CALENDAR_QUARTERS = new Set<CalendarQuarter>([1, 2, 3, 4]);
+
+export function getCalendarQuarter(date: Date = new Date()): CalendarQuarter {
+    return (Math.floor(date.getMonth() / 3) + 1) as CalendarQuarter;
+}
+
+export function getQuarterRange(year: number, quarter: CalendarQuarter): { dateFrom: string; dateTo: string } {
+    const startMonth = (quarter - 1) * 3 + 1;
+    const endMonth = startMonth + 2;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const lastDay = new Date(year, endMonth, 0).getDate();
+    return {
+        dateFrom: `${year}-${pad(startMonth)}-01`,
+        dateTo: `${year}-${pad(endMonth)}-${pad(lastDay)}`,
+    };
+}
 
 /** Понедельник текущей календарной недели (ISO YYYY-MM-DD). */
 export function getDefaultWeekMonday(): string {
@@ -64,6 +88,7 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
         customDateFrom: DEFAULT_DATE_FROM,
         customDateTo: DEFAULT_DATE_TO,
         selectedMonthForFilter: null,
+        selectedQuarterForFilter: null,
         selectedYearForFilter: null,
         selectedWeekForFilter: null,
     };
@@ -76,6 +101,13 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
     }
     if (partial?.selectedMonthForFilter && Number.isFinite(partial.selectedMonthForFilter.year) && Number.isFinite(partial.selectedMonthForFilter.month)) {
         state.selectedMonthForFilter = partial.selectedMonthForFilter;
+    }
+    if (
+        partial?.selectedQuarterForFilter &&
+        Number.isFinite(partial.selectedQuarterForFilter.year) &&
+        VALID_CALENDAR_QUARTERS.has(partial.selectedQuarterForFilter.quarter)
+    ) {
+        state.selectedQuarterForFilter = partial.selectedQuarterForFilter;
     }
     if (partial?.selectedYearForFilter != null && Number.isFinite(partial.selectedYearForFilter)) {
         state.selectedYearForFilter = partial.selectedYearForFilter;
@@ -96,11 +128,28 @@ export function normalizeDateFilterState(partial: Partial<DateFilterState> | nul
     if (state.dateFilter === 'месяц' && !state.selectedMonthForFilter) {
         state.selectedMonthForFilter = { year: now.getFullYear(), month: now.getMonth() + 1 };
     }
+    if (state.dateFilter === 'квартал' && !state.selectedQuarterForFilter) {
+        state.selectedQuarterForFilter = { year: now.getFullYear(), quarter: getCalendarQuarter(now) };
+    }
     if (state.dateFilter === 'год' && state.selectedYearForFilter == null) {
         state.selectedYearForFilter = now.getFullYear();
     }
 
     return state;
+}
+
+/** Состояние фильтра даты после «Сбросить все фильтры». */
+export function getResetDateFilterState(): DateFilterState {
+    const today = getTodayDate();
+    return normalizeDateFilterState({
+        dateFilter: "сегодня",
+        customDateFrom: today,
+        customDateTo: today,
+        selectedMonthForFilter: null,
+        selectedQuarterForFilter: null,
+        selectedYearForFilter: null,
+        selectedWeekForFilter: null,
+    });
 }
 
 export const saveDateFilterState = (state: DateFilterState, storageKey: string = DATE_FILTER_STORAGE_KEY) => {
@@ -144,6 +193,12 @@ export const getDateRange = (filter: DateFilter) => {
             break;
         }
         case 'месяц': today.setMonth(today.getMonth() - 1); dateFrom = today.toISOString().split('T')[0]; break;
+        case 'квартал': {
+            const r = getQuarterRange(today.getFullYear(), getCalendarQuarter(today));
+            dateFrom = r.dateFrom;
+            dateTo = r.dateTo;
+            break;
+        }
         case 'год': today.setDate(today.getDate() - 365); dateFrom = today.toISOString().split('T')[0]; break;
         default: break;
     }
@@ -202,6 +257,22 @@ export const getPreviousPeriodRange = (filter: DateFilter, currentFrom: string, 
             dateTo = formatIsoLocal(prevMonthEnd);
             break;
         }
+        case "квартал": {
+            const currentFromDate = parseDateOnly(currentFrom);
+            if (!currentFromDate) return null;
+            const quarter = getCalendarQuarter(currentFromDate);
+            const year = currentFromDate.getFullYear();
+            if (quarter === 1) {
+                const prev = getQuarterRange(year - 1, 4);
+                dateFrom = prev.dateFrom;
+                dateTo = prev.dateTo;
+            } else {
+                const prev = getQuarterRange(year, (quarter - 1) as CalendarQuarter);
+                dateFrom = prev.dateFrom;
+                dateTo = prev.dateTo;
+            }
+            break;
+        }
         case "год": {
             const currentFromDate = parseDateOnly(currentFrom);
             if (!currentFromDate) return null;
@@ -243,6 +314,7 @@ export const resolveDateFilterToRange = (
         customDateFrom: string;
         customDateTo: string;
         selectedMonthForFilter: { year: number; month: number } | null;
+        selectedQuarterForFilter: QuarterFilterSelection | null;
         selectedYearForFilter: number | null;
         selectedWeekForFilter: string | null;
     },
@@ -258,6 +330,10 @@ export const resolveDateFilterToRange = (
             dateFrom: `${year}-${pad(month)}-01`,
             dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
         };
+    }
+    if (dateFilter === "квартал" && options.selectedQuarterForFilter) {
+        const { year, quarter } = options.selectedQuarterForFilter;
+        return getQuarterRange(year, quarter);
     }
     if (dateFilter === "год" && options.selectedYearForFilter) {
         const y = options.selectedYearForFilter;

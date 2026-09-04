@@ -205,12 +205,19 @@ export function CargoCustomerTable({
                     <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
                   </td>
                   <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
-                    <ClickableCargoNumber
-                      number={item.Number}
-                      onOpen={() => onSelectCargo(item)}
-                      className="cargo-inner-table__number"
-                      style={{ color: (() => { const s = getSlaInfo(item, workScheduleByInn); return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined; })() }}
-                    />
+                    <div className="cargo-inner-table-badges-anchor">
+                      <ClickableCargoNumber
+                        number={item.Number}
+                        onOpen={() => onSelectCargo(item)}
+                        className="cargo-inner-table__number"
+                        style={{ color: (() => { const s = getSlaInfo(item, workScheduleByInn); return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined; })() }}
+                      />
+                      <CargoLogisticsBadges
+                        item={item}
+                        showPayment={showSums}
+                        showRouteInline
+                      />
+                    </div>
                   </td>
                   {showOrderCol && (
                     <td className="cargo-inner-table__col-order" style={{ padding: "0.35rem 0.3rem" }}>
@@ -221,13 +228,7 @@ export function CargoCustomerTable({
                   <td className="cargo-inner-table__col-plan-date" style={{ padding: "0.35rem 0.3rem", whiteSpace: "nowrap" }}>
                     {(() => { const iso = plannedArrivalIso(item, routeTypePlanDays); return iso ? <DateText value={iso} omitYear={isMobile} /> : "—"; })()}
                   </td>
-                  <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
-                    <CargoLogisticsBadges
-                      item={item}
-                      showPayment={showSums}
-                      showRouteInline
-                    />
-                  </td>
+                  <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
                   <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}><RouteBadge route={getCargoItemRouteLabel(item)} /></td>
                   <td className="cargo-inner-table__col-mest" style={{ padding: "0.35rem 0.3rem", textAlign: "right" }}>{item.Mest != null ? Math.round(Number(item.Mest)) : "—"}</td>
                   <td className="cargo-inner-table__col-pw" style={{ padding: "0.35rem 0.3rem", textAlign: "right", whiteSpace: "nowrap", minWidth: "4rem" }}>
@@ -874,17 +875,24 @@ export function CargoCustomerTable({
                                 <CargoTransportTypeIcon item={item} className="cargo-inner-table__type-icon" />
                               </td>
                               <td className="cargo-inner-table__col-number" style={{ padding: "0.35rem 0.3rem" }}>
-                                <ClickableCargoNumber
-                                  number={item.Number}
-                                  onOpen={() => onSelectCargo(item)}
-                                  className="cargo-inner-table__number"
-                                  style={{
-                                    color: (() => {
-                                      const s = getSlaInfo(item, workScheduleByInn);
-                                      return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined;
-                                    })(),
-                                  }}
-                                />
+                                <div className="cargo-inner-table-badges-anchor">
+                                  <ClickableCargoNumber
+                                    number={item.Number}
+                                    onOpen={() => onSelectCargo(item)}
+                                    className="cargo-inner-table__number"
+                                    style={{
+                                      color: (() => {
+                                        const s = getSlaInfo(item, workScheduleByInn);
+                                        return s ? (s.onTime ? "#22c55e" : "#ef4444") : undefined;
+                                      })(),
+                                    }}
+                                  />
+                                  <CargoLogisticsBadges
+                                    item={item}
+                                    showPayment={showSums}
+                                    showRouteInline
+                                  />
+                                </div>
                               </td>
                               {row.items.some(
                                 (i: unknown) =>
@@ -907,13 +915,7 @@ export function CargoCustomerTable({
                                   return iso ? <DateText value={iso} omitYear={isMobile} /> : "—";
                                 })()}
                               </td>
-                              <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }}>
-                                <CargoLogisticsBadges
-                                  item={item}
-                                  showPayment={showSums}
-                                  showRouteInline
-                                />
-                              </td>
+                              <td className="cargo-inner-table__col-status" style={{ padding: "0.35rem 0.3rem" }} aria-hidden />
                               <td className="cargo-inner-table__col-route cargo-inner-table__col-route--desktop" style={{ padding: "0.35rem 0.3rem" }}>
                                 <RouteBadge route={getCargoItemRouteLabel(item)} />
                               </td>

@@ -39,7 +39,7 @@ export function useDocumentsPageFilters(effectiveServiceMode: boolean) {
     const [isEdoStatusDropdownOpen, setIsEdoStatusDropdownOpen] = useState(false);
     const [isActCustomerDropdownOpen, setIsActCustomerDropdownOpen] = useState(false);
     const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
-    const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "years" | "weeks">("main");
+    const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "quarters" | "years" | "weeks">("main");
     const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
 
     useEffect(() => {

@@ -21,6 +21,8 @@ export function DashboardHeaderSection({ page }: Props) {
                 apiDateRange={page.apiDateRange}
                 selectedMonthForFilter={page.selectedMonthForFilter}
                 setSelectedMonthForFilter={page.setSelectedMonthForFilter}
+                selectedQuarterForFilter={page.selectedQuarterForFilter}
+                setSelectedQuarterForFilter={page.setSelectedQuarterForFilter}
                 selectedYearForFilter={page.selectedYearForFilter}
                 setSelectedYearForFilter={page.setSelectedYearForFilter}
                 selectedWeekForFilter={page.selectedWeekForFilter}

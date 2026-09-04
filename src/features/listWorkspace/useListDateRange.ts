@@ -7,6 +7,7 @@ export type ListDateRangeParams = {
   customDateFrom: string;
   customDateTo: string;
   selectedMonthForFilter: { year: number; month: number } | null;
+  selectedQuarterForFilter: import("../../lib/dateUtils").QuarterFilterSelection | null;
   selectedYearForFilter: number | null;
   selectedWeekForFilter: string | null;
 };
@@ -18,6 +19,7 @@ export function useListDateRange(params: ListDateRangeParams) {
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   } = params;
@@ -27,6 +29,7 @@ export function useListDateRange(params: ListDateRangeParams) {
       customDateFrom,
       customDateTo,
       selectedMonthForFilter,
+      selectedQuarterForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
     });
@@ -38,6 +41,7 @@ export function useListDateRange(params: ListDateRangeParams) {
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   ]);

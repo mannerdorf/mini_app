@@ -11,6 +11,7 @@ import { routeKeyToCargoLabel } from "../../lib/sharedListFilters";
 import {
   getDateRange,
   getWeekRange,
+  getQuarterRange,
   getYearsList,
   getWeeksList,
   MONTH_NAMES,
@@ -53,14 +54,18 @@ export type DocumentsPageToolbarDateFilterProps = {
   setSelectedMonthForFilter: React.Dispatch<
     React.SetStateAction<{ year: number; month: number } | null>
   >;
+  selectedQuarterForFilter: import("../../lib/dateUtils").QuarterFilterSelection | null;
+  setSelectedQuarterForFilter: React.Dispatch<
+    React.SetStateAction<import("../../lib/dateUtils").QuarterFilterSelection | null>
+  >;
   selectedYearForFilter: number | null;
   setSelectedYearForFilter: React.Dispatch<React.SetStateAction<number | null>>;
   selectedWeekForFilter: string | null;
   setSelectedWeekForFilter: React.Dispatch<React.SetStateAction<string | null>>;
   isDateDropdownOpen: boolean;
   setIsDateDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  dateDropdownMode: "main" | "months" | "years" | "weeks";
-  setDateDropdownMode: React.Dispatch<React.SetStateAction<"main" | "months" | "years" | "weeks">>;
+  dateDropdownMode: "main" | "months" | "quarters" | "years" | "weeks";
+  setDateDropdownMode: React.Dispatch<React.SetStateAction<"main" | "months" | "quarters" | "years" | "weeks">>;
   isCustomModalOpen: boolean;
   setIsCustomModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 };
@@ -189,6 +194,8 @@ export function DocumentsPageToolbar({
     setCustomDateTo,
     selectedMonthForFilter,
     setSelectedMonthForFilter,
+    selectedQuarterForFilter,
+    setSelectedQuarterForFilter,
     selectedYearForFilter,
     setSelectedYearForFilter,
     selectedWeekForFilter,
@@ -252,6 +259,7 @@ export function DocumentsPageToolbar({
                       dateFilter,
                       apiDateRange,
                       selectedMonthForFilter,
+                      selectedQuarterForFilter,
                       selectedYearForFilter,
                       selectedWeekForFilter,
                     })}{" "}
@@ -285,6 +293,32 @@ export function DocumentsPageToolbar({
                         >
                           <Typography.Body>
                             {name} {new Date().getFullYear()}
+                          </Typography.Body>
+                        </div>
+                      ))}
+                    </>
+                  ) : dateDropdownMode === "quarters" ? (
+                    <>
+                      <div
+                        className="dropdown-item"
+                        onClick={() => setDateDropdownMode("main")}
+                        style={{ fontWeight: 600 }}
+                      >
+                        ← Назад
+                      </div>
+                      {([1, 2, 3, 4] as const).map((quarter) => (
+                        <div
+                          key={quarter}
+                          className="dropdown-item"
+                          onClick={() => {
+                            setDateFilter("квартал");
+                            setSelectedQuarterForFilter({ year: new Date().getFullYear(), quarter });
+                            setIsDateDropdownOpen(false);
+                            setDateDropdownMode("main");
+                          }}
+                        >
+                          <Typography.Body>
+                            {quarter} квартал {new Date().getFullYear()}
                           </Typography.Body>
                         </div>
                       ))}
@@ -338,8 +372,9 @@ export function DocumentsPageToolbar({
                       ))}
                     </>
                   ) : (
-                    (["сегодня", "вчера", "неделя", "месяц", "год", "период"] as const).map((key) => {
+                    (["сегодня", "вчера", "неделя", "месяц", "квартал", "год", "период"] as const).map((key) => {
                       const isMonth = key === "месяц";
+                      const isQuarter = key === "квартал";
                       const isYear = key === "год";
                       const isWeek = key === "неделя";
                       const doLongPress = isMonth || isYear || isWeek;
@@ -399,6 +434,10 @@ export function DocumentsPageToolbar({
                               : undefined
                           }
                           onClick={() => {
+                            if (isQuarter) {
+                              setDateDropdownMode("quarters");
+                              return;
+                            }
                             if (doLongPress && wasLongPressRef.current) {
                               wasLongPressRef.current = false;
                               return;
@@ -415,6 +454,8 @@ export function DocumentsPageToolbar({
                                   dateFrom: `${year}-${pad(month)}-01`,
                                   dateTo: `${year}-${pad(month)}-${pad(lastDay)}`,
                                 };
+                              } else if (dateFilter === "квартал" && selectedQuarterForFilter) {
+                                r = getQuarterRange(selectedQuarterForFilter.year, selectedQuarterForFilter.quarter);
                               } else if (dateFilter === "год" && selectedYearForFilter) {
                                 r = {
                                   dateFrom: `${selectedYearForFilter}-01-01`,
@@ -430,6 +471,7 @@ export function DocumentsPageToolbar({
                             }
                             setDateFilter(key);
                             if (key === "месяц") setSelectedMonthForFilter(null);
+                            if (key === "квартал") setSelectedQuarterForFilter(null);
                             if (key === "год") setSelectedYearForFilter(null);
                             if (key === "неделя") setSelectedWeekForFilter(null);
                             setIsDateDropdownOpen(false);
@@ -439,6 +481,8 @@ export function DocumentsPageToolbar({
                           <Typography.Body>
                             {key === "год"
                               ? "Год"
+                              : key === "квартал"
+                                ? "Квартал"
                               : key === "период"
                                 ? "Период"
                                 : key.charAt(0).toUpperCase() + key.slice(1)}

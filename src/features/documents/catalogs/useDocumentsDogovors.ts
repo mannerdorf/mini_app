@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   fetchDogovors,
-  postDownloadDocument,
 } from "../../../api/client/documents";
 import { cachedDocumentMatchesEdoStatusFilter } from "../../../lib/edoStatus";
-import { downloadBase64File } from "../../../utils";
+import { downloadDocumentDirect } from "../../../lib/downloadDocumentDirect";
 
 export type DogovorRow = {
   id: number;
@@ -88,12 +87,7 @@ export function useDocumentsDogovors({
     setDogovorsDownloadingId(row.id);
     setDogovorsDownloadError(null);
     try {
-      const data = await postDownloadDocument({ metod: "Договор", number, dateDog, inn });
-      await downloadBase64File({
-        data: String(data.data),
-        name: data?.name || `Договор_${number}.pdf`,
-        isHtml: Boolean(data?.isHtml),
-      });
+      await downloadDocumentDirect(null, { metod: "Договор", number, dateDog, inn });
     } catch (e: unknown) {
       setDogovorsDownloadError((e as Error)?.message || "Ошибка скачивания");
     } finally {

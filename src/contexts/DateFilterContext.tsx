@@ -31,6 +31,9 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
   const [selectedMonthForFilter, setSelectedMonthForFilter] = useState<{ year: number; month: number } | null>(
     () => loadDateFilterState(storageKey).selectedMonthForFilter,
   );
+  const [selectedQuarterForFilter, setSelectedQuarterForFilter] = useState(
+    () => loadDateFilterState(storageKey).selectedQuarterForFilter,
+  );
   const [selectedYearForFilter, setSelectedYearForFilter] = useState<number | null>(
     () => loadDateFilterState(storageKey).selectedYearForFilter,
   );
@@ -43,6 +46,7 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
     setCustomDateFrom(loaded.customDateFrom);
     setCustomDateTo(loaded.customDateTo);
     setSelectedMonthForFilter(loaded.selectedMonthForFilter);
+    setSelectedQuarterForFilter(loaded.selectedQuarterForFilter);
     setSelectedYearForFilter(loaded.selectedYearForFilter);
     setSelectedWeekForFilter(loaded.selectedWeekForFilter);
   }, []);
@@ -58,6 +62,7 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
         customDateFrom,
         customDateTo,
         selectedMonthForFilter,
+        selectedQuarterForFilter,
         selectedYearForFilter,
         selectedWeekForFilter,
       },
@@ -69,6 +74,7 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
     customDateFrom,
     customDateTo,
     selectedMonthForFilter,
+    selectedQuarterForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   ]);
@@ -93,12 +99,14 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
       customDateFrom,
       customDateTo,
       selectedMonthForFilter,
+      selectedQuarterForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
       setDateFilter,
       setCustomDateFrom,
       setCustomDateTo,
       setSelectedMonthForFilter,
+      setSelectedQuarterForFilter,
       setSelectedYearForFilter,
       setSelectedWeekForFilter,
       reloadFromStorage,
@@ -109,6 +117,7 @@ function useDateFilterState(storageKey: string): DateFilterContextValue {
       customDateFrom,
       customDateTo,
       selectedMonthForFilter,
+      selectedQuarterForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
       reloadFromStorage,
