@@ -40,6 +40,9 @@ const HaulzSendingsAnalysisPage = lazy(() =>
 const HaulzDeliveredWithoutAppPage = lazy(() =>
   import("./HaulzDeliveredWithoutAppPage").then((m) => ({ default: m.HaulzDeliveredWithoutAppPage })),
 );
+const HaulzDownloadSandboxPage = lazy(() =>
+  import("./HaulzDownloadSandboxPage").then((m) => ({ default: m.HaulzDownloadSandboxPage })),
+);
 const HaulzCargoTimelinePage = lazy(() =>
   import("./HaulzCargoTimelinePage").then((m) => ({ default: m.HaulzCargoTimelinePage })),
 );
@@ -249,6 +252,23 @@ export function ProfilePage({
         } : null;
         return (
             <HaulzReturnsPage auth={auth} onBack={() => setCurrentView("haulz")} />
+        );
+    }
+
+    if (currentView === "haulzDownloadSandbox") {
+        if (!activeAccount || activeAccount.permissions?.haulz !== true) {
+            return null;
+        }
+        const auth: AuthData = {
+            login: activeAccount.login,
+            password: activeAccount.password,
+            inn: activeAccount.activeCustomerInn ?? activeAccount.customers?.[0]?.inn,
+            ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
+        };
+        return (
+            <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+                <HaulzDownloadSandboxPage auth={auth} onBack={() => setCurrentView("haulz")} />
+            </Suspense>
         );
     }
 

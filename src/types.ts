@@ -141,6 +141,7 @@ export type ProfileView =
     | "haulzSendingsAnalysis"
     | "haulzDeliveredWithoutApp"
     | "haulzCargoTimeline"
+    | "haulzDownloadSandbox"
     | "admin"
     | "tinyurl-test"
     | "apiKeys";

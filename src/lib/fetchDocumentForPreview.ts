@@ -60,7 +60,7 @@ function buildDownloadQuery(auth: AuthData | null | undefined, params: FetchDocu
 }
 
 /** GET /api/download → бинарный PDF (без base64 JSON через мост Capacitor). */
-async function fetchViaGetBinary(
+export async function fetchViaGetBinary(
   auth: AuthData | null | undefined,
   params: FetchDocumentParams,
 ): Promise<FetchDocumentResult> {
@@ -84,7 +84,7 @@ async function fetchViaGetBinary(
   };
 }
 
-async function fetchViaPostJson(
+export async function fetchViaPostJson(
   auth: AuthData | null | undefined,
   params: FetchDocumentParams,
 ): Promise<FetchDocumentResult> {
