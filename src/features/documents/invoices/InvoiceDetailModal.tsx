@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
-import { Eye, Loader2 } from "lucide-react";
+import { Download, Loader2 } from "lucide-react";
 import { stripOoo, parseCargoNumbersFromText, formatInvoiceNumber, formatCurrency, normalizeInvoiceStatus } from "../../../lib/formatUtils";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import { DateText } from "../../../components/ui/DateText";
@@ -14,11 +14,8 @@ import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
-import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
-import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
+import { fetchDownloadDocumentDetailed, formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
 import { DocumentDownloadSandboxPanel } from "../../../components/shared/DocumentDownloadSandboxPanel";
 import type { DocumentDownloadDebug } from "../../../lib/documentDownloadDebug";
 import type { AuthData } from "../../../types";
@@ -54,15 +51,7 @@ export function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
     const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
-
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            void revokePdfPreview(pdfViewer);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
 
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
@@ -98,7 +87,7 @@ export function InvoiceDetailModal({
         }
     };
 
-    const handleOpenDocument = async (label: string) => {
+    const handleDownload = async (label: string) => {
         if (!auth?.login || !auth?.password) {
             setDownloadError("Требуется авторизация");
             return;
@@ -126,26 +115,21 @@ export function InvoiceDetailModal({
         setDownloadError(null);
         setDownloadDebug(null);
         try {
-            // Счёт по номеру перевозки — pad до 9 цифр (GetFile metod=Счет&Number=000139082).
-            // Номер самого счёта (без перевозки) оставляем как есть.
             const apiNumber = isReestr
                 ? String(numberToUse).trim()
                 : isInvoiceDoc && !cargoNumber && invoiceNumber
                   ? String(invoiceNumber).trim()
                   : formatPerevozkaNumberForApi(numberToUse);
-            const result = await fetchDocumentForPreview(auth, {
+            const result = await fetchDownloadDocumentDetailed(auth, {
                 metod,
                 number: apiNumber,
                 ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
             setDownloadDebug(result.debug);
-            if (result.isHtml) {
-                await saveBlobFile(result.blob, result.fileName);
-                return;
+            if (!result.ok || !result.blob || !result.fileName) {
+                throw Object.assign(new Error(result.error ?? "Ошибка загрузки"), { debug: result.debug });
             }
-            if (pdfViewer) await revokePdfPreview(pdfViewer);
-            const preview = await createPdfPreviewFromBlob(result.blob, result.fileName);
-            setPdfViewer(preview);
+            await saveBlobFile(result.blob, result.fileName);
         } catch (e: unknown) {
             const err = e as Error & { debug?: DocumentDownloadDebug };
             if (err.debug) setDownloadDebug(err.debug);
@@ -239,13 +223,13 @@ export function InvoiceDetailModal({
                                     type="button"
                                     className="filter-button edo-doc-download-btn doc-button"
                                     disabled={!canDownload || downloading !== null}
-                                    onClick={() => void handleOpenDocument(label)}
-                                    title="Просмотр"
+                                    onClick={() => void handleDownload(label)}
+                                    title="Скачать"
                                 >
                                     {downloading === label ? (
                                         <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                     ) : (
-                                        <Eye className="w-4 h-4" aria-hidden />
+                                        <Download className="w-4 h-4" aria-hidden />
                                     )}
                                     {label}
                                     {!isReestr && <EdoDocMiniBadge info={edo} />}
@@ -260,16 +244,6 @@ export function InvoiceDetailModal({
                     </Typography.Body>
                 )}
                 <DocumentDownloadSandboxPanel debug={downloadDebug} />
-                {pdfViewer && (
-                    <PdfPreviewPanel
-                        preview={pdfViewer}
-                        onClose={() => {
-                            void revokePdfPreview(pdfViewer);
-                            setPdfViewer(null);
-                        }}
-                        onDownload={(blob, fileName) => void saveBlobFile(blob, fileName)}
-                    />
-                )}
                 {auth && !isPaid && (
                     <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
                 )}

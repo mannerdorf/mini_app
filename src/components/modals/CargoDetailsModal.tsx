@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Info, ClipboardList, Eye } from "lucide-react";
+import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Info, ClipboardList, Download } from "lucide-react";
 import { fetchPerevozkaDetails } from "../../lib/perevozkaDetails";
 import { ShipmentStatusPanel } from "../ShipmentStatusScreen";
 import { getWebApp, isMaxWebApp } from "../../webApp";
@@ -8,10 +8,8 @@ import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
 import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
-import { fetchDocumentForPreview } from "../../lib/fetchDocumentForPreview";
-import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../lib/documentPreview";
+import { fetchDownloadDocumentDetailed } from "../../lib/downloadDocumentDirect";
 import { saveBlobFile } from "../../lib/saveBlobFile";
-import { PdfPreviewPanel } from "../shared/PdfPreviewPanel";
 import { DocumentDownloadSandboxPanel } from "../shared/DocumentDownloadSandboxPanel";
 import type { DocumentDownloadDebug } from "../../lib/documentDownloadDebug";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
@@ -56,7 +54,6 @@ export function CargoDetailsModal({
 }: CargoDetailsModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
     const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
@@ -65,13 +62,6 @@ export function CargoDetailsModal({
     const [perevozkaLoading, setPerevozkaLoading] = useState(false);
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
     const [perevozkaFetched, setPerevozkaFetched] = useState(false);
-
-    useEffect(() => {
-        if (!isOpen && pdfViewer) {
-            void revokePdfPreview(pdfViewer);
-            setPdfViewer(null);
-        }
-    }, [isOpen, pdfViewer]);
 
     useEffect(() => {
         if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
@@ -181,18 +171,15 @@ export function CargoDetailsModal({
         setDownloadError(null);
         setDownloadDebug(null);
         try {
-            const result = await fetchDocumentForPreview(auth, {
+            const result = await fetchDownloadDocumentDetailed(auth, {
                 metod,
                 number: formatPerevozkaNumberForApi(item.Number),
             });
             setDownloadDebug(result.debug);
-            if (result.isHtml) {
-                await saveBlobFile(result.blob, result.fileName);
-                return;
+            if (!result.ok || !result.blob || !result.fileName) {
+                throw Object.assign(new Error(result.error ?? "Ошибка скачивания"), { debug: result.debug });
             }
-            if (pdfViewer) await revokePdfPreview(pdfViewer);
-            const preview = await createPdfPreviewFromBlob(result.blob, result.fileName);
-            setPdfViewer(preview);
+            await saveBlobFile(result.blob, result.fileName);
         } catch (e: unknown) {
             const err = e as Error & { debug?: DocumentDownloadDebug };
             if (err.debug) setDownloadDebug(err.debug);
@@ -645,12 +632,12 @@ export function CargoDetailsModal({
                                         className={`doc-button doc-button--cargo ${isHighlighted ? 'doc-button-highlighted' : ''}`}
                                         onClick={() => handleDownload(doc)}
                                         disabled={downloading === doc}
-                                        title="Просмотр"
+                                        title="Скачать"
                                     >
                                         {downloading === doc ? (
                                             <Loader2 className="w-4 h-4 animate-spin" aria-hidden />
                                         ) : (
-                                            <Eye className="w-4 h-4" aria-hidden />
+                                            <Download className="w-4 h-4" aria-hidden />
                                         )}
                                         {doc}
                                     </button>
@@ -660,16 +647,6 @@ export function CargoDetailsModal({
                     );
                 })()}
                 <DocumentDownloadSandboxPanel debug={downloadDebug} />
-                {pdfViewer && (
-                    <PdfPreviewPanel
-                        preview={pdfViewer}
-                        onClose={() => {
-                            void revokePdfPreview(pdfViewer);
-                            setPdfViewer(null);
-                        }}
-                        onDownload={(blob, fileName) => void saveBlobFile(blob, fileName)}
-                    />
-                )}
             </div>
         </div>
     );
