@@ -1,0 +1,25 @@
+# Публичный чат: https://chat.haulz.space
+# MXID: @имя:chat.haulz.space  — нельзя сменить без сброса БД.
+# Apex haulz.space не трогаем.
+
+serverName: chat.haulz.space
+
+synapse:
+  ingress:
+    host: matrix.chat.haulz.space
+
+elementWeb:
+  ingress:
+    host: chat.haulz.space
+
+elementAdmin:
+  ingress:
+    host: admin.chat.haulz.space
+
+matrixAuthenticationService:
+  ingress:
+    host: account.chat.haulz.space
+
+matrixRTC:
+  ingress:
+    host: mrtc.chat.haulz.space

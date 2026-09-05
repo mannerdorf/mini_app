@@ -1,0 +1,5 @@
+# Let's Encrypt через cert-manager ClusterIssuer letsencrypt-prod
+# (создаётся install-скриптом).
+
+certManager:
+  clusterIssuer: letsencrypt-prod
