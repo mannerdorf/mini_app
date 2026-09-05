@@ -15,6 +15,8 @@ import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
 import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { DocumentDownloadSandboxPanel } from "../../../components/shared/DocumentDownloadSandboxPanel";
+import type { DocumentDownloadDebug } from "../../../lib/documentDownloadDebug";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -70,6 +72,7 @@ export function ActDetailModal({
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
 
     useEffect(() => {
         if (!isOpen && pdfViewer) {
@@ -107,11 +110,13 @@ export function ActDetailModal({
         const metod = DOCUMENT_METHODS[label] ?? label;
         setDownloading(label);
         setDownloadError(null);
+        setDownloadDebug(null);
         try {
             const result = await fetchDocumentForPreview(auth, {
                 metod,
                 number: formatPerevozkaNumberForApi(cargoNumber),
             });
+            setDownloadDebug(result.debug);
             if (result.isHtml) {
                 await saveBlobFile(result.blob, result.fileName);
                 return;
@@ -120,7 +125,9 @@ export function ActDetailModal({
             const preview = await createPdfPreviewFromBlob(result.blob, result.fileName);
             setPdfViewer(preview);
         } catch (e: unknown) {
-            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
+            const err = e as Error & { debug?: DocumentDownloadDebug };
+            if (err.debug) setDownloadDebug(err.debug);
+            setDownloadError(err?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -253,6 +260,7 @@ export function ActDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
+                <DocumentDownloadSandboxPanel debug={downloadDebug} />
                 {pdfViewer && (
                     <PdfPreviewPanel
                         preview={pdfViewer}

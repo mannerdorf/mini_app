@@ -19,6 +19,8 @@ import { fetchDocumentForPreview } from "../../../lib/fetchDocumentForPreview";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../../lib/documentPreview";
 import { saveBlobFile } from "../../../lib/saveBlobFile";
 import { PdfPreviewPanel } from "../../../components/shared/PdfPreviewPanel";
+import { DocumentDownloadSandboxPanel } from "../../../components/shared/DocumentDownloadSandboxPanel";
+import type { DocumentDownloadDebug } from "../../../lib/documentDownloadDebug";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -53,6 +55,7 @@ export function InvoiceDetailModal({
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
 
     useEffect(() => {
         if (!isOpen && pdfViewer) {
@@ -121,6 +124,7 @@ export function InvoiceDetailModal({
         }
         setDownloading(label);
         setDownloadError(null);
+        setDownloadDebug(null);
         try {
             // Счёт по номеру перевозки — pad до 9 цифр (GetFile metod=Счет&Number=000139082).
             // Номер самого счёта (без перевозки) оставляем как есть.
@@ -134,6 +138,7 @@ export function InvoiceDetailModal({
                 number: apiNumber,
                 ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
+            setDownloadDebug(result.debug);
             if (result.isHtml) {
                 await saveBlobFile(result.blob, result.fileName);
                 return;
@@ -142,7 +147,9 @@ export function InvoiceDetailModal({
             const preview = await createPdfPreviewFromBlob(result.blob, result.fileName);
             setPdfViewer(preview);
         } catch (e: unknown) {
-            setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
+            const err = e as Error & { debug?: DocumentDownloadDebug };
+            if (err.debug) setDownloadDebug(err.debug);
+            setDownloadError(err?.message ?? "Ошибка загрузки");
         } finally {
             setDownloading(null);
         }
@@ -252,6 +259,7 @@ export function InvoiceDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
+                <DocumentDownloadSandboxPanel debug={downloadDebug} />
                 {pdfViewer && (
                     <PdfPreviewPanel
                         preview={pdfViewer}

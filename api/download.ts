@@ -3,13 +3,16 @@ import { normalizeBase64Payload } from "../lib/base64Document.js";
 import https from "https";
 import { URL } from "url";
 import { getPool } from "./_db.js";
-import {
-  cleanTransportNumberInput,
-  normalizeWbPerevozkaHaulzDigits,
-  stripToTransportDigits,
-} from "./lib/wbPerevozkaDigits.js";
+import { cleanTransportNumberInput } from "./lib/wbPerevozkaDigits.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { assertRegisteredUserDownloadAccess } from "../lib/registeredUserDownloadAccess.js";
+import {
+  buildGetFileUpstreamCurl,
+  isHaulzGetFileMetod,
+  normalizeGetFileNumber,
+  summarizeGetFileUpstreamBody,
+  type GetFileDebugInfo,
+} from "../lib/getFileMetodConfig.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const EXTERNAL_API_BASE_URL =
@@ -176,8 +179,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const isWbAppMethod = metod === "АПП";
+    let accessCheck = "n/a";
 
-    // CMS-пользователи: verify + доступ (счёт → cache_invoices, перевозка → cache_perevozki). АПП — только verify.
+    // CMS-пользователи: verify + доступ. АПП/ЭР/Счет/Акт — verify (+ skip cache в assert*).
     if (isRegisteredUser) {
       try {
         const pool = getPool();
@@ -197,12 +201,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           if (!access.ok) {
             return res.status(access.status).json({ error: access.error, request_id: ctx.requestId });
           }
-        }
-        const serviceLogin = process.env.PEREVOZKI_SERVICE_LOGIN;
-        const servicePassword = process.env.PEREVOZKI_SERVICE_PASSWORD;
-        if (serviceLogin && servicePassword) {
-          login = serviceLogin;
-          password = servicePassword;
+          accessCheck = "ok";
+        } else {
+          accessCheck = "skipped_app";
         }
       } catch (e: any) {
         logError(ctx, "download_registered_user_failed", e);
@@ -210,17 +211,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Для Договор, АктСверки, РеестрКсчету, ЭР и АПП используем Info@haulz.pro (Auth) + admin (Authorization).
-    const useHaulzAuth =
-      metod === "Договор" ||
-      metod === "Dogovor" ||
-      metod === "АктСверки" ||
-      metod === "AktSverki" ||
-      metod === "РеестрКсчету" ||
-      metod === "ЭР" ||
-      metod === "АПП";
+    // Счёт/УПД(Акт) — тот же Haulz Auth, что ЭР/АПП/Реестр (раньше service → часто «нет файла»).
+    const useHaulzAuth = isHaulzGetFileMetod(metod);
     if (useHaulzAuth) {
-      // Auth: Basic Info@haulz.pro:Y2ME42XyI_, Authorization: Basic YWRtaW46anVlYmZueWU=
       login = "";
       password = "";
     } else {
@@ -238,11 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       password = servicePassword;
     }
 
-    // АПП/ЭР: в Number только цифры с ведущими нулями (после очистки служебных символов).
-    if (metod === "АПП" || metod === "ЭР") {
-      const td = stripToTransportDigits(String(number));
-      if (td) number = normalizeWbPerevozkaHaulzDigits(td);
-    }
+    number = normalizeGetFileNumber(metod, String(number));
 
     // Формируем URL ровно как в Postman/curl:
     // https://.../GetFile?metod=ЭР&Number=000107984
@@ -254,8 +243,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (dateDog) fullUrl.searchParams.set("DateDog", dateDog);
     if (inn) fullUrl.searchParams.set("INN", String(inn).trim());
 
+    const authHeader = useHaulzAuth ? HAULZ_AUTH : `Basic ${login}:${password}`;
+    const debugBase: GetFileDebugInfo = {
+      metod,
+      number,
+      ...(dateDoc ? { dateDoc } : {}),
+      ...(dateDog ? { dateDog } : {}),
+      ...(inn ? { inn: String(inn).trim() } : {}),
+      auth_mode: useHaulzAuth ? "haulz" : "service",
+      upstream_url: fullUrl.toString(),
+      upstream_curl: buildGetFileUpstreamCurl(fullUrl.toString(), authHeader, SERVICE_AUTH),
+      access_check: accessCheck,
+    };
+
     // Do not log credentials/PII; keep logs minimal
-    console.log("➡️ GetFile:", { metod, number, dateDoc: dateDoc ? "***" : undefined, dateDog: dateDog ? "***" : undefined, inn: inn ? "***" : undefined });
+    console.log("➡️ GetFile:", { metod, number, dateDoc: dateDoc ? "***" : undefined, dateDog: dateDog ? "***" : undefined, inn: inn ? "***" : undefined, auth_mode: debugBase.auth_mode });
 
     const options: https.RequestOptions = {
       protocol: fullUrl.protocol,
@@ -264,9 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       path: fullUrl.pathname + fullUrl.search,
       method: "GET",
       headers: {
-        // Для Договор/АктСверки: Auth: Basic Info@haulz.pro:Y2ME42XyI_
-        // Для ЭР и др.: Auth: Basic login:password
-        Auth: useHaulzAuth ? HAULZ_AUTH : `Basic ${login}:${password}`,
+        Auth: authHeader,
         Authorization: SERVICE_AUTH,
         Accept: "*/*",
         "Accept-Encoding": "identity",
@@ -274,6 +274,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         Host: fullUrl.host,
       },
     };
+
+    const withDebug = (payload: Record<string, unknown>) => ({ ...payload, debug: debugBase });
     
     // Avoid logging auth headers
 
@@ -292,15 +294,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       console.log("⬅️ Upstream headers:", JSON.stringify(upstreamRes.headers, null, 2));
 
-      // Если 1С вернула ошибку — просто пробрасываем как есть
-      if (statusCode < 200 || statusCode >= 300) {
-        res.status(statusCode);
-        // может быть текст/JSON — просто прокидываем
-        upstreamRes.pipe(res);
-        return;
-      }
-
-      // Буферизуем первые байты для проверки формата
       let firstChunk: Buffer | null = null;
       let chunks: Buffer[] = [];
       
@@ -309,8 +302,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           firstChunk = chunk;
           const header = chunk.slice(0, 4).toString();
           console.log("📄 File header:", header, "isPDF:", header.startsWith("%PDF"));
-          
-          // Если не PDF, логируем первые 100 байт для диагностики
           if (!header.startsWith("%PDF")) {
             console.log("⚠️ Not a PDF! First 100 bytes:", chunk.slice(0, 100).toString());
           }
@@ -321,8 +312,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       upstreamRes.on("end", () => {
         const fullBuffer = Buffer.concat(chunks);
         console.log("📦 Total size:", fullBuffer.length, "bytes");
+
+        debugBase.upstream_status = statusCode;
+        debugBase.upstream_content_type = String(upstreamContentType);
+        debugBase.upstream_bytes = fullBuffer.length;
+        debugBase.upstream_response_summary = summarizeGetFileUpstreamBody(
+          fullBuffer,
+          String(upstreamContentType),
+        );
+
+        if (statusCode < 200 || statusCode >= 300) {
+          if (req.method === "GET") {
+            res.status(statusCode);
+            res.setHeader("Content-Type", String(upstreamContentType));
+            return res.end(fullBuffer);
+          }
+          return res.status(statusCode).json(
+            withDebug({
+              error: "Upstream error",
+              message: fullBuffer.toString("utf-8").slice(0, 500),
+              request_id: ctx.requestId,
+            }),
+          );
+        }
         
-        // Извлекаем имя файла из заголовков ответа сервера
         const extractFileName = (dispositionHeader: string | string[] | undefined, fallback: string): string => {
           if (!dispositionHeader) return fallback;
           const header = Array.isArray(dispositionHeader) ? dispositionHeader[0] : dispositionHeader;
@@ -384,10 +397,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             res.setHeader("Content-Length", fullBuffer.length.toString());
             return res.end(fullBuffer);
           }
-          return res.status(200).json({
-            data: fullBuffer.toString("base64"),
-            name: fileName,
-          });
+          return res.status(200).json(
+            withDebug({
+              data: fullBuffer.toString("base64"),
+              name: fileName,
+            }),
+          );
         }
         
         // Если не PDF — пробуем распарсить как JSON
@@ -401,17 +416,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           // Если есть ошибка
           if (jsonResponse.Error && jsonResponse.Error !== "") {
             console.error("❌ Server error:", jsonResponse.Error);
-            return res.status(400).json({
-              error: "Server returned error",
-              message: jsonResponse.Error,
-              request_id: ctx.requestId,
-            });
+            return res.status(400).json(
+              withDebug({
+                error: "Server returned error",
+                message: jsonResponse.Error,
+                request_id: ctx.requestId,
+              }),
+            );
           }
           
           // Если есть data — может быть base64 (PDF) или raw HTML (Договор возвращает HTML в data)
           if (jsonResponse.data) {
             const dataStr = String(jsonResponse.data);
-            const fileName = jsonResponse.name || `${metod}_${number}.pdf`;
+            const fileNameFromJson = jsonResponse.name || `${metod}_${number}.pdf`;
             const isBase64 = /^[A-Za-z0-9+/]*=*$/.test(dataStr.replace(/\s/g, "")) && dataStr.length > 0;
 
             if (isBase64) {
@@ -421,11 +438,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               if (req.method === "GET") {
                 res.status(200);
                 res.setHeader("Content-Type", "application/pdf");
-                res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileName)}"`);
+                res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fileNameFromJson)}"`);
                 res.setHeader("Content-Length", pdfBuffer.length.toString());
                 return res.end(pdfBuffer);
               }
-              return res.status(200).json({ data: normalizeBase64Payload(dataStr), name: fileName });
+              return res.status(200).json(
+                withDebug({ data: normalizeBase64Payload(dataStr), name: fileNameFromJson }),
+              );
             }
 
             // Договор возвращает raw HTML в data — чистим [#ключ#] и кодируем в base64
@@ -433,43 +452,46 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
               const cleanedHtml = clean1cPlaceholders(dataStr);
               console.log("✅ Got HTML data (Договор), cleaned placeholders, encoding to base64. Size:", cleanedHtml.length);
               const b64 = Buffer.from(cleanedHtml, "utf-8").toString("base64");
-              const fname = /\.html?$/i.test(fileName) ? fileName : fileName.replace(/\.\w+$/, "") + ".html";
+              const fname = /\.html?$/i.test(fileNameFromJson) ? fileNameFromJson : fileNameFromJson.replace(/\.\w+$/, "") + ".html";
               if (req.method === "GET") {
                 res.status(200);
                 res.setHeader("Content-Type", "text/html; charset=utf-8");
                 res.setHeader("Content-Disposition", `inline; filename="${encodeURIComponent(fname)}"`);
                 return res.end(cleanedHtml, "utf-8");
               }
-              return res.status(200).json({ data: b64, name: fname, isHtml: true });
+              return res.status(200).json(withDebug({ data: b64, name: fname, isHtml: true }));
             }
 
             console.error("❌ jsonResponse.data is neither base64 nor HTML");
-            return res.status(500).json({
-              error: "Invalid response format",
-              message: "Сервер вернул данные в неожиданном формате",
-              request_id: ctx.requestId,
-            });
+            return res.status(500).json(
+              withDebug({
+                error: "Invalid response format",
+                message: "Сервер вернул данные в неожиданном формате",
+                request_id: ctx.requestId,
+              }),
+            );
           }
           
           // Success:true но нет data — файл не найден
           console.error("❌ No file data in response. Keys:", Object.keys(jsonResponse));
-          // Файл не найден — не причина для бана
-          return res.status(404).json({
-            error: "Файл не найден",
-            message: `Документ ${metod} для перевозки ${number} не найден`,
-            request_id: ctx.requestId,
-          });
+          return res.status(404).json(
+            withDebug({
+              error: "Файл не найден",
+              message: `Документ ${metod} для перевозки ${number} не найден`,
+              request_id: ctx.requestId,
+            }),
+          );
           
         } catch (e) {
-          // Не JSON и не PDF — возвращаем ошибку
           console.error("❌ Response is neither PDF nor valid JSON!", e);
-          // Форматная ошибка — не причина для бана
-          return res.status(500).json({
-            error: "Invalid response format",
-            message: "Server returned neither PDF nor valid JSON",
-            raw: textResponse.substring(0, 200),
-            request_id: ctx.requestId,
-          });
+          return res.status(500).json(
+            withDebug({
+              error: "Invalid response format",
+              message: "Server returned neither PDF nor valid JSON",
+              raw: textResponse.substring(0, 200),
+              request_id: ctx.requestId,
+            }),
+          );
         }
       });
 
@@ -478,7 +500,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (!res.headersSent) {
           res
             .status(500)
-            .json({ error: "Upstream stream error", message: err.message, request_id: ctx.requestId });
+            .json(withDebug({ error: "Upstream stream error", message: err.message, request_id: ctx.requestId }));
         } else {
           res.end();
         }
@@ -490,7 +512,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!res.headersSent) {
         res
           .status(500)
-          .json({ error: "Proxy request error", message: err.message, request_id: ctx.requestId });
+          .json(withDebug({ error: "Proxy request error", message: err.message, request_id: ctx.requestId }));
       } else {
         res.end();
       }

@@ -1,11 +1,11 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import https from "https";
 import { URL } from "url";
+import { cleanTransportNumberInput } from "../api/lib/wbPerevozkaDigits.js";
 import {
-  cleanTransportNumberInput,
-  normalizeWbPerevozkaHaulzDigits,
-  stripToTransportDigits,
-} from "../api/lib/wbPerevozkaDigits.js";
+  isHaulzGetFileMetod,
+  normalizeGetFileNumber,
+} from "./getFileMetodConfig.js";
 import { normalizeBase64Payload } from "./base64Document.js";
 
 export const GET_FILE_EXTERNAL_URL =
@@ -111,23 +111,15 @@ export function validateGetFileParams(raw: Partial<GetFileParams>): GetFileValid
     return { ok: false, status: 400, error: "Invalid inn (expected 10-12 digits)" };
   }
 
-  if (metod === "АПП" || metod === "ЭР") {
-    const td = stripToTransportDigits(String(number));
-    if (td) number = normalizeWbPerevozkaHaulzDigits(td);
+  if (metod === "АПП" || metod === "ЭР" || metod === "Счет" || metod === "Счёт" || metod === "Акт") {
+    number = normalizeGetFileNumber(metod, String(number));
   }
 
   return { ok: true, params: { metod, number, dateDoc, dateDog, inn } };
 }
 
 function resolveGetFileCredentials(metod: string): { useHaulzAuth: boolean; login: string; password: string } | { error: string } {
-  const useHaulzAuth =
-    metod === "Договор" ||
-    metod === "Dogovor" ||
-    metod === "АктСверки" ||
-    metod === "AktSverki" ||
-    metod === "РеестрКсчету" ||
-    metod === "ЭР" ||
-    metod === "АПП";
+  const useHaulzAuth = isHaulzGetFileMetod(metod);
 
   if (useHaulzAuth) {
     return { useHaulzAuth: true, login: "", password: "" };

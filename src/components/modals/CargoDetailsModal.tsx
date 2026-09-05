@@ -12,6 +12,8 @@ import { fetchDocumentForPreview } from "../../lib/fetchDocumentForPreview";
 import { createPdfPreviewFromBlob, revokePdfPreview, type PdfPreviewState } from "../../lib/documentPreview";
 import { saveBlobFile } from "../../lib/saveBlobFile";
 import { PdfPreviewPanel } from "../shared/PdfPreviewPanel";
+import { DocumentDownloadSandboxPanel } from "../shared/DocumentDownloadSandboxPanel";
+import type { DocumentDownloadDebug } from "../../lib/documentDownloadDebug";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -55,6 +57,7 @@ export function CargoDetailsModal({
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [pdfViewer, setPdfViewer] = useState<PdfPreviewState | null>(null);
+    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
     const [perevozkaMeta, setPerevozkaMeta] = useState<{ autoReg: string; autoType: string; driver: string }>({ autoReg: '', autoType: '', driver: '' });
@@ -176,11 +179,13 @@ export function CargoDetailsModal({
         const metod = DOCUMENT_METHODS[docType] ?? docType;
         setDownloading(docType);
         setDownloadError(null);
+        setDownloadDebug(null);
         try {
             const result = await fetchDocumentForPreview(auth, {
                 metod,
                 number: formatPerevozkaNumberForApi(item.Number),
             });
+            setDownloadDebug(result.debug);
             if (result.isHtml) {
                 await saveBlobFile(result.blob, result.fileName);
                 return;
@@ -189,7 +194,9 @@ export function CargoDetailsModal({
             const preview = await createPdfPreviewFromBlob(result.blob, result.fileName);
             setPdfViewer(preview);
         } catch (e: unknown) {
-            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
+            const err = e as Error & { debug?: DocumentDownloadDebug };
+            if (err.debug) setDownloadDebug(err.debug);
+            setDownloadError(err?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -652,6 +659,7 @@ export function CargoDetailsModal({
                         </div>
                     );
                 })()}
+                <DocumentDownloadSandboxPanel debug={downloadDebug} />
                 {pdfViewer && (
                     <PdfPreviewPanel
                         preview={pdfViewer}

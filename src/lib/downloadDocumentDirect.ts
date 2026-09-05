@@ -1,10 +1,11 @@
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
-import { decodeBase64Payload, downloadBase64File } from "../utils";
+import { decodeBase64Payload } from "../utils";
 import { buildDownloadRequestBody } from "./downloadRequestBody";
 import { toAbsoluteApiUrl } from "./absoluteApiUrl";
 import { isCapacitorNative } from "./capacitorPlatform";
 import { saveBlobFile } from "./saveBlobFile";
 import { transliterateFilename } from "./formatUtils";
+import { buildClientDownloadCurl, type DocumentDownloadDebug } from "./documentDownloadDebug";
 import type { AuthData } from "../types";
 
 export type DownloadDocumentParams = {
@@ -21,11 +22,127 @@ type DownloadDocumentPayload = {
   isHtml?: boolean;
   message?: string;
   error?: string;
+  debug?: Omit<DocumentDownloadDebug, "ok" | "httpStatus" | "client_curl" | "client_body">;
 };
+
+export type FetchDocumentDetailedResult = {
+  ok: boolean;
+  status: number;
+  blob?: Blob;
+  fileName?: string;
+  isHtml?: boolean;
+  error?: string;
+  debug: DocumentDownloadDebug;
+};
+
+function downloadUrl(): string {
+  return isCapacitorNative() ? toAbsoluteApiUrl(PROXY_API_DOWNLOAD_URL) : PROXY_API_DOWNLOAD_URL;
+}
+
+/** POST /api/download с debug (curl + ответ 1С). */
+export async function fetchDownloadDocumentDetailed(
+  auth: AuthData | null | undefined,
+  params: DownloadDocumentParams,
+): Promise<FetchDocumentDetailedResult> {
+  const payload = {
+    metod: params.metod,
+    number: params.number,
+    ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
+    ...(params.dateDog ? { dateDog: params.dateDog } : {}),
+    ...(params.inn ? { inn: params.inn } : {}),
+  };
+  const body =
+    auth?.login && auth?.password ? buildDownloadRequestBody(auth, payload) : payload;
+  const url = downloadUrl();
+  const clientCurl = buildClientDownloadCurl(url, body as Record<string, unknown>);
+  const clientBody = { ...(body as Record<string, unknown>) };
+  if ("password" in clientBody) clientBody.password = "***";
+
+  const baseDebug = (partial: Partial<DocumentDownloadDebug>, status: number, ok: boolean): DocumentDownloadDebug => ({
+    ok,
+    httpStatus: status,
+    metod: params.metod,
+    number: params.number,
+    ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
+    client_curl: clientCurl,
+    client_body: clientBody,
+    ...partial,
+  });
+
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e: unknown) {
+    return {
+      ok: false,
+      status: 0,
+      error: (e as Error)?.message ?? "Сеть недоступна",
+      debug: baseDebug({ error: "network", message: (e as Error)?.message }, 0, false),
+    };
+  }
+
+  let data: DownloadDocumentPayload = {};
+  try {
+    data = (await res.json()) as DownloadDocumentPayload;
+  } catch {
+    return {
+      ok: false,
+      status: res.status,
+      error: "Некорректный ответ API",
+      debug: baseDebug({ error: "invalid_json" }, res.status, false),
+    };
+  }
+
+  const serverDebug = data.debug ?? {};
+  const debug = baseDebug(
+    {
+      ...serverDebug,
+      error: data.error,
+      message: data.message,
+    },
+    res.status,
+    res.ok && Boolean(data.data && data.name),
+  );
+
+  if (!res.ok) {
+    let msg =
+      res.status === 404
+        ? "Документ не найден"
+        : res.status >= 500
+          ? "Ошибка сервера"
+          : "Не удалось получить документ";
+    if (data?.message && res.status !== 404 && res.status < 500) msg = String(data.message);
+    else if (data?.error && res.status !== 404 && res.status < 500) msg = String(data.error);
+    else if (res.status === 404 && data?.message) msg = String(data.message);
+    else if (res.status === 404 && data?.error) {
+      msg = /^file not found$/i.test(String(data.error)) ? "Файл не найден" : String(data.error);
+    }
+    return { ok: false, status: res.status, error: msg, debug };
+  }
+
+  if (!data?.data || !data.name) {
+    return { ok: false, status: res.status, error: "Документ не найден", debug };
+  }
+
+  const byteArray = decodeBase64Payload(String(data.data));
+  const mime = data.isHtml ? "text/html;charset=utf-8" : "application/pdf";
+  return {
+    ok: true,
+    status: res.status,
+    blob: new Blob([byteArray], { type: mime }),
+    fileName: transliterateFilename(data.name || `${params.metod}_${params.number}.pdf`),
+    isHtml: Boolean(data.isHtml),
+    debug,
+  };
+}
 
 /** POST /api/download через fetch (как до preview/GET-экспериментов). */
 export async function fetchDownloadDocument(body: Record<string, unknown>): Promise<DownloadDocumentPayload> {
-  const url = isCapacitorNative() ? toAbsoluteApiUrl(PROXY_API_DOWNLOAD_URL) : PROXY_API_DOWNLOAD_URL;
+  const url = downloadUrl();
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -64,30 +181,15 @@ export async function downloadDocumentDirect(
   auth: AuthData | null | undefined,
   params: DownloadDocumentParams,
 ): Promise<void> {
-  const payload = {
-    metod: params.metod,
-    number: params.number,
-    ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
-    ...(params.dateDog ? { dateDog: params.dateDog } : {}),
-    ...(params.inn ? { inn: params.inn } : {}),
-  };
-  const body =
-    auth?.login && auth?.password ? buildDownloadRequestBody(auth, payload) : payload;
-  const data = await fetchDownloadDocument(body);
-
-  if (data.isHtml) {
-    await downloadBase64File({
-      data: String(data.data),
-      name: data.name || `${params.metod}_${params.number}.html`,
-      isHtml: true,
-    });
+  const detailed = await fetchDownloadDocumentDetailed(auth, params);
+  if (!detailed.ok || !detailed.blob || !detailed.fileName) {
+    throw new Error(detailed.error ?? "Документ не найден");
+  }
+  if (detailed.isHtml) {
+    await saveBlobFile(detailed.blob, detailed.fileName);
     return;
   }
-
-  const byteArray = decodeBase64Payload(String(data.data));
-  const blob = new Blob([byteArray], { type: "application/pdf" });
-  const fileName = transliterateFilename(data.name || `${params.metod}_${params.number}.pdf`);
-  await saveBlobFile(blob, fileName);
+  await saveBlobFile(detailed.blob, detailed.fileName);
 }
 
 /** Формат dateDoc для API: YYYY-MM-DDTHH:MM:SS (как в актах сверки). */

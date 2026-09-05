@@ -9,6 +9,7 @@
 @import "./modules/platform.css";
 @import "./modules/native-pull-refresh.css";
 @import "./modules/pdf-preview.css";
+@import "./modules/document-download-sandbox.css";
 @import "./modules/controls-cms.css";
 @import "./modules/cargo-list.css";
 @import "./modules/cargo-documents-sticky.css";
