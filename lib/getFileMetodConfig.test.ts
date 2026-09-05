@@ -6,12 +6,12 @@ import {
 } from "./getFileMetodConfig.js";
 
 describe("getFileMetodConfig", () => {
-  it("uses Haulz auth for ЭР / АПП / Счет / Акт / Реестр", () => {
+  it("uses Haulz auth for ЭР / АПП / Реестр, service for Счет / Акт", () => {
     expect(isHaulzGetFileMetod("ЭР")).toBe(true);
     expect(isHaulzGetFileMetod("АПП")).toBe(true);
-    expect(isHaulzGetFileMetod("Счет")).toBe(true);
-    expect(isHaulzGetFileMetod("Акт")).toBe(true);
     expect(isHaulzGetFileMetod("РеестрКсчету")).toBe(true);
+    expect(isHaulzGetFileMetod("Счет")).toBe(false);
+    expect(isHaulzGetFileMetod("Акт")).toBe(false);
   });
 
   it("pads cargo numbers for Счет/Акт like ЭР", () => {

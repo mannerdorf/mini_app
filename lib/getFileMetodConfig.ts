@@ -3,7 +3,7 @@ import {
   stripToTransportDigits,
 } from "../api/lib/wbPerevozkaDigits.js";
 
-/** GetFile: Auth Info@haulz.pro (как ЭР/АПП). */
+/** GetFile: Auth Info@haulz.pro (как ЭР/АПП). Счёт/УПД — service (Haulz на Счет часто висит → 504). */
 const HAULZ_GETFILE_METODS = new Set([
   "Договор",
   "Dogovor",
@@ -12,9 +12,6 @@ const HAULZ_GETFILE_METODS = new Set([
   "РеестрКсчету",
   "ЭР",
   "АПП",
-  "Счет",
-  "Счёт",
-  "Акт",
 ]);
 
 export function isHaulzGetFileMetod(metod: string): boolean {
@@ -68,6 +65,37 @@ export function buildGetFileUpstreamCurl(upstreamUrl: string, authHeader: string
     `  --header 'Accept-Encoding: identity'`,
   ].join("\n");
 }
+
+const GET_FILE_BASE = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetFile";
+const SERVICE_AUTH_BASIC = "Basic YWRtaW46anVlYmZueWU=";
+const HAULZ_AUTH_BASIC = "Basic Info@haulz.pro:Y2ME42XyI_";
+
+/** Клиентский ожидаемый curl в 1С (если API не успел вернуть debug / 504 шлюза). */
+export function buildExpectedGetFileCurl(params: {
+  metod: string;
+  number: string;
+  dateDoc?: string | null;
+  dateDog?: string | null;
+  inn?: string | null;
+}): { url: string; curl: string; auth_mode: "haulz" | "service" } {
+  const url = new URL(GET_FILE_BASE);
+  url.searchParams.set("metod", params.metod);
+  url.searchParams.set("Number", params.number);
+  if (params.dateDoc) url.searchParams.set("DateDoc", params.dateDoc);
+  if (params.dateDog) url.searchParams.set("DateDog", params.dateDog);
+  if (params.inn) url.searchParams.set("INN", String(params.inn).trim());
+  const auth_mode = isHaulzGetFileMetod(params.metod) ? "haulz" : "service";
+  const authHeader =
+    auth_mode === "haulz" ? HAULZ_AUTH_BASIC : "Basic <PEREVOZKI_SERVICE_LOGIN>:<PEREVOZKI_SERVICE_PASSWORD>";
+  return {
+    url: url.toString(),
+    auth_mode,
+    curl: buildGetFileUpstreamCurl(url.toString(), authHeader, SERVICE_AUTH_BASIC),
+  };
+}
+
+/** Таймаут ожидания ответа 1С GetFile (мс), чтобы вернуть JSON до 504 шлюза. */
+export const GET_FILE_UPSTREAM_TIMEOUT_MS = 90_000;
 
 export function summarizeGetFileUpstreamBody(buffer: Buffer, contentType: string | undefined): string {
   const type = String(contentType ?? "").toLowerCase();

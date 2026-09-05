@@ -12,7 +12,10 @@ haulz.space, www.haulz.space, haulz.ru, www.haulz.ru {
 			header_up X-Forwarded-For {remote_host}
 			transport http {
 				dial_timeout 5s
-				response_header_timeout 120s
+				# Счёт/УПД PDF через GetFile часто >120с; иначе Caddy → 504 без JSON debug
+				response_header_timeout 300s
+				read_timeout 300s
+				write_timeout 300s
 			}
 		}
 	}

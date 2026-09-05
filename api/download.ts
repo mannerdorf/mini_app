@@ -8,6 +8,7 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { assertRegisteredUserDownloadAccess } from "../lib/registeredUserDownloadAccess.js";
 import {
   buildGetFileUpstreamCurl,
+  GET_FILE_UPSTREAM_TIMEOUT_MS,
   isHaulzGetFileMetod,
   normalizeGetFileNumber,
   summarizeGetFileUpstreamBody,
@@ -211,7 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     }
 
-    // Счёт/УПД(Акт) — тот же Haulz Auth, что ЭР/АПП/Реестр (раньше service → часто «нет файла»).
+    // Счёт/УПД — service credentials; ЭР/АПП/Реестр — Haulz (Haulz на Счет давал зависание → 504).
     const useHaulzAuth = isHaulzGetFileMetod(metod);
     if (useHaulzAuth) {
       login = "";
@@ -265,6 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       port: fullUrl.port || 443,
       path: fullUrl.pathname + fullUrl.search,
       method: "GET",
+      timeout: GET_FILE_UPSTREAM_TIMEOUT_MS,
       headers: {
         Auth: authHeader,
         Authorization: SERVICE_AUTH,
@@ -515,6 +517,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           .json(withDebug({ error: "Proxy request error", message: err.message, request_id: ctx.requestId }));
       } else {
         res.end();
+      }
+    });
+
+    upstreamReq.on("timeout", () => {
+      console.error("🔥 GetFile upstream timeout", GET_FILE_UPSTREAM_TIMEOUT_MS);
+      upstreamReq.destroy();
+      if (!res.headersSent) {
+        debugBase.upstream_status = 504;
+        debugBase.upstream_response_summary = `GetFile timeout after ${GET_FILE_UPSTREAM_TIMEOUT_MS}ms`;
+        res.status(504).json(
+          withDebug({
+            error: "Gateway timeout",
+            message: `1С GetFile не ответил за ${Math.round(GET_FILE_UPSTREAM_TIMEOUT_MS / 1000)} с (metod=${metod}, Number=${number})`,
+            request_id: ctx.requestId,
+          }),
+        );
       }
     });
 

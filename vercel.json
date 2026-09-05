@@ -27,6 +27,7 @@
     "api/invoices.ts": {"maxDuration": 300},
     "api/perevozki.ts": {"maxDuration": 300},
     "api/getperevozka.ts": {"maxDuration": 60},
+    "api/download.ts": {"maxDuration": 120},
     "api/service-refresh-from-1c.ts": {"maxDuration": 300},
     "api/admin-document-cache-backfill.ts": {"maxDuration": 300}
   },

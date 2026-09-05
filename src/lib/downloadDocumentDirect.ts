@@ -5,7 +5,7 @@ import { toAbsoluteApiUrl } from "./absoluteApiUrl";
 import { isCapacitorNative } from "./capacitorPlatform";
 import { saveBlobFile } from "./saveBlobFile";
 import { transliterateFilename } from "./formatUtils";
-import { buildClientDownloadCurl, type DocumentDownloadDebug } from "./documentDownloadDebug";
+import { buildClientDownloadCurl, buildExpectedGetFileCurl, type DocumentDownloadDebug } from "./documentDownloadDebug";
 import type { AuthData } from "../types";
 
 export type DownloadDocumentParams = {
@@ -57,6 +57,13 @@ export async function fetchDownloadDocumentDetailed(
   const clientCurl = buildClientDownloadCurl(url, body as Record<string, unknown>);
   const clientBody = { ...(body as Record<string, unknown>) };
   if ("password" in clientBody) clientBody.password = "***";
+  const expected = buildExpectedGetFileCurl({
+    metod: params.metod,
+    number: params.number,
+    dateDoc: params.dateDoc,
+    dateDog: params.dateDog,
+    inn: params.inn,
+  });
 
   const baseDebug = (partial: Partial<DocumentDownloadDebug>, status: number, ok: boolean): DocumentDownloadDebug => ({
     ok,
@@ -64,6 +71,9 @@ export async function fetchDownloadDocumentDetailed(
     metod: params.metod,
     number: params.number,
     ...(params.dateDoc ? { dateDoc: params.dateDoc } : {}),
+    auth_mode: expected.auth_mode,
+    upstream_url: expected.url,
+    upstream_curl: expected.curl,
     client_curl: clientCurl,
     client_body: clientBody,
     ...partial,
@@ -81,7 +91,15 @@ export async function fetchDownloadDocumentDetailed(
       ok: false,
       status: 0,
       error: (e as Error)?.message ?? "Сеть недоступна",
-      debug: baseDebug({ error: "network", message: (e as Error)?.message }, 0, false),
+      debug: baseDebug(
+        {
+          error: "network",
+          message: (e as Error)?.message,
+          upstream_response_summary: (e as Error)?.message,
+        },
+        0,
+        false,
+      ),
     };
   }
 
@@ -89,11 +107,24 @@ export async function fetchDownloadDocumentDetailed(
   try {
     data = (await res.json()) as DownloadDocumentPayload;
   } catch {
+    const textHint =
+      res.status === 504
+        ? "Gateway timeout: шлюз оборвал ответ до JSON от /api/download (часто долгий GetFile Счёт/УПД). Ниже — ожидаемый curl в 1С."
+        : "Некорректный ответ API (не JSON)";
     return {
       ok: false,
       status: res.status,
-      error: "Некорректный ответ API",
-      debug: baseDebug({ error: "invalid_json" }, res.status, false),
+      error: res.status === 504 ? "Ошибка сервера (таймаут)" : "Некорректный ответ API",
+      debug: baseDebug(
+        {
+          error: "invalid_json",
+          message: textHint,
+          upstream_status: res.status,
+          upstream_response_summary: textHint,
+        },
+        res.status,
+        false,
+      ),
     };
   }
 
@@ -101,6 +132,10 @@ export async function fetchDownloadDocumentDetailed(
   const debug = baseDebug(
     {
       ...serverDebug,
+      // Серверный curl приоритетнее ожидаемого
+      upstream_curl: serverDebug.upstream_curl || expected.curl,
+      upstream_url: serverDebug.upstream_url || expected.url,
+      auth_mode: serverDebug.auth_mode || expected.auth_mode,
       error: data.error,
       message: data.message,
     },

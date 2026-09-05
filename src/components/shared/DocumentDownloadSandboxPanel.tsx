@@ -55,8 +55,11 @@ export function DocumentDownloadSandboxPanel({ debug, open: openProp }: Props) {
             readOnly
             spellCheck={false}
             value={curl}
-            rows={6}
+            rows={7}
           />
+          {debug.upstream_url ? (
+            <p className="document-download-sandbox__meta">{debug.upstream_url}</p>
+          ) : null}
           {debug.client_curl ? (
             <>
               <div className="document-download-sandbox__label-row">
