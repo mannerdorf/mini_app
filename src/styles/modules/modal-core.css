@@ -134,12 +134,18 @@
 
 .cargo-logistics-badges__meta-route,
 .cargo-logistics-badges__meta-bill,
+.cargo-logistics-badges__meta-bill-row,
 .documents-invoice-table-badges__meta-route,
 .documents-invoice-table-badges__meta-bill {
     display: inline-flex;
     align-items: center;
     flex: 0 0 auto;
     flex-shrink: 0;
+}
+
+.cargo-logistics-badges__meta-bill-row {
+    gap: 0.35rem;
+    flex-wrap: wrap;
 }
 
 .cargo-logistics-badges__meta-left,
@@ -235,7 +241,8 @@
 }
 
 .cargo-inner-table .cargo-logistics-badges__meta-route,
-.cargo-inner-table .cargo-logistics-badges__meta-bill {
+.cargo-inner-table .cargo-logistics-badges__meta-bill,
+.cargo-inner-table .cargo-logistics-badges__meta-bill-row {
     flex-shrink: 0;
 }
 

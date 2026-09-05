@@ -24,7 +24,7 @@ import { DateText } from "../../../components/ui/DateText";
 import { AppBadge } from "../../../components/shared/AppBadge";
 import { RouteBadge, CargoTransportTypeIcon, formatRouteLabel } from "../../../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
-import { getSumColorByPaymentStatus } from "../../../lib/statusUtils";
+import { getSumColorByPaymentStatus, badgeLabelLowerFirst } from "../../../lib/statusUtils";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "../../../pages/cargoMotion";
 import { findInvoiceLinkedToAct, getItemInn, type DocsSummaryTotals, type EdoCargoCardItem } from "../lib/documentsPipeline";
 import { innIsEdoPartner } from "../../../lib/edoCounterpartyStatus";
@@ -136,7 +136,7 @@ export function DocumentsInvoiceCard({
         <Flex align="center" gap="0.35rem" style={{ minWidth: 0 }}>
           {st ? (
             <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>
-              {st}
+              {badgeLabelLowerFirst(st)}
             </AppBadge>
           ) : null}
         </Flex>
@@ -490,7 +490,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
           {cargo?.State != null ? <StatusBadge status={cargo.State} /> : null}
           {st ? (
             <AppBadge tone="neutral" style={{ background: badgeStyle.bg, color: badgeStyle.color }}>
-              {st}
+              {badgeLabelLowerFirst(st)}
             </AppBadge>
           ) : null}
         </Flex>

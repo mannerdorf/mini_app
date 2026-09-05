@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Check, ChevronDown, ChevronUp, Copy, Heart, Loader2
 import { PlaneIcon } from "../../../components/icons/PlaneIcon";
 import { invoiceDocSum } from "../../../../lib/invoiceAmounts.js";
 import { cityToCode, formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../../../lib/formatUtils";
+import { badgeLabelLowerFirst } from "../../../lib/statusUtils";
 import { ClickableCargoNumber, ClickableInvoiceNumber } from "../../../components/ui/EntityLinks";
 import { getPayTillDate, getPayTillDateColor } from "../../../lib/dateUtils";
 import {
@@ -240,7 +241,7 @@ export function DocumentsInvoiceTableBadges({
                 className="documents-invoice-inner-badge"
                 style={{ background: billBadgeStyle?.bg, color: billBadgeStyle?.color }}
               >
-                {billStatus}
+                {badgeLabelLowerFirst(billStatus)}
               </AppBadge>
             </span>
           ) : null}

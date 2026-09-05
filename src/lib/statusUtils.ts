@@ -57,6 +57,13 @@ export const normalizeStatus = (status: string | undefined): string => {
     return remapped;
 };
 
+/** Подпись бейджа: первая буква строчная (в пути, оплачен, …). */
+export function badgeLabelLowerFirst(label: string | undefined | null): string {
+    const s = String(label ?? "").trim();
+    if (!s || s === "-") return s || "-";
+    return s.charAt(0).toLocaleLowerCase("ru-RU") + s.slice(1);
+}
+
 export const getPaymentFilterKey = (stateBill: string | undefined): 'unpaid' | 'cancelled' | 'paid' | 'partial' | 'unknown' => {
     if (!stateBill) return "unknown";
     const lower = stateBill.toLowerCase().trim();

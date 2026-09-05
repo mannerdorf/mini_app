@@ -308,8 +308,11 @@ export function cargoPickupLogisticsIsTerminalTo(item: CargoItem): boolean {
 }
 
 /** Подписи заборной логистики в UI (фильтры, бейджи). */
-export const CARGO_PICKUP_LABEL_PICKUP = "Пикап";
-export const CARGO_PICKUP_LABEL_TERMINAL_TO = "На терминал";
+export const CARGO_PICKUP_LABEL_PICKUP = "пикап";
+export const CARGO_PICKUP_LABEL_TERMINAL_TO = "терминал";
+
+export const CARGO_LAST_MILE_LABEL_SELF = "самовывоз";
+export const CARGO_LAST_MILE_LABEL_DELIVERY = "доставка";
 
 export type PickupLogisticsFilterValue = "all" | "pickup" | "terminal_to";
 
@@ -326,4 +329,8 @@ export function pickupLogisticsFilterLabel(value: PickupLogisticsFilterValue): s
 
 export function getCargoPickupLogisticsLabel(item: CargoItem): string {
     return cargoPickupLogisticsIsTerminalTo(item) ? CARGO_PICKUP_LABEL_TERMINAL_TO : CARGO_PICKUP_LABEL_PICKUP;
+}
+
+export function getCargoLastMileLabel(item: CargoItem): string {
+    return cargoLastMileIsSelfPickup(item) ? CARGO_LAST_MILE_LABEL_SELF : CARGO_LAST_MILE_LABEL_DELIVERY;
 }

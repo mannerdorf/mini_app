@@ -7,8 +7,11 @@ import { cityToCode } from "../../lib/formatUtils";
 import {
   cargoLastMileIsSelfPickup,
   cargoPickupLogisticsIsTerminalTo,
+  CARGO_LAST_MILE_LABEL_DELIVERY,
+  CARGO_LAST_MILE_LABEL_SELF,
   CARGO_PICKUP_LABEL_PICKUP,
   CARGO_PICKUP_LABEL_TERMINAL_TO,
+  getCargoLastMileLabel,
   getCargoPickupLogisticsLabel,
   getCargoRoleSet,
 } from "../../lib/cargoUtils";
@@ -122,20 +125,20 @@ export function CargoLastMileBadge({ item }: { item: CargoItem }) {
     <span
       title={
         selfPickup
-          ? "Последняя миля: самовывоз"
-          : "Последняя миля: доставка"
+          ? `Последняя миля: ${CARGO_LAST_MILE_LABEL_SELF}`
+          : `Последняя миля: ${CARGO_LAST_MILE_LABEL_DELIVERY}`
       }
       className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}
       style={{ flexShrink: 0 }}
     >
-      {selfPickup ? "Самовывоз" : "Доставка"}
+      {getCargoLastMileLabel(item)}
     </span>
   );
 }
 
 /**
- * Бейджи перевозки: 1-я строка — цепочка логистики (забор → магистраль → последняя миля),
- * 2-я строка — маршрут, затем статус счёта (подряд слева направо).
+ * Бейджи перевозки: 1-я строка — забор → последняя миля;
+ * 2-я — маршрут, статус счёта, затем статус перевозки (В пути и т.п.).
  */
 export function CargoLogisticsBadges({
   item,
@@ -150,6 +153,7 @@ export function CargoLogisticsBadges({
 }) {
   const showBill =
     showPayment && getCargoRoleSet(item).has("Customer") && Boolean(item.StateBill);
+  const showCargoState = Boolean(String(item.State ?? "").trim());
 
   return (
     <div className={className}>
@@ -158,22 +162,19 @@ export function CargoLogisticsBadges({
         <span className="cargo-logistics-badges__arrow" aria-hidden>
           →
         </span>
-        <StatusBadge status={item.State} />
-        <span className="cargo-logistics-badges__arrow" aria-hidden>
-          →
-        </span>
         <CargoLastMileBadge item={item} />
       </div>
-      {(showBill || showRouteInline) && (
+      {(showBill || showRouteInline || showCargoState) && (
         <div className="cargo-logistics-badges__meta">
           {showRouteInline ? (
             <span className="cargo-inner-table__route-inline cargo-logistics-badges__meta-route">
               <RouteBadge route={getCargoItemRouteLabel(item)} />
             </span>
           ) : null}
-          {showBill ? (
-            <span className="cargo-logistics-badges__meta-bill">
-              <StatusBillBadge status={item.StateBill} />
+          {(showBill || showCargoState) ? (
+            <span className="cargo-logistics-badges__meta-bill-row">
+              {showBill ? <StatusBillBadge status={item.StateBill} /> : null}
+              {showCargoState ? <StatusBadge status={item.State} /> : null}
             </span>
           ) : null}
         </div>
