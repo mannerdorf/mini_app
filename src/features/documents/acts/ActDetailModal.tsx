@@ -11,10 +11,7 @@ import { getFirstCargoNumberFromInvoice } from "../lib/documentsPipeline";
 import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
-import { fetchDownloadDocumentDetailed } from "../../../lib/downloadDocumentDirect";
-import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { DocumentDownloadSandboxPanel } from "../../../components/shared/DocumentDownloadSandboxPanel";
-import type { DocumentDownloadDebug } from "../../../lib/documentDownloadDebug";
+import { downloadDocumentDirect } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД"] as const;
@@ -69,7 +66,6 @@ export function ActDetailModal({
 }: ActDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
 
     if (!isOpen) return null;
 
@@ -100,21 +96,13 @@ export function ActDetailModal({
         const metod = DOCUMENT_METHODS[label] ?? label;
         setDownloading(label);
         setDownloadError(null);
-        setDownloadDebug(null);
         try {
-            const result = await fetchDownloadDocumentDetailed(auth, {
+            await downloadDocumentDirect(auth, {
                 metod,
                 number: formatPerevozkaNumberForApi(cargoNumber),
             });
-            setDownloadDebug(result.debug);
-            if (!result.ok || !result.blob || !result.fileName) {
-                throw Object.assign(new Error(result.error ?? "Ошибка скачивания"), { debug: result.debug });
-            }
-            await saveBlobFile(result.blob, result.fileName);
         } catch (e: unknown) {
-            const err = e as Error & { debug?: DocumentDownloadDebug };
-            if (err.debug) setDownloadDebug(err.debug);
-            setDownloadError(err?.message ?? "Ошибка скачивания");
+            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -247,7 +235,6 @@ export function ActDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
-                <DocumentDownloadSandboxPanel debug={downloadDebug} />
 
                 {list.length > 0 ? (
                     <DocumentDetailLineCards

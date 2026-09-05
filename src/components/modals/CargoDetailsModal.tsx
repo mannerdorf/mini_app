@@ -8,10 +8,7 @@ import { DOCUMENT_METHODS } from "../../documentMethods";
 import { PLANNED_TERMINAL_ARRIVAL_LABEL } from "../../constants/plannedArrivalLabels";
 import { formatCurrency, stripOoo, cityToCode, formatInvoiceNumber } from "../../lib/formatUtils";
 import { formatPerevozkaNumberForApi } from "../../lib/perevozkaNumber";
-import { fetchDownloadDocumentDetailed } from "../../lib/downloadDocumentDirect";
-import { saveBlobFile } from "../../lib/saveBlobFile";
-import { DocumentDownloadSandboxPanel } from "../shared/DocumentDownloadSandboxPanel";
-import type { DocumentDownloadDebug } from "../../lib/documentDownloadDebug";
+import { downloadDocumentDirect } from "../../lib/downloadDocumentDirect";
 import { normalizeStatus, getFilterKeyByStatus, getSumColorByPaymentStatus } from "../../lib/statusUtils";
 import { formatDate } from "../../lib/dateUtils";
 import { getPlanDays, getCargoDisplayRoleLabel, getCargoRoleSet, cargoLastMileIsSelfPickup } from "../../lib/cargoUtils";
@@ -54,7 +51,6 @@ export function CargoDetailsModal({
 }: CargoDetailsModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
     const [perevozkaTimeline, setPerevozkaTimeline] = useState<PerevozkaTimelineStep[] | null>(null);
     const [perevozkaNomenclature, setPerevozkaNomenclature] = useState<Record<string, unknown>[]>([]);
     const [perevozkaMeta, setPerevozkaMeta] = useState<{ autoReg: string; autoType: string; driver: string }>({ autoReg: '', autoType: '', driver: '' });
@@ -169,21 +165,13 @@ export function CargoDetailsModal({
         const metod = DOCUMENT_METHODS[docType] ?? docType;
         setDownloading(docType);
         setDownloadError(null);
-        setDownloadDebug(null);
         try {
-            const result = await fetchDownloadDocumentDetailed(auth, {
+            await downloadDocumentDirect(auth, {
                 metod,
                 number: formatPerevozkaNumberForApi(item.Number),
             });
-            setDownloadDebug(result.debug);
-            if (!result.ok || !result.blob || !result.fileName) {
-                throw Object.assign(new Error(result.error ?? "Ошибка скачивания"), { debug: result.debug });
-            }
-            await saveBlobFile(result.blob, result.fileName);
         } catch (e: unknown) {
-            const err = e as Error & { debug?: DocumentDownloadDebug };
-            if (err.debug) setDownloadDebug(err.debug);
-            setDownloadError(err?.message ?? "Ошибка скачивания");
+            setDownloadError((e as Error)?.message ?? "Ошибка скачивания");
         } finally {
             setDownloading(null);
         }
@@ -646,7 +634,6 @@ export function CargoDetailsModal({
                         </div>
                     );
                 })()}
-                <DocumentDownloadSandboxPanel debug={downloadDebug} />
             </div>
         </div>
     );

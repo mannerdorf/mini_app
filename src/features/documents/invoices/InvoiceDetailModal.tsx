@@ -14,10 +14,7 @@ import { getInvoiceEdoInfoByDocLabel } from "../../../lib/edoStatus";
 import { EdoDocMiniBadge } from "../../../components/shared/EdoDocMiniBadge";
 import { InvoicePaymentQrBlock } from "./InvoicePaymentQrBlock";
 import { EntityDetailModalHeader } from "../../../components/modals/EntityDetailModalHeader";
-import { fetchDownloadDocumentDetailed, formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
-import { saveBlobFile } from "../../../lib/saveBlobFile";
-import { DocumentDownloadSandboxPanel } from "../../../components/shared/DocumentDownloadSandboxPanel";
-import type { DocumentDownloadDebug } from "../../../lib/documentDownloadDebug";
+import { downloadDocumentDirect, formatDateDocForDownloadApi } from "../../../lib/downloadDocumentDirect";
 import type { AuthData } from "../../../types";
 
 const DOC_BUTTONS = ["ЭР", "АПП", "СЧЕТ", "УПД", "Реестр"] as const;
@@ -51,7 +48,6 @@ export function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
-    const [downloadDebug, setDownloadDebug] = useState<DocumentDownloadDebug | null>(null);
 
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
@@ -113,27 +109,19 @@ export function InvoiceDetailModal({
         }
         setDownloading(label);
         setDownloadError(null);
-        setDownloadDebug(null);
         try {
             const apiNumber = isReestr
                 ? String(numberToUse).trim()
                 : isInvoiceDoc && !cargoNumber && invoiceNumber
                   ? String(invoiceNumber).trim()
                   : formatPerevozkaNumberForApi(numberToUse);
-            const result = await fetchDownloadDocumentDetailed(auth, {
+            await downloadDocumentDirect(auth, {
                 metod,
                 number: apiNumber,
                 ...(dateDocFormatted ? { dateDoc: dateDocFormatted } : {}),
             });
-            setDownloadDebug(result.debug);
-            if (!result.ok || !result.blob || !result.fileName) {
-                throw Object.assign(new Error(result.error ?? "Ошибка загрузки"), { debug: result.debug });
-            }
-            await saveBlobFile(result.blob, result.fileName);
         } catch (e: unknown) {
-            const err = e as Error & { debug?: DocumentDownloadDebug };
-            if (err.debug) setDownloadDebug(err.debug);
-            setDownloadError(err?.message ?? "Ошибка загрузки");
+            setDownloadError((e as Error)?.message ?? "Ошибка загрузки");
         } finally {
             setDownloading(null);
         }
@@ -243,7 +231,6 @@ export function InvoiceDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
-                <DocumentDownloadSandboxPanel debug={downloadDebug} />
                 {auth && !isPaid && (
                     <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
                 )}
