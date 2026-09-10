@@ -3,11 +3,13 @@ import type {
   ExtrasBlockPayload,
   MainlinePayload,
   PickupMatrixPayload,
+  RigidPackagingPayload,
   SettingsPayload,
   TariffSetRow,
   TariffVersionRow,
 } from "./types.js";
-import { ensureAirMainlineTariffSets } from "./bootstrapTariffs.js";
+import { ensureAirMainlineTariffSets, ensureRigidPackagingTariffSet } from "./bootstrapTariffs.js";
+import { normalizeExtrasPayload } from "./defaultExtras.js";
 
 export function todayDateMoscow(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -81,6 +83,10 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
     await ensureAirMainlineTariffSets(pool);
     sets = await listTariffSets(pool);
   }
+  if (!sets.some((s) => s.code === "calc_rigid_packaging")) {
+    await ensureRigidPackagingTariffSet(pool);
+    sets = await listTariffSets(pool);
+  }
   const byCode: Record<string, { set: TariffSetRow; version: TariffVersionRow | null }> = {};
   for (const set of sets) {
     byCode[set.code] = { set, version: await getActiveVersion(pool, set.id, day) };
@@ -89,7 +95,10 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
   const pickup = byCode.pickup_matrix?.version?.payload as PickupMatrixPayload | undefined;
   const lastMile = byCode.last_mile_matrix?.version?.payload as PickupMatrixPayload | undefined;
   const settings = byCode.calc_settings?.version?.payload as SettingsPayload | undefined;
-  const extras = byCode.calc_extras?.version?.payload as ExtrasBlockPayload | undefined;
+  const extras = normalizeExtrasPayload(
+    byCode.calc_extras?.version?.payload as ExtrasBlockPayload | undefined,
+  );
+  const rigidPackaging = byCode.calc_rigid_packaging?.version?.payload as RigidPackagingPayload | undefined;
 
   const mainline: MainlinePayload[] = [];
   for (const [code, entry] of Object.entries(byCode)) {
@@ -106,6 +115,7 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
     lastMile: lastMile ?? pickup ?? null,
     settings,
     extras,
+    rigidPackaging: rigidPackaging ?? null,
     mainline,
     sets,
     byCode,

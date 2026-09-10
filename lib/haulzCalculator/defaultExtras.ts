@@ -1,4 +1,18 @@
-import type { ExtraServicePayload } from "./types.js";
+import type { ExtraServicePayload, ExtrasBlockPayload } from "./types.js";
+
+export const PACKAGING_EXTRA_LABEL = "Жесткая упаковка";
+
+export function normalizeExtrasPayload(
+  payload: ExtrasBlockPayload | undefined,
+): ExtrasBlockPayload | undefined {
+  if (!payload?.services?.length) return payload;
+  return {
+    ...payload,
+    services: payload.services.map((s) =>
+      s.code === "packaging" ? { ...s, label: PACKAGING_EXTRA_LABEL } : s,
+    ),
+  };
+}
 
 /** Стартовый набор доп. услуг (CDEK-подобный), редактируется в админке. */
 export const DEFAULT_CDEK_EXTRAS: ExtraServicePayload[] = [
@@ -46,10 +60,10 @@ export const DEFAULT_CDEK_EXTRAS: ExtraServicePayload[] = [
   },
   {
     code: "packaging",
-    label: "Упаковка",
+    label: PACKAGING_EXTRA_LABEL,
     applies_to: "shipment",
     pricing_type: "fixed",
-    amount_rub: 250,
+    amount_rub: 0,
     default_on: false,
   },
   {

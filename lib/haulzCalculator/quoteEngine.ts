@@ -33,6 +33,7 @@ import {
 import { resolveNearestHub } from "./hubResolve.js";
 import { lookupPartnerDirectoryByInn } from "./partnerDirectory.js";
 import { mainlineModeLabelQuoteLine } from "./mainlineMode.js";
+import { calcRigidPackagingQuote } from "./rigidPackaging.js";
 import { loadCalculatorTariffs } from "./tariffStore.js";
 
 function inferCityFromAddress(addr: AddressSelection): CityCode | null {
@@ -73,6 +74,7 @@ function calcExtras(
   const set = new Set(selected);
   for (const s of services) {
     if (!isExtraServiceEnabled(s)) continue;
+    if (s.code === "packaging") continue;
     const on = set.has(s.code) || (s.default_on === true && selected.length === 0);
     if (!on) continue;
     let amount = 0;
@@ -245,8 +247,14 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   }
 
   const declared = Number(req.declaredValueRub) || 0;
-  const extraLines = calcExtras(tariffs.extras?.services ?? [], req.extraCodes ?? [], declared);
+  const extraCodes = req.extraCodes ?? [];
+  const extraLines = calcExtras(tariffs.extras?.services ?? [], extraCodes, declared);
   lines.push(...extraLines);
+
+  if (extraCodes.includes("packaging")) {
+    const packagingLine = calcRigidPackagingQuote(req.places, tariffs.rigidPackaging);
+    if (packagingLine) lines.push(packagingLine);
+  }
 
   const totalRub = Math.round(lines.reduce((s, l) => s + l.amountRub, 0) * 100) / 100;
   const mainlineOptions = buildMainlineOptions(

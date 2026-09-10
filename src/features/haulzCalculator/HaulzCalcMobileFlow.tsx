@@ -35,14 +35,8 @@ import {
   placeRowSubtitle,
   type HaulzCalcMobileRoute,
 } from "./haulzCalcMobileLabels";
-
-const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
-  { label: "XS", weightKg: 1, volumeM3: 0.005 },
-  { label: "S", weightKg: 3, volumeM3: 0.02 },
-  { label: "M", weightKg: 10, volumeM3: 0.08 },
-  { label: "L", weightKg: 25, volumeM3: 0.2 },
-  { label: "XL", weightKg: 50, volumeM3: 0.5 },
-];
+import { boxPresetToPlace, HAULZ_BOX_PRESETS } from "../../../lib/haulzCalculator/boxPresets";
+import { volumeM3FromCm } from "../../../lib/haulzCalculator/placeDimensions";
 
 type ChargeableHint = {
   w: number;
@@ -368,7 +362,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
               className="haulz-calc-link-btn haulz-calc-mobile-screen__add-place"
               onClick={() => {
                 const nextIdx = places.length;
-                setPlaces((prev) => [...prev, { weightKg: 10, volumeM3: 0.1 }]);
+                setPlaces((prev) => [...prev, boxPresetToPlace(HAULZ_BOX_PRESETS[2])]);
                 setActivePresetIdx((prev) => ({ ...prev, [nextIdx]: "M" }));
                 setRoute({ place: nextIdx });
               }}
@@ -384,7 +378,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
         </p>
         <div className="haulz-calc-place haulz-calc-place--embedded">
           <div className="haulz-calc-size-row">
-            {BOX_PRESETS.map((b) => (
+            {HAULZ_BOX_PRESETS.map((b) => (
               <button
                 key={b.label}
                 type="button"
@@ -393,7 +387,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                   setActivePresetIdx((prev) => ({ ...prev, [idx]: b.label }));
                   setPlaces((prev) => {
                     const next = [...prev];
-                    next[idx] = { weightKg: b.weightKg, volumeM3: b.volumeM3 };
+                    next[idx] = boxPresetToPlace(b);
                     return next;
                   });
                 }}
@@ -403,6 +397,35 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
             ))}
           </div>
           <div className="haulz-calc-place-fields">
+            {(["lengthCm", "widthCm", "heightCm"] as const).map((field, fieldIdx) => (
+              <label key={field} className="haulz-calc-field">
+                <span className="haulz-calc-label">
+                  {fieldIdx === 0 ? "Длина, см" : fieldIdx === 1 ? "Ширина, см" : "Высота, см"}
+                </span>
+                <input
+                  type="number"
+                  className="haulz-calc-input"
+                  value={String(place[field] ?? "")}
+                  onChange={(e) => {
+                    const v = Number(e.target.value) || 0;
+                    setPlaces((prev) => {
+                      const next = [...prev];
+                      const current = { ...next[idx], [field]: v };
+                      next[idx] = {
+                        ...current,
+                        volumeM3:
+                          volumeM3FromCm(
+                            Number(current.lengthCm) || 0,
+                            Number(current.widthCm) || 0,
+                            Number(current.heightCm) || 0,
+                          ) || current.volumeM3,
+                      };
+                      return next;
+                    });
+                  }}
+                />
+              </label>
+            ))}
             <label className="haulz-calc-field">
               <span className="haulz-calc-label">Вес, кг</span>
               <input
@@ -421,20 +444,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
             </label>
             <label className="haulz-calc-field">
               <span className="haulz-calc-label">Объём, м³</span>
-              <input
-                type="number"
-                step="0.01"
-                className="haulz-calc-input"
-                value={String(place.volumeM3)}
-                onChange={(e) => {
-                  const v = Number(e.target.value) || 0;
-                  setPlaces((prev) => {
-                    const next = [...prev];
-                    next[idx] = { ...next[idx], volumeM3: v };
-                    return next;
-                  });
-                }}
-              />
+              <input type="number" step="0.01" className="haulz-calc-input" readOnly value={String(place.volumeM3)} />
             </label>
           </div>
         </div>
@@ -539,7 +549,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
               aria-label="Добавить место"
               onClick={() => {
                 const nextIdx = places.length;
-                setPlaces((prev) => [...prev, { weightKg: 10, volumeM3: 0.1 }]);
+                setPlaces((prev) => [...prev, boxPresetToPlace(HAULZ_BOX_PRESETS[2])]);
                 setActivePresetIdx((prev) => ({ ...prev, [nextIdx]: "M" }));
                 setRoute({ place: nextIdx });
               }}

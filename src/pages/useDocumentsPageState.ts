@@ -13,6 +13,7 @@ import { useDocumentsDataLoad } from "./useDocumentsDataLoad";
 import { useDocumentsSendingsWiring } from "./useDocumentsSendingsWiring";
 import { useDocumentsToolbarWiring } from "./useDocumentsToolbarWiring";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
+import { useMobileLayout } from "../hooks/useMobileLayout";
 import { cargoModeSwitchMotion } from "./cargoMotion";
 
 export type DocumentsPageProps = {
@@ -49,6 +50,7 @@ export function useDocumentsPageState({
     const effectiveSearchText = searchText ?? runtime.searchText;
     const showCustomerColumn = runtime.showCustomerColumn;
     const activeCustomerName = runtime.activeCustomerName;
+    const isDesktopLayout = !useMobileLayout();
     const docsMotionEnabled = useReducedMotion() !== true;
 
     const dateFilterState = usePersistedDateFilter();
@@ -56,6 +58,7 @@ export function useDocumentsPageState({
         permissions,
         showCustomerColumn,
         effectiveServiceMode,
+        isDesktopLayout,
     });
     const {
         docSection,
@@ -66,6 +69,7 @@ export function useDocumentsPageState({
         tableModeGroupedByCustomer,
         tableModeFlatDirect,
         tableModeEffective,
+        canShowTableModeToggle,
         documentsOrderFormOpen,
         setDocumentsOrderFormOpenPersist,
         serviceModeForCurrentDocSection,
@@ -223,6 +227,7 @@ export function useDocumentsPageState({
         tableModeGroupedByCustomer,
         tableModeFlatDirect,
         tableModeEffective,
+        canShowTableModeToggle,
         docsMotionEnabled,
         showCustomerColumn,
         showSums,

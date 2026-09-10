@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import { DEFAULT_CDEK_EXTRAS } from "./defaultExtras.js";
+import { DEFAULT_RIGID_PACKAGING } from "./defaultRigidPackaging.js";
 import type { PickupTier } from "./types.js";
 
 export const DEFAULT_PICKUP_TIERS: PickupTier[] = [
@@ -82,6 +83,13 @@ export async function bootstrapHaulzCalculatorTariffs(
   const lastMileId = await upsertTariffSet(pool, "last_mile_matrix", "Последняя миля", "last_mile", null);
   const settingsId = await upsertTariffSet(pool, "calc_settings", "Настройки калькулятора", "settings", null);
   const extrasId = await upsertTariffSet(pool, "calc_extras", "Доп. услуги", "extra", null);
+  const rigidPackagingId = await upsertTariffSet(
+    pool,
+    "calc_rigid_packaging",
+    "Жёсткая упаковка",
+    "rigid_packaging",
+    null,
+  );
 
   await ensureInitialVersion(
     pool,
@@ -100,6 +108,7 @@ export async function bootstrapHaulzCalculatorTariffs(
     mainline_min_chargeable_weight_kg: 20,
   });
   await ensureInitialVersion(pool, extrasId, effectiveFrom, { services: DEFAULT_CDEK_EXTRAS });
+  await ensureInitialVersion(pool, rigidPackagingId, effectiveFrom, DEFAULT_RIGID_PACKAGING);
 
   const mainlines = [
     { code: "mainline_mow_kgd_ferry", name: "Магистраль MOW→KGD паром", direction: "mow_kgd", mode: "ferry", price_per_kg: 35, delivery_days: 12 },
@@ -178,6 +187,31 @@ export async function ensureAirMainlineTariffSets(
     }
   }
   return { created };
+}
+
+/** Добавляет набор жёсткой упаковки, если его ещё нет (идемпотентно). */
+export async function ensureRigidPackagingTariffSet(
+  pool: Pool,
+  opts?: { effectiveFrom?: string },
+): Promise<{ created: boolean }> {
+  const effectiveFrom = opts?.effectiveFrom || "2020-01-01";
+  const before = await pool.query<{ id: string }>(
+    `select id::text from haulz_calc_tariff_sets where code = $1`,
+    ["calc_rigid_packaging"],
+  );
+  const id = await upsertTariffSet(pool, "calc_rigid_packaging", "Жёсткая упаковка", "rigid_packaging", null);
+  const { rows: ver } = await pool.query(`select 1 from haulz_calc_tariff_versions where tariff_set_id = $1 limit 1`, [
+    id,
+  ]);
+  if (ver.length === 0) {
+    await pool.query(
+      `insert into haulz_calc_tariff_versions (tariff_set_id, effective_from, payload, created_by, comment)
+       values ($1, $2::date, $3::jsonb, 'bootstrap', 'bootstrap rigid packaging defaults')`,
+      [id, effectiveFrom, JSON.stringify(DEFAULT_RIGID_PACKAGING)],
+    );
+    return { created: true };
+  }
+  return { created: !before.rows[0]?.id };
 }
 
 export async function ensureTariffSetExists(pool: Pool, code: string): Promise<number> {

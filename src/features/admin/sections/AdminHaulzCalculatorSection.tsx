@@ -1,6 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
-import type { ExtraServicePayload, MainlineMode, MainlinePayload, PickupMatrixPayload, PickupTier } from "../../../../lib/haulzCalculator/types";
+import type {
+  ExtraServicePayload,
+  MainlineMode,
+  MainlinePayload,
+  PalletType,
+  PickupMatrixPayload,
+  PickupTier,
+  RigidPackagingPayload,
+} from "../../../../lib/haulzCalculator/types";
+import { DEFAULT_RIGID_PACKAGING, DEFAULT_RIGID_PACKAGING_MAX_HEIGHT_M } from "../../../../lib/haulzCalculator/defaultRigidPackaging";
 import { mainlineModeLabelRu, parseMainlineMode } from "../../../../lib/haulzCalculator/mainlineMode";
 import {
   fetchAdminHaulzCalculatorTariffs,
@@ -28,6 +37,7 @@ type AdminTab =
   | "last_mile"
   | "mainline"
   | "extras"
+  | "rigid_packaging"
   | "ring"
   | "settings"
   | "hubs"
@@ -39,6 +49,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
   last_mile: "Последняя миля",
   mainline: "Магистраль",
   extras: "Доп. услуги",
+  rigid_packaging: "Жёсткая упаковка",
   ring: "МКАД / КАД",
   settings: "Настройки",
   hubs: "Хабы",
@@ -146,6 +157,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   const [pickupDraft, setPickupDraft] = useState<PickupMatrixPayload | null>(null);
   const [lastMileDraft, setLastMileDraft] = useState<PickupMatrixPayload | null>(null);
   const [extrasDraft, setExtrasDraft] = useState<ExtraServicePayload[]>([]);
+  const [rigidPackagingDraft, setRigidPackagingDraft] = useState<RigidPackagingPayload>(DEFAULT_RIGID_PACKAGING);
   const [settingsFactor, setSettingsFactor] = useState("200");
   const [settingsMainlineMinKg, setSettingsMainlineMinKg] = useState("20");
   const [mainlineDrafts, setMainlineDrafts] = useState<MainlinePayload[]>([]);
@@ -191,7 +203,12 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       const pickup = list.find((s) => s.code === "pickup_matrix");
       const lastMile = list.find((s) => s.code === "last_mile_matrix");
       const extras = list.find((s) => s.code === "calc_extras");
+      const rigidPackaging = list.find((s) => s.code === "calc_rigid_packaging");
       const settings = list.find((s) => s.code === "calc_settings");
+      if (!rigidPackaging) {
+        await initAdminHaulzCalculator(adminToken, todayIso());
+        list = await fetchAdminHaulzCalculatorTariffs(adminToken);
+      }
       const pickupPayload = versionPayload(pickup);
       const lastMilePayload = versionPayload(lastMile);
       if (pickupPayload) setPickupDraft(pickupPayload as PickupMatrixPayload);
@@ -204,6 +221,17 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         setExtrasDraft(p.services ?? []);
       } else {
         setExtrasDraft([]);
+      }
+      const rigidPackagingSet = list.find((s) => s.code === "calc_rigid_packaging");
+      const rigidPackagingP = versionPayload(rigidPackagingSet);
+      if (rigidPackagingP) {
+        const p = rigidPackagingP as RigidPackagingPayload;
+        setRigidPackagingDraft({
+          max_height_m: Number(p.max_height_m) || DEFAULT_RIGID_PACKAGING_MAX_HEIGHT_M,
+          pallet_types: Array.isArray(p.pallet_types) ? p.pallet_types : DEFAULT_RIGID_PACKAGING.pallet_types,
+        });
+      } else {
+        setRigidPackagingDraft(DEFAULT_RIGID_PACKAGING);
       }
       const settingsP = versionPayload(settings);
       if (settingsP) {
@@ -527,6 +555,169 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
                 })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {tab === "rigid_packaging" && !setByCode.calc_rigid_packaging && (
+        <p className="hr-calc-admin__empty">Набор «Жёсткая упаковка» не создан. Нажмите «Создать структуру тарифов».</p>
+      )}
+
+      {tab === "rigid_packaging" && setByCode.calc_rigid_packaging && (
+        <div>
+          <label className="hr-calc-admin__field" style={{ maxWidth: "16rem", marginBottom: "1rem" }}>
+            <span className="hr-calc-admin__label">Макс. высота упаковки, м</span>
+            <input
+              type="number"
+              step="0.1"
+              className="hr-calc-admin-input"
+              value={String(rigidPackagingDraft.max_height_m ?? DEFAULT_RIGID_PACKAGING_MAX_HEIGHT_M)}
+              onChange={(e) =>
+                setRigidPackagingDraft({
+                  ...rigidPackagingDraft,
+                  max_height_m: Number(e.target.value) || DEFAULT_RIGID_PACKAGING_MAX_HEIGHT_M,
+                })
+              }
+            />
+          </label>
+          <div className="hr-calc-admin-table-wrap">
+            <table className="hr-calc-admin-table">
+              <thead>
+                <tr>
+                  <th>Код</th>
+                  <th>Размер</th>
+                  <th>Длина, мм</th>
+                  <th>Ширина, мм</th>
+                  <th>₽/метр</th>
+                  <th>₽ поддон</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {rigidPackagingDraft.pallet_types.map((row, i) => (
+                  <tr key={`${row.code}-${i}`}>
+                    <td>
+                      <input
+                        className="hr-calc-admin-input hr-calc-admin-input--code"
+                        value={row.code}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], code: e.target.value };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        className="hr-calc-admin-input"
+                        value={row.label}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], label: e.target.value };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="hr-calc-admin-input hr-calc-admin-input--num"
+                        value={row.length_mm}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], length_mm: Number(e.target.value) || 0 };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="hr-calc-admin-input hr-calc-admin-input--num"
+                        value={row.width_mm}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], width_mm: Number(e.target.value) || 0 };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="hr-calc-admin-input hr-calc-admin-input--num"
+                        value={row.price_per_meter_rub}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], price_per_meter_rub: Number(e.target.value) || 0 };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        className="hr-calc-admin-input hr-calc-admin-input--num"
+                        value={row.pallet_price_rub}
+                        onChange={(e) => {
+                          const next = [...rigidPackagingDraft.pallet_types];
+                          next[i] = { ...next[i], pallet_price_rub: Number(e.target.value) || 0 };
+                          setRigidPackagingDraft({ ...rigidPackagingDraft, pallet_types: next });
+                        }}
+                      />
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        className="hr-calc-admin-extra-row__delete"
+                        onClick={() =>
+                          setRigidPackagingDraft({
+                            ...rigidPackagingDraft,
+                            pallet_types: rigidPackagingDraft.pallet_types.filter((_, idx) => idx !== i),
+                          })
+                        }
+                        aria-label={`Удалить ${row.label}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="hr-calc-admin__actions">
+            <button
+              type="button"
+              className="button-secondary"
+              onClick={() =>
+                setRigidPackagingDraft({
+                  ...rigidPackagingDraft,
+                  pallet_types: [
+                    ...rigidPackagingDraft.pallet_types,
+                    {
+                      code: `pallet_${rigidPackagingDraft.pallet_types.length + 1}`,
+                      label: "Новый поддон",
+                      length_mm: 800,
+                      width_mm: 600,
+                      price_per_meter_rub: 1000,
+                      pallet_price_rub: 200,
+                    } satisfies PalletType,
+                  ],
+                })
+              }
+            >
+              Добавить тип поддона
+            </button>
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() =>
+                void publish("calc_rigid_packaging", rigidPackagingDraft).catch((e) => setError((e as Error).message))
+              }
+            >
+              Сохранить жёсткую упаковку
+            </button>
+          </div>
         </div>
       )}
 

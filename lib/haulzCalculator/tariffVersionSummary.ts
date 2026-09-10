@@ -79,6 +79,20 @@ export function describeTariffVersionPayload(
   const code = String(tariffCode || "").toLowerCase();
   const blk = String(block || "").toLowerCase();
 
+  if (blk === "rigid_packaging" || code === "calc_rigid_packaging") {
+    const cfg = payload as { max_height_m?: number; pallet_types?: Array<{ label?: string; price_per_meter_rub?: number; pallet_price_rub?: number }> };
+    const types = Array.isArray(cfg?.pallet_types) ? cfg.pallet_types : [];
+    const maxH = Number(cfg?.max_height_m) || 1.8;
+    if (!types.length) return ["Жёсткая упаковка: типы поддонов не заданы"];
+    const lines = [`Макс. высота упаковки: ${maxH} м`, `Типов поддонов: ${types.length}`];
+    for (const t of types.slice(0, 6)) {
+      lines.push(
+        `${t.label || "—"}: ${Number(t.price_per_meter_rub) || 0} ₽/м + ${Number(t.pallet_price_rub) || 0} ₽ поддон`,
+      );
+    }
+    return lines;
+  }
+
   if (blk === "extras" || code === "calc_extras") {
     const services = (payload as ExtrasBlockPayload)?.services;
     if (!Array.isArray(services) || services.length === 0) {
@@ -138,6 +152,7 @@ export function tariffSetSelectLabel(set: { code: string; name: string; block: s
   if (code === "pickup_matrix") return "Забор (Москва и Калининград)";
   if (code === "last_mile_matrix") return "Последняя миля";
   if (code === "calc_extras") return "Дополнительные услуги";
+  if (code === "calc_rigid_packaging") return "Жёсткая упаковка";
   if (code === "calc_settings") return "Настройки калькулятора";
   return name || code;
 }

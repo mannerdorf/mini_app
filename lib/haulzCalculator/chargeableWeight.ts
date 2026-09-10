@@ -1,3 +1,4 @@
+import { normalizeParcelPlaces } from "./placeDimensions.js";
 import type { ChargeableSummary, ParcelPlace } from "./types.js";
 
 /** Минимальный платный вес для расчёта магистрали, если в настройках не задано иное. */
@@ -28,9 +29,10 @@ export function computeChargeableWeight(actualKg: number, volumeM3: number, fact
 }
 
 export function summarizePlaces(places: ParcelPlace[], factorKgM3 = 200): ChargeableSummary {
+  const normalized = normalizeParcelPlaces(places);
   let actualWeightKg = 0;
   let volumeM3 = 0;
-  for (const p of places) {
+  for (const p of normalized) {
     actualWeightKg += Number(p.weightKg) || 0;
     volumeM3 += Number(p.volumeM3) || 0;
   }

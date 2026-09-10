@@ -34,7 +34,8 @@ import { CargoSummaryCard, CargoStateBlocks } from "./cargoViewBlocks";
 import { CargoCustomerTable, CargoCardsList } from "./cargoCollectionViews";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { cargoModeSwitchMotion, cargoSummaryMotion } from "./cargoMotion";
-import { hasTableModePreference, readTableModePreference } from "../lib/tableModePreference";
+import { hasTableModePreference, readTableModePreference, computeTableModeFlags } from "../lib/tableModePreference";
+import { useMobileLayout } from "../hooks/useMobileLayout";
 
 const { getDateRange, getWeekRange, getQuarterRange, getWeeksList, getYearsList, getDefaultWeekMonday, MONTH_NAMES, DEFAULT_DATE_FROM, DEFAULT_DATE_TO, formatDate } = dateUtils;
 type CargoStatusFilterKey = Exclude<StatusFilter, "all" | "favorites">;
@@ -166,6 +167,7 @@ export function CargoPage({
     const effectiveSearchText = searchText ?? runtime.searchText;
     const effectiveServiceMode = useServiceRequest ?? runtime.useServiceRequest;
     const showCustomerColumn = runtime.showCustomerColumn;
+    const isDesktopLayout = !useMobileLayout();
     const [selectedCargo, setSelectedCargo] = useState<CargoItem | null>(null);
 
     const {
@@ -252,9 +254,17 @@ export function CargoPage({
     useEffect(() => {
         try { localStorage.setItem(CARGO_TABLE_MODE_KEY, String(tableModeByCustomer)); } catch { /* ignore */ }
     }, [tableModeByCustomer]);
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && effectiveServiceMode && !tableModeGroupedByCustomer;
-    const tableModeEffective = tableModeByCustomer && effectiveServiceMode;
+    const {
+        tableModeGroupedByCustomer,
+        tableModeFlatDirect,
+        tableModeEffective,
+        canShowTableModeToggle,
+    } = computeTableModeFlags({
+        tableModeByCustomer,
+        showCustomerColumn,
+        effectiveServiceMode,
+        isDesktopLayout,
+    });
     /** Сортировка таблицы по заказчику: столбец и направление (а-я / я-а) */
     const [tableSortColumn, setTableSortColumn] = useState<'customer' | 'sum' | 'mest' | 'pw' | 'w' | 'vol' | 'count'>('customer');
     const [tableSortOrder, setTableSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -690,7 +700,7 @@ export function CargoPage({
             <Flex align="center" justify="space-between" style={{ marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Typography.Headline className="text-page-title">Грузы</Typography.Headline>
                 <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
-                    {effectiveServiceMode ? (
+                    {canShowTableModeToggle ? (
                         <>
                             <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                             <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>

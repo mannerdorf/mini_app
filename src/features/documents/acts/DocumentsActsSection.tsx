@@ -580,10 +580,8 @@ export function DocumentsActsSection({
           </motion.div>
         ) : !actsLoading &&
           !actsError &&
-          tableModeEffective &&
-          effectiveServiceMode &&
-          filteredActs.length > 0 &&
-          sortedGroupedActsByCustomer.length === 0 ? (
+          tableModeFlatDirect &&
+          filteredActs.length > 0 ? (
           <motion.div
             key="docs-act-f"
             className="documents-table-offset-desktop"

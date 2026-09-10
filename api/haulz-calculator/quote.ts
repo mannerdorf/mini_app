@@ -7,12 +7,8 @@ import { HAULZ_CALC_GUEST_LOGIN_KEY, resolveHaulzCalculatorGuestQuoteAccess } fr
 import { getClientIp, isRateLimited, HAULZ_CALC_QUOTE_LIMIT } from "../../lib/rateLimit.js";
 import { buildQuote } from "../../lib/haulzCalculator/quoteEngine.js";
 import { saveQuoteSnapshot } from "../../lib/haulzCalculator/quoteSnapshot.js";
-import type {
-  AddressSelection,
-  DeliveryParty,
-  ParcelPlace,
-  QuoteRequest,
-} from "../../lib/haulzCalculator/types.js";
+import { parseParcelPlaces } from "../../lib/haulzCalculator/parsePlaces.js";
+import type { AddressSelection, DeliveryParty, QuoteRequest } from "../../lib/haulzCalculator/types.js";
 import { parseMainlineMode } from "../../lib/haulzCalculator/mainlineMode.js";
 
 function parseAddress(raw: unknown): AddressSelection | null {
@@ -33,19 +29,6 @@ function parseAddress(raw: unknown): AddressSelection | null {
     city,
     sourceId: typeof o.sourceId === "string" ? o.sourceId : undefined,
   };
-}
-
-function parsePlaces(raw: unknown): ParcelPlace[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return [{ weightKg: 1, volumeM3: 0.01 }];
-  }
-  return raw.map((p) => {
-    const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
-    return {
-      weightKg: Math.max(0, Number(o.weightKg ?? o.weight_kg) || 0),
-      volumeM3: Math.max(0, Number(o.volumeM3 ?? o.volume_m3) || 0),
-    };
-  });
 }
 
 function parseParty(raw: unknown): DeliveryParty | undefined {
@@ -107,7 +90,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const quoteReq: QuoteRequest = {
     from,
     to,
-    places: parsePlaces(body.places),
+    places: parseParcelPlaces(body.places),
     mainlineMode,
     direction:
       body.direction === "mow_kgd" || body.direction === "kgd_mow" ? body.direction : undefined,

@@ -6,7 +6,7 @@ import {
     type DocSectionKey,
 } from "../documentsSectionConstants";
 
-import { hasTableModePreference, readTableModePreference } from "../../../lib/tableModePreference";
+import { hasTableModePreference, readTableModePreference, computeTableModeFlags } from "../../../lib/tableModePreference";
 
 const DOCS_TABLE_MODE_KEY = "haulz.docs.tableMode";
 const DOCS_SECTION_KEY = "haulz.docs.section";
@@ -16,12 +16,14 @@ export type UseDocumentsPageNavigationParams = {
     permissions?: AccountPermissions | null;
     showCustomerColumn: boolean;
     effectiveServiceMode: boolean;
+    isDesktopLayout: boolean;
 };
 
 export function useDocumentsPageNavigation({
     permissions,
     showCustomerColumn,
     effectiveServiceMode,
+    isDesktopLayout,
 }: UseDocumentsPageNavigationParams) {
     const readDocumentsNewOrderOpen = useCallback((): boolean => {
         try {
@@ -70,9 +72,17 @@ export function useDocumentsPageNavigation({
         }
     }, [tableModeByCustomer]);
 
-    const tableModeGroupedByCustomer = tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
-    const tableModeFlatDirect = tableModeByCustomer && effectiveServiceMode && !tableModeGroupedByCustomer;
-    const tableModeEffective = tableModeByCustomer && effectiveServiceMode;
+    const {
+        tableModeGroupedByCustomer,
+        tableModeFlatDirect,
+        tableModeEffective,
+        canShowTableModeToggle,
+    } = computeTableModeFlags({
+        tableModeByCustomer,
+        showCustomerColumn,
+        effectiveServiceMode,
+        isDesktopLayout,
+    });
 
     const [documentsOrderFormOpen, setDocumentsOrderFormOpen] = useState(() => readDocumentsNewOrderOpen());
 
@@ -158,6 +168,7 @@ export function useDocumentsPageNavigation({
         tableModeGroupedByCustomer,
         tableModeFlatDirect,
         tableModeEffective,
+        canShowTableModeToggle,
         documentsOrderFormOpen,
         setDocumentsOrderFormOpenPersist,
         serviceModeForCurrentDocSection,

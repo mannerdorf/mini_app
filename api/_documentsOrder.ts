@@ -55,18 +55,7 @@ export function parseAddress(raw: unknown): AddressSelection | null {
   };
 }
 
-export function parsePlaces(raw: unknown): ParcelPlace[] {
-  if (!Array.isArray(raw) || raw.length === 0) {
-    return [{ weightKg: 1, volumeM3: 0.01 }];
-  }
-  return raw.map((p) => {
-    const o = p && typeof p === "object" ? (p as Record<string, unknown>) : {};
-    return {
-      weightKg: Math.max(0, Number(o.weightKg ?? o.weight_kg) || 0),
-      volumeM3: Math.max(0, Number(o.volumeM3 ?? o.volume_m3) || 0),
-    };
-  });
-}
+export { parseParcelPlaces as parsePlaces } from "../lib/haulzCalculator/parsePlaces.js";
 
 export function parseParty(raw: unknown): DeliveryParty | undefined {
   if (!raw || typeof raw !== "object") return undefined;

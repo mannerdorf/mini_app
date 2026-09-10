@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, Copy, Eye, Loader2, Mail, Phone, Plus, X } from "lucide-react";
+import { ArrowLeft, Copy, Eye, Loader2, Mail, Phone, X } from "lucide-react";
 import type { AuthData } from "../types";
 import type {
   AddressSelection,
@@ -27,6 +27,8 @@ import { HaulzCalcCustomerBlock } from "../features/haulzCalculator/HaulzCalcCus
 import { HaulzCalcDirectionCard } from "../features/haulzCalculator/HaulzCalcDirectionCard";
 import { HaulzCalcTariffBasisFootnote } from "../features/haulzCalculator/HaulzCalcTariffBasisFootnote";
 import { HaulzCalcMobileFlow } from "../features/haulzCalculator/HaulzCalcMobileFlow";
+import { ParcelPlaceEditor } from "../features/haulzCalculator/ParcelPlaceEditor";
+import { boxPresetToPlace, HAULZ_BOX_PRESETS } from "../../lib/haulzCalculator/boxPresets";
 import type { HaulzCalcMobileRoute } from "../features/haulzCalculator/haulzCalcMobileLabels";
 import { useHaulzCalcMobile } from "../features/haulzCalculator/useHaulzCalcMobile";
 import { useHaulzCalcSummaryLayoutSync } from "../features/haulzCalculator/useHaulzCalcSummaryLayoutSync";
@@ -50,13 +52,7 @@ type Props = {
   onRequireAuth?: () => void;
 };
 
-const BOX_PRESETS: { label: string; weightKg: number; volumeM3: number }[] = [
-  { label: "XS", weightKg: 1, volumeM3: 0.005 },
-  { label: "S", weightKg: 3, volumeM3: 0.02 },
-  { label: "M", weightKg: 10, volumeM3: 0.08 },
-  { label: "L", weightKg: 25, volumeM3: 0.2 },
-  { label: "XL", weightKg: 50, volumeM3: 0.5 },
-];
+const DEFAULT_PLACE = boxPresetToPlace(HAULZ_BOX_PRESETS[4]);
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -113,7 +109,7 @@ export function HaulzCalculatorPage({
   const [customerCompanyName, setCustomerCompanyName] = useState("");
   const [fromName, setFromName] = useState("");
   const [toName, setToName] = useState("");
-  const [places, setPlaces] = useState<ParcelPlace[]>([{ weightKg: 100, volumeM3: 0.5 }]);
+  const [places, setPlaces] = useState<ParcelPlace[]>([DEFAULT_PLACE]);
   const [activePresetIdx, setActivePresetIdx] = useState<Record<number, string>>({ 0: "XL" });
   const [declaredValue, setDeclaredValue] = useState("");
   const [mainlineMode, setMainlineMode] = useState<MainlineMode>("ferry");
@@ -289,7 +285,7 @@ export function HaulzCalculatorPage({
     }
     setFromName(f.fromName ?? "");
     setToName(f.toName ?? "");
-    setPlaces(f.places?.length ? f.places : [{ weightKg: 100, volumeM3: 0.5 }]);
+    setPlaces(f.places?.length ? f.places : [DEFAULT_PLACE]);
     setActivePresetIdx(f.activePresetIdx ?? { 0: "XL" });
     setDeclaredValue(f.declaredValue ?? "");
     setMainlineMode(parseMainlineMode(f.mainlineMode));
@@ -1042,89 +1038,14 @@ export function HaulzCalculatorPage({
             <div className="haulz-calc-card">
               <h2 className="haulz-calc-card__title">Груз</h2>
 
-              {places.map((p, idx) => (
-                <div key={idx} className="haulz-calc-place">
-                  <div className="haulz-calc-place__head">
-                    <span>Место {idx + 1}</span>
-                    {places.length > 1 && (
-                      <button
-                        type="button"
-                        className="haulz-calc-text-btn"
-                        onClick={() => setPlaces((prev) => prev.filter((_, i) => i !== idx))}
-                      >
-                        Удалить
-                      </button>
-                    )}
-                  </div>
-                  <div className="haulz-calc-size-row">
-                    {BOX_PRESETS.map((b) => (
-                      <button
-                        key={b.label}
-                        type="button"
-                        className={`haulz-calc-size-chip${activePresetIdx[idx] === b.label ? " haulz-calc-size-chip--active" : ""}`}
-                        onClick={() => {
-                          setActivePresetIdx((prev) => ({ ...prev, [idx]: b.label }));
-                          setPlaces((prev) => {
-                            const next = [...prev];
-                            next[idx] = { weightKg: b.weightKg, volumeM3: b.volumeM3 };
-                            return next;
-                          });
-                        }}
-                      >
-                        {b.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="haulz-calc-place-fields">
-                    <label className="haulz-calc-field">
-                      <span className="haulz-calc-label">Вес, кг</span>
-                      <input
-                        type="number"
-                        className="haulz-calc-input"
-                        value={String(p.weightKg)}
-                        onChange={(e) => {
-                          const v = Number(e.target.value) || 0;
-                          setPlaces((prev) => {
-                            const next = [...prev];
-                            next[idx] = { ...next[idx], weightKg: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    </label>
-                    <label className="haulz-calc-field">
-                      <span className="haulz-calc-label">Объём, м³</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        className="haulz-calc-input"
-                        value={String(p.volumeM3)}
-                        onChange={(e) => {
-                          const v = Number(e.target.value) || 0;
-                          setPlaces((prev) => {
-                            const next = [...prev];
-                            next[idx] = { ...next[idx], volumeM3: v };
-                            return next;
-                          });
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              ))}
-
-              <button
-                type="button"
-                className="haulz-calc-link-btn"
-                onClick={() => {
-                  const nextIdx = places.length;
-                  setPlaces((prev) => [...prev, { weightKg: 10, volumeM3: 0.1 }]);
-                  setActivePresetIdx((prev) => ({ ...prev, [nextIdx]: "M" }));
-                }}
-              >
-                <Plus className="w-4 h-4" />
-                Добавить место
-              </button>
+              <ParcelPlaceEditor
+                places={places}
+                onChange={setPlaces}
+                activePresetIdx={activePresetIdx}
+                onPresetIdxChange={setActivePresetIdx}
+                defaultNewPlace={boxPresetToPlace(HAULZ_BOX_PRESETS[2])}
+                defaultNewPreset="M"
+              />
 
               <p className="haulz-calc-place-note">
                 Вес {chargeableHint.w.toFixed(0)} кг · объём {chargeableHint.v.toFixed(2)} м³ · объёмный вес{" "}

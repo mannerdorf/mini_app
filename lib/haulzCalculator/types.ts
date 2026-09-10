@@ -19,6 +19,24 @@ export type AddressSelection = {
 export type ParcelPlace = {
   weightKg: number;
   volumeM3: number;
+  /** Габариты места, см */
+  lengthCm?: number;
+  widthCm?: number;
+  heightCm?: number;
+};
+
+export type PalletType = {
+  code: string;
+  label: string;
+  length_mm: number;
+  width_mm: number;
+  price_per_meter_rub: number;
+  pallet_price_rub: number;
+};
+
+export type RigidPackagingPayload = {
+  max_height_m?: number;
+  pallet_types: PalletType[];
 };
 
 export type PickupTier = {

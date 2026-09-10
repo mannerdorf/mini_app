@@ -1,4 +1,34 @@
-/** Табличный вид в служебном режиме: localStorage, если пользователь явно не выбирал — true. */
+export type TableModeFlags = {
+  tableModeGroupedByCustomer: boolean;
+  tableModeFlatDirect: boolean;
+  tableModeEffective: boolean;
+  canShowTableModeToggle: boolean;
+};
+
+/** Табличный режим: служебный режим (все экраны) или десктоп без служебного. */
+export function computeTableModeFlags(params: {
+  tableModeByCustomer: boolean;
+  showCustomerColumn: boolean;
+  effectiveServiceMode: boolean;
+  isDesktopLayout: boolean;
+}): TableModeFlags {
+  const { tableModeByCustomer, showCustomerColumn, effectiveServiceMode, isDesktopLayout } = params;
+  const tableModeAllowed = effectiveServiceMode || isDesktopLayout;
+  const tableModeGroupedByCustomer =
+    tableModeByCustomer && showCustomerColumn && effectiveServiceMode;
+  const tableModeFlatDirect =
+    tableModeByCustomer && tableModeAllowed && !tableModeGroupedByCustomer;
+  const tableModeEffective = tableModeByCustomer && tableModeAllowed;
+  const canShowTableModeToggle = tableModeAllowed;
+  return {
+    tableModeGroupedByCustomer,
+    tableModeFlatDirect,
+    tableModeEffective,
+    canShowTableModeToggle,
+  };
+}
+
+/** Табличный вид: localStorage, если пользователь явно не выбирал — defaultWhenUnset. */
 export function readTableModePreference(storageKey: string, defaultWhenUnset = false): boolean {
   try {
     const v = localStorage.getItem(storageKey);

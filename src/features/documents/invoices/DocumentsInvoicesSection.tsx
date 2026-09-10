@@ -292,7 +292,7 @@ export function DocumentsInvoicesSection({
             </table>
         </div>
         </motion.div>
-    ) : !loading && !error && tableModeEffective && effectiveServiceMode && filteredItems.length > 0 && sortedGroupedByCustomer.length === 0 ? (
+    ) : !loading && !error && tableModeFlatDirect && filteredItems.length > 0 ? (
         <motion.div key="docs-inv-f" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
         <div className="cargo-card cargo-customer-table-wrap" style={{ marginBottom: '1rem' }}>
             <table className="cargo-inner-table documents-invoices-inner-table documents-invoices-flat-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
