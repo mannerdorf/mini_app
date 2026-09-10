@@ -2,8 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   absoluteBitsAtCm,
   absoluteTrackCount,
+  buildRulerStripLayers,
   buildRulerTicks,
   chunkRulerTicks,
+  fineSubdivisionBitAtCm,
+  rulerStripCellBlack,
+  rulerStripLayerCount,
   stripLengthCm,
   validateWeightRulerConfig,
   weightFromPositionCm,
@@ -36,5 +40,26 @@ describe("haulzWeightRuler", () => {
     expect(rows.length).toBeGreaterThan(1);
     expect(rows[0]?.length).toBe(4);
     expect(rows.flat().length).toBe(ticks.length);
+  });
+
+  it("builds more strip layers than absolute-only tracks", () => {
+    expect(rulerStripLayerCount(100)).toBeGreaterThan(absoluteTrackCount(100));
+    expect(buildRulerStripLayers(100).length).toBeGreaterThanOrEqual(14);
+  });
+
+  it("fine subdivision alternates every cm on track 0", () => {
+    expect(fineSubdivisionBitAtCm(0, 0)).toBe(true);
+    expect(fineSubdivisionBitAtCm(1, 0)).toBe(false);
+    expect(fineSubdivisionBitAtCm(2, 0)).toBe(true);
+  });
+
+  it("marks row start and decimeter on sync layers", () => {
+    const layers = buildRulerStripLayers(100);
+    const rowSync = layers.find((l) => l.kind === "row-sync")!;
+    const decimeter = layers.find((l) => l.kind === "decimeter")!;
+    expect(rulerStripCellBlack(rowSync, 20, 0, absoluteTrackCount(100))).toBe(true);
+    expect(rulerStripCellBlack(rowSync, 20, 5, absoluteTrackCount(100))).toBe(false);
+    expect(rulerStripCellBlack(decimeter, 30, 10, absoluteTrackCount(100))).toBe(true);
+    expect(rulerStripCellBlack(decimeter, 31, 11, absoluteTrackCount(100))).toBe(false);
   });
 });

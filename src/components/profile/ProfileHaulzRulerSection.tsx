@@ -2,8 +2,8 @@ import React, { useCallback, useMemo, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
 import {
-  absoluteBitsAtCm,
   absoluteTrackCount,
+  buildRulerStripLayers,
   buildRulerTicks,
   chunkRulerTicks,
   DEFAULT_WEIGHT_RULER_CONFIG,
@@ -11,11 +11,13 @@ import {
   loadWeightRulerConfig,
   parseWeightRulerNumber,
   PRINT_CM_PER_ROW,
+  rulerStripCellBlack,
   saveWeightRulerConfig,
   stripLengthCm,
   validateWeightRulerConfig,
   weightFromPositionCm,
   type HaulzWeightRulerConfig,
+  type RulerStripLayer,
   type RulerTick,
 } from "../../lib/haulzWeightRuler";
 
@@ -90,7 +92,12 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
     });
   }, [config, validationError]);
 
-  const trackCount = absoluteTrackCount(Math.max(1, lengthCm));
+  const absoluteTracks = absoluteTrackCount(Math.max(1, lengthCm));
+  const stripLayers = useMemo(
+    () => buildRulerStripLayers(Math.max(1, lengthCm)),
+    [lengthCm],
+  );
+  const layerCount = stripLayers.length;
 
   return (
     <div className="w-full haulz-weight-ruler">
@@ -130,7 +137,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
             {" · "}
             строк печати: <strong>{printRows.length}</strong>
             {" · "}
-            дорожек: <strong>{trackCount}</strong>
+            дорожек: <strong>{layerCount}</strong> (absolute {absoluteTracks} + подшкала)
             {" · "}
             пример: 10 см → <strong>{formatWeightKg(weightFromPositionCm(config, 10))} кг</strong>
           </Typography.Body>
@@ -184,7 +191,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
             Превью (до {previewTicks[previewTicks.length - 1]?.cm ?? 0} см, перенос по {PREVIEW_CM_PER_ROW} см)
           </Typography.Label>
           <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--preview">
-            <RulerWrappedStrip rows={previewRows} trackCount={trackCount} cellPx={10} />
+            <RulerWrappedStrip rows={previewRows} layers={stripLayers} absoluteTracks={absoluteTracks} cellPx={10} />
           </div>
         </div>
       ) : null}
@@ -197,7 +204,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
             {PRINT_CM_PER_ROW} см
           </div>
           <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--print">
-            <RulerWrappedStrip rows={printRows} trackCount={trackCount} cellCm={1} />
+            <RulerWrappedStrip rows={printRows} layers={stripLayers} absoluteTracks={absoluteTracks} cellCm={1} />
           </div>
         </div>
       ) : null}
@@ -207,12 +214,14 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
 
 function RulerWrappedStrip({
   rows,
-  trackCount,
+  layers,
+  absoluteTracks,
   cellPx,
   cellCm,
 }: {
   rows: RulerTick[][];
-  trackCount: number;
+  layers: RulerStripLayer[];
+  absoluteTracks: number;
   cellPx?: number;
   cellCm?: number;
 }) {
@@ -226,7 +235,13 @@ function RulerWrappedStrip({
             <div className="haulz-weight-ruler-row__meta">
               строка {rowIdx + 1}: {from?.cm}–{to?.cm} см · {from?.label}–{to?.label} кг
             </div>
-            <RulerAbsoluteRow ticks={row} trackCount={trackCount} cellPx={cellPx} cellCm={cellCm} />
+            <RulerAbsoluteRow
+              ticks={row}
+              layers={layers}
+              absoluteTracks={absoluteTracks}
+              cellPx={cellPx}
+              cellCm={cellCm}
+            />
           </div>
         );
       })}
@@ -237,12 +252,14 @@ function RulerWrappedStrip({
 /** Одна строка absolute-шкалы: SVG (печатается без «Background graphics»). */
 function RulerAbsoluteRow({
   ticks,
-  trackCount,
+  layers,
+  absoluteTracks,
   cellPx = 10,
   cellCm,
 }: {
   ticks: RulerTick[];
-  trackCount: number;
+  layers: RulerStripLayer[];
+  absoluteTracks: number;
   cellPx?: number;
   cellCm?: number;
 }) {
@@ -250,27 +267,41 @@ function RulerAbsoluteRow({
 
   const useCm = cellCm != null && cellCm > 0;
   const cellW = useCm ? cellCm! : cellPx;
-  const trackH = useCm ? 0.22 : 5;
-  const gap = useCm ? 0.04 : 1;
-  const tracksH = trackCount * trackH + (trackCount - 1) * gap;
+  const baseTrackH = useCm ? 0.16 : 4;
+  const gap = useCm ? 0.035 : 0.8;
+  const rowStartCm = ticks[0]!.cm;
+
+  let y = 0;
+  const layerGeoms = layers.map((layer) => {
+    const trackH = baseTrackH * layer.weight;
+    const geom = { layer, y, trackH };
+    y += trackH + gap;
+    return geom;
+  });
+  const tracksH = y - gap;
   const svgW = ticks.length * cellW;
   const labelH = useCm ? 1.6 : 36;
   const unit = useCm ? "cm" : undefined;
 
   const rects: React.ReactNode[] = [];
-  for (let t = 0; t < trackCount; t++) {
-    const y = t * (trackH + gap);
+  for (const { layer, y: layerY, trackH } of layerGeoms) {
     let runStart = -1;
     for (let i = 0; i <= ticks.length; i++) {
-      const black = i < ticks.length ? absoluteBitsAtCm(ticks[i]!.cm, trackCount)[t] === true : false;
+      const tick = i < ticks.length ? ticks[i]! : null;
+      const cmGlobal = tick?.cm ?? 0;
+      const cmLocal = cmGlobal - rowStartCm;
+      const black =
+        tick != null
+          ? rulerStripCellBlack(layer, cmGlobal, cmLocal, absoluteTracks)
+          : false;
       if (black && runStart < 0) runStart = i;
       if ((!black || i === ticks.length) && runStart >= 0) {
         const w = (i - runStart) * cellW;
         rects.push(
           <rect
-            key={`t${t}-${runStart}`}
+            key={`${layer.kind}-${layer.index}-${runStart}`}
             x={runStart * cellW}
-            y={y}
+            y={layerY}
             width={w}
             height={trackH}
             fill="#000"
