@@ -64,7 +64,7 @@ export function ParcelPlaceEditor({
                 onClick={() => {
                   onPresetIdxChange({ ...activePresetIdx, [idx]: b.label });
                   const next = [...places];
-                  next[idx] = boxPresetToPlace(b);
+                  next[idx] = boxPresetToPlace(b, p);
                   onChange(next);
                 }}
               >
@@ -122,6 +122,33 @@ export function ParcelPlaceEditor({
                 readOnly
                 value={String(p.volumeM3)}
               />
+            </label>
+          </div>
+          <div className="haulz-calc-extra haulz-calc-extra--place">
+            <div className="haulz-calc-extra__text">
+              <strong>Требуется коробка</strong>
+              {p.boxRequired && (
+                <span className="haulz-calc-extra__desc">
+                  Размер {activePresetIdx[idx] || p.boxSize || "M"}
+                </span>
+              )}
+            </div>
+            <label className="haulz-calc-switch">
+              <input
+                type="checkbox"
+                checked={p.boxRequired === true}
+                onChange={(e) => {
+                  const next = [...places];
+                  const preset = activePresetIdx[idx] || p.boxSize || "M";
+                  next[idx] = {
+                    ...next[idx],
+                    boxRequired: e.target.checked,
+                    boxSize: e.target.checked ? preset : undefined,
+                  };
+                  onChange(next);
+                }}
+              />
+              <span className="haulz-calc-switch__track" />
             </label>
           </div>
         </div>

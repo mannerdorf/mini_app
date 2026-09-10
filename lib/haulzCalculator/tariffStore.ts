@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type {
+  BoxesPayload,
   ExtrasBlockPayload,
   MainlinePayload,
   PickupMatrixPayload,
@@ -8,7 +9,8 @@ import type {
   TariffSetRow,
   TariffVersionRow,
 } from "./types.js";
-import { ensureAirMainlineTariffSets, ensureRigidPackagingTariffSet } from "./bootstrapTariffs.js";
+import { ensureAirMainlineTariffSets, ensureBoxesTariffSet, ensureRigidPackagingTariffSet } from "./bootstrapTariffs.js";
+import { normalizeBoxesPayload } from "./defaultBoxes.js";
 import { normalizeExtrasPayload } from "./defaultExtras.js";
 
 export function todayDateMoscow(): string {
@@ -87,6 +89,10 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
     await ensureRigidPackagingTariffSet(pool);
     sets = await listTariffSets(pool);
   }
+  if (!sets.some((s) => s.code === "calc_boxes")) {
+    await ensureBoxesTariffSet(pool);
+    sets = await listTariffSets(pool);
+  }
   const byCode: Record<string, { set: TariffSetRow; version: TariffVersionRow | null }> = {};
   for (const set of sets) {
     byCode[set.code] = { set, version: await getActiveVersion(pool, set.id, day) };
@@ -99,6 +105,7 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
     byCode.calc_extras?.version?.payload as ExtrasBlockPayload | undefined,
   );
   const rigidPackaging = byCode.calc_rigid_packaging?.version?.payload as RigidPackagingPayload | undefined;
+  const boxes = normalizeBoxesPayload(byCode.calc_boxes?.version?.payload as BoxesPayload | undefined);
 
   const mainline: MainlinePayload[] = [];
   for (const [code, entry] of Object.entries(byCode)) {
@@ -116,6 +123,7 @@ export async function loadCalculatorTariffs(pool: Pool, asOfDate?: string) {
     settings,
     extras,
     rigidPackaging: rigidPackaging ?? null,
+    boxes: boxes ?? null,
     mainline,
     sets,
     byCode,

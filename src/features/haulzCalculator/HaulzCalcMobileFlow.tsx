@@ -387,7 +387,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                   setActivePresetIdx((prev) => ({ ...prev, [idx]: b.label }));
                   setPlaces((prev) => {
                     const next = [...prev];
-                    next[idx] = boxPresetToPlace(b);
+                    next[idx] = boxPresetToPlace(b, next[idx]);
                     return next;
                   });
                 }}
@@ -445,6 +445,30 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
             <label className="haulz-calc-field">
               <span className="haulz-calc-label">Объём, м³</span>
               <input type="number" step="0.01" className="haulz-calc-input" readOnly value={String(place.volumeM3)} />
+            </label>
+          </div>
+          <div className="haulz-calc-extra haulz-calc-extra--place">
+            <div className="haulz-calc-extra__text">
+              <strong>Требуется коробка</strong>
+            </div>
+            <label className="haulz-calc-switch">
+              <input
+                type="checkbox"
+                checked={place.boxRequired === true}
+                onChange={(e) => {
+                  const preset = activePresetIdx[idx] || place.boxSize || "M";
+                  setPlaces((prev) => {
+                    const next = [...prev];
+                    next[idx] = {
+                      ...next[idx],
+                      boxRequired: e.target.checked,
+                      boxSize: e.target.checked ? preset : undefined,
+                    };
+                    return next;
+                  });
+                }}
+              />
+              <span className="haulz-calc-switch__track" />
             </label>
           </div>
         </div>

@@ -33,6 +33,7 @@ import {
 import { resolveNearestHub } from "./hubResolve.js";
 import { lookupPartnerDirectoryByInn } from "./partnerDirectory.js";
 import { mainlineModeLabelQuoteLine } from "./mainlineMode.js";
+import { calcBoxesQuote } from "./calcBoxes.js";
 import { calcRigidPackagingQuote } from "./rigidPackaging.js";
 import { loadCalculatorTariffs } from "./tariffStore.js";
 
@@ -255,6 +256,9 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     const packagingLine = calcRigidPackagingQuote(req.places, tariffs.rigidPackaging);
     if (packagingLine) lines.push(packagingLine);
   }
+
+  const boxesLine = calcBoxesQuote(req.places, tariffs.boxes);
+  if (boxesLine) lines.push(boxesLine);
 
   const totalRub = Math.round(lines.reduce((s, l) => s + l.amountRub, 0) * 100) / 100;
   const mainlineOptions = buildMainlineOptions(

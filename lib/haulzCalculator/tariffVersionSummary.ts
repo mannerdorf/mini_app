@@ -79,6 +79,13 @@ export function describeTariffVersionPayload(
   const code = String(tariffCode || "").toLowerCase();
   const blk = String(block || "").toLowerCase();
 
+  if (blk === "boxes" || code === "calc_boxes") {
+    const cfg = payload as { sizes?: Array<{ label?: string; price_rub?: number }> };
+    const sizes = Array.isArray(cfg?.sizes) ? cfg.sizes : [];
+    if (!sizes.length) return ["Коробки: тарифы не заданы"];
+    return sizes.map((s) => `${s.label || "—"}: ${Number(s.price_rub) || 0} ₽`);
+  }
+
   if (blk === "rigid_packaging" || code === "calc_rigid_packaging") {
     const cfg = payload as { max_height_m?: number; pallet_types?: Array<{ label?: string; price_per_meter_rub?: number; pallet_price_rub?: number }> };
     const types = Array.isArray(cfg?.pallet_types) ? cfg.pallet_types : [];
@@ -153,6 +160,7 @@ export function tariffSetSelectLabel(set: { code: string; name: string; block: s
   if (code === "last_mile_matrix") return "Последняя миля";
   if (code === "calc_extras") return "Дополнительные услуги";
   if (code === "calc_rigid_packaging") return "Жёсткая упаковка";
+  if (code === "calc_boxes") return "Коробки";
   if (code === "calc_settings") return "Настройки калькулятора";
   return name || code;
 }

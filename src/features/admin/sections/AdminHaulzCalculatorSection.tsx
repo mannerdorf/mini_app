@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import type {
+  BoxesPayload,
   ExtraServicePayload,
   MainlineMode,
   MainlinePayload,
@@ -9,6 +10,7 @@ import type {
   PickupTier,
   RigidPackagingPayload,
 } from "../../../../lib/haulzCalculator/types";
+import { DEFAULT_BOXES } from "../../../../lib/haulzCalculator/defaultBoxes";
 import { DEFAULT_RIGID_PACKAGING, DEFAULT_RIGID_PACKAGING_MAX_HEIGHT_M } from "../../../../lib/haulzCalculator/defaultRigidPackaging";
 import { mainlineModeLabelRu, parseMainlineMode } from "../../../../lib/haulzCalculator/mainlineMode";
 import {
@@ -38,6 +40,7 @@ type AdminTab =
   | "mainline"
   | "extras"
   | "rigid_packaging"
+  | "boxes"
   | "ring"
   | "settings"
   | "hubs"
@@ -50,6 +53,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
   mainline: "Магистраль",
   extras: "Доп. услуги",
   rigid_packaging: "Жёсткая упаковка",
+  boxes: "Коробки",
   ring: "МКАД / КАД",
   settings: "Настройки",
   hubs: "Хабы",
@@ -158,6 +162,7 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
   const [lastMileDraft, setLastMileDraft] = useState<PickupMatrixPayload | null>(null);
   const [extrasDraft, setExtrasDraft] = useState<ExtraServicePayload[]>([]);
   const [rigidPackagingDraft, setRigidPackagingDraft] = useState<RigidPackagingPayload>(DEFAULT_RIGID_PACKAGING);
+  const [boxesDraft, setBoxesDraft] = useState<BoxesPayload>(DEFAULT_BOXES);
   const [settingsFactor, setSettingsFactor] = useState("200");
   const [settingsMainlineMinKg, setSettingsMainlineMinKg] = useState("20");
   const [mainlineDrafts, setMainlineDrafts] = useState<MainlinePayload[]>([]);
@@ -204,8 +209,9 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
       const lastMile = list.find((s) => s.code === "last_mile_matrix");
       const extras = list.find((s) => s.code === "calc_extras");
       const rigidPackaging = list.find((s) => s.code === "calc_rigid_packaging");
+      const boxes = list.find((s) => s.code === "calc_boxes");
       const settings = list.find((s) => s.code === "calc_settings");
-      if (!rigidPackaging) {
+      if (!rigidPackaging || !boxes) {
         await initAdminHaulzCalculator(adminToken, todayIso());
         list = await fetchAdminHaulzCalculatorTariffs(adminToken);
       }
@@ -232,6 +238,16 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
         });
       } else {
         setRigidPackagingDraft(DEFAULT_RIGID_PACKAGING);
+      }
+      const boxesSet = list.find((s) => s.code === "calc_boxes");
+      const boxesP = versionPayload(boxesSet);
+      if (boxesP) {
+        const p = boxesP as BoxesPayload;
+        setBoxesDraft({
+          sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : DEFAULT_BOXES.sizes,
+        });
+      } else {
+        setBoxesDraft(DEFAULT_BOXES);
       }
       const settingsP = versionPayload(settings);
       if (settingsP) {
@@ -716,6 +732,57 @@ export function AdminHaulzCalculatorSection({ adminToken }: { adminToken: string
               }
             >
               Сохранить жёсткую упаковку
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === "boxes" && !setByCode.calc_boxes && (
+        <p className="hr-calc-admin__empty">Набор «Коробки» не создан. Нажмите «Создать структуру тарифов».</p>
+      )}
+
+      {tab === "boxes" && setByCode.calc_boxes && (
+        <div>
+          <p className="hr-calc-admin__hint" style={{ marginBottom: "1rem" }}>
+            Стоимость коробки по размеру места (XS–XL). В форме заказа переключатель «Требуется коробка» добавляет строку в расчёт.
+          </p>
+          <div className="hr-calc-admin-table-wrap">
+            <table className="hr-calc-admin-table">
+              <thead>
+                <tr>
+                  <th>Размер</th>
+                  <th>₽ за коробку</th>
+                </tr>
+              </thead>
+              <tbody>
+                {boxesDraft.sizes.map((row, i) => (
+                  <tr key={row.code}>
+                    <td>{row.label}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min={0}
+                        className="hr-calc-admin-input hr-calc-admin-input--num"
+                        value={row.price_rub}
+                        onChange={(e) => {
+                          const next = [...boxesDraft.sizes];
+                          next[i] = { ...next[i], price_rub: Number(e.target.value) || 0 };
+                          setBoxesDraft({ sizes: next });
+                        }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="hr-calc-admin__actions">
+            <button
+              type="button"
+              className="button-primary"
+              onClick={() => void publish("calc_boxes", boxesDraft).catch((e) => setError((e as Error).message))}
+            >
+              Сохранить коробки
             </button>
           </div>
         </div>

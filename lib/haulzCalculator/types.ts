@@ -23,6 +23,20 @@ export type ParcelPlace = {
   lengthCm?: number;
   widthCm?: number;
   heightCm?: number;
+  /** Нужна коробка для этого места */
+  boxRequired?: boolean;
+  /** Размер коробки: XS, S, M, L, XL */
+  boxSize?: string;
+};
+
+export type BoxSizePrice = {
+  code: string;
+  label: string;
+  price_rub: number;
+};
+
+export type BoxesPayload = {
+  sizes: BoxSizePrice[];
 };
 
 export type PalletType = {
