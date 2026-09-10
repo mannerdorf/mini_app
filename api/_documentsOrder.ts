@@ -11,6 +11,7 @@ import type {
 } from "../lib/haulzCalculator/types.js";
 import { parseMainlineMode } from "../lib/haulzCalculator/mainlineMode.js";
 import { resolveDocumentsCustomerName } from "../lib/haulzCalculator/draftCustomerDisplay.js";
+import { parseParcelPlaces } from "../lib/haulzCalculator/parsePlaces.js";
 
 export const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
 export const normalizeInn = (v: unknown) => String(v ?? "").replace(/\D/g, "").trim();
@@ -55,7 +56,7 @@ export function parseAddress(raw: unknown): AddressSelection | null {
   };
 }
 
-export { parseParcelPlaces as parsePlaces } from "../lib/haulzCalculator/parsePlaces.js";
+export { parseParcelPlaces as parsePlaces };
 
 export function parseParty(raw: unknown): DeliveryParty | undefined {
   if (!raw || typeof raw !== "object") return undefined;
@@ -109,7 +110,7 @@ export function buildQuoteRequestFromBody(
   const quoteReq: QuoteRequest = {
     from,
     to,
-    places: parsePlaces(body.places),
+    places: parseParcelPlaces(body.places),
     mainlineMode,
     direction:
       body.direction === "mow_kgd" || body.direction === "kgd_mow" ? body.direction : undefined,
