@@ -18,6 +18,7 @@ import { ClickableActNumber, ClickableInvoiceNumber } from "../ui/EntityLinks";
 import { DetailItem } from "../ui/DetailItem";
 import { DateText } from "../ui/DateText";
 import { StatusBillBadge } from "../shared/StatusBadges";
+import { isFivepostCustomer } from "../../../lib/fivepost/customerAccess";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../../types";
 
 export type CargoDetailsModalProps = {
@@ -59,8 +60,17 @@ export function CargoDetailsModal({
     const [perevozkaError, setPerevozkaError] = useState<string | null>(null);
     const [perevozkaFetched, setPerevozkaFetched] = useState(false);
 
+    const cargoCustomerName = String(
+        item?.Customer ??
+            (item as { customer?: string })?.customer ??
+            (item as { Заказчик?: string })?.["Заказчик"] ??
+            "",
+    ).trim();
+    /** Для 5 POST карту/таймлайн статусов не показываем. */
+    const hideShipmentStatuses = isFivepostCustomer(auth?.inn, cargoCustomerName);
+
     useEffect(() => {
-        if (!isOpen || !item?.Number || !auth?.login || !auth?.password) {
+        if (!isOpen || !item?.Number || !auth?.login || !auth?.password || hideShipmentStatuses) {
             setPerevozkaTimeline(null);
             setPerevozkaNomenclature([]);
             setPerevozkaMeta({ autoReg: '', autoType: '', driver: '' });
@@ -91,7 +101,7 @@ export function CargoDetailsModal({
                 }
             });
         return () => { cancelled = true; };
-    }, [isOpen, item?.Number, auth?.login, auth?.password]);
+    }, [isOpen, item?.Number, auth?.login, auth?.password, hideShipmentStatuses]);
 
     useEffect(() => {
         if (isOpen) setNomenclatureOpen(false);
@@ -466,7 +476,8 @@ export function CargoDetailsModal({
                             </div>
                         )}
                     </div>
-                    {(perevozkaLoading || perevozkaFetched || perevozkaTimeline || perevozkaError) && (
+                    {!hideShipmentStatuses &&
+                        (perevozkaLoading || perevozkaFetched || perevozkaTimeline || perevozkaError) && (
                         <aside className="cargo-details-modal-timeline shipment-status-timeline-wrap">
                             {(() => {
                                 const totalHours = (() => {
