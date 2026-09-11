@@ -10,9 +10,10 @@ import {
 
 type Props = {
   onCalculator: () => void;
+  onRouteLanding?: (path: string) => void;
 };
 
-export function GuestRoutesSection({ onCalculator }: Props) {
+export function GuestRoutesSection({ onCalculator, onRouteLanding }: Props) {
   const [activeId, setActiveId] = React.useState<GuestRouteId>("mow_kgd");
   const [activeStageId, setActiveStageId] = React.useState(
     GUEST_ROUTE_DIRECTIONS[0].stages[0].id,
@@ -134,10 +135,17 @@ export function GuestRoutesSection({ onCalculator }: Props) {
                   <li key={feature}>{feature}</li>
                 ))}
               </ul>
-              <Button className="guest-routes__cta" onClick={onCalculator}>
-                Рассчитать это направление
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              <div className="guest-routes__cta-row flex flex-col gap-2 sm:flex-row">
+                <Button className="guest-routes__cta" onClick={onCalculator}>
+                  Рассчитать это направление
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+                {onRouteLanding ? (
+                  <Button variant="outline" className="guest-routes__cta" onClick={() => onRouteLanding(route.path)}>
+                    Подробнее о маршруте
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>

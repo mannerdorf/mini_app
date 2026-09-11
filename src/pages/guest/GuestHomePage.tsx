@@ -23,6 +23,8 @@ type Props = {
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
+  onBlog?: () => void;
+  onRouteLanding?: (path: string) => void;
 };
 
 type QuickAction = {
@@ -30,7 +32,7 @@ type QuickAction = {
   label: string;
   hint: string;
   image: string;
-  action: "calculator" | "faq" | "app" | "about" | "warehouses";
+  action: "calculator" | "faq" | "app" | "about" | "warehouses" | "blog";
 };
 
 const QUICK_ACTIONS_BASE: QuickAction[] = [
@@ -40,6 +42,13 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     hint: "Предварительный расчёт",
     image: GUEST_ILLUSTRATIONS.iconCalculator,
     action: "calculator",
+  },
+  {
+    id: "blog",
+    label: "Блог",
+    hint: "Статьи о перевозках",
+    image: GUEST_ILLUSTRATIONS.iconAbout,
+    action: "blog",
   },
   {
     id: "faq",
@@ -82,7 +91,16 @@ const BENEFITS = [
   },
 ] as const;
 
-export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, onCalculator }: Props) {
+export function GuestHomePage({
+  onLogin,
+  onAbout,
+  onWarehouses,
+  onFaq,
+  onApp,
+  onCalculator,
+  onBlog,
+  onRouteLanding,
+}: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const isNativeAndroid = isCapacitorAndroidApp();
 
@@ -103,6 +121,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
 
   const runQuickAction = (action: QuickAction["action"]) => {
     if (action === "faq") onFaq();
+    else if (action === "blog") onBlog?.();
     else if (action === "app") onApp();
     else if (action === "about") onAbout();
     else if (action === "warehouses") onWarehouses();
@@ -239,7 +258,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <GuestRoutesSection onCalculator={onCalculator} />
+        <GuestRoutesSection onCalculator={onCalculator} onRouteLanding={onRouteLanding} />
       </main>
 
       <GuestFooter

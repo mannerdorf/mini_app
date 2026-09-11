@@ -257,6 +257,7 @@ type AliceIntentName =
   | "company"
   | "unlink"
   | "help"
+  | "shipping_estimate"
   | "fallback_chat";
 
 type AliceIntent = {
@@ -265,6 +266,9 @@ type AliceIntent = {
   period?: "today" | "yesterday" | "week" | "month" | "six_months";
   documentType?: "ЭР" | "АПП" | "СЧЕТ" | "УПД";
   companyQuery?: string;
+  direction?: "mow_kgd" | "kgd_mow";
+  weightKg?: number;
+  mode?: "ferry" | "auto" | "air";
 };
 
 const DOCUMENT_METHODS: Record<NonNullable<AliceIntent["documentType"]>, string> = {
@@ -313,6 +317,31 @@ function detectPeriod(text: string): NonNullable<AliceIntent["period"]> {
   return "six_months";
 }
 
+function extractWeightKg(text: string): number | undefined {
+  const kg = text.match(/(\d+(?:[.,]\d+)?)\s*(?:кг|килограм)/i);
+  if (kg) return Number(String(kg[1]).replace(",", "."));
+  const ton = text.match(/(\d+(?:[.,]\d+)?)\s*(?:т\b|тонн)/i);
+  if (ton) return Number(String(ton[1]).replace(",", ".")) * 1000;
+  return undefined;
+}
+
+function extractShippingDirection(text: string): "mow_kgd" | "kgd_mow" | undefined {
+  const fromMow = /из\s+москв|москва\s*[—\-–в]+\s*калининград|в\s+калининград/.test(text);
+  const fromKgd = /из\s+калининград|калининград\s*[—\-–в]+\s*москв|в\s+москв/.test(text);
+  if (fromMow && !fromKgd) return "mow_kgd";
+  if (fromKgd && !fromMow) return "kgd_mow";
+  if (fromMow) return "mow_kgd";
+  if (fromKgd) return "kgd_mow";
+  return undefined;
+}
+
+function extractShippingMode(text: string): "ferry" | "auto" | "air" | undefined {
+  if (hasAny(text, ["паром", "ферр", "мор"])) return "ferry";
+  if (hasAny(text, ["авиа", "самол"])) return "air";
+  if (hasAny(text, ["авто", "фура", "машин"])) return "auto";
+  return undefined;
+}
+
 function classifyIntent(rawText: string, sessionState: any): AliceIntent {
   const text = normalizeText(rawText);
   const number = extractCargoNumber(text);
@@ -320,6 +349,18 @@ function classifyIntent(rawText: string, sessionState: any): AliceIntent {
 
   if (hasAny(text, ["что умеешь", "помощь", "помоги", "команды", "как пользоваться"])) return { name: "help" };
   if ((text.includes("отвяжи") && hasAny(text, ["компани", "заказчик"])) || text === "отвяжи") return { name: "unlink" };
+
+  if (
+    hasAny(text, ["сколько стоит", "стоимость", "рассчитай", "калькулятор", "тариф", "цена перевоз", "оценк"]) &&
+    hasAny(text, ["перевоз", "достав", "груз", "москв", "калининград", "кг", "килограм", "тонн", "паром", "авто", "авиа"])
+  ) {
+    return {
+      name: "shipping_estimate",
+      direction: extractShippingDirection(text),
+      weightKg: extractWeightKg(text),
+      mode: extractShippingMode(text),
+    };
+  }
 
   const companySwitchMatch = text.match(/(?:работай\s+от\s+имени|переключись\s+на|выбери\s+компанию|компания)\s+(.+)/i);
   if (companySwitchMatch && hasAny(text, ["работай", "переключись", "выбери", "компани"])) {
@@ -550,6 +591,47 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       .json(aliceResponse(`Вы авторизованы под компанией ${companyName}. Я Грузик, AI-помощник HAULZ. Чем я могу вам помочь?`));
   }
 
+  // Публичный расчёт и справка — без привязки аккаунта
+  const earlyIntent = classifyIntent(text, sessionState);
+  if (earlyIntent.name === "help" && !bindRaw) {
+    return res.status(200).json(aliceResponse(
+      "Я Грузик, AI-помощник HAULZ. Без входа могу дать ориентир по стоимости Москва — Калининград. Для статуса грузов и документов введите код из мини‑приложения. Пример: сколько стоит 500 килограмм из Москвы в Калининград паромом."
+    ));
+  }
+  if (earlyIntent.name === "shipping_estimate") {
+    if (!earlyIntent.direction) {
+      return res.status(200).json(aliceResponse(
+        "Уточните направление: из Москвы в Калининград или из Калининграда в Москву. Можно добавить вес, например: сколько стоит 500 килограмм из Москвы в Калининград паромом."
+      ));
+    }
+    if (!earlyIntent.weightKg || !Number.isFinite(earlyIntent.weightKg) || earlyIntent.weightKg <= 0) {
+      return res.status(200).json(aliceResponse(
+        "Назовите вес груза в килограммах. Например: 300 килограмм из Москвы в Калининград."
+      ));
+    }
+    try {
+      const { getPool } = await import("./_db.js");
+      const { buildPublicEstimate } = await import("../lib/haulzCalculator/publicEstimate.js");
+      const estimate = await buildPublicEstimate(getPool(), {
+        direction: earlyIntent.direction,
+        weightKg: earlyIntent.weightKg,
+        mode: earlyIntent.mode || "ferry",
+      });
+      const modeLabel = estimate.mode === "air" ? "авиа" : estimate.mode === "auto" ? "авто" : "паром";
+      const routeLabel = `${estimate.from} — ${estimate.to}`;
+      const total = Math.round(estimate.totalRub).toLocaleString("ru-RU");
+      const days = estimate.deliveryDays ? `, ориентир по сроку ${estimate.deliveryDays} дн.` : "";
+      return res.status(200).json(aliceResponse(
+        `Ориентир по маршруту ${routeLabel}, ${modeLabel}, ${Math.round(estimate.weightKg)} кг: около ${total} рублей${days}. Это расчёт склад — склад без забора и последней мили. Точный расчёт — в калькуляторе на haulz.space.`
+      ));
+    } catch (error) {
+      logError(ctx, "alice_shipping_estimate_failed", error);
+      return res.status(200).json(aliceResponse(
+        "Сейчас не удалось посчитать ориентир. Откройте калькулятор на haulz.space или повторите запрос через минуту."
+      ));
+    }
+  }
+
   if (!bindRaw) {
     return res
       .status(200)
@@ -633,8 +715,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (intent.name === "help") {
       return res.status(200).json(aliceResponse(
-        "Я могу сказать, что актуально по перевозкам, где конкретный груз, что надо оплатить, что доставлено сегодня, есть ли задержки, и подготовить ссылку на документ. Например: что требует внимания, где груз 135702, что надо оплатить."
+        "Я могу сказать, что актуально по перевозкам, где конкретный груз, что надо оплатить, что доставлено сегодня, есть ли задержки, подготовить ссылку на документ, и дать ориентир по стоимости Москва — Калининград. Например: что требует внимания, где груз 135702, сколько стоит 500 килограмм из Москвы в Калининград паромом."
       ));
+    }
+
+    if (intent.name === "shipping_estimate") {
+      if (!intent.direction) {
+        return res.status(200).json(aliceResponse(
+          "Уточните направление: из Москвы в Калининград или из Калининграда в Москву. Можно добавить вес, например: сколько стоит 500 килограмм из Москвы в Калининград паромом."
+        ));
+      }
+      if (!intent.weightKg || !Number.isFinite(intent.weightKg) || intent.weightKg <= 0) {
+        return res.status(200).json(aliceResponse(
+          "Назовите вес груза в килограммах. Например: 300 килограмм из Москвы в Калининград."
+        ));
+      }
+      try {
+        const { getPool } = await import("./_db.js");
+        const { buildPublicEstimate } = await import("../lib/haulzCalculator/publicEstimate.js");
+        const estimate = await buildPublicEstimate(getPool(), {
+          direction: intent.direction,
+          weightKg: intent.weightKg,
+          mode: intent.mode || "ferry",
+        });
+        const modeLabel = estimate.mode === "air" ? "авиа" : estimate.mode === "auto" ? "авто" : "паром";
+        const routeLabel = `${estimate.from} — ${estimate.to}`;
+        const total = Math.round(estimate.totalRub).toLocaleString("ru-RU");
+        const days = estimate.deliveryDays ? `, ориентир по сроку ${estimate.deliveryDays} дн.` : "";
+        return res.status(200).json(aliceResponse(
+          `Ориентир по маршруту ${routeLabel}, ${modeLabel}, ${Math.round(estimate.weightKg)} кг: около ${total} рублей${days}. Это расчёт склад — склад без забора и последней мили. Точный расчёт — в калькуляторе на haulz.space.`
+        ));
+      } catch (error) {
+        logError(ctx, "alice_shipping_estimate_failed", error);
+        return res.status(200).json(aliceResponse(
+          "Сейчас не удалось посчитать ориентир. Откройте калькулятор на haulz.space или повторите запрос через минуту."
+        ));
+      }
     }
 
     if (intent.name === "unlink") {

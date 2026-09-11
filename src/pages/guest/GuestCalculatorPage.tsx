@@ -3,9 +3,12 @@ import { AppRuntimeProvider } from "../../contexts/AppRuntimeContext";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { HaulzCalculatorPage } from "../HaulzCalculatorPage";
 
+import type { Direction } from "../../../lib/haulzCalculator/types";
+
 type Props = {
   onBack: () => void;
   onLogin: () => void;
+  initialDirection?: Direction | null;
 };
 
 function GuestCalculatorErrorFallback() {
@@ -26,7 +29,7 @@ function GuestCalculatorErrorFallback() {
   );
 }
 
-export function GuestCalculatorPage({ onBack, onLogin }: Props) {
+export function GuestCalculatorPage({ onBack, onLogin, initialDirection = null }: Props) {
   return (
     <div className="guest-shell guest-shell--calc light-mode min-h-[100dvh]">
       <AppRuntimeProvider
@@ -42,6 +45,7 @@ export function GuestCalculatorPage({ onBack, onLogin }: Props) {
           <HaulzCalculatorPage
             auth={null}
             guestMode
+            initialDirection={initialDirection}
             onBack={onBack}
             onRequireAuth={onLogin}
           />

@@ -21,6 +21,21 @@ function adminRewrite() {
           p.startsWith("/red-returns/")
         ) {
           req.url = "/";
+        } else if (
+          p === "/kalkulyator" ||
+          p === "/faq" ||
+          p === "/sklady" ||
+          p === "/o-kompanii" ||
+          p === "/about" ||
+          p === "/app" ||
+          p === "/login" ||
+          p === "/forgot" ||
+          p === "/blog" ||
+          p.startsWith("/blog/") ||
+          p === "/perevozka-moskva-kaliningrad" ||
+          p === "/perevozka-kaliningrad-moskva"
+        ) {
+          req.url = "/";
         }
         next();
       });
@@ -38,6 +53,15 @@ export default defineConfig(({ command }) => ({
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
   },
   plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
+  server: {
+    // Guest/CMS fetch('/api/...') same-origin → local API (api:dev on :3000)
+    proxy: {
+      "/api": {
+        target: "http://127.0.0.1:3000",
+        changeOrigin: true,
+      },
+    },
+  },
   build: {
     // В Docker/CI gzip-отчёт по каждому чанку заметно замедляет финальный этап сборки.
     reportCompressedSize: !process.env.CI,

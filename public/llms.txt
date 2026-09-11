@@ -1,0 +1,25 @@
+# HAULZ — B2B-логистика Москва ↔ Калининград
+
+> HAULZ перевозит B2B-грузы между Москвой и Калининградом (оба направления): LTL, FTL, паром, авто, авиа. Онлайн-калькулятор, документы, отслеживание.
+
+## Маршруты
+
+- Москва → Калининград: https://haulz.space/perevozka-moskva-kaliningrad
+- Калининград → Москва: https://haulz.space/perevozka-kaliningrad-moskva
+- Калькулятор: https://haulz.space/kalkulyator
+- FAQ: https://haulz.space/faq
+- Склады: https://haulz.space/sklady
+
+## Public API (ориентировочный расчёт)
+
+- OpenAPI: https://haulz.space/openapi/public-quote.yaml
+- Health: https://haulz.space/api/public/v1/health
+- Маршруты: GET https://haulz.space/api/public/v1/routes
+- Расчёт: GET https://haulz.space/api/public/v1/estimate?direction=mow_kgd&weight_kg=500&mode=ferry
+  - direction: mow_kgd (Москва→Калининград) | kgd_mow (Калининград→Москва)
+  - mode: ferry | auto | air
+
+## Контакты
+
+- Email: Info@haulz.pro
+- Сайт: https://haulz.space
