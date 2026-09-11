@@ -8,6 +8,8 @@ import { GuestFaqPage } from "./GuestFaqPage";
 import { GuestHomePage } from "./GuestHomePage";
 import { GuestRouteLandingPage } from "./GuestRouteLandingPage";
 import { GuestWarehousesPage } from "./GuestWarehousesPage";
+import { GuestBlogListPage } from "./GuestBlogListPage";
+import { GuestBlogArticlePage } from "./GuestBlogArticlePage";
 import { GUEST_CONTACT_EMAIL_LABEL } from "./guestContactLabels";
 import {
   guestNavigate,
@@ -104,6 +106,18 @@ export function GuestAuthShell() {
           description: "Ответы о расчёте, отслеживании и документах HAULZ на маршруте Москва — Калининград.",
           path: "/faq",
         };
+      case "blog":
+        return {
+          title: "Блог HAULZ — логистика Москва ↔ Калининград",
+          description: "Статьи о перевозках, тарифах и B2B-логистике между Москвой и Калининградом.",
+          path: "/blog",
+        };
+      case "blog-article":
+        return {
+          title: "Статья HAULZ",
+          description: "Материал блога HAULZ о перевозках Москва — Калининград.",
+          path: routeState.blogSlug ? `/blog/${routeState.blogSlug}` : "/blog",
+        };
       case "warehouses":
         return {
           title: "Склады HAULZ — Москва и Калининград",
@@ -164,6 +178,26 @@ export function GuestAuthShell() {
     return <GuestFaqPage onBack={() => navigateScreen("home")} />;
   }
 
+  if (routeState.screen === "blog") {
+    return (
+      <GuestBlogListPage
+        onBack={() => navigateScreen("home")}
+        onOpenArticle={(slug) => navigatePath(`/blog/${slug}`)}
+        onCalculator={() => navigateScreen("calculator")}
+      />
+    );
+  }
+
+  if (routeState.screen === "blog-article" && routeState.blogSlug) {
+    return (
+      <GuestBlogArticlePage
+        slug={routeState.blogSlug}
+        onBack={() => navigatePath("/blog")}
+        onCalculator={() => navigateScreen("calculator")}
+      />
+    );
+  }
+
   if (routeState.screen === "app") {
     return <GuestAppDownloadPage onBack={() => navigateScreen("home")} />;
   }
@@ -200,6 +234,7 @@ export function GuestAuthShell() {
       onFaq={() => navigateScreen("faq")}
       onApp={() => navigateScreen("app")}
       onCalculator={() => navigateScreen("calculator")}
+      onBlog={() => navigateScreen("blog")}
       onRouteLanding={(path) => navigatePath(path)}
     />
   );

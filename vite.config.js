@@ -30,6 +30,8 @@ function adminRewrite() {
           p === "/app" ||
           p === "/login" ||
           p === "/forgot" ||
+          p === "/blog" ||
+          p.startsWith("/blog/") ||
           p === "/perevozka-moskva-kaliningrad" ||
           p === "/perevozka-kaliningrad-moskva"
         ) {

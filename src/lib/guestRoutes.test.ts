@@ -18,10 +18,20 @@ describe("parseGuestRoute", () => {
     expect(parseGuestRoute("/faq", "").screen).toBe("faq");
     expect(parseGuestRoute("/sklady", "").screen).toBe("warehouses");
   });
+  it("maps blog paths", () => {
+    expect(parseGuestRoute("/blog", "").screen).toBe("blog");
+    expect(parseGuestRoute("/blog/mow-kgd-ferry", "").screen).toBe("blog-article");
+    expect(parseGuestRoute("/blog/mow-kgd-ferry", "").blogSlug).toBe("mow-kgd-ferry");
+  });
 });
 
 describe("guestPathForScreen", () => {
   it("builds calculator path with direction", () => {
     expect(guestPathForScreen("calculator", "mow_kgd")).toBe("/kalkulyator?direction=mow_kgd");
+  });
+
+  it("builds blog paths", () => {
+    expect(guestPathForScreen("blog")).toBe("/blog");
+    expect(guestPathForScreen("blog-article", null, "demo-slug")).toBe("/blog/demo-slug");
   });
 });

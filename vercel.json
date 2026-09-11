@@ -61,6 +61,12 @@
     {"source": "/wildberries/:path*", "destination": "/"},
     {"source": "/red-returns", "destination": "/"},
     {"source": "/red-returns/", "destination": "/"},
-    {"source": "/red-returns/:path*", "destination": "/"}
+    {"source": "/red-returns/:path*", "destination": "/"},
+    {"source": "/blog", "destination": "/"},
+    {"source": "/blog/:path*", "destination": "/"},
+    {"source": "/faq", "destination": "/"},
+    {"source": "/sklady", "destination": "/"},
+    {"source": "/o-kompanii", "destination": "/"},
+    {"source": "/kalkulyator", "destination": "/"}
   ]
 }

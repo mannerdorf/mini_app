@@ -5,9 +5,11 @@ Allow: /perevozka-kaliningrad-moskva
 Allow: /kalkulyator
 Allow: /faq
 Allow: /sklady
+Allow: /blog
 Disallow: /admin
 Disallow: /cms
 Disallow: /wildberries
 Disallow: /red-returns
 
+Sitemap: https://haulz.space/api/sitemap
 Sitemap: https://haulz.space/sitemap.xml

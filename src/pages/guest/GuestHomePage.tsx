@@ -23,6 +23,7 @@ type Props = {
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
+  onBlog?: () => void;
   onRouteLanding?: (path: string) => void;
 };
 
@@ -31,7 +32,7 @@ type QuickAction = {
   label: string;
   hint: string;
   image: string;
-  action: "calculator" | "faq" | "app" | "about" | "warehouses";
+  action: "calculator" | "faq" | "app" | "about" | "warehouses" | "blog";
 };
 
 const QUICK_ACTIONS_BASE: QuickAction[] = [
@@ -41,6 +42,13 @@ const QUICK_ACTIONS_BASE: QuickAction[] = [
     hint: "Предварительный расчёт",
     image: GUEST_ILLUSTRATIONS.iconCalculator,
     action: "calculator",
+  },
+  {
+    id: "blog",
+    label: "Блог",
+    hint: "Статьи о перевозках",
+    image: GUEST_ILLUSTRATIONS.iconAbout,
+    action: "blog",
   },
   {
     id: "faq",
@@ -90,6 +98,7 @@ export function GuestHomePage({
   onFaq,
   onApp,
   onCalculator,
+  onBlog,
   onRouteLanding,
 }: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -112,6 +121,7 @@ export function GuestHomePage({
 
   const runQuickAction = (action: QuickAction["action"]) => {
     if (action === "faq") onFaq();
+    else if (action === "blog") onBlog?.();
     else if (action === "app") onApp();
     else if (action === "about") onAbout();
     else if (action === "warehouses") onWarehouses();

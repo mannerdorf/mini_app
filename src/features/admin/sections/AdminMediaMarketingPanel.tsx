@@ -444,14 +444,29 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
                   <Button
                     className="filter-button"
                     onClick={async () => {
+                      if (!selectedPlan.article_slug || !selectedPlan.body_markdown) {
+                        setError("Сначала сгенерируйте статью (нужны slug и текст)");
+                        return;
+                      }
                       await updateMediaPlan(adminToken, { id: selectedPlan.id, mark_published: true });
                       const { plan } = await fetchMediaPlan(adminToken, selectedPlan.id);
                       setSelectedPlan(plan);
                       loadPlans();
                     }}
                   >
-                    Опубликовано
+                    Опубликовать на сайт
                   </Button>
+                  {selectedPlan.status === "published" && selectedPlan.article_slug && (
+                    <a
+                      href={`/blog/${selectedPlan.article_slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="filter-button"
+                      style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
+                    >
+                      Открыть /blog/{selectedPlan.article_slug}
+                    </a>
+                  )}
                   <Button
                     className="filter-button"
                     onClick={async () => {
