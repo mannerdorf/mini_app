@@ -20,6 +20,7 @@ import {
   FlaskConical,
   Mail,
   Bell,
+  Megaphone,
 } from "lucide-react";
 import type { AdminTab } from "../hooks/useAdminTab";
 import type { AccountingSubsection } from "../types/expenseAccounting";
@@ -44,7 +45,7 @@ export function AdminPageNav({
   accountingSubsection,
   setAccountingSubsection,
 }: AdminPageNavProps) {
-  const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations" || tab === "legal";
+  const isJournalTab = tab === "audit" || tab === "logs" || tab === "integrations" || tab === "legal" || tab === "media";
   const isDirectoryTab =
     tab === "users" ||
     tab === "customers" ||
@@ -281,6 +282,10 @@ export function AdminPageNav({
           <Button className="filter-button" style={tabBtnStyle(tab === "legal")} onClick={() => setTab("legal")}>
             <FileText className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Оферта и согласие
+          </Button>
+          <Button className="filter-button" style={tabBtnStyle(tab === "media")} onClick={() => setTab("media")}>
+            <Megaphone className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Медиа и SEO
           </Button>
         </Flex>
       )}

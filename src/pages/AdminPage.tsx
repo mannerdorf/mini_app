@@ -32,6 +32,7 @@ import { useAdminPermissionPresets } from "../features/admin/hooks/useAdminPermi
 import { useAdminUsers } from "../features/admin/hooks/useAdminUsers";
 import { useAdminEmployeeDirectory } from "../features/admin/hooks/useAdminEmployeeDirectory";
 import { AdminHaulzCalculatorSection } from "../features/admin/sections/AdminHaulzCalculatorSection";
+import { AdminMediaMarketingPanel } from "../features/admin/sections/AdminMediaMarketingPanel";
 import { buildAdminSandboxAccount } from "../features/admin/lib/adminSandboxAccount";
 import { fetchAdminMe } from "../api/client/admin/me";
 import { HaulzApiSandboxPage } from "./HaulzApiSandboxPage";
@@ -217,6 +218,7 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
       {tab === "logs" && <AdminLogsTab adminToken={adminToken} />}
       {tab === "integrations" && <AdminIntegrationsTab adminToken={adminToken} />}
       {tab === "legal" && adminToken && <AdminLegalSection adminToken={adminToken} />}
+      {tab === "media" && adminToken && <AdminMediaMarketingPanel adminToken={adminToken} />}
 
       {tab === "presets" && isSuperAdmin && (
         <AdminPresetsTab

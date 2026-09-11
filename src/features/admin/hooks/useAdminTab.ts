@@ -31,6 +31,7 @@ export const ADMIN_TABS = [
   "haulz_sandbox",
   "haulz_summary",
   "push_notifications",
+  "media",
 ] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number];
