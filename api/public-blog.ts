@@ -14,9 +14,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
+  const slug = typeof req.query.slug === "string" ? req.query.slug : "";
+
   try {
     const pool = getPool();
-    const slug = typeof req.query.slug === "string" ? req.query.slug : "";
     if (slug) {
       const article = await getPublishedBlogArticle(pool, slug);
       if (!article) {
@@ -44,6 +45,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   } catch (e) {
     logError(ctx, "public_blog_failed", e);
-    return res.status(500).json({ error: (e as Error)?.message || "Ошибка", request_id: ctx.requestId });
+    const msg = (e as Error)?.message || "Ошибка";
+    // Без БД / до миграции — пустой список, чтобы гостевой /blog не ломался
+    if (!slug && /DATABASE|media_content_plans|does not exist/i.test(msg)) {
+      return res.status(200).json({ articles: [], request_id: ctx.requestId, degraded: true });
+    }
+    return res.status(500).json({ error: msg, request_id: ctx.requestId });
   }
 }
