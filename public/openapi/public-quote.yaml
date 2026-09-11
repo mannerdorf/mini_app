@@ -1,0 +1,62 @@
+openapi: 3.1.0
+info:
+  title: HAULZ Public Quote API
+  version: "1.0.0"
+  description: |
+    Публичный API ориентировочного расчёта перевозки Москва ↔ Калининград.
+    Расчёт «склад — склад» без забора и последней мили. Точный расчёт — в калькуляторе haulz.space.
+servers:
+  - url: https://haulz.space
+    description: Production
+paths:
+  /api/public/v1/health:
+    get:
+      operationId: health
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+  /api/public/v1/routes:
+    get:
+      operationId: listRoutes
+      summary: Список маршрутов MOW↔KGD, складов и режимов
+      responses:
+        "200":
+          description: Маршруты и метаданные
+  /api/public/v1/estimate:
+    get:
+      operationId: estimateShipping
+      summary: Ориентировочный расчёт перевозки
+      parameters:
+        - name: direction
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [mow_kgd, kgd_mow]
+          description: mow_kgd = Москва→Калининград, kgd_mow = Калининград→Москва
+        - name: weight_kg
+          in: query
+          required: true
+          schema:
+            type: number
+            minimum: 0.1
+        - name: volume_m3
+          in: query
+          required: false
+          schema:
+            type: number
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [ferry, auto, air]
+            default: ferry
+      responses:
+        "200":
+          description: Оценка стоимости
+        "400":
+          description: Неверные параметры
+        "429":
+          description: Rate limit

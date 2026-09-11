@@ -23,6 +23,7 @@ type Props = {
   onFaq: () => void;
   onApp: () => void;
   onCalculator: () => void;
+  onRouteLanding?: (path: string) => void;
 };
 
 type QuickAction = {
@@ -82,7 +83,15 @@ const BENEFITS = [
   },
 ] as const;
 
-export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, onCalculator }: Props) {
+export function GuestHomePage({
+  onLogin,
+  onAbout,
+  onWarehouses,
+  onFaq,
+  onApp,
+  onCalculator,
+  onRouteLanding,
+}: Props) {
   const [menuOpen, setMenuOpen] = React.useState(false);
   const isNativeAndroid = isCapacitorAndroidApp();
 
@@ -239,7 +248,7 @@ export function GuestHomePage({ onLogin, onAbout, onWarehouses, onFaq, onApp, on
           </div>
         </section>
 
-        <GuestRoutesSection onCalculator={onCalculator} />
+        <GuestRoutesSection onCalculator={onCalculator} onRouteLanding={onRouteLanding} />
       </main>
 
       <GuestFooter

@@ -1,7 +1,11 @@
+import { isGuestPublicPath } from "./guestRoutes";
+
 /** Допустимые пути SPA без 404 */
 export function isAppPathKnown(path: string): boolean {
   const p = (path || "/").replace(/\/$/, "") || "/";
-  return p === "/" || p === "" || p === "/index.html" || /^\/(admin|cms|wildberries|red-returns)$/i.test(p);
+  if (p === "/" || p === "" || p === "/index.html") return true;
+  if (/^\/(admin|cms|wildberries|red-returns)$/i.test(p)) return true;
+  return isGuestPublicPath(p);
 }
 
 /** Показывать ли 404 по текущему pathname */

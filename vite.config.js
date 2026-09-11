@@ -21,6 +21,19 @@ function adminRewrite() {
           p.startsWith("/red-returns/")
         ) {
           req.url = "/";
+        } else if (
+          p === "/kalkulyator" ||
+          p === "/faq" ||
+          p === "/sklady" ||
+          p === "/o-kompanii" ||
+          p === "/about" ||
+          p === "/app" ||
+          p === "/login" ||
+          p === "/forgot" ||
+          p === "/perevozka-moskva-kaliningrad" ||
+          p === "/perevozka-kaliningrad-moskva"
+        ) {
+          req.url = "/";
         }
         next();
       });

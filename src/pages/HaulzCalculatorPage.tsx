@@ -50,6 +50,8 @@ type Props = {
   /** Гостевой режим: расчёт без входа, оформление — после авторизации. */
   guestMode?: boolean;
   onRequireAuth?: () => void;
+  /** Начальное направление (из URL / SEO landing). */
+  initialDirection?: Direction | null;
 };
 
 const DEFAULT_PLACE = boxPresetToPlace(HAULZ_BOX_PRESETS[4]);
@@ -93,6 +95,7 @@ export function HaulzCalculatorPage({
   onDraftConsumed,
   guestMode = false,
   onRequireAuth,
+  initialDirection = null,
 }: Props) {
   const { useServiceRequest, activeInn, activeCustomerName } = useAppRuntime();
   const calcAuth = auth ?? GUEST_CALCULATOR_AUTH;
@@ -398,6 +401,11 @@ export function HaulzCalculatorPage({
     },
     [fromMode, toMode],
   );
+
+  useEffect(() => {
+    if (!initialDirection) return;
+    handleDirectionChange(initialDirection);
+  }, [initialDirection, handleDirectionChange]);
 
   const canQuote = Boolean(calcAuth && fromAddr?.point && toAddr?.point && chargeableHint.ch > 0);
 

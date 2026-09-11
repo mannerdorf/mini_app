@@ -1,8 +1,13 @@
 User-agent: *
-Disallow: /
+Allow: /
+Allow: /perevozka-moskva-kaliningrad
+Allow: /perevozka-kaliningrad-moskva
+Allow: /kalkulyator
+Allow: /faq
+Allow: /sklady
+Disallow: /admin
+Disallow: /cms
+Disallow: /wildberries
+Disallow: /red-returns
 
-User-agent: Googlebot
-Disallow: /
-
-User-agent: Yandex
-Disallow: /
+Sitemap: https://haulz.space/sitemap.xml

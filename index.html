@@ -3,9 +3,39 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="robots" content="noindex, nofollow" />
-    <meta name="googlebot" content="noindex, nofollow" />
-    <meta name="yandex" content="noindex, nofollow" />
+    <meta name="description" content="HAULZ — B2B-перевозка грузов между Москвой и Калининградом. Калькулятор, документы, отслеживание." />
+    <meta id="haulz-robots" name="robots" content="index, follow" />
+    <meta id="haulz-googlebot" name="googlebot" content="index, follow" />
+    <meta id="haulz-yandex" name="yandex" content="index, follow" />
+    <script>
+      (function () {
+        var host = (location.hostname || "").toLowerCase();
+        var path = (location.pathname || "/").replace(/\/+$/, "") || "/";
+        var ua = navigator.userAgent || "";
+        var search = location.search || "";
+        var hash = location.hash || "";
+        var isMiniApp =
+          /Telegram/i.test(ua) ||
+          /tgWebAppData=/i.test(search) ||
+          /tgWebAppData=/i.test(hash) ||
+          /max[^a-z0-9]?app/i.test(ua) ||
+          /WebAppData=/i.test(hash);
+        var isEmbedded =
+          isMiniApp ||
+          location.protocol === "capacitor:" ||
+          location.protocol === "ionic:";
+        var isPrivatePath =
+          /^\/(admin|cms|wildberries|red-returns)(\/|$)/.test(path) ||
+          /(?:^|[?&])tab=cms(?:&|$)/.test(search);
+        var isLocalDev = host === "localhost" || host === "127.0.0.1";
+        var allowIndex = !isEmbedded && !isPrivatePath && (isLocalDev || /haulz\.(space|pro|ru)$/i.test(host));
+        var robots = allowIndex ? "index, follow" : "noindex, nofollow";
+        ["haulz-robots", "haulz-googlebot", "haulz-yandex"].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.setAttribute("content", robots);
+        });
+      })();
+    </script>
     <!-- Telegram / MAX SDK подключаются только в контексте мини-приложения (см. __haulzWebAppSdkReady) — в обычном браузере нет запросов к telegram.org / st.max.ru -->
     <script>
       (function () {
@@ -69,7 +99,7 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#3655ff" />
-    <title>HAULZ</title>
+    <title>HAULZ — перевозка грузов Москва ↔ Калининград</title>
   </head>
   <body>
     <div id="root"></div>

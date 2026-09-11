@@ -36,4 +36,16 @@ test.describe("guest smoke", () => {
       timeout: 15_000,
     });
   });
+
+  test("calculator opens from /kalkulyator URL", async ({ page }) => {
+    await page.goto("/kalkulyator?direction=mow_kgd");
+    await expect(page.locator(".guest-shell--calc, .haulz-calc-page--cdek").first()).toBeVisible({
+      timeout: 15_000,
+    });
+  });
+
+  test("route landing renders Moscow to Kaliningrad", async ({ page }) => {
+    await page.goto("/perevozka-moskva-kaliningrad");
+    await expect(page.getByRole("heading", { level: 1, name: /Перевозка грузов Москва/i })).toBeVisible();
+  });
 });
