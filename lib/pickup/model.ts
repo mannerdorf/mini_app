@@ -104,6 +104,11 @@ export function pickupJobCanCancel(status: JobStatus): boolean {
 export function pickupJobCanEdit(status: JobStatus): boolean {
   return status === "pending";
 }
+
+/** Полное удаление из плана (не начатые или отменённые). */
+export function pickupJobCanDelete(status: JobStatus): boolean {
+  return status === "pending" || status === "cancelled";
+}
 export type Job = {
   id: string;
   city: City;

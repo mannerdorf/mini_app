@@ -22,6 +22,7 @@ import {
   routeWarnings,
   pickupJobCanCancel,
   pickupJobCanEdit,
+  pickupJobCanDelete,
   type City,
   type Snapshot,
   type Job,
@@ -549,6 +550,9 @@ export function PickupPage({
                     Изменить
                   </button>
                 )}
+                {pickupJobCanDelete(j.status) && (
+                  <DeleteJobButton job={j} busy={busy} act={act} compact />
+                )}
                 <span>
                   {snapshot.routes.find((r) => r.id === j.route_id)?.name ??
                     "Не распределён"}
@@ -653,6 +657,9 @@ export function PickupPage({
                         >
                           Изменить
                         </button>
+                      )}
+                      {pickupJobCanDelete(j.status) && (
+                        <DeleteJobButton job={j} busy={busy} act={act} compact />
                       )}
                       {route && route.status !== "completed" && (
                         <button
@@ -876,6 +883,14 @@ export function PickupPage({
                               >
                                 Изменить
                               </button>
+                            )}
+                            {pickupJobCanDelete(j.status) && (
+                              <DeleteJobButton
+                                job={j}
+                                busy={busy}
+                                act={act}
+                                compact
+                              />
                             )}
                             {j.status === "pending" && (
                               <>
@@ -1405,6 +1420,44 @@ function RouteMap({ jobs }: { jobs: Job[] }) {
         />
       )}
     </details>
+  );
+}
+
+function DeleteJobButton({
+  job,
+  busy,
+  act,
+  compact = false,
+}: {
+  job: Job;
+  busy: boolean;
+  act: Action;
+  compact?: boolean;
+}) {
+  return (
+    <ConfirmButton
+      variant="danger"
+      disabled={busy}
+      prompt={
+        job.route_id
+          ? "Забор исчезнет из плана и списков. Удалить?"
+          : "Забор будет удалён без возможности восстановления. Удалить?"
+      }
+      confirmLabel="Да, удалить"
+      onConfirm={async () => {
+        await act(
+          {
+            action: "delete_job",
+            id: job.id,
+            version: job.version,
+          },
+          "Забор удалён",
+        );
+      }}
+    >
+      <Trash2 size={compact ? 14 : 16} aria-hidden />
+      {compact ? "Удалить" : "Удалить забор"}
+    </ConfirmButton>
   );
 }
 

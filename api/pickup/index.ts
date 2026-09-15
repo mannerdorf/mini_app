@@ -20,6 +20,7 @@ import { pgTableExists } from "../_haulzReturns.js";
 import {
   PickupError,
   pickupJobCanCancel,
+  pickupJobCanDelete,
   requireValue,
   validCity,
   validDate,
@@ -802,6 +803,44 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       await event(db, actor, "Забор отменён", null, job.id, {
         note: textValue(body.note, 3000),
       });
+    }
+    return { ok: true };
+  }
+  if (action === "delete_job") {
+    dispatcherOnly(actor);
+    const { rows } = await db.query(
+      "SELECT *, to_char(date,'YYYY-MM-DD') AS date FROM pickup_jobs WHERE id=$1 FOR UPDATE",
+      [uuid(body.id)],
+    );
+    const job: Job = rows[0];
+    requireValue(job, "Забор не найден");
+    checkVersion(job, body.version);
+    requireValue(
+      pickupJobCanDelete(job.status),
+      "Удалить можно только ожидающий или отменённый забор",
+    );
+    const routeId = job.route_id;
+    if (routeId) {
+      const route = await routeById(db, routeId);
+      requireValue(route.status !== "completed", "Маршрут завершён");
+      requireValue(
+        job.status === "pending",
+        "Снимите начатый забор с маршрута или отмените его",
+      );
+    }
+    await db.query("DELETE FROM pickup_photos WHERE job_id=$1", [job.id]);
+    await db.query("UPDATE pickup_events SET job_id=NULL WHERE job_id=$1", [
+      job.id,
+    ]);
+    await db.query("DELETE FROM pickup_jobs WHERE id=$1", [job.id]);
+    if (routeId) {
+      await db.query(
+        "UPDATE pickup_routes SET version=version+1,updated_at=now() WHERE id=$1",
+        [routeId],
+      );
+      await event(db, actor, "Забор удалён", routeId, null, { jobId: job.id });
+    } else {
+      await event(db, actor, "Забор удалён", null, null, { jobId: job.id });
     }
     return { ok: true };
   }
