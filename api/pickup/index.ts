@@ -10,6 +10,7 @@ import {
   ADMIN_API_LIMIT,
 } from "../../lib/rateLimit.js";
 import { buildPickupCustomerQuote } from "../../lib/pickup/customerQuote.js";
+import { ensureHaulzDepot } from "../../lib/pickup/haulzDepot.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import {
   PickupError,
@@ -115,6 +116,9 @@ async function routeResources(db: PoolClient, body: any) {
 async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
   validCity(body.city);
   validDate(body.date);
+  if (actor.dispatcher) {
+    await ensureHaulzDepot(db, body.city);
+  }
   const resources = actor.dispatcher
     ? (
         await db.query(
@@ -282,11 +286,16 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     }
     if (body.kind === "vehicle") {
       requireValue(data.plate, "Укажите госномер");
-      for (const key of ["capacityKg", "capacityM3", "pallets"])
-        numberValue(data[key], key);
+      for (const key of ["capacityKg", "capacityM3", "pallets"]) {
+        if (textValue(body.data?.[key], 200)) numberValue(data[key], key);
+      }
     }
-    if (body.kind === "depot")
-      requireValue(data.address, "Укажите адрес склада");
+    if (body.kind === "depot") {
+      requireValue(
+        data.address || data.code?.startsWith("WH_"),
+        "Укажите адрес склада",
+      );
+    }
     requireValue(
       validTime(data.from) && validTime(data.to) && data.from < data.to,
       "Укажите рабочее время в пределах дня",

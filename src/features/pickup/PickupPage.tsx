@@ -385,35 +385,37 @@ export function PickupPage({
         </section>
       )}
       {loading && <p role="status">Загрузка маршрутов…</p>}
-      {editor &&
-        dispatch &&
-        (editor.type === "job" ? (
-          <JobForm
-            job={editor.job}
-            city={city}
-            date={date}
-            call={call}
-            account={account}
-            done={finishEditor}
-          />
-        ) : editor.type === "route" ? (
-          <RouteForm
-            route={editor.route}
-            city={city}
-            date={date}
-            resources={snapshot.resources}
-            call={call}
-            done={finishEditor}
-          />
-        ) : (
-          <ResourceForm
-            kind={editor.type}
-            resource={editor.resource}
-            city={city}
-            call={call}
-            done={finishEditor}
-          />
-        ))}
+      {editor && dispatch && (
+        <div className="pk-editor-overlay" role="dialog" aria-modal="true">
+          {editor.type === "job" ? (
+            <JobForm
+              job={editor.job}
+              city={city}
+              date={date}
+              call={call}
+              account={account}
+              done={finishEditor}
+            />
+          ) : editor.type === "route" ? (
+            <RouteForm
+              route={editor.route}
+              city={city}
+              date={date}
+              resources={snapshot.resources}
+              call={call}
+              done={finishEditor}
+            />
+          ) : (
+            <ResourceForm
+              kind={editor.type}
+              resource={editor.resource}
+              city={city}
+              call={call}
+              done={finishEditor}
+            />
+          )}
+        </div>
+      )}
       {dispatch && (
         <>
           <div className="pk-stats">
@@ -454,7 +456,6 @@ export function PickupPage({
               ["jobs", "Все заборы"],
               ["driver", "Водители"],
               ["vehicle", "Автомобили"],
-              ["depot", "Склады Холз"],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -467,18 +468,11 @@ export function PickupPage({
           </nav>
         </>
       )}
-      {dispatch && ["driver", "vehicle", "depot"].includes(tab) ? (
+      {dispatch && (tab === "driver" || tab === "vehicle") ? (
         <section className="pk-panel">
           <div className="pk-actions">
             <h2>
-              Справочник:{" "}
-              {
-                {
-                  driver: "водители",
-                  vehicle: "автомобили",
-                  depot: "склады Холз",
-                }[tab]
-              }
+              Справочник: {tab === "driver" ? "водители" : "автомобили"}
             </h2>
             <button onClick={() => setEditor({ type: tab as ResourceKind })}>
               + Добавить
