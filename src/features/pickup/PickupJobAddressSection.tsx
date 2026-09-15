@@ -45,7 +45,7 @@ export function PickupJobAddressSection({
     () => ({
       login: account.login,
       password: account.password,
-      inn: ownerInn || undefined,
+      inn: ownerInn,
       customerName: customerName.trim() || account.customer,
     }),
     [account.login, account.password, account.customer, ownerInn, customerName],
