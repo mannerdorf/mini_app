@@ -80,6 +80,7 @@ export function PickupInstructionChecklistField({ state, onChange }: Props) {
               <span className="pk-instruction-checklist__drag" aria-hidden>
                 <GripVertical className="w-4 h-4" />
               </span>
+              <span className="pk-instruction-checklist__label">{item.label}</span>
               <span className="pk-instruction-checklist__switch">
                 <TapSwitch
                   checked={item.enabled}
@@ -87,7 +88,6 @@ export function PickupInstructionChecklistField({ state, onChange }: Props) {
                   aria-label={`${item.enabled ? "Выключить" : "Включить"}: ${item.label}`}
                 />
               </span>
-              <span className="pk-instruction-checklist__label">{item.label}</span>
             </li>
           );
         })}

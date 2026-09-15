@@ -62,48 +62,58 @@
   list-style: none;
   margin: 0 0 12px;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  border: 1px solid var(--pk-border);
+  border-radius: 10px;
+  background: var(--pk-panel);
+  overflow: hidden;
 }
 .pk-root .pk-instruction-checklist__row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--pk-border);
-  border-radius: 10px;
+  border-bottom: 1px solid var(--pk-border);
   background: var(--pk-panel);
   cursor: grab;
 }
+.pk-root .pk-instruction-checklist__row:last-child {
+  border-bottom: none;
+}
 .pk-root .pk-instruction-checklist__row--over {
-  border-color: #4478e0;
-  box-shadow: 0 0 0 2px rgba(68, 120, 224, 0.15);
+  background: #f4f8ff;
+  box-shadow: inset 0 0 0 2px #4478e0;
 }
 .pk-root .pk-instruction-checklist__row--on {
-  border-color: #9ec0ff;
-  background: #f4f8ff;
+  background: #fafcff;
 }
 .pk-root .pk-instruction-checklist__drag {
   color: var(--pk-muted);
   display: inline-flex;
   flex-shrink: 0;
 }
-.pk-root .pk-instruction-checklist__row > button[aria-pressed] {
-  min-height: 24px;
-  height: 24px;
-  width: 44px;
-  padding: 0;
-  border: none;
-  align-self: center;
-  flex-shrink: 0;
-}
-.pk-root .pk-instruction-checklist__row > button[aria-pressed]:hover:not(:disabled) {
-  border: none;
-}
 .pk-root .pk-instruction-checklist__label {
   flex: 1;
+  min-width: 0;
   font-weight: 600;
+  line-height: 1.3;
+}
+.pk-root .pk-instruction-checklist__switch {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+}
+.pk-root .pk-instruction-checklist__switch button {
+  min-height: 24px !important;
+  height: 24px;
+  width: 44px;
+  padding: 0 !important;
+  border: none !important;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.pk-root .pk-instruction-checklist__switch button:hover:not(:disabled) {
+  border: none !important;
 }
 .pk-root .pk-customer-quote {
   margin: 16px 0;
@@ -158,7 +168,7 @@
 .pk-root textarea {
   font: inherit;
 }
-.pk-root button:not(.haulz-calc-segment__btn) {
+.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable) {
   border: 1px solid var(--pk-border);
   background: var(--pk-panel);
   color: var(--pk-ink);
@@ -168,11 +178,11 @@
   cursor: pointer;
   line-height: 1.3;
 }
-.pk-root button:not(.haulz-calc-segment__btn):disabled {
+.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.pk-root button:not(.haulz-calc-segment__btn):hover:not(:disabled) {
+.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):hover:not(:disabled) {
   border-color: #4478e0;
 }
 .pk-root :focus-visible {

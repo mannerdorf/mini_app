@@ -43,6 +43,7 @@ export function TapSwitch({ checked, onToggle, variant = "default", "aria-label"
     return (
         <button
             type="button"
+            className="tap-switch"
             aria-pressed={checked}
             aria-label={ariaLabel}
             onClick={toggle}
