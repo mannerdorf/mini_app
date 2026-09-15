@@ -1,4 +1,5 @@
 # Закрытый командный сервер: без открытой федерации и без публичной регистрации.
+# 1:1 звонки Element: coturn на хосте, turn.yaml пишет install-coturn.sh (секрет не в git).
 # well-known отдаёт Element Web (см. well-known-configmap.yaml) — отдельный
 # well-known Ingress на том же host конфликтует с чатом.
 # Учётки: kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user

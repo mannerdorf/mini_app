@@ -94,6 +94,9 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw allow 30001/tcp comment 'Matrix RTC TCP'
 ufw allow 30002/udp comment 'Matrix RTC UDP'
+ufw allow 3478/tcp comment 'coturn TURN TCP'
+ufw allow 3478/udp comment 'coturn TURN UDP'
+ufw allow 49152:49300/udp comment 'coturn UDP relay'
 ufw --force enable
 
 echo "==> DNS check"
@@ -183,13 +186,21 @@ fi
 
 k3s kubectl apply -f "$ESS_VALUES_DIR/cluster-issuer.yaml"
 
+echo "==> coturn (1:1 звонки Element)"
+bash "$ESS_SRC/install-coturn.sh"
+
 echo "==> ESS Community (helm, 15–20 мин на первый pull образов)"
+TURN_VALUES=()
+if [[ -f "$ESS_VALUES_DIR/turn.yaml" ]]; then
+  TURN_VALUES=(-f "$ESS_VALUES_DIR/turn.yaml")
+fi
 helm upgrade --install --namespace ess ess \
   oci://ghcr.io/element-hq/ess-helm/matrix-stack \
   --version "$ESS_CHART_VERSION" \
   -f "$ESS_VALUES_DIR/hostnames.yaml" \
   -f "$ESS_VALUES_DIR/tls.yaml" \
   -f "$ESS_VALUES_DIR/extra.yaml" \
+  "${TURN_VALUES[@]}" \
   --timeout 25m \
   --wait
 
