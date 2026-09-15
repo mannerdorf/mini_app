@@ -15,6 +15,13 @@ import {
   pickupAddressStateToJobPatch,
 } from "./pickupJobAddressState";
 import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
+import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
+import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
+import {
+  createDefaultPickupSiteInstructions,
+  formatPickupSiteInstructions,
+  parsePickupSiteInstructions,
+} from "../../../lib/pickup/jobSiteInstructions";
 
 export function Field({
   label,
@@ -467,6 +474,11 @@ export function JobForm({
       ? jobDataToPickupAddressState(job.data, cityCode)
       : defaultPickupAddressState(cityCode),
   );
+  const [siteInstructions, setSiteInstructions] = useState(() =>
+    job?.data?.instructions
+      ? parsePickupSiteInstructions(job.data.instructions)
+      : createDefaultPickupSiteInstructions(),
+  );
   const update = (key: keyof JobData, v: any) =>
     setData((prev) => ({ ...prev, [key]: v }));
   const patchJob = (patch: Partial<JobData>) =>
@@ -507,6 +519,14 @@ export function JobForm({
       };
     });
   }, [addressState]);
+
+  useEffect(() => {
+    const instructions = formatPickupSiteInstructions(siteInstructions);
+    setData((prev) =>
+      prev.instructions === instructions ? prev : { ...prev, instructions },
+    );
+  }, [siteInstructions]);
+
   const num = (v: string) => (v === "" ? null : Number(v));
   const totalVolume = data.places.every(
     (p) => p.lengthCm && p.widthCm && p.heightCm,
@@ -580,15 +600,13 @@ export function JobForm({
         onJobPatch={patchJob}
         num={num}
       />
-      <Field
-        label="График склада отправителя: дни, часы, перерывы"
+      <PickupWarehouseHoursField
         value={data.warehouseHours}
         onChange={(v) => update("warehouseHours", v)}
       />
-      <Textarea
-        label="Въезд, ориентир, пропуск, доверенность, предварительный звонок"
-        value={data.instructions}
-        onChange={(v) => update("instructions", v)}
+      <PickupInstructionChecklistField
+        state={siteInstructions}
+        onChange={setSiteInstructions}
       />
       <Field
         label="Ссылка на схему проезда"

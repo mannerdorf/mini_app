@@ -26,6 +26,7 @@ import {
   type Resource,
   type ResourceKind,
 } from "../../../lib/pickup/model";
+import { pickupSiteInstructionsDisplay } from "../../../lib/pickup/jobSiteInstructions";
 import {
   pickupClient,
   ApiError,
@@ -1004,8 +1005,10 @@ function JobDetails({
           </a>
         )}
       </div>
-      {job.data.instructions && (
-        <p className="pk-instructions">{job.data.instructions}</p>
+      {pickupSiteInstructionsDisplay(job.data.instructions) && (
+        <p className="pk-instructions">
+          {pickupSiteInstructionsDisplay(job.data.instructions)}
+        </p>
       )}
       <p>
         Склад отправителя: {job.data.warehouseHours || "График не указан"} ·

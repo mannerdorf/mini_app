@@ -41,6 +41,57 @@
 .pk-root .pk-editor .haulz-calc-card {
   margin-bottom: 12px;
 }
+.pk-root .pk-warehouse-hours__select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--pk-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--pk-panel);
+}
+.pk-root .pk-instruction-checklist {
+  margin: 12px 0;
+}
+.pk-root .pk-instruction-checklist__title {
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.pk-root .pk-instruction-checklist__list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pk-root .pk-instruction-checklist__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--pk-border);
+  border-radius: 10px;
+  background: var(--pk-panel);
+  cursor: grab;
+}
+.pk-root .pk-instruction-checklist__row--over {
+  border-color: #4478e0;
+  box-shadow: 0 0 0 2px rgba(68, 120, 224, 0.15);
+}
+.pk-root .pk-instruction-checklist__row--on {
+  border-color: #9ec0ff;
+  background: #f4f8ff;
+}
+.pk-root .pk-instruction-checklist__drag {
+  color: var(--pk-muted);
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.pk-root .pk-instruction-checklist__label {
+  flex: 1;
+  font-weight: 600;
+}
 .pk-root p {
   margin: 8px 0;
   overflow-wrap: anywhere;
