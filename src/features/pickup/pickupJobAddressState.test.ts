@@ -25,6 +25,7 @@ describe("pickupJobAddressState", () => {
         windowTo: "18:00",
         warehouseHours: "",
         serviceMinutes: 20,
+        zayavkaNumber: "",
         cargoNumber: "",
         priceRub: null,
         payment: "",

@@ -913,8 +913,9 @@ function JobSummary({ job }: { job: Job }) {
       <h3>{job.data.senderName}</h3>
       <p>{job.data.address}</p>
       <p className="pk-muted">
-        Заказчик: {job.data.customerName} · №{" "}
-        {job.data.cargoNumber || job.id.slice(0, 8)}
+        Заказчик: {job.data.customerName}
+        {job.data.zayavkaNumber ? ` · Заявка ${job.data.zayavkaNumber}` : ""}
+        {job.data.cargoNumber ? ` · Перевозка ${job.data.cargoNumber}` : ""}
       </p>
     </>
   );

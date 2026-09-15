@@ -45,6 +45,8 @@ export type JobData = {
   windowTo: string;
   warehouseHours: string;
   serviceMinutes: number;
+  /** Номер заявки в 1С / документы (не путать с номером перевозки). */
+  zayavkaNumber: string;
   cargoNumber: string;
   priceRub: number | null;
   payment: string;
@@ -253,6 +255,7 @@ export function normalizeJob(raw: any): JobData {
     warehouseHours: textValue(raw.warehouseHours),
     serviceMinutes:
       numberValue(raw.serviceMinutes, "время погрузки", 600) ?? 20,
+    zayavkaNumber: textValue(raw.zayavkaNumber, 100),
     cargoNumber: textValue(raw.cargoNumber, 100),
     priceRub: numberValue(raw.priceRub, "стоимость", 100000000),
     payment: textValue(raw.payment, 100),

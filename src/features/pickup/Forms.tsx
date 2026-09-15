@@ -443,6 +443,7 @@ const emptyData: JobData = {
   windowTo: "17:00",
   warehouseHours: "",
   serviceMinutes: 20,
+  zayavkaNumber: "",
   cargoNumber: "",
   priceRub: null,
   payment: "Не указано",
@@ -561,6 +562,12 @@ export function JobForm({
           value={day}
           onChange={setDay}
           required
+        />
+        <Field
+          label="Номер заявки"
+          value={data.zayavkaNumber}
+          onChange={(v) => update("zayavkaNumber", v)}
+          placeholder="Как в 1С / документах"
         />
         <Field
           label="№ перевозки (если известен)"
