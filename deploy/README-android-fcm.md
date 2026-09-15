@@ -71,6 +71,10 @@ Gradle автоматически подключит `com.google.gms.google-serv
   - На `main` до мержа PR push-сводка не отправлялась (только Telegram) — на cron-VPS нужен код с FCM daily summary.
   - Лог вызовов cron: `/var/log/haulz-cron-call.log`.
 
+Иконка в шторке Android: белый силуэт `ic_stat_haulz` + цвет `#3655FF` через
+`com.google.firebase.messaging.default_notification_icon` / `default_notification_color`
+в `AndroidManifest.xml`. Без этого Android показывает системную заглушку.
+
 ## 6. Тестовая отправка
 
 После подписки можно проверить доставку, вызвав cron poll или дождаться изменения статуса перевозки.
