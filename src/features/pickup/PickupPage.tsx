@@ -752,6 +752,24 @@ export function PickupPage({
                       >
                         Параметры
                       </button>
+                      <ConfirmButton
+                        disabled={busy}
+                        prompt="Заборы вернутся в «Не распределено». Удалить черновик маршрута?"
+                        confirmLabel="Удалить маршрут"
+                        onConfirm={async () => {
+                          const ok = await act(
+                            {
+                              action: "delete_route",
+                              id: route.id,
+                              version: route.version,
+                            },
+                            "Маршрут удалён",
+                          );
+                          if (ok) setSelected("");
+                        }}
+                      >
+                        Удалить маршрут
+                      </ConfirmButton>
                       <button
                         className="pk-primary"
                         disabled={busy || !routeJobs.length}

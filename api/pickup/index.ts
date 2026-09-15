@@ -488,6 +488,37 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     await event(db, actor, "Маршрут сохранён", id);
     return { id };
   }
+  if (action === "delete_route") {
+    dispatcherOnly(actor);
+    const route = await routeById(db, uuid(body.id));
+    checkVersion(route, body.version);
+    requireValue(route.status === "draft", "Удалить можно только черновик маршрута");
+    const { rows: jobs } = await db.query<Job>(
+      "SELECT * FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
+      [route.id],
+    );
+    requireValue(
+      jobs.every((j) => j.status === "pending"),
+      "На маршруте есть начатые заборы — удаление недоступно",
+    );
+    if (jobs.length) {
+      await db.query(
+        "UPDATE pickup_jobs SET route_id=NULL, position=0, version=version+1, updated_at=now() WHERE route_id=$1",
+        [route.id],
+      );
+    }
+    await db.query(
+      "UPDATE pickup_events SET route_id=NULL WHERE route_id=$1",
+      [route.id],
+    );
+    await db.query("DELETE FROM pickup_routes WHERE id=$1", [route.id]);
+    await event(db, actor, "Маршрут удалён", null, null, {
+      routeId: route.id,
+      name: route.name,
+      jobsUnassigned: jobs.length,
+    });
+    return { ok: true };
+  }
   if (action === "assign") {
     dispatcherOnly(actor);
     const { rows } = await db.query(
