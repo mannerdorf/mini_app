@@ -51,12 +51,6 @@ import { PickupCancelJobSection } from "./PickupCancelJobSection";
 import "./pickup.css";
 import "../../styles/haulz-calculator.css";
 
-const routeLabels = {
-  draft: "Черновик",
-  published: "Опубликован",
-  started: "Выполняется",
-  completed: "Завершён",
-};
 const empty: Snapshot = {
   resources: [],
   jobs: [],
