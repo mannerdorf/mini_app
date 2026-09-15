@@ -1,0 +1,32 @@
+# Закрытый командный сервер: без открытой федерации и без публичной регистрации.
+# well-known отдаёт Element Web (см. well-known-configmap.yaml) — отдельный
+# well-known Ingress на том же host конфликтует с чатом.
+# Учётки: kubectl exec -n ess -it deploy/ess-matrix-authentication-service -- mas-cli manage register-user
+
+wellKnownDelegation:
+  enabled: false
+
+synapse:
+  additional:
+    1-private-server:
+      config: |
+        federation_domain_whitelist: []
+        allow_public_rooms_over_federation: false
+        allow_profile_lookup_over_federation: false
+
+elementWeb:
+  additional:
+    extra-config.json: |
+      {
+        "brand": "HAULZ Chat",
+        "disable_custom_urls": true,
+        "disable_guests": true
+      }
+  extraVolumes:
+    - name: matrix-well-known
+      configMap:
+        name: ess-chat-well-known
+  extraVolumeMounts:
+    - name: matrix-well-known
+      mountPath: /usr/share/nginx/html/.well-known/matrix
+      readOnly: true
