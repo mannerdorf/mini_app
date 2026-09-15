@@ -55,6 +55,11 @@ export type JobData = {
   note: string;
   latitude: number | null;
   longitude: number | null;
+  /** Как в заявках: курьером / со склада HAULZ. */
+  deliveryMode: "courier" | "point";
+  addressKind: "pvz" | "custom";
+  /** Ссылка ПВЗ из cache_pvz (если addressKind=pvz). */
+  pvzRef: string;
 };
 export type JobStatus =
   | "pending"
@@ -237,11 +242,16 @@ export function normalizeJob(raw: any): JobData {
     (latitude === null) === (longitude === null),
     "Укажите обе координаты",
   );
+  const deliveryMode =
+    raw.deliveryMode === "point" ? "point" : "courier";
+  const addressKind =
+    raw.addressKind === "custom" ? "custom" : "pvz";
+
   return {
     customerInn: textValue(raw.customerInn, 20),
-    customerName: "",
+    customerName: textValue(raw.customerName, 300),
     senderInn: textValue(raw.senderInn, 20),
-    senderName: "",
+    senderName: textValue(raw.senderName, 300),
     address: textValue(raw.address),
     instructions: textValue(raw.instructions, 3000),
     directionsUrl: safeUrl(raw.directionsUrl),
@@ -264,6 +274,28 @@ export function normalizeJob(raw: any): JobData {
     note: textValue(raw.note, 3000),
     latitude,
     longitude,
+    deliveryMode,
+    addressKind,
+    pvzRef: textValue(raw.pvzRef, 80),
+  };
+}
+
+/** Колонки pickup_jobs, дублирующие ключевые поля из data для поиска. */
+export function pickupJobSearchColumns(data: JobData): {
+  zayavka_number: string | null;
+  cargo_number: string | null;
+  customer_inn: string | null;
+  sender_inn: string | null;
+} {
+  const trim = (v: string) => {
+    const t = v.trim();
+    return t || null;
+  };
+  return {
+    zayavka_number: trim(data.zayavkaNumber),
+    cargo_number: trim(data.cargoNumber),
+    customer_inn: trim(data.customerInn),
+    sender_inn: trim(data.senderInn),
   };
 }
 export function driverJob(job: Job): Job {

@@ -452,6 +452,9 @@ const emptyData: JobData = {
   note: "",
   latitude: null,
   longitude: null,
+  deliveryMode: "courier",
+  addressKind: "pvz",
+  pvzRef: "",
 };
 export function JobForm({
   job,
@@ -507,6 +510,9 @@ export function JobForm({
         prev.address === fields.address &&
         prev.latitude === fields.latitude &&
         prev.longitude === fields.longitude &&
+        prev.deliveryMode === fields.deliveryMode &&
+        prev.addressKind === fields.addressKind &&
+        prev.pvzRef === fields.pvzRef &&
         contacts[0].phone === prev.contacts[0].phone &&
         contacts[0].name === prev.contacts[0].name
       ) {
@@ -517,6 +523,9 @@ export function JobForm({
         address: fields.address,
         latitude: fields.latitude,
         longitude: fields.longitude,
+        deliveryMode: fields.deliveryMode,
+        addressKind: fields.addressKind,
+        pvzRef: fields.pvzRef,
         contacts,
       };
     });

@@ -34,6 +34,9 @@ describe("pickupJobAddressState", () => {
         note: "",
         latitude: 55.75,
         longitude: 37.62,
+        deliveryMode: "courier",
+        addressKind: "custom",
+        pvzRef: "",
       },
       "moscow",
     );

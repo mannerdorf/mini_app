@@ -21,6 +21,7 @@ import {
   numberValue,
   safeUrl,
   normalizeJob,
+  pickupJobSearchColumns,
   driverJob,
   plannedPlaces,
   validateCompletion,
@@ -356,7 +357,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     );
     data.customerName = customer.rows[0].customer_name;
     data.senderName = sender.rows[0].supplier_name;
-    if (body.city !== "moscow") data.mkadKm = null;
+    const search = pickupJobSearchColumns(data);
     const id = body.id ? uuid(body.id) : randomUUID();
     if (body.id) {
       const { rows } = await db.query(
@@ -370,13 +371,34 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "Редактировать можно только нераспределённый забор",
       );
       await db.query(
-        "UPDATE pickup_jobs SET data=$2,city=$3,date=$4,version=version+1,updated_at=now() WHERE id=$1",
-        [id, JSON.stringify(data), body.city, body.date],
+        `UPDATE pickup_jobs SET data=$2,city=$3,date=$4,
+          zayavka_number=$5,cargo_number=$6,customer_inn=$7,sender_inn=$8,
+          version=version+1,updated_at=now() WHERE id=$1`,
+        [
+          id,
+          JSON.stringify(data),
+          body.city,
+          body.date,
+          search.zayavka_number,
+          search.cargo_number,
+          search.customer_inn,
+          search.sender_inn,
+        ],
       );
     } else
       await db.query(
-        "INSERT INTO pickup_jobs(id,city,date,data) VALUES($1,$2,$3,$4)",
-        [id, body.city, body.date, JSON.stringify(data)],
+        `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+        [
+          id,
+          body.city,
+          body.date,
+          JSON.stringify(data),
+          search.zayavka_number,
+          search.cargo_number,
+          search.customer_inn,
+          search.sender_inn,
+        ],
       );
     await event(db, actor, "Забор сохранён", null, id);
     return { id };
@@ -798,6 +820,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (error: any) {
     if (db) await db.query("ROLLBACK").catch(() => {});
     const missing = error?.code === "42P01";
+    const missingColumn = error?.code === "42703";
     const status =
       error instanceof PickupError
         ? error.status
@@ -812,8 +835,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error:
           error instanceof PickupError
             ? error.message
-            : missing
-              ? "Модуль ещё не настроен: примените миграцию 104_pickup_dispatch.sql"
+            : missingColumn
+              ? "Примените миграцию migrations/105_pickup_jobs_search_columns.sql"
+              : missing
+                ? "Модуль ещё не настроен: примените миграцию 104_pickup_dispatch.sql"
               : status === 409
                 ? "Аккаунт уже связан с другим водителем"
                 : "Не удалось выполнить действие. Повторите позже.",

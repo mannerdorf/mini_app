@@ -30,9 +30,9 @@ export function jobDataToPickupAddressState(
   const hasPoint = lat != null && lon != null;
 
   return {
-    deliveryMode: "courier",
-    addressKind: "custom",
-    pvzRef: "",
+    deliveryMode: data.deliveryMode === "point" ? "point" : "courier",
+    addressKind: data.addressKind === "custom" ? "custom" : "pvz",
+    pvzRef: data.pvzRef ?? "",
     pvzItem: null,
     query: address,
     city,
@@ -52,7 +52,10 @@ export function jobDataToPickupAddressState(
 
 export function pickupAddressStateToJobPatch(
   state: PvzSelectionState,
-): Pick<JobData, "address" | "latitude" | "longitude"> & {
+): Pick<
+  JobData,
+  "address" | "latitude" | "longitude" | "deliveryMode" | "addressKind" | "pvzRef"
+> & {
   contactPhone?: string;
   contactName?: string;
 } {
@@ -68,6 +71,9 @@ export function pickupAddressStateToJobPatch(
     address,
     latitude: lat,
     longitude: lon,
+    deliveryMode: state.deliveryMode,
+    addressKind: state.addressKind,
+    pvzRef: state.pvzRef,
     contactPhone: state.phone.trim() || undefined,
     contactName: state.contactName.trim() || undefined,
   };
