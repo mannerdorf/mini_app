@@ -83,6 +83,7 @@ export function PickupInstructionChecklistField({ state, onChange }: Props) {
               <span className="pk-instruction-checklist__label">{item.label}</span>
               <span className="pk-instruction-checklist__switch">
                 <TapSwitch
+                  variant="comfortable"
                   checked={item.enabled}
                   onToggle={() => toggle(id)}
                   aria-label={`${item.enabled ? "Выключить" : "Включить"}: ${item.label}`}
