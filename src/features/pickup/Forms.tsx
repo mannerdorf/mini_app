@@ -24,6 +24,7 @@ import {
 } from "./pickupJobDefaultPlaceState";
 import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
 import { PickupJobDefaultPlaceSection } from "./PickupJobDefaultPlaceSection";
+import { PickupVehicleResourceFields } from "./PickupVehicleResourceFields";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
@@ -356,48 +357,28 @@ export function ResourceForm({
         </>
       )}
       {kind === "vehicle" && (
-        <div className="pk-grid">
-          {[
-            ["plate", "Госномер"],
-            ["model", "Марка / модель"],
-            ["bodyType", "Тип кузова"],
-            ["dimensions", "Внутренние размеры кузова, см"],
-            ["loading", "Тип загрузки"],
-            ["permits", "Пропуска / ограничения"],
-          ].map(([k, l]) => (
+        <>
+          <div className="pk-grid">
             <Field
-              key={k}
-              label={l}
-              value={data[k]}
-              onChange={(v) => update(k, v)}
-              required={k === "plate"}
+              label="Госномер"
+              value={data.plate}
+              onChange={(v) => update("plate", v)}
+              required
             />
-          ))}
-          {[
-            ["capacityKg", "Грузоподъёмность, кг"],
-            ["capacityM3", "Полезный объём, м³"],
-            ["pallets", "Палетоместа"],
-          ].map(([k, l]) => (
-            <Field
-              key={k}
-              label={l}
-              type="number"
-              min="0"
-              step="any"
-              value={data[k]}
-              onChange={(v) => update(k, v)}
+          </div>
+          <PickupVehicleResourceFields data={data} update={update} />
+          <div className="pk-grid">
+            <Select
+              label="Гидроборт"
+              value={data.lift ?? "Нет"}
+              onChange={(v) => update("lift", v)}
+              options={[
+                { id: "Нет", name: "Нет" },
+                { id: "Да", name: "Да" },
+              ]}
             />
-          ))}
-          <Select
-            label="Гидроборт"
-            value={data.lift ?? "Нет"}
-            onChange={(v) => update("lift", v)}
-            options={[
-              { id: "Нет", name: "Нет" },
-              { id: "Да", name: "Да" },
-            ]}
-          />
-        </div>
+          </div>
+        </>
       )}
       {kind === "depot" && (
         <>

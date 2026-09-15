@@ -41,7 +41,8 @@
 .pk-root .pk-editor .haulz-calc-card {
   margin-bottom: 12px;
 }
-.pk-root .pk-warehouse-hours__select {
+.pk-root .pk-warehouse-hours__select,
+.pk-root .pk-select-or-custom__select {
   width: 100%;
   min-height: 42px;
   border: 1px solid var(--pk-border);
