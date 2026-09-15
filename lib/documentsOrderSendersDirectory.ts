@@ -1,4 +1,8 @@
-import type { PvzItem } from "../src/api/client/documentsOrders.js";
+export type DocumentsOrderSupplierRow = {
+  inn: string;
+  supplier_name: string;
+  email?: string;
+};
 
 export type DocumentsOrderSenderOption = {
   key: string;
@@ -18,53 +22,51 @@ function senderKey(inn: string, name: string): string {
   return `${inn}|${name.toLowerCase().replace(/ё/g, "е")}`;
 }
 
-/** Уникальные отправители: активный заказчик + Владелец / ОтправительПолучатель из справочника ПВЗ. */
+/** Уникальные отправители из справочника поставщиков (`cache_suppliers` / GETALLKontragents). */
 export function buildDocumentsOrderSendersDirectory(
-  pvzList: PvzItem[],
-  fallback?: { inn?: string | null; name?: string | null },
+  suppliers: DocumentsOrderSupplierRow[],
 ): DocumentsOrderSenderOption[] {
   const map = new Map<string, DocumentsOrderSenderOption>();
 
-  const add = (innRaw: unknown, nameRaw: unknown) => {
-    const inn = normalizeInn(innRaw);
-    const name = normalizeName(nameRaw);
-    if (!inn && !name) return;
+  for (const row of suppliers) {
+    const inn = normalizeInn(row.inn);
+    const name = normalizeName(row.supplier_name);
+    if (!inn && !name) continue;
     const key = senderKey(inn, name || inn);
-    if (map.has(key)) return;
+    if (map.has(key)) continue;
     map.set(key, { key, inn, name: name || inn });
-  };
-
-  if (fallback) {
-    add(fallback.inn, fallback.name);
-  }
-
-  for (const p of pvzList) {
-    const inn = p.ВладелецИНН;
-    const name =
-      normalizeName(p.ОтправительПолучательНаименование) ||
-      normalizeName(p.ВладелецНаименование) ||
-      normalizeName(p.Наименование);
-    add(inn, name);
   }
 
   return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
-export function pickDefaultDocumentsOrderSender(
+export function filterDocumentsOrderSenderOptions(
   options: DocumentsOrderSenderOption[],
-  preferredInn?: string | null,
-  preferredName?: string | null,
+  query: string,
+): DocumentsOrderSenderOption[] {
+  const q = query.trim().toLowerCase().replace(/ё/g, "е");
+  if (!q) return options;
+  return options.filter((o) => {
+    const hay = `${o.name} ${o.inn}`.toLowerCase().replace(/ё/g, "е");
+    return hay.includes(q);
+  });
+}
+
+export function findDocumentsOrderSenderOption(
+  options: DocumentsOrderSenderOption[],
+  inn?: string | null,
+  name?: string | null,
 ): DocumentsOrderSenderOption | null {
-  if (options.length === 0) return null;
-  const inn = normalizeInn(preferredInn);
-  const name = normalizeName(preferredName);
-  if (inn && name) {
-    const exact = options.find((o) => o.inn === inn && o.name.toLowerCase() === name.toLowerCase());
+  const nInn = normalizeInn(inn);
+  const nName = normalizeName(name);
+  if (!nInn && !nName) return null;
+  if (nInn && nName) {
+    const exact = options.find((o) => o.inn === nInn && o.name.toLowerCase() === nName.toLowerCase());
     if (exact) return exact;
   }
-  if (inn) {
-    const byInn = options.find((o) => o.inn === inn);
+  if (nInn) {
+    const byInn = options.find((o) => o.inn === nInn);
     if (byInn) return byInn;
   }
-  return options[0] ?? null;
+  return null;
 }

@@ -183,16 +183,9 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   });
 
   const [sender, setSender] = useState<DocumentsOrderSenderState>(() => ({
-    inn: String(activeInn ?? "").replace(/\D/g, ""),
-    companyName: String(activeCustomerName ?? "").trim(),
+    inn: "",
+    companyName: "",
   }));
-
-  useEffect(() => {
-    setSender({
-      inn: String(activeInn ?? "").replace(/\D/g, ""),
-      companyName: String(activeCustomerName ?? "").trim(),
-    });
-  }, [activeInn, activeCustomerName]);
 
   const formRef = useRef<HTMLDivElement>(null);
   const routeRef = useRef<HTMLDivElement>(null);
@@ -541,9 +534,6 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
           <DocumentsOrderSenderBlock
             auth={auth}
-            pvzList={pvzList}
-            activeInn={activeInn}
-            activeCustomerName={activeCustomerName}
             value={sender}
             onChange={setSender}
           />

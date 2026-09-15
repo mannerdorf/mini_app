@@ -1,16 +1,15 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Loader2, Search, X } from "lucide-react";
 import type { AuthData } from "../../../types";
-import type { PvzItem } from "../../../api/client/documentsOrders";
+import { fetchExpenseRequestSuppliers } from "../../../api/client/expenseRequestsUser";
 import { fetchHaulzPartyByInn } from "../../../api/client/haulzCalculator";
 import { formatHaulzCalcFetchError } from "../../../lib/haulzCalcFetchError";
 import {
   buildDocumentsOrderSendersDirectory,
-  pickDefaultDocumentsOrderSender,
+  filterDocumentsOrderSenderOptions,
+  findDocumentsOrderSenderOption,
   type DocumentsOrderSenderOption,
 } from "../../../../lib/documentsOrderSendersDirectory";
-
-const MANUAL_KEY = "__manual__";
 
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
@@ -28,68 +27,85 @@ export type DocumentsOrderSenderState = {
 
 type Props = {
   auth: AuthData;
-  pvzList: PvzItem[];
-  activeInn: string;
-  activeCustomerName?: string | null;
   value: DocumentsOrderSenderState;
   onChange: (next: DocumentsOrderSenderState) => void;
 };
 
-export function DocumentsOrderSenderBlock({
-  auth,
-  pvzList,
-  activeInn,
-  activeCustomerName,
-  value,
-  onChange,
-}: Props) {
-  const options = useMemo(
-    () =>
-      buildDocumentsOrderSendersDirectory(pvzList, {
-        inn: activeInn,
-        name: activeCustomerName,
-      }),
-    [pvzList, activeInn, activeCustomerName],
-  );
-
-  const matchedKey = useMemo(() => {
-    const inn = value.inn.replace(/\D/g, "");
-    const name = value.companyName.trim().toLowerCase();
-    const match = options.find(
-      (o) => o.inn === inn && o.name.trim().toLowerCase() === name,
-    );
-    if (match) return match.key;
-    if (inn || value.companyName.trim()) return MANUAL_KEY;
-    return options[0]?.key ?? MANUAL_KEY;
-  }, [options, value.inn, value.companyName]);
-
-  const [selectKey, setSelectKey] = useState(matchedKey);
+export function DocumentsOrderSenderBlock({ auth, value, onChange }: Props) {
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [options, setOptions] = useState<DocumentsOrderSenderOption[]>([]);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [manualMode, setManualMode] = useState(false);
   const [innLoading, setInnLoading] = useState(false);
   const [innError, setInnError] = useState<string | null>(null);
   const [innTouched, setInnTouched] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setSelectKey(matchedKey);
-  }, [matchedKey]);
+    if (!auth.login || !auth.password) return;
+    let cancelled = false;
+    setCatalogLoading(true);
+    setCatalogError(null);
+    fetchExpenseRequestSuppliers({ login: auth.login, password: auth.password })
+      .then((list) => {
+        if (cancelled) return;
+        const rows = list
+          .map((raw) => {
+            const s = raw as { inn?: unknown; supplier_name?: unknown; email?: unknown };
+            return {
+              inn: String(s?.inn ?? "").trim(),
+              supplier_name: String(s?.supplier_name ?? "").trim(),
+              email: String(s?.email ?? "").trim(),
+            };
+          })
+          .filter((s) => s.supplier_name || s.inn);
+        setOptions(buildDocumentsOrderSendersDirectory(rows));
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setOptions([]);
+        setCatalogError((e as Error)?.message || "Не удалось загрузить справочник поставщиков");
+      })
+      .finally(() => {
+        if (!cancelled) setCatalogLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.login, auth.password]);
+
+  const selected = useMemo(
+    () => findDocumentsOrderSenderOption(options, value.inn, value.companyName),
+    [options, value.inn, value.companyName],
+  );
 
   useEffect(() => {
-    if (value.inn || value.companyName) return;
-    const def = pickDefaultDocumentsOrderSender(options, activeInn, activeCustomerName);
-    if (!def) return;
-    onChange({ inn: def.inn, companyName: def.name });
-    setSelectKey(def.key);
-  }, [options, activeInn, activeCustomerName, value.inn, value.companyName, onChange]);
+    if (manualMode) return;
+    if (!value.inn && !value.companyName) return;
+    if (!selected) setManualMode(true);
+  }, [manualMode, selected, value.inn, value.companyName]);
 
-  const isManual = selectKey === MANUAL_KEY;
-  const selected: DocumentsOrderSenderOption | null = useMemo(() => {
-    if (isManual) return null;
-    return options.find((o) => o.key === selectKey) ?? null;
-  }, [isManual, options, selectKey]);
+  const filtered = useMemo(
+    () => filterDocumentsOrderSenderOptions(options, search),
+    [options, search],
+  );
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, []);
 
   const debouncedInn = useDebounced(value.inn.replace(/\D/g, ""), 500);
 
   useEffect(() => {
-    if (!isManual || !innTouched) return;
+    if (!manualMode || !innTouched) return;
     const digits = debouncedInn;
     if (digits.length !== 10 && digits.length !== 12) {
       setInnLoading(false);
@@ -117,47 +133,207 @@ export function DocumentsOrderSenderBlock({
     return () => {
       cancelled = true;
     };
-  }, [auth, debouncedInn, innTouched, isManual, onChange]);
+  }, [auth, debouncedInn, innTouched, manualMode, onChange]);
 
-  const pickOption = (key: string) => {
-    setSelectKey(key);
+  const pickSupplier = (opt: DocumentsOrderSenderOption) => {
+    setManualMode(false);
     setInnError(null);
-    if (key === MANUAL_KEY) {
-      setInnTouched(false);
-      onChange({ inn: "", companyName: "" });
-      return;
-    }
-    const opt = options.find((o) => o.key === key);
-    if (!opt) return;
+    setInnTouched(false);
+    setSearch("");
+    setDropdownOpen(false);
     onChange({ inn: opt.inn, companyName: opt.name });
   };
 
+  const clearSender = () => {
+    setManualMode(false);
+    setInnTouched(false);
+    setInnError(null);
+    setSearch("");
+    onChange({ inn: "", companyName: "" });
+  };
+
+  const enableManual = () => {
+    setManualMode(true);
+    setDropdownOpen(false);
+    setInnTouched(false);
+    setInnError(null);
+    onChange({ inn: "", companyName: "" });
+  };
+
+  const selectedLabel = selected
+    ? `${selected.name}${selected.inn ? ` (${selected.inn})` : ""}`
+    : value.companyName
+      ? `${value.companyName}${value.inn ? ` (${value.inn})` : ""}`
+      : "";
+
   return (
-    <div className="haulz-calc-card">
+    <div className="haulz-calc-card" ref={rootRef}>
       <h2 className="haulz-calc-card__title">Отправитель</h2>
       <p className="haulz-calc-hint" style={{ marginBottom: "0.75rem" }}>
-        Выберите из справочника отправителей или укажите ИНН вручную
+        Выберите из справочника поставщиков или укажите ИНН вручную
       </p>
 
-      <label className="haulz-calc-field">
-        <span className="haulz-calc-label">Из справочника</span>
-        <select
-          className="haulz-calc-input"
-          value={selectKey}
-          onChange={(e) => pickOption(e.target.value)}
-        >
-          {options.map((o) => (
-            <option key={o.key} value={o.key}>
-              {o.name}
-              {o.inn ? ` · ${o.inn}` : ""}
-            </option>
-          ))}
-          <option value={MANUAL_KEY}>Другой ИНН…</option>
-        </select>
-      </label>
+      {!manualMode ? (
+        <>
+          <label className="haulz-calc-field">
+            <span className="haulz-calc-label">Из справочника поставщиков</span>
+            <button
+              type="button"
+              className="haulz-calc-input"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "0.5rem",
+                textAlign: "left",
+                cursor: "pointer",
+              }}
+              onClick={() => setDropdownOpen((open) => !open)}
+              aria-expanded={dropdownOpen}
+            >
+              <span
+                style={{
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  color: selectedLabel ? "inherit" : "var(--calc-text-secondary, #6b7280)",
+                }}
+              >
+                {catalogLoading ? "Загрузка справочника…" : selectedLabel || "Выберите поставщика"}
+              </span>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem", flexShrink: 0 }}>
+                {selectedLabel ? (
+                  <span
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Очистить отправителя"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      clearSender();
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        clearSender();
+                      }
+                    }}
+                    style={{ display: "inline-flex" }}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </span>
+                ) : null}
+                {catalogLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ChevronDown
+                    className="w-3.5 h-3.5"
+                    style={{ transform: dropdownOpen ? "rotate(180deg)" : undefined }}
+                  />
+                )}
+              </span>
+            </button>
+          </label>
 
-      {isManual ? (
-        <div className="haulz-calc-contacts" style={{ marginTop: "0.75rem" }}>
+          {dropdownOpen && (
+            <div
+              style={{
+                marginTop: "0.35rem",
+                border: "1px solid var(--calc-border, #e5e7eb)",
+                borderRadius: 8,
+                background: "var(--calc-card, #fff)",
+                boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+                maxHeight: 280,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "0.45rem 0.55rem",
+                  borderBottom: "1px solid var(--calc-border, #e5e7eb)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <Search className="w-3.5 h-3.5" style={{ flexShrink: 0, opacity: 0.6 }} />
+                <input
+                  type="text"
+                  className="haulz-calc-input"
+                  style={{ border: "none", boxShadow: "none", padding: 0, height: "auto" }}
+                  placeholder="Поиск: наименование или ИНН…"
+                  value={search}
+                  autoFocus
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div style={{ overflowY: "auto", flex: 1 }}>
+                {catalogLoading ? (
+                  <p className="haulz-calc-hint" style={{ padding: "0.75rem", margin: 0 }}>
+                    <Loader2 className="w-3 h-3 animate-spin" style={{ display: "inline", marginRight: "0.35rem" }} />
+                    Загрузка…
+                  </p>
+                ) : filtered.length === 0 ? (
+                  <p className="haulz-calc-hint" style={{ padding: "0.75rem", margin: 0 }}>
+                    {options.length === 0
+                      ? "Справочник поставщиков пуст или не загружен"
+                      : "Ничего не найдено"}
+                  </p>
+                ) : (
+                  filtered.slice(0, 200).map((o) => (
+                    <button
+                      key={o.key}
+                      type="button"
+                      onClick={() => pickSupplier(o)}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        textAlign: "left",
+                        padding: "0.5rem 0.65rem",
+                        border: "none",
+                        background:
+                          selected?.key === o.key ? "var(--calc-accent-soft, #e8f1ff)" : "transparent",
+                        cursor: "pointer",
+                        fontSize: "0.875rem",
+                      }}
+                    >
+                      {o.name}
+                      {o.inn ? (
+                        <span style={{ color: "var(--calc-text-secondary, #6b7280)" }}> · {o.inn}</span>
+                      ) : null}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {catalogError && (
+            <p className="haulz-calc-hint haulz-calc-hint--error" style={{ marginTop: "0.5rem" }}>
+              {catalogError}
+            </p>
+          )}
+
+          {selected ? (
+            <div className="haulz-calc-warehouse" style={{ marginTop: "0.75rem" }}>
+              <p className="haulz-calc-warehouse__title">{selected.name}</p>
+              {selected.inn ? <p className="haulz-calc-warehouse__meta">ИНН {selected.inn}</p> : null}
+            </div>
+          ) : null}
+
+          <button
+            type="button"
+            className="haulz-calc-link-btn"
+            style={{ marginTop: "0.75rem" }}
+            onClick={enableManual}
+          >
+            Указать другой ИНН
+          </button>
+        </>
+      ) : (
+        <div className="haulz-calc-contacts">
           <label className="haulz-calc-field haulz-calc-contacts__inn">
             <span className="haulz-calc-label">ИНН отправителя</span>
             <input
@@ -197,15 +373,19 @@ export function DocumentsOrderSenderBlock({
               />
             </label>
           )}
+          <button
+            type="button"
+            className="haulz-calc-link-btn"
+            style={{ marginTop: "0.5rem" }}
+            onClick={() => {
+              clearSender();
+              setDropdownOpen(true);
+            }}
+          >
+            Выбрать из справочника поставщиков
+          </button>
         </div>
-      ) : selected ? (
-        <div className="haulz-calc-warehouse" style={{ marginTop: "0.75rem" }}>
-          <p className="haulz-calc-warehouse__title">{selected.name}</p>
-          {selected.inn ? (
-            <p className="haulz-calc-warehouse__meta">ИНН {selected.inn}</p>
-          ) : null}
-        </div>
-      ) : null}
+      )}
     </div>
   );
 }

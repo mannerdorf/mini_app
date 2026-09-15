@@ -1,52 +1,34 @@
 import { describe, expect, it } from "vitest";
-import type { PvzItem } from "../src/api/client/documentsOrders.js";
 import {
   buildDocumentsOrderSendersDirectory,
-  pickDefaultDocumentsOrderSender,
+  filterDocumentsOrderSenderOptions,
+  findDocumentsOrderSenderOption,
 } from "./documentsOrderSendersDirectory.js";
 
-function pvz(partial: Partial<PvzItem>): PvzItem {
-  return {
-    Ссылка: "ref",
-    Наименование: "ПВЗ",
-    КодДляПечати: "",
-    ГородНаименование: "Москва",
-    РегионНаименование: "",
-    ВладелецИНН: "7722461620",
-    ВладелецНаименование: "ООО 5 POST",
-    ОтправительПолучательНаименование: "",
-    КонтактноеЛицо: "",
-    ...partial,
-  };
-}
-
 describe("buildDocumentsOrderSendersDirectory", () => {
-  it("adds fallback customer and unique PVZ senders", () => {
-    const options = buildDocumentsOrderSendersDirectory(
-      [
-        pvz({ ОтправительПолучательНаименование: "5 POST Склад МО" }),
-        pvz({ ОтправительПолучательНаименование: "5 POST Склад МО" }),
-        pvz({
-          ВладелецИНН: "7722461620",
-          ОтправительПолучательНаименование: "5 POST Калининград",
-        }),
-      ],
-      { inn: "7722461620", name: "ООО 5 POST" },
-    );
-    expect(options.map((o) => o.name)).toEqual([
-      "5 POST Калининград",
-      "5 POST Склад МО",
-      "ООО 5 POST",
+  it("builds unique options from suppliers catalog", () => {
+    const options = buildDocumentsOrderSendersDirectory([
+      { inn: "7707083893", supplier_name: "Сбербанк" },
+      { inn: "7707083893", supplier_name: "Сбербанк" },
+      { inn: "7707083893", supplier_name: "ПАО Сбербанк" },
+      { inn: "7722461620", supplier_name: "5 POST" },
     ]);
-    expect(options.every((o) => o.inn === "7722461620")).toBe(true);
+    expect(options.map((o) => o.name)).toEqual(["5 POST", "ПАО Сбербанк", "Сбербанк"]);
   });
 
-  it("picks default by preferred inn and name", () => {
-    const options = buildDocumentsOrderSendersDirectory(
-      [pvz({ ОтправительПолучательНаименование: "Другой" })],
-      { inn: "7722461620", name: "ООО 5 POST" },
-    );
-    const picked = pickDefaultDocumentsOrderSender(options, "7722461620", "ООО 5 POST");
-    expect(picked?.name).toBe("ООО 5 POST");
+  it("filters by inn or name", () => {
+    const options = buildDocumentsOrderSendersDirectory([
+      { inn: "7707083893", supplier_name: "Сбербанк" },
+      { inn: "7722461620", supplier_name: "5 POST" },
+    ]);
+    expect(filterDocumentsOrderSenderOptions(options, "7707").map((o) => o.inn)).toEqual(["7707083893"]);
+    expect(filterDocumentsOrderSenderOptions(options, "post").map((o) => o.name)).toEqual(["5 POST"]);
+  });
+
+  it("finds option by inn", () => {
+    const options = buildDocumentsOrderSendersDirectory([
+      { inn: "7722461620", supplier_name: "5 POST" },
+    ]);
+    expect(findDocumentsOrderSenderOption(options, "7722461620")?.name).toBe("5 POST");
   });
 });
