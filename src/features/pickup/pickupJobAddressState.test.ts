@@ -37,6 +37,12 @@ describe("pickupJobAddressState", () => {
         deliveryMode: "courier",
         addressKind: "custom",
         pvzRef: "",
+        defaultPlaceAddress: "",
+        defaultPlaceLatitude: null,
+        defaultPlaceLongitude: null,
+        defaultPlaceMode: "point",
+        defaultPlaceKind: "pvz",
+        defaultPlacePvzRef: "",
       },
       "moscow",
     );

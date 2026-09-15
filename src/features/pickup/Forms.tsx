@@ -17,7 +17,13 @@ import {
   jobDataToPickupAddressState,
   pickupAddressStateToJobPatch,
 } from "./pickupJobAddressState";
+import {
+  defaultPickupDefaultPlaceState,
+  defaultPlaceStateToJobPatch,
+  jobDataToDefaultPlaceState,
+} from "./pickupJobDefaultPlaceState";
 import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
+import { PickupJobDefaultPlaceSection } from "./PickupJobDefaultPlaceSection";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
@@ -461,6 +467,12 @@ const emptyData: JobData = {
   deliveryMode: "courier",
   addressKind: "pvz",
   pvzRef: "",
+  defaultPlaceAddress: "",
+  defaultPlaceLatitude: null,
+  defaultPlaceLongitude: null,
+  defaultPlaceMode: "point",
+  defaultPlaceKind: "pvz",
+  defaultPlacePvzRef: "",
 };
 export function JobForm({
   job,
@@ -485,6 +497,11 @@ export function JobForm({
       ? jobDataToPickupAddressState(job.data, cityCode)
       : defaultPickupAddressState(cityCode),
   );
+  const [defaultPlaceState, setDefaultPlaceState] = useState(() =>
+    job?.data
+      ? jobDataToDefaultPlaceState(job.data, cityCode)
+      : defaultPickupDefaultPlaceState(cityCode),
+  );
   const [siteInstructions, setSiteInstructions] = useState(() =>
     job?.data?.instructions
       ? parsePickupSiteInstructions(job.data.instructions)
@@ -499,6 +516,13 @@ export function JobForm({
     setAddressState((prev) =>
       prev.city === cityCode ? prev : { ...prev, city: cityCode },
     );
+    setDefaultPlaceState((prev) => {
+      if (prev.city === cityCode) return prev;
+      if (prev.deliveryMode === "point" && !prev.pvzRef && !prev.query.trim()) {
+        return defaultPickupDefaultPlaceState(cityCode);
+      }
+      return { ...prev, city: cityCode };
+    });
   }, [cityCode]);
 
   useEffect(() => {
@@ -536,6 +560,23 @@ export function JobForm({
       };
     });
   }, [addressState]);
+
+  useEffect(() => {
+    const fields = defaultPlaceStateToJobPatch(defaultPlaceState);
+    setData((prev) => {
+      if (
+        prev.defaultPlaceAddress === fields.defaultPlaceAddress &&
+        prev.defaultPlaceLatitude === fields.defaultPlaceLatitude &&
+        prev.defaultPlaceLongitude === fields.defaultPlaceLongitude &&
+        prev.defaultPlaceMode === fields.defaultPlaceMode &&
+        prev.defaultPlaceKind === fields.defaultPlaceKind &&
+        prev.defaultPlacePvzRef === fields.defaultPlacePvzRef
+      ) {
+        return prev;
+      }
+      return { ...prev, ...fields };
+    });
+  }, [defaultPlaceState]);
 
   useEffect(() => {
     const instructions = formatPickupSiteInstructions(siteInstructions);
@@ -622,6 +663,14 @@ export function JobForm({
         onAddressStateChange={setAddressState}
         onJobPatch={patchJob}
         num={num}
+      />
+      <PickupJobDefaultPlaceSection
+        account={account}
+        city={city}
+        customerInn={data.customerInn}
+        customerName={data.customerName}
+        state={defaultPlaceState}
+        onChange={setDefaultPlaceState}
       />
       <PickupWarehouseHoursField
         value={data.warehouseHours}

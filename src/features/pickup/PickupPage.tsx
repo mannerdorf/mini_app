@@ -906,6 +906,11 @@ function JobSummary({ job }: { job: Job }) {
       </p>
       <h3>{job.data.senderName}</h3>
       <p>{job.data.address}</p>
+      {job.data.defaultPlaceAddress ? (
+        <p className="pk-muted">
+          Место по умолчанию: {job.data.defaultPlaceAddress}
+        </p>
+      ) : null}
       <p className="pk-muted">
         Заказчик: {job.data.customerName}
         {job.data.zayavkaNumber ? ` · Заявка ${job.data.zayavkaNumber}` : ""}

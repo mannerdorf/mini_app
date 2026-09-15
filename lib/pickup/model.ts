@@ -60,6 +60,13 @@ export type JobData = {
   addressKind: "pvz" | "custom";
   /** Ссылка ПВЗ из cache_pvz (если addressKind=pvz). */
   pvzRef: string;
+  /** Куда по умолчанию сдаём груз после забора (склад HAULZ или другая точка). */
+  defaultPlaceAddress: string;
+  defaultPlaceLatitude: number | null;
+  defaultPlaceLongitude: number | null;
+  defaultPlaceMode: "courier" | "point";
+  defaultPlaceKind: "pvz" | "custom";
+  defaultPlacePvzRef: string;
 };
 export type JobStatus =
   | "pending"
@@ -246,6 +253,16 @@ export function normalizeJob(raw: any): JobData {
     raw.deliveryMode === "point" ? "point" : "courier";
   const addressKind =
     raw.addressKind === "custom" ? "custom" : "pvz";
+  const defaultPlaceLatitude = coordinate(raw.defaultPlaceLatitude, 90);
+  const defaultPlaceLongitude = coordinate(raw.defaultPlaceLongitude, 180);
+  requireValue(
+    (defaultPlaceLatitude === null) === (defaultPlaceLongitude === null),
+    "Укажите обе координаты места по умолчанию",
+  );
+  const defaultPlaceMode =
+    raw.defaultPlaceMode === "courier" ? "courier" : "point";
+  const defaultPlaceKind =
+    raw.defaultPlaceKind === "custom" ? "custom" : "pvz";
 
   return {
     customerInn: textValue(raw.customerInn, 20),
@@ -277,6 +294,12 @@ export function normalizeJob(raw: any): JobData {
     deliveryMode,
     addressKind,
     pvzRef: textValue(raw.pvzRef, 80),
+    defaultPlaceAddress: textValue(raw.defaultPlaceAddress),
+    defaultPlaceLatitude,
+    defaultPlaceLongitude,
+    defaultPlaceMode,
+    defaultPlaceKind,
+    defaultPlacePvzRef: textValue(raw.defaultPlacePvzRef, 80),
   };
 }
 
