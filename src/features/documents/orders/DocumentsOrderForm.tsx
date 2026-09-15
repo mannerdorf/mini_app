@@ -34,6 +34,10 @@ import {
 } from "./DocumentsOrderCargoSection";
 import { resolveDocumentsOrderLegParty } from "../../../../lib/documentsOrderLegParty";
 import {
+  DocumentsOrderSenderBlock,
+  type DocumentsOrderSenderState,
+} from "./DocumentsOrderSenderBlock";
+import {
   DocumentsOrderQuoteSummary,
 } from "./DocumentsOrderQuoteSummary";
 import { DocumentsOrderSuccessModal } from "./DocumentsOrderSuccessModal";
@@ -178,6 +182,11 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     return d.toISOString().slice(0, 10);
   });
 
+  const [sender, setSender] = useState<DocumentsOrderSenderState>(() => ({
+    inn: "",
+    companyName: "",
+  }));
+
   const formRef = useRef<HTMLDivElement>(null);
   const routeRef = useRef<HTMLDivElement>(null);
   const mainRef = useRef<HTMLDivElement>(null);
@@ -185,7 +194,16 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const fromAddr = fromState.addr;
   const toAddr = toState.addr;
-  const fromParty = useMemo(() => legParty(fromState), [fromState]);
+  const fromParty = useMemo(() => {
+    const leg = legParty(fromState);
+    const inn = sender.inn.replace(/\D/g, "") || leg.inn;
+    const companyName = sender.companyName.trim() || leg.companyName;
+    return {
+      ...leg,
+      ...(inn ? { inn } : {}),
+      ...(companyName ? { companyName } : {}),
+    };
+  }, [fromState, sender]);
   const toParty = useMemo(() => legParty(toState), [toState]);
   const fromEndpoint = useMemo(() => resolveLegEndpoint(fromState), [fromState]);
   const toEndpoint = useMemo(() => resolveLegEndpoint(toState), [toState]);
@@ -340,6 +358,9 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     }
     if (chargeableHint.ch <= 0) return "Укажите вес или объём груза";
     if (!dataZabora) return "Укажите дату забора";
+    if (!String(fromParty.inn ?? "").replace(/\D/g, "")) {
+      return "Укажите отправителя из справочника";
+    }
     if (!punktOtpravki || !punktNaznacheniya) return "Укажите пункты отправки и назначения";
     if (loading) return "Дождитесь окончания расчёта";
     if (!quote) return "Дождитесь расчёта стоимости";
@@ -354,6 +375,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
     punktNaznacheniya,
     loading,
     quote,
+    fromParty.inn,
   ]);
 
   const toggleExtra = (code: string) => {
@@ -508,6 +530,12 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
             cardRef={routeRef}
             direction={direction}
             onDirectionChange={handleDirectionChange}
+          />
+
+          <DocumentsOrderSenderBlock
+            auth={auth}
+            value={sender}
+            onChange={setSender}
           />
 
           <DocumentsOrderPvzSection

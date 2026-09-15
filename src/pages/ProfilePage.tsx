@@ -38,6 +38,7 @@ import { useProfileEmployees, ProfileEmployeesSection, useDepartmentTimesheet, P
 const HaulzSendingsAnalysisPage = lazy(() =>
   import("./HaulzSendingsAnalysisPage").then((m) => ({ default: m.HaulzSendingsAnalysisPage })),
 );
+const PickupPage = lazy(() => import("../features/pickup/PickupPage").then(m => ({ default: m.PickupPage })));
 const HaulzDeliveredWithoutAppPage = lazy(() =>
   import("./HaulzDeliveredWithoutAppPage").then((m) => ({ default: m.HaulzDeliveredWithoutAppPage })),
 );
@@ -219,6 +220,15 @@ export function ProfilePage({
 
     if (currentView === 'apiKeys') {
         return <ProfileApiKeysSection activeAccount={activeAccount} onBack={() => setCurrentView('main')} />;
+    }
+
+    if (currentView === "pickupDispatch" || currentView === "pickupDriver") {
+        if (!activeAccount) return null;
+        return <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+            <PickupPage key={`${activeAccount.id}:${currentView}`} account={activeAccount}
+                mode={currentView === "pickupDispatch" ? "dispatch" : "driver"}
+                onBack={() => setCurrentView("haulz")} />
+        </Suspense>;
     }
 
     if (currentView === 'haulz') {

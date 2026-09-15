@@ -11,6 +11,8 @@ export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
 
 /** Права доступа для зарегистрированных пользователей */
 export type AccountPermissions = {
+    dispatcher?: boolean;
+    driver?: boolean;
     cms_access?: boolean;
     home?: boolean;
     dashboard?: boolean;
@@ -113,6 +115,8 @@ export type HaulzOffice = {
 export type HeaderCompanyRow = { login: string; inn: string; name: string };
 
 export type ProfileView =
+    | "pickupDispatch"
+    | "pickupDriver"
     | "main"
     | "companies"
     | "haulz"

@@ -8,6 +8,8 @@ const REQUESTS_TAB_KEY = "haulz.profile.requestsTab";
 export type HaulzCalcRequestsTab = "requests" | "saved";
 
 const PROFILE_VIEWS = new Set<ProfileView>([
+  "pickupDispatch",
+  "pickupDriver",
   "main",
   "companies",
   "haulz",
