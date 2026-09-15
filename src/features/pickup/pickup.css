@@ -488,6 +488,42 @@
 .pk-schedule__pattern {
   margin-bottom: 12px;
 }
+/* Сегменты «Разовая / Периодическая» — перебивают общий .pk-root button */
+.pk-root .haulz-calc-segment {
+  display: flex;
+  gap: 0;
+  padding: 4px;
+  background: #e8edf5;
+  border-radius: 10px;
+  border: 1px solid var(--pk-border);
+}
+.pk-root .haulz-calc-segment .haulz-calc-segment__btn {
+  flex: 1;
+  min-height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #64748b;
+  font-weight: 500;
+  box-shadow: none;
+}
+.pk-root .haulz-calc-segment .haulz-calc-segment__btn:hover:not(:disabled):not(.haulz-calc-segment__btn--active) {
+  border: none;
+  color: var(--pk-ink);
+  background: rgba(255, 255, 255, 0.45);
+}
+.pk-root .haulz-calc-segment .haulz-calc-segment__btn--active {
+  background: var(--pk-panel);
+  color: #1e4fa8;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(30, 79, 168, 0.18);
+  border: 1px solid #6c96e7;
+}
+.pk-root .haulz-calc-segment .haulz-calc-segment__btn:focus-visible {
+  outline: 3px solid #80aaff;
+  outline-offset: 1px;
+}
 .pk-schedule__weekdays {
   display: flex;
   flex-wrap: wrap;
