@@ -68,7 +68,7 @@ export function ProfileMainSection({
             icon: <ScanBarcode className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,
             onClick: () => onNavigate("parcelScanner"),
         },
-        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true) ? [{
+        ...((activeAccount?.isSuperAdmin || activeAccount?.permissions?.haulz === true || activeAccount?.permissions?.dispatcher === true || activeAccount?.permissions?.driver === true) ? [{
             id: "haulz",
             label: "HAULZ",
             icon: <LayoutGrid className="w-5 h-5" style={{ color: "var(--color-primary)" }} />,

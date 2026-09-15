@@ -10,6 +10,8 @@ import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
 const DEFAULT_PERMISSIONS = {
+  dispatcher: false,
+  driver: false,
   cms_access: false,
   home: true,
   dashboard: true,

@@ -28,6 +28,16 @@ export function ProfileHaulzSection({
                 <Typography.Headline className="text-page-title">HAULZ</Typography.Headline>
             </Flex>
             <Flex align="center" gap="0.6rem" wrap="wrap">
+                {activeAccount?.permissions?.dispatcher === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("pickupDispatch")}>
+                        Диспетчеризация
+                    </Button>
+                )}
+                {activeAccount?.permissions?.driver === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("pickupDriver")}>
+                        Водители — мой маршрут
+                    </Button>
+                )}
                 {activeAccount?.permissions?.supervisor === true && activeAccount?.permissions?.haulz === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("departmentTimesheet")}>
                         Табель учета рабочего времени

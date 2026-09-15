@@ -1,5 +1,7 @@
 /** Ключи прав зарегистрированных пользователей (согласовано с admin-presets). */
 export const REGISTERED_PERMISSION_KEYS = [
+  "dispatcher",
+  "driver",
   "cms_access",
   "home",
   "dashboard",

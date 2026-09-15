@@ -1,4 +1,6 @@
 export const PERMISSION_KEYS = [
+  { key: "dispatcher", label: "Диспетчер" },
+  { key: "driver", label: "Водитель" },
   { key: "cms_access", label: "Доступ в CMS" },
   { key: "accounting", label: "Бухгалтерия" },
   { key: "home", label: "Главная" },
@@ -65,6 +67,8 @@ export function permissionsForAdminEditor(
 
 /** 2-я строка: доступна всем, у кого есть доступ в CMS, активный цвет — оранжевый. */
 export const PERMISSION_ROW2_ORANGE = [
+  { key: "dispatcher", label: "Диспетчер" as const },
+  { key: "driver", label: "Водитель" as const },
   { key: "__financial__", label: "Фин. показатели" as const },
   { key: "supervisor", label: "Руководитель" as const },
 ] as const;
@@ -132,6 +136,8 @@ export type PermissionPreset = {
 
 export function createDefaultPermissions(overrides?: Partial<Record<string, boolean>>): Record<string, boolean> {
   return normalizeAnalyticsDashboardPermissions({
+    dispatcher: false,
+    driver: false,
     cms_access: false,
     home: true,
     dashboard: true,
