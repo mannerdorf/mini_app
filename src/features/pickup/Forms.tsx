@@ -242,7 +242,12 @@ export function FormShell({
           <button className="pk-primary" disabled={busy}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
-          <button type="button" onClick={onClose} disabled={busy}>
+          <button
+            type="button"
+            className="pk-btn-secondary"
+            onClick={onClose}
+            disabled={busy}
+          >
             Отмена
           </button>
         </div>

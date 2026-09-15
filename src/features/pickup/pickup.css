@@ -168,22 +168,42 @@
 .pk-root textarea {
   font: inherit;
 }
-.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable) {
-  border: 1px solid var(--pk-border);
-  background: var(--pk-panel);
-  color: var(--pk-ink);
+/* Основные кнопки раздела — синие (как pk-primary) */
+.pk-root
+  button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):not(
+    .pk-route-tile
+  ):not(.pk-link-btn):not(.pk-btn-danger):not(.pk-btn-secondary) {
+  border: 1px solid #235ed5;
+  background: #235ed5;
+  color: #fff;
   border-radius: 10px;
   padding: 10px 14px;
   min-height: 42px;
   cursor: pointer;
   line-height: 1.3;
 }
-.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):disabled {
+.pk-root
+  button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):not(
+    .pk-route-tile
+  ):not(.pk-link-btn):not(.pk-btn-danger):not(.pk-btn-secondary):disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
-.pk-root button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):hover:not(:disabled) {
-  border-color: #4478e0;
+.pk-root
+  button:not(.haulz-calc-segment__btn):not(.tap-switch):not(.tap-switch--comfortable):not(
+    .pk-route-tile
+  ):not(.pk-link-btn):not(.pk-btn-danger):not(.pk-btn-secondary):hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+.pk-root .pk-btn-secondary {
+  background: var(--pk-panel);
+  color: #235ed5;
+  border-color: #6c96e7;
+}
+.pk-root .pk-btn-secondary:hover:not(:disabled) {
+  background: #edf3ff;
+  border-color: #235ed5;
 }
 .pk-root :focus-visible {
   outline: 3px solid #80aaff;
@@ -204,6 +224,10 @@
   background: #235ed5;
   color: #fff;
   border-color: #235ed5;
+}
+.pk-root .pk-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
 }
 .pk-root .pk-danger {
   color: #a12a2a;
@@ -383,6 +407,20 @@
 .pk-tabs button {
   white-space: nowrap;
 }
+.pk-tabs button:not(.pk-selected) {
+  background: var(--pk-panel);
+  color: #235ed5;
+  border-color: #6c96e7;
+}
+.pk-tabs button:not(.pk-selected):hover:not(:disabled) {
+  background: #edf3ff;
+  border-color: #235ed5;
+}
+.pk-tabs button.pk-selected {
+  background: #235ed5;
+  color: #fff;
+  border-color: #235ed5;
+}
 .pk-workspace {
   display: grid;
   grid-template-columns: minmax(250px, 330px) minmax(0, 1fr);
@@ -403,7 +441,7 @@
   border-color: #235ed5;
   background: #edf3ff;
 }
-.pk-route-tile {
+.pk-root button.pk-route-tile {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -415,7 +453,13 @@
   box-shadow: none;
   margin: 0;
   padding: 8px 10px;
+  min-height: 0;
+  color: inherit;
   text-align: left;
+}
+.pk-route-tile {
+  flex: 1;
+  min-width: 0;
 }
 .pk-route-row .pk-route-tile:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.35);
@@ -546,19 +590,25 @@
   gap: 8px;
   margin-bottom: 12px;
 }
-.pk-schedule__day {
+.pk-root button.pk-schedule__day {
   min-width: 44px;
   padding: 8px 10px;
+  min-height: 36px;
   border-radius: 10px;
-  border: 1px solid var(--pk-border);
+  border: 1px solid #6c96e7;
   background: var(--pk-panel);
+  color: #235ed5;
   cursor: pointer;
   font-weight: 600;
 }
-.pk-schedule__day.pk-selected {
-  border-color: #6c96e7;
-  background: #eef4ff;
-  color: #1e4fa8;
+.pk-root button.pk-schedule__day.pk-selected {
+  border-color: #235ed5;
+  background: #235ed5;
+  color: #fff;
+}
+.pk-root button.pk-schedule__day:hover:not(:disabled):not(.pk-selected) {
+  background: #edf3ff;
+  border-color: #235ed5;
 }
 .pk-schedule__add-date {
   align-items: flex-end;
@@ -583,21 +633,23 @@
   text-decoration: underline;
   font-size: 14px;
 }
-.pk-icon-btn {
+.pk-root button.pk-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--pk-border);
-  background: var(--pk-panel);
+  border: 1px solid #235ed5;
+  background: #235ed5;
   padding: 6px 8px;
+  min-height: 36px;
   border-radius: 8px;
   cursor: pointer;
-  color: var(--pk-muted);
+  color: #fff;
   line-height: 0;
 }
-.pk-icon-btn:hover {
-  color: var(--pk-ink);
-  border-color: #6c96e7;
+.pk-root button.pk-icon-btn:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #fff;
 }
 .pk-card .pk-actions {
   margin-top: 12px;

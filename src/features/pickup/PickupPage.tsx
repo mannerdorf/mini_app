@@ -1480,7 +1480,12 @@ function ConfirmButton({
             >
               {confirmLabel}
             </button>
-            <button type="button" disabled={disabled} onClick={() => setConfirm(false)}>
+            <button
+              type="button"
+              className="pk-btn-secondary"
+              disabled={disabled}
+              onClick={() => setConfirm(false)}
+            >
               Отмена
             </button>
           </span>

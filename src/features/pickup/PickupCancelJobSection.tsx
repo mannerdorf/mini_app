@@ -32,11 +32,7 @@ export function PickupCancelJobSection({
 
   if (!open) {
     return (
-      <button
-        type="button"
-        className={compact ? "pk-link-btn" : ""}
-        onClick={() => setOpen(true)}
-      >
+      <button type="button" onClick={() => setOpen(true)}>
         Отменить забор
       </button>
     );
@@ -56,6 +52,7 @@ export function PickupCancelJobSection({
         </button>
         <button
           type="button"
+          className="pk-btn-secondary"
           disabled={busy}
           onClick={() => {
             setOpen(false);
