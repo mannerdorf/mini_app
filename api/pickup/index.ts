@@ -17,6 +17,7 @@ import {
   scheduleMetaForJobData,
 } from "../../lib/pickup/pickupSchedule.js";
 import { pgTableExists } from "../_haulzReturns.js";
+import { upsertPickupSupplierContacts } from "../../lib/pickup/supplierContacts.js";
 import {
   PickupError,
   pickupJobCanCancel,
@@ -41,6 +42,15 @@ import {
 } from "../../lib/pickup/model.js";
 
 type Actor = { login: string; dispatcher: boolean; driver: boolean };
+async function persistJobContactsToSenderDirectory(
+  db: PoolClient,
+  senderInn: string,
+  data: ReturnType<typeof normalizeJob>,
+): Promise<void> {
+  const pool = db as unknown as import("pg").Pool;
+  if (!(await pgTableExists(pool, "pickup_supplier_contacts"))) return;
+  await upsertPickupSupplierContacts(db, senderInn, data.contacts);
+}
 const uuid = (v: unknown): string => {
   requireValue(
     typeof v === "string" &&
@@ -180,6 +190,41 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           )
         ).rows,
       };
+    if (body.kind === "sender_contact") {
+      const senderInn = textValue(body.sender_inn, 20);
+      requireValue(senderInn, "Укажите отправителя");
+      const pool = db as unknown as import("pg").Pool;
+      if (!(await pgTableExists(pool, "pickup_supplier_contacts"))) {
+        throw new PickupError(
+          "Выполните миграцию migrations/107_pickup_supplier_contacts.sql",
+          503,
+        );
+      }
+      const like = `%${textValue(body.q, 100).replace(/[%_\\]/g, "")}%`;
+      const digits = like.replace(/\D/g, "");
+      const params: string[] = [senderInn];
+      let filter = "";
+      if (body.q && String(body.q).trim()) {
+        params.push(like);
+        filter =
+          " AND (name ILIKE $2 OR phone ILIKE $2 OR extension ILIKE $2";
+        if (digits.length >= 3) {
+          params.push(`%${digits}%`);
+          filter += " OR phone_digits LIKE $" + params.length;
+        }
+        filter += ")";
+      }
+      return {
+        items: (
+          await db.query(
+            `SELECT id,name,phone,extension,purpose FROM pickup_supplier_contacts
+             WHERE sender_inn=$1${filter}
+             ORDER BY updated_at DESC LIMIT 50`,
+            params,
+          )
+        ).rows,
+      };
+    }
     const table =
       body.kind === "customer"
         ? "cache_customers"
@@ -443,6 +488,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         );
         await event(db, actor, "Забор изменён", job.route_id, id);
       } else await event(db, actor, "Забор сохранён", null, id);
+      await persistJobContactsToSenderDirectory(db, data.senderInn, data);
       return { id };
     }
 
@@ -475,6 +521,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         schedule: dates.length > 1 ? { groupId, index: i + 1, total: dates.length } : {},
       });
     }
+    await persistJobContactsToSenderDirectory(db, data.senderInn, data);
     return { id: ids[0], ids, createdCount: ids.length };
   }
   if (action === "save_route") {

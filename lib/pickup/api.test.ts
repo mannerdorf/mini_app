@@ -151,12 +151,14 @@ beforeAll(async () => {
     .exec(`CREATE TABLE registered_users(id serial PRIMARY KEY,login text,password_hash text,active boolean,permissions jsonb);
     CREATE TABLE cache_customers(inn text PRIMARY KEY,customer_name text);
     CREATE TABLE cache_suppliers(inn text PRIMARY KEY,supplier_name text);`);
-  await state.db.exec(
-    readFileSync(
-      new URL("../../migrations/104_pickup_dispatch.sql", import.meta.url),
-      "utf8",
-    ),
-  );
+  for (const file of [
+    "../../migrations/104_pickup_dispatch.sql",
+    "../../migrations/107_pickup_supplier_contacts.sql",
+  ]) {
+    await state.db.exec(
+      readFileSync(new URL(file, import.meta.url), "utf8"),
+    );
+  }
   // Verify migration is safe to re-apply.
   await state.db.exec(
     readFileSync(
@@ -173,7 +175,7 @@ afterAll(async () => {
 });
 beforeEach(async () => {
   await state.db.exec(
-    "TRUNCATE pickup_receipts,pickup_events,pickup_photos,pickup_jobs,pickup_routes,pickup_resources,registered_users CASCADE",
+    "TRUNCATE pickup_receipts,pickup_events,pickup_photos,pickup_jobs,pickup_routes,pickup_resources,pickup_supplier_contacts,registered_users CASCADE",
   );
   for (const [login, permissions] of [
     ["dispatch", { dispatcher: true }],
@@ -462,5 +464,58 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
       actual_places: 2,
       photos: [photo],
     });
+  });
+
+  it("persists contacts to sender directory on save_job", async () => {
+    await ok("dispatch", {
+      action: "save_job",
+      city: "moscow",
+      date: "2026-09-15",
+      data: {
+        ...data(),
+        contacts: [
+          {
+            name: "Иван Петров",
+            phone: "+7 985 047-45-26",
+            extension: "418",
+            purpose: "Звонки",
+          },
+        ],
+      },
+    });
+    const listed = await ok("dispatch", {
+      action: "directory",
+      kind: "sender_contact",
+      sender_inn: "200",
+      q: "",
+    });
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0].name).toBe("Иван Петров");
+    expect(listed.items[0].phone).toBe("+7 985 047-45-26");
+    expect(listed.items[0].extension).toBe("418");
+    await ok("dispatch", {
+      action: "save_job",
+      city: "moscow",
+      date: "2026-09-16",
+      data: {
+        ...data(),
+        contacts: [
+          {
+            name: "Иван П.",
+            phone: "+79850474526",
+            extension: "",
+            purpose: "Переписка",
+          },
+        ],
+      },
+    });
+    const updated = await ok("dispatch", {
+      action: "directory",
+      kind: "sender_contact",
+      sender_inn: "200",
+    });
+    expect(updated.items).toHaveLength(1);
+    expect(updated.items[0].name).toBe("Иван П.");
+    expect(updated.items[0].purpose).toBe("Переписка");
   });
 });

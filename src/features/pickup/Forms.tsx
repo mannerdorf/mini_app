@@ -201,6 +201,90 @@ export function Directory({
     </div>
   );
 }
+type SenderContactRow = {
+  id: string;
+  name: string;
+  phone: string;
+  extension: string;
+  purpose: string;
+};
+export function SenderContactDirectory({
+  senderInn,
+  call,
+  onPick,
+}: {
+  senderInn: string;
+  call: PickupCall;
+  onPick: (c: Omit<SenderContactRow, "id">) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [items, setItems] = useState<SenderContactRow[]>([]);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  if (!senderInn) return null;
+  return (
+    <div className="pk-directory pk-directory--nested">
+      <strong>Из справочника контактных лиц отправителя</strong>
+      <div className="pk-actions">
+        <input
+          aria-label="Поиск контакта отправителя"
+          placeholder="Имя или телефон"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+        <button
+          type="button"
+          disabled={loading}
+          onClick={async () => {
+            setLoading(true);
+            setError("");
+            try {
+              const r = await call({
+                action: "directory",
+                kind: "sender_contact",
+                sender_inn: senderInn,
+                q: query,
+              });
+              const list = (r.items ?? []) as SenderContactRow[];
+              setItems(list);
+              if (!list.length) setError("Контактов пока нет — сохраните забор с телефоном");
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setLoading(false);
+            }
+          }}
+        >
+          Найти
+        </button>
+      </div>
+      {!!items.length && (
+        <ul>
+          {items.map((i) => (
+            <li key={i.id}>
+              <button
+                type="button"
+                onClick={() => {
+                  onPick({
+                    name: i.name,
+                    phone: i.phone,
+                    extension: i.extension,
+                    purpose: i.purpose || "Звонки",
+                  });
+                  setItems([]);
+                }}
+              >
+                {i.name || "Без имени"} · {i.phone}
+                {i.extension ? ` доб. ${i.extension}` : ""}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <p role="status">{error}</p>}
+    </div>
+  );
+}
 export function FormShell({
   title,
   children,
@@ -740,6 +824,29 @@ export function JobForm({
         </div>
       </details>
       <h3>Контакты</h3>
+      <SenderContactDirectory
+        senderInn={data.senderInn}
+        call={call}
+        onPick={(picked) => {
+          setData((prev) => {
+            const idx = prev.contacts.findIndex(
+              (c) => !c.phone.replace(/\D/g, "").length && !c.name.trim(),
+            );
+            const row = {
+              name: picked.name,
+              phone: picked.phone,
+              extension: picked.extension,
+              purpose: picked.purpose,
+            };
+            if (idx >= 0) {
+              const contacts = [...prev.contacts];
+              contacts[idx] = row;
+              return { ...prev, contacts };
+            }
+            return { ...prev, contacts: [...prev.contacts, row] };
+          });
+        }}
+      />
       {data.contacts.map((c, i) => (
         <div className="pk-subrow" key={i}>
           <div className="pk-grid">
