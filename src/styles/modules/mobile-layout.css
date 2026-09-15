@@ -1,0 +1,68 @@
+/* Mobile: страница без горизонтального скролла; фильтры (.filters-row-scroll) — по-прежнему со scroll. */
+
+@media (max-width: 768px) {
+    .app-main {
+        overflow-x: hidden;
+        max-width: 100%;
+    }
+
+    .cargo-page-root--saas-analytics,
+    .documents-page--saas-analytics,
+    .dashboard-page--saas-analytics {
+        overflow-x: hidden;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    /* Графики: переключатели метрик переносятся, не раздувают ширину */
+    .dashboard-chart-type-toolbar {
+        flex-wrap: wrap !important;
+        justify-content: flex-end;
+        max-width: 100%;
+    }
+
+    /* Операции: узкие minmax-колонки → одна колонка */
+    .dashboard-ops-metrics-grid {
+        grid-template-columns: minmax(0, 1fr) !important;
+    }
+
+    .dashboard-ops-stage-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    }
+
+    /* Отправки: инфографика-бейджи переносятся (не фильтры) */
+    .documents-sendings-infographic-row {
+        flex-wrap: wrap;
+        overflow-x: hidden;
+        white-space: normal;
+    }
+
+    /* Табель: форма добавления сотрудника — вертикальный stack */
+    .dept-timesheet-add-form-scroll {
+        overflow-x: hidden !important;
+    }
+
+    .dept-timesheet-add-form-row {
+        flex-wrap: wrap !important;
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+
+    .dept-timesheet-add-form-row > * {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+    }
+
+    .dept-timesheet-grid-wrap {
+        max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    /* Переключатель «Таблица» только на широких экранах */
+    .table-mode-toggle-desktop-only {
+        display: none !important;
+    }
+}

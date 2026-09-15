@@ -219,8 +219,8 @@ export function ProfileDepartmentTimesheetSection({ activeAccount, onBack, times
                             <Typography.Body style={{ marginBottom: '0.75rem', color: 'var(--color-text-secondary)', fontSize: '0.85rem' }}>
                                 Новый сотрудник будет добавлен в ваше подразделение как сотрудник.
                             </Typography.Body>
-                            <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.1rem' }}>
-                            <Flex className="form-row-same-height invite-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ width: 'max-content', minWidth: '100%' }}>
+                            <div className="dept-timesheet-add-form-scroll" style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.1rem' }}>
+                            <Flex className="form-row-same-height invite-form-row dept-timesheet-add-form-row" gap="0.5rem" wrap="nowrap" align="center" style={{ width: 'max-content', minWidth: '100%' }}>
                                 <Input
                                     type="text"
                                     placeholder="ФИО"
@@ -306,7 +306,7 @@ export function ProfileDepartmentTimesheetSection({ activeAccount, onBack, times
                 <Typography.Body style={{ fontSize: '0.82rem', color: 'var(--color-text-secondary)', marginBottom: '0.35rem', display: 'block' }}>
                     Нажмите на ФИО сотрудника, чтобы открыть таблицу выплат за выбранный месяц.
                 </Typography.Body>
-                <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch', paddingLeft: 'max(0.5rem, env(safe-area-inset-left))', paddingRight: 'max(0.5rem, env(safe-area-inset-right))' }}>
+                <div className="dept-timesheet-grid-wrap" style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '70vh', WebkitOverflowScrolling: 'touch', paddingLeft: 'max(0.5rem, env(safe-area-inset-left))', paddingRight: 'max(0.5rem, env(safe-area-inset-right))' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: `${340 + departmentTimesheetDays.length * 44 + SHIFT_MARK_CODES.length * 52}px` }}>
                         <thead>
                             <tr>

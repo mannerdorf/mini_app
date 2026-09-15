@@ -234,8 +234,8 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
                                                     Нет данных по посылкам
                                                 </Typography.Body>
                                             ) : (
-                                                <div style={{ overflowX: 'auto' }}>
-                                                    <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                                <div className="doc-inner-table-wrap mobile-card-table-wrap">
+                                                    <table className="doc-inner-table mobile-card-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
                                                         <thead>
                                                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                                                 <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600 }}>Посылка</th>
@@ -253,13 +253,14 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
                                                                 return (
                                                                     <tr
                                                                         key={`${rowKey}-card-parcel-${parcel?.Посылка ?? parcelIdx}`}
+                                                                        className="mobile-card-table__row"
                                                                         style={{
                                                                             borderBottom: '1px solid var(--color-border)',
                                                                             background: hasParcelSearchMatches ? 'rgba(37, 99, 235, 0.08)' : undefined,
                                                                         }}
                                                                     >
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={(n) => handleOpenCargo(n, {
+                                                                        <td data-label="Посылка" style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{parcel?.ПосылкаНаименование ?? parcel?.Посылка ?? '—'}</td>
+                                                                        <td data-label="Перевозка" style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}><ClickableCargoNumber number={parcel?.Перевозка} onOpen={(n) => handleOpenCargo(n, {
                                                                             Customer: parcel?.ЗаказчикНаименование ?? parcel?.Заказчик,
                                                                             State: cargoStateByNumber.get(normCargoKey(String(parcel?.Перевозка ?? ''))),
                                                                             PW: parcel?.ПлатныйВес,
@@ -268,9 +269,9 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
                                                                             Mest: goods?.Количество,
                                                                             Sum: getParcelFreightSum(parcel, cargoSumByNumber) || undefined,
                                                                         })} /></td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
-                                                                        <td style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
+                                                                        <td data-label="Номенклатура" style={{ padding: '0.35rem 0.3rem' }}>{parcelNomenclature || '—'}</td>
+                                                                        <td data-label="ТН ВЭД" style={{ padding: '0.35rem 0.3rem', whiteSpace: 'nowrap' }}>{getParcelTnvedCode(parcel) || '—'}</td>
+                                                                        <td data-label="Кол-во" style={{ padding: '0.35rem 0.3rem', textAlign: 'right', whiteSpace: 'nowrap' }}>{goods?.Количество ?? '—'}</td>
                                                                     </tr>
                                                                 );
                                                             })}
