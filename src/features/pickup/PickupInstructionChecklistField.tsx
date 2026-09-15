@@ -40,7 +40,7 @@ export function PickupInstructionChecklistField({ state, onChange }: Props) {
   return (
     <div className="pk-instruction-checklist">
       <p className="pk-instruction-checklist__title">
-        Въезд, ориентир, пропуск, доверенность, предварительный звонок
+        Въезд, пропуск, доверенность, предварительный звонок
       </p>
       <p className="pk-hint">
         Включите нужное переключателями. Порядок строк — перетаскиванием (важно для

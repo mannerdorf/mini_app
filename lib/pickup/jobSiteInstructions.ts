@@ -1,9 +1,4 @@
-export type PickupSiteChecklistId =
-  | "entry"
-  | "landmark"
-  | "pass"
-  | "poa"
-  | "call";
+export type PickupSiteChecklistId = "entry" | "pass" | "poa" | "call";
 
 export type PickupSiteChecklistItem = {
   id: PickupSiteChecklistId;
@@ -30,7 +25,6 @@ export const PICKUP_WAREHOUSE_HOURS_PRESETS: { value: string; label: string }[] 
 
 const DEFAULT_ORDER: PickupSiteChecklistId[] = [
   "entry",
-  "landmark",
   "pass",
   "poa",
   "call",
@@ -38,7 +32,6 @@ const DEFAULT_ORDER: PickupSiteChecklistId[] = [
 
 const LABELS: Record<PickupSiteChecklistId, string> = {
   entry: "Въезд",
-  landmark: "Ориентир",
   pass: "Пропуск",
   poa: "Доверенность",
   call: "Предварительный звонок",

@@ -9,7 +9,7 @@ import {
 describe("jobSiteInstructions", () => {
   it("round-trips checklist order, toggles and note", () => {
     const state = createDefaultPickupSiteInstructions();
-    state.order = ["call", "entry", "landmark", "pass", "poa"];
+    state.order = ["call", "entry", "pass", "poa"];
     state.items = state.items.map((i) => ({
       ...i,
       enabled: i.id === "entry" || i.id === "call",
