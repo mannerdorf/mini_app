@@ -11,6 +11,8 @@ export type PickupCustomerQuoteView = {
   summary: string;
 };
 
+type PriceMode = "auto" | "manual";
+
 type Props = {
   city: City;
   data: JobData;
@@ -20,6 +22,9 @@ type Props = {
 };
 
 export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: Props) {
+  const [priceMode, setPriceMode] = useState<PriceMode>(() =>
+    data.priceRub != null ? "manual" : "auto",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [lastQuote, setLastQuote] = useState<PickupCustomerQuoteView | null>(null);
@@ -43,7 +48,7 @@ export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: P
       setLastQuote(q);
       onPatch({
         priceRub: q.totalRub,
-        mkadKm: city === "moscow" || city === "kaliningrad" ? q.km : data.mkadKm,
+        mkadKm: q.km,
         payment:
           data.payment === "Не указано" || !data.payment.trim()
             ? `Забор по тарифу (${ringLabel})`
@@ -60,42 +65,70 @@ export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: P
     <section className="pk-customer-quote">
       <h3>Расчёты с заказчиком</h3>
       <p className="pk-hint">
-        Расчёт по матрице забора из админки HAULZ (как первая миля в заявках). После
-        расчёта значения можно скорректировать вручную.
+        Стоимость — по матрице забора из админки HAULZ или вручную. Оплата и километры
+        можно править отдельно.
       </p>
-      <button
-        type="button"
-        className="pk-primary pk-customer-quote__btn"
-        disabled={busy}
-        onClick={() => void runQuote()}
-      >
-        {busy ? (
-          <>
-            <Loader2 className="w-4 h-4 animate-spin" aria-hidden /> Рассчитываем…
-          </>
-        ) : (
-          "Рассчитать"
-        )}
-      </button>
-      {error && (
-        <p className="pk-hint haulz-calc-hint--error" role="alert">
-          {error}
-        </p>
-      )}
-      {lastQuote && (
-        <p className="pk-customer-quote__summary" role="status">
-          {lastQuote.summary}
-        </p>
-      )}
+
       <div className="pk-grid pk-customer-quote__fields">
-        <Field
-          label="Стоимость для заказчика, ₽"
-          type="number"
-          min="0"
-          step="0.01"
-          value={data.priceRub}
-          onChange={(v) => onPatch({ priceRub: num(v) })}
-        />
+        <div className="pk-field pk-customer-quote__price-mode">
+          <span>Стоимость для заказчика, ₽</span>
+          <select
+            className="pk-customer-quote__select"
+            value={priceMode}
+            onChange={(e) => {
+              const mode = e.target.value as PriceMode;
+              setPriceMode(mode);
+              setError("");
+              if (mode === "auto") setLastQuote(null);
+            }}
+          >
+            <option value="auto">Рассчитать автоматически</option>
+            <option value="manual">Ввести вручную</option>
+          </select>
+
+          {priceMode === "auto" ? (
+            <div className="pk-customer-quote__auto">
+              <button
+                type="button"
+                className="pk-primary pk-customer-quote__btn"
+                disabled={busy}
+                onClick={() => void runQuote()}
+              >
+                {busy ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" aria-hidden />{" "}
+                    Рассчитываем…
+                  </>
+                ) : (
+                  "Рассчитать"
+                )}
+              </button>
+              {error && (
+                <p className="pk-hint haulz-calc-hint--error" role="alert">
+                  {error}
+                </p>
+              )}
+              {(lastQuote || data.priceRub != null) && (
+                <p className="pk-customer-quote__summary" role="status">
+                  {lastQuote?.summary ??
+                    (data.priceRub != null
+                      ? `Стоимость: ${data.priceRub.toLocaleString("ru-RU")} ₽`
+                      : "")}
+                </p>
+              )}
+            </div>
+          ) : (
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Сумма, ₽"
+              value={data.priceRub ?? ""}
+              onChange={(e) => onPatch({ priceRub: num(e.target.value) })}
+            />
+          )}
+        </div>
+
         <Field
           label="Оплата / указание бухгалтерии"
           value={data.payment}
