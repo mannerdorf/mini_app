@@ -400,6 +400,58 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     });
     return { id };
   }
+  if (action === "delete_resource") {
+    dispatcherOnly(actor);
+    requireValue(
+      body.kind === "driver" || body.kind === "vehicle",
+      "Удалять можно только водителей и автомобили",
+    );
+    const id = uuid(body.id);
+    const { rows } = await db.query(
+      "SELECT * FROM pickup_resources WHERE id=$1 FOR UPDATE",
+      [id],
+    );
+    requireValue(
+      rows[0] && rows[0].kind === body.kind,
+      "Запись не найдена",
+    );
+    checkVersion(rows[0], body.version);
+    const openRoute = await db.query(
+      `SELECT id FROM pickup_routes
+       WHERE status <> 'completed' AND (driver_id = $1 OR vehicle_id = $1)
+       LIMIT 1`,
+      [id],
+    );
+    requireValue(
+      !openRoute.rows.length,
+      "Ресурс на незавершённом маршруте — смените водителя/авто или завершите маршрут",
+    );
+    const anyRoute = await db.query(
+      `SELECT 1 FROM pickup_routes
+       WHERE driver_id = $1 OR vehicle_id = $1
+       LIMIT 1`,
+      [id],
+    );
+    let archived = false;
+    if (anyRoute.rows.length) {
+      await db.query(
+        "UPDATE pickup_resources SET active=false, version=version+1, updated_at=now() WHERE id=$1",
+        [id],
+      );
+      archived = true;
+      await event(db, actor, "Справочник: архив", null, null, {
+        resourceId: id,
+        kind: body.kind,
+      });
+    } else {
+      await db.query("DELETE FROM pickup_resources WHERE id=$1", [id]);
+      await event(db, actor, "Справочник: удаление", null, null, {
+        resourceId: id,
+        kind: body.kind,
+      });
+    }
+    return { ok: true, archived };
+  }
   if (action === "save_job") {
     dispatcherOnly(actor);
     validCity(body.city);
