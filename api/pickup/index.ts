@@ -19,6 +19,7 @@ import {
 import { pgTableExists } from "../_haulzReturns.js";
 import {
   PickupError,
+  pickupJobCanCancel,
   requireValue,
   validCity,
   validDate,
@@ -384,6 +385,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         !rows[0].route_id && rows[0].status === "pending",
         "Редактировать можно только нераспределённый забор",
       );
+      requireValue(rows[0].status !== "cancelled", "Отменённый забор нельзя изменить");
       await db.query(
         `UPDATE pickup_jobs SET data=$2,city=$3,date=$4,
           zayavka_number=$5,cargo_number=$6,customer_inn=$7,sender_inn=$8,
@@ -555,7 +557,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     checkVersion(route, body.version);
     const jobs: Job[] = (
       await db.query(
-        "SELECT * FROM pickup_jobs WHERE route_id=$1 ORDER BY position,created_at",
+        "SELECT * FROM pickup_jobs WHERE route_id=$1 AND status<>'cancelled' ORDER BY position,created_at",
         [route.id],
       )
     ).rows;
@@ -683,6 +685,54 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       )[action],
       route.id,
     );
+    return { ok: true };
+  }
+  if (action === "cancel") {
+    const { rows } = await db.query(
+      "SELECT *,to_char(date,'YYYY-MM-DD') AS date FROM pickup_jobs WHERE id=$1 FOR UPDATE",
+      [uuid(body.id)],
+    );
+    const job: Job = rows[0];
+    requireValue(job, "Забор не найден");
+    checkVersion(job, body.version);
+    requireValue(
+      textValue(body.note, 3000),
+      "Укажите причину отмены",
+    );
+    requireValue(
+      pickupJobCanCancel(job.status),
+      "Этот забор уже нельзя отменить",
+    );
+    const routeId = job.route_id;
+    if (actor.dispatcher) {
+      /* диспетчер — любой допустимый статус */
+    } else {
+      requireValue(routeId, "Забор не на вашем маршруте");
+      const route = await routeById(db, routeId);
+      checkRouteAccess(actor, route);
+      requireValue(
+        route.status !== "completed",
+        "Маршрут завершён",
+      );
+    }
+    await db.query(
+      `UPDATE pickup_jobs SET status='cancelled', resolution=$2, route_id=NULL, position=0,
+        version=version+1, updated_at=now() WHERE id=$1`,
+      [job.id, textValue(body.note, 3000)],
+    );
+    if (routeId) {
+      await db.query(
+        "UPDATE pickup_routes SET version=version+1,updated_at=now() WHERE id=$1",
+        [routeId],
+      );
+      await event(db, actor, "Забор отменён", routeId, job.id, {
+        note: textValue(body.note, 3000),
+      });
+    } else {
+      await event(db, actor, "Забор отменён", null, job.id, {
+        note: textValue(body.note, 3000),
+      });
+    }
     return { ok: true };
   }
   if (["arrive", "complete", "problem", "resolve"].includes(action)) {

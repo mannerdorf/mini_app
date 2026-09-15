@@ -82,7 +82,8 @@ export type JobStatus =
   | "partial"
   | "problem"
   | "deposited"
-  | "resolved";
+  | "resolved"
+  | "cancelled";
 export const statusLabels: Record<JobStatus, string> = {
   pending: "Ожидает забора",
   arrived: "На точке",
@@ -91,7 +92,13 @@ export const statusLabels: Record<JobStatus, string> = {
   problem: "Проблема",
   deposited: "Сдан на склад",
   resolved: "Закрыто диспетчером",
+  cancelled: "Отменён",
 };
+
+/** Заборы, которые диспетчер или водитель могут отменить (с обязательным комментарием). */
+export function pickupJobCanCancel(status: JobStatus): boolean {
+  return status === "pending" || status === "arrived" || status === "problem";
+}
 export type Job = {
   id: string;
   city: City;

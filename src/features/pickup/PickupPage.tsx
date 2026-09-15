@@ -19,7 +19,7 @@ import {
   cities,
   plannedPlaces,
   routeWarnings,
-  statusLabels,
+  pickupJobCanCancel,
   type City,
   type Snapshot,
   type Job,
@@ -44,6 +44,8 @@ import {
   JobForm,
   RouteForm,
 } from "./Forms";
+import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
+import { PickupCancelJobSection } from "./PickupCancelJobSection";
 import "./pickup.css";
 import "../../styles/haulz-calculator.css";
 
@@ -276,10 +278,11 @@ export function PickupPage({
   const route = routes.find((r) => r.id === selected) ?? routes[0];
   const routeJobs = route
     ? snapshot.jobs
-        .filter((j) => j.route_id === route.id)
+        .filter((j) => j.route_id === route.id && j.status !== "cancelled")
         .sort((a, b) => a.position - b.position)
     : [];
-  const unassigned = snapshot.jobs.filter((j) => !j.route_id);
+  const activeJobs = snapshot.jobs.filter((j) => j.status !== "cancelled");
+  const unassigned = activeJobs.filter((j) => !j.route_id);
   const routePending = route
     ? outbox.some(
         (p) =>
@@ -425,7 +428,7 @@ export function PickupPage({
         <>
           <div className="pk-stats">
             <div>
-              <strong>{snapshot.jobs.length}</strong>
+              <strong>{activeJobs.length}</strong>
               <span>Заборов за день</span>
             </div>
             <div>
@@ -435,7 +438,7 @@ export function PickupPage({
             <div>
               <strong>
                 {
-                  snapshot.jobs.filter((j) =>
+                  activeJobs.filter((j) =>
                     ["picked_up", "partial", "deposited"].includes(j.status),
                   ).length
                 }
@@ -445,7 +448,7 @@ export function PickupPage({
             <div>
               <strong>
                 {
-                  snapshot.jobs.filter(
+                  activeJobs.filter(
                     (j) =>
                       ["partial", "problem"].includes(j.status) &&
                       !j.resolution,
@@ -520,7 +523,10 @@ export function PickupPage({
         <section className="pk-panel">
           <h2>Заборы · {date}</h2>
           {snapshot.jobs.map((j) => (
-            <article key={j.id} className="pk-card">
+            <article key={j.id} className={`pk-card pk-card--${j.status}`}>
+              <div className="pk-card__head">
+                <PickupJobStatusBadge status={j.status} />
+              </div>
               <JobSummary job={j} />
               <div className="pk-actions">
                 <button
@@ -532,7 +538,6 @@ export function PickupPage({
                 >
                   <Copy size={16} aria-hidden />
                 </button>
-                <span>{statusLabels[j.status]}</span>
                 {!j.route_id && j.status === "pending" && (
                   <button onClick={() => setEditor({ type: "job", job: j })}>
                     Изменить
@@ -543,6 +548,29 @@ export function PickupPage({
                     "Не распределён"}
                 </span>
               </div>
+              {dispatch && pickupJobCanCancel(j.status) && (
+                <PickupCancelJobSection
+                  job={j}
+                  busy={busy}
+                  compact
+                  onConfirm={(note) =>
+                    act(
+                      {
+                        action: "cancel",
+                        id: j.id,
+                        version: j.version,
+                        note,
+                      },
+                      "Забор отменён",
+                    )
+                  }
+                />
+              )}
+              {j.status === "cancelled" && j.resolution && (
+                <p className="pk-muted pk-cancel-reason">
+                  {j.resolution}
+                </p>
+              )}
             </article>
           ))}
         </section>
@@ -581,7 +609,10 @@ export function PickupPage({
                   <Package size={20} /> Не распределено · {unassigned.length}
                 </h2>
                 {unassigned.map((j) => (
-                  <article className="pk-card" key={j.id}>
+                  <article className={`pk-card pk-card--${j.status}`} key={j.id}>
+                    <div className="pk-card__head">
+                      <PickupJobStatusBadge status={j.status} />
+                    </div>
                     <JobSummary job={j} />
                     <div className="pk-actions">
                       <button
@@ -617,6 +648,24 @@ export function PickupPage({
                         </button>
                       )}
                     </div>
+                    {dispatch && (
+                      <PickupCancelJobSection
+                        job={j}
+                        busy={busy}
+                        compact
+                        onConfirm={(note) =>
+                          act(
+                            {
+                              action: "cancel",
+                              id: j.id,
+                              version: j.version,
+                              note,
+                            },
+                            "Забор отменён",
+                          )
+                        }
+                      />
+                    )}
                   </article>
                 ))}
               </>
@@ -752,12 +801,26 @@ export function PickupPage({
                           job={j}
                           call={call}
                           driver={mode === "driver"}
+                          dispatcher={dispatch}
                           canAct={
                             mode === "driver" &&
                             route.status === "started" &&
                             !routePending &&
                             outboxReady &&
                             route.acknowledged_version === route.version
+                          }
+                          canCancel={
+                            pickupJobCanCancel(j.status) &&
+                            !routePending &&
+                            outboxReady &&
+                            (dispatch ||
+                              (mode === "driver" &&
+                                route.status !== "completed" &&
+                                route.status !== "draft" &&
+                                (route.status === "published" ||
+                                  (route.status === "started" &&
+                                    route.acknowledged_version ===
+                                      route.version))))
                           }
                           busy={busy}
                           act={act}
@@ -920,9 +983,14 @@ export function PickupPage({
     </div>
   );
 }
-function JobSummary({ job }: { job: Job }) {
+function JobSummary({ job, showBadge = false }: { job: Job; showBadge?: boolean }) {
   return (
     <>
+      {showBadge && (
+        <div className="pk-card__head">
+          <PickupJobStatusBadge status={job.status} />
+        </div>
+      )}
       <p className="pk-eyebrow">
         {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
         мест · {job.data.weightKg ?? "—"} кг
@@ -985,14 +1053,18 @@ function JobDetails({
   job,
   call,
   driver,
+  dispatcher,
   canAct,
+  canCancel,
   busy,
   act,
 }: {
   job: Job;
   call: PickupCall;
   driver: boolean;
+  dispatcher: boolean;
   canAct: boolean;
+  canCancel: boolean;
   busy: boolean;
   act: Action;
 }) {
@@ -1007,12 +1079,29 @@ function JobDetails({
   return (
     <article className={`pk-job pk-status-${job.status}`}>
       <div className="pk-actions">
-        <span className="pk-badge">{statusLabels[job.status]}</span>
+        <PickupJobStatusBadge status={job.status} />
         {job.actual_places !== null && (
           <strong>Забрано: {job.actual_places} мест</strong>
         )}
       </div>
       <JobSummary job={job} />
+      {canCancel && (
+        <PickupCancelJobSection
+          job={job}
+          busy={busy}
+          onConfirm={(note) =>
+            act(
+              {
+                action: "cancel",
+                id: job.id,
+                version: job.version,
+                note,
+              },
+              "Забор отменён",
+            )
+          }
+        />
+      )}
       <div className="pk-actions">
         <a
           href={navUrl(

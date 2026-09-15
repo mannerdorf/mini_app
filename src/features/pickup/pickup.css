@@ -490,6 +490,52 @@
   padding: 6px 10px;
   font-weight: 650;
 }
+.pk-badge--pending {
+  background: #eef2f7;
+  color: #475569;
+}
+.pk-badge--arrived {
+  background: #e0f2fe;
+  color: #0369a1;
+}
+.pk-badge--picked_up,
+.pk-badge--deposited {
+  background: #dcfce7;
+  color: #166534;
+}
+.pk-badge--partial {
+  background: #fef3c7;
+  color: #b45309;
+}
+.pk-badge--problem {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.pk-badge--resolved {
+  background: #f3e8ff;
+  color: #7e22ce;
+}
+.pk-badge--cancelled {
+  background: #f1f5f9;
+  color: #64748b;
+  text-decoration: line-through;
+  text-decoration-color: rgba(100, 116, 139, 0.45);
+}
+.pk-card__head {
+  margin-bottom: 8px;
+}
+.pk-card--cancelled {
+  opacity: 0.82;
+}
+.pk-cancel-box {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--pk-border);
+}
+.pk-cancel-reason {
+  margin-top: 8px;
+  font-size: 13px;
+}
 .pk-route-heading {
   justify-content: space-between;
 }
