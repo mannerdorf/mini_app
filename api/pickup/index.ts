@@ -21,6 +21,7 @@ import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
+  pickupRouteCanDelete,
   requireValue,
   validCity,
   validDate,
@@ -532,7 +533,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     dispatcherOnly(actor);
     const route = await routeById(db, uuid(body.id));
     checkVersion(route, body.version);
-    requireValue(route.status === "draft", "Удалить можно только черновик маршрута");
+    requireValue(
+      pickupRouteCanDelete(route.status),
+      "Удалить можно черновик или опубликованный маршрут, который ещё не начат",
+    );
     const { rows: jobs } = await db.query<Job>(
       "SELECT * FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
       [route.id],

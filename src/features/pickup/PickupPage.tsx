@@ -23,6 +23,7 @@ import {
   pickupJobCanCancel,
   pickupJobCanEdit,
   pickupJobCanDelete,
+  pickupRouteCanDelete,
   type City,
   type Snapshot,
   type Job,
@@ -609,7 +610,7 @@ export function PickupPage({
                   <span>{r.snapshot.driver?.name}</span>
                   <span>{r.snapshot.vehicle?.data.plate}</span>
                 </button>
-                {dispatch && r.status === "draft" && (
+                {dispatch && pickupRouteCanDelete(r.status) && (
                   <DeleteRouteButton
                     route={r}
                     busy={busy}
@@ -812,6 +813,28 @@ export function PickupPage({
                       >
                         Опубликовать водителю
                       </button>
+                    </div>
+                  </div>
+                )}
+                {dispatch && route.status === "published" && (
+                  <div className="pk-route-draft-bar">
+                    <p className="pk-muted">
+                      Маршрут опубликован, но ещё не начат. Можно удалить (заборы
+                      вернутся в «Не распределено») или изменить параметры.
+                    </p>
+                    <div className="pk-actions">
+                      <button
+                        type="button"
+                        onClick={() => setEditor({ type: "route", route })}
+                      >
+                        Параметры
+                      </button>
+                      <DeleteRouteButton
+                        route={route}
+                        busy={busy}
+                        act={act}
+                        onDone={() => setSelected("")}
+                      />
                     </div>
                   </div>
                 )}
@@ -1478,7 +1501,11 @@ function DeleteRouteButton({
     <ConfirmButton
       variant="danger"
       disabled={busy}
-      prompt="Заборы вернутся в «Не распределено». Удалить этот черновик?"
+      prompt={
+        route.status === "draft"
+          ? "Заборы вернутся в «Не распределено». Удалить этот черновик?"
+          : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
+      }
       confirmLabel="Да, удалить"
       onConfirm={async () => {
         const ok = await act(

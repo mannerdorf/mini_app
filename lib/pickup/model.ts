@@ -109,6 +109,7 @@ export function pickupJobCanEdit(status: JobStatus): boolean {
 export function pickupJobCanDelete(status: JobStatus): boolean {
   return status === "pending" || status === "cancelled";
 }
+
 export type Job = {
   id: string;
   city: City;
@@ -137,6 +138,12 @@ export type Route = {
   start_time: string;
   snapshot: { driver?: Resource; vehicle?: Resource; depot?: Resource };
 };
+
+/** Удаление маршрута диспетчером (до старта рейса). */
+export function pickupRouteCanDelete(status: Route["status"]): boolean {
+  return status === "draft" || status === "published";
+}
+
 export type Event = {
   id: string;
   route_id: string | null;
