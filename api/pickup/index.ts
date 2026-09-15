@@ -420,6 +420,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       textValue(body.name, 200) && validTime(body.start_time),
       "Укажите название и время старта",
     );
+    body.depot_id = await ensureHaulzDepot(db, body.city);
     const snapshot = await routeResources(db, body);
     const id = body.id ? uuid(body.id) : randomUUID();
     if (body.id) {

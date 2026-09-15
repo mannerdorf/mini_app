@@ -9,8 +9,6 @@ import type {
 } from "../../../lib/pickup/model";
 import { cities } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
-import { warehouseForCity } from "../../../lib/haulzCalculator/warehouses";
-import { isHaulzDepotResource } from "../../../lib/pickup/haulzDepotShared";
 import type { Account } from "../../types";
 import {
   defaultPickupAddressState,
@@ -914,20 +912,11 @@ export function RouteForm({
     [driver, setDriver] = useState(route?.driver_id ?? ""),
     [vehicle, setVehicle] = useState(route?.vehicle_id ?? ""),
     [start, setStart] = useState(route?.start_time ?? "08:00");
-  const haulzDepot = resources.find(
-    (r) => r.kind === "depot" && r.active && isHaulzDepotResource(r.data),
-  );
-  const wh = warehouseForCity(city);
   return (
     <FormShell
       title={route ? "Изменить маршрут" : "Новый маршрут"}
       onClose={done}
       onSave={async () => {
-        if (!haulzDepot) {
-          throw new Error(
-            "Склад HAULZ для города не подготовлен. Обновите страницу и повторите.",
-          );
-        }
         await call({
           action: "save_route",
           requestId: crypto.randomUUID(),
@@ -938,7 +927,6 @@ export function RouteForm({
           name,
           driver_id: driver,
           vehicle_id: vehicle,
-          depot_id: haulzDepot.id,
           start_time: start,
         });
       }}
@@ -973,18 +961,11 @@ export function RouteForm({
             .map((r) => ({ id: r.id, name: `${r.name} · ${r.data.plate}` }))}
           required
         />
-        <div className="pk-field">
-          <span>Конечная точка — склад HAULZ</span>
-          <p className="pk-selection">
-            {wh.label}
-            <br />
-            {wh.fullAddress}
-          </p>
-        </div>
       </div>
       <p className="pk-muted">
-        Склад для {cities[city]} подставляется автоматически. Если водителей или
-        машин нет в списке — добавьте их во вкладках «Водители» и «Автомобили».
+        Конечная точка маршрута — склад HAULZ в {cities[city]} (подставляется
+        автоматически). Если водителей или машин нет в списке — добавьте их во
+        вкладках «Водители» и «Автомобили».
       </p>
     </FormShell>
   );
