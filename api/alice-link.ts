@@ -1,3 +1,4 @@
+import { setRedisValue } from "./redis.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext } from "./_lib/observability.js";
 import { getPool } from "./_db.js";
@@ -5,32 +6,6 @@ import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { getRegisteredUserPermissions, hasServiceModePermission } from "../lib/legalDocuments.js";
 
 const CODE_TTL_SECONDS = 60 * 10; // 10 minutes
-
-async function setRedisValue(key: string, value: string, ttlSeconds: number): Promise<boolean> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return false;
-
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify([
-        ["SET", key, value],
-        ["EXPIRE", key, ttlSeconds],
-      ]),
-    });
-    if (!response.ok) return false;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    return firstResult?.result === "OK" || firstResult?.result === true;
-  } catch {
-    return false;
-  }
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "alice-link");

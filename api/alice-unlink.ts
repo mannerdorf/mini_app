@@ -1,27 +1,6 @@
+import { getRedisValue } from "./redis.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext } from "./_lib/observability.js";
-
-async function getRedisValue(key: string): Promise<string | null> {
-  const url = process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (!url || !token) return null;
-  try {
-    const response = await fetch(`${url}/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify([["GET", key]]),
-    });
-    if (!response.ok) return null;
-    const data = await response.json();
-    const firstResult = Array.isArray(data) ? data[0] : data;
-    if (firstResult?.error) return null;
-    const value = firstResult?.result;
-    if (value === null || value === undefined) return null;
-    return String(value);
-  } catch {
-    return null;
-  }
-}
 
 async function delRedisKeys(keys: string[]): Promise<boolean> {
   const url = process.env.UPSTASH_REDIS_REST_URL;
