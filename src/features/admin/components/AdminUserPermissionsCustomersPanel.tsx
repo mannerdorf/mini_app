@@ -1,6 +1,7 @@
 import { Button, Typography } from "@maxhub/max-ui";
 import { Trash2 } from "lucide-react";
 import type { AdminUserEditorState } from "../hooks/useAdminUserEditor";
+import { adminUserMayOmitCustomerAssignment } from "../../../../lib/adminUserCustomerBinding";
 
 type Props = {
   customerDirectoryMap: Record<string, string>;
@@ -13,9 +14,16 @@ export function AdminUserPermissionsCustomersPanel({ customerDirectoryMap, edito
 
   if (editorPermissions.service_mode || editorAccessAllInns) return null;
 
+  const pickupOnly = adminUserMayOmitCustomerAssignment(editorPermissions);
+
   return (
     <div style={{ marginBottom: "1rem" }}>
       <Typography.Body style={{ marginBottom: "0.25rem", fontSize: "0.85rem" }}>Заказчик</Typography.Body>
+      {pickupOnly ? (
+        <Typography.Body style={{ marginBottom: "0.35rem", fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
+          Для водителя или диспетчера без разделов ЛК заказчик не обязателен.
+        </Typography.Body>
+      ) : null}
       <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-start" }}>
         <div
           role="button"

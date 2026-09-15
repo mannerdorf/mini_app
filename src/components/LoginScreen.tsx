@@ -30,6 +30,8 @@ import {
 } from "../utils";
 import * as dateUtils from "../lib/dateUtils";
 import type { Account, CustomerOption } from "../types";
+import { defaultProfileViewAfterRegisteredLogin } from "../../lib/registeredLoginLanding";
+import { persistProfileNavigation } from "../lib/profileViewPersist";
 
 const ForgotPasswordPage = lazy(() =>
   import("../pages/ForgotPasswordPage").then((m) => ({ default: m.ForgotPasswordPage })),
@@ -69,6 +71,19 @@ export function LoginScreen({
 } = {}) {
   const { accounts, setAccounts, setActiveAccountId } = useAuth();
   const { setActiveTab } = useAppShell();
+
+  const landRegisteredUser = useCallback(
+    (permissions: Record<string, boolean> | null | undefined) => {
+      const pickupView = defaultProfileViewAfterRegisteredLogin(permissions ?? undefined);
+      if (pickupView) {
+        persistProfileNavigation(pickupView, "haulz", null);
+        setActiveTab("profile");
+        return;
+      }
+      setActiveTab((prev) => prev || "cargo");
+    },
+    [setActiveTab],
+  );
 
   const [authMethods, setAuthMethods] = useState<AuthMethodsConfig>({
     api_v1: true,
@@ -204,7 +219,7 @@ export function LoginScreen({
             setAccounts((prev) => [...prev, newAccount]);
             setActiveAccountId(accountId);
           }
-          setActiveTab((prev) => prev || "cargo");
+          landRegisteredUser(cmsPerms);
           recordLoginLegalAcceptance(loginKey, password, { skipLegal: cmsServiceMode });
           return true;
         }

@@ -14,6 +14,7 @@ import {
   isSuperadminOnlyPermissionKey,
   permissionsForAdminEditor,
 } from "../lib/permissions";
+import { adminUserMayOmitCustomerAssignment } from "../../../../lib/adminUserCustomerBinding";
 import type { User } from "../types/adminUsers";
 
 export type UseAdminUserEditorParams = {
@@ -90,7 +91,11 @@ export function useAdminUserEditor({
 
   const handleSaveUserPermissions = useCallback(async () => {
     if (!selectedUser) return;
-    if (!editorAccessAllInns && !editorPermissions.service_mode && (editorCustomers ?? []).length === 0) {
+    const mayOmitCustomer =
+      editorAccessAllInns ||
+      editorPermissions.service_mode ||
+      adminUserMayOmitCustomerAssignment(editorPermissions);
+    if (!mayOmitCustomer && (editorCustomers ?? []).length === 0) {
       setEditorError("Конфликт: нет заказчиков и выключен служебный режим. Назначьте заказчика или включите служебный режим.");
       return;
     }

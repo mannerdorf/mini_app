@@ -8,6 +8,7 @@ import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
 import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
 import { withErrorLog } from "../lib/requestErrorLog.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { adminUserMayOmitCustomerAssignment } from "../lib/adminUserCustomerBinding.js";
 
 const DEFAULT_PERMISSIONS = {
   dispatcher: false,
@@ -119,7 +120,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
       : { ...permissionsRaw, doc_sendings: false };
   const financialAccess = body?.financial_access !== false;
 
-  if (!accessAllInns && (!inn || inn.length < 10)) {
+  const mayOmitCustomer =
+    accessAllInns || adminUserMayOmitCustomerAssignment(permissions);
+  if (!mayOmitCustomer && (!inn || inn.length < 10)) {
     return res.status(400).json({ error: "ИНН обязателен (10 или 12 цифр) или включите «Доступ ко всем заказчикам»", request_id: ctx.requestId });
   }
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {

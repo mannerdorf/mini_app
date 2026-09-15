@@ -1,6 +1,7 @@
 import { Button, Typography } from "@maxhub/max-ui";
 import { Trash2 } from "lucide-react";
 import type { AdminUserRegistrationState } from "../hooks/useAdminUserRegistration";
+import { adminUserMayOmitCustomerAssignment } from "../../../../lib/adminUserCustomerBinding";
 
 type Props = {
   customerDirectoryMap: Record<string, string>;
@@ -23,6 +24,10 @@ export function AdminUserAddCustomerSection({ customerDirectoryMap, registration
       {(formAccessAllInns || formPermissions.service_mode) ? (
         <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
           Служебный режим — выбор заказчика не требуется
+        </Typography.Body>
+      ) : adminUserMayOmitCustomerAssignment(formPermissions) ? (
+        <Typography.Body style={{ fontSize: "0.9rem", color: "var(--color-text-secondary)" }}>
+          Водитель или диспетчер без разделов ЛК — заказчик не обязателен
         </Typography.Body>
       ) : (
         <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>

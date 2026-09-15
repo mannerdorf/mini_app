@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { CustomerItem } from "../../../components/modals/CustomerPickModal";
 import { searchAdminCustomers } from "../../../api/client/admin/customers";
+import { adminUserMayOmitCustomerAssignment } from "../../../../lib/adminUserCustomerBinding";
 import { registerAdminUser } from "../../../api/client/admin/users";
 import {
   applyPermissionsToggle,
@@ -144,7 +145,11 @@ export function useAdminUserRegistration({
         setFormSubmitting(false);
         return;
       }
-      if (!formAccessAllInns && !formPermissions.service_mode && selectedCustomers.length === 0) {
+      const mayOmitCustomer =
+        formAccessAllInns ||
+        formPermissions.service_mode ||
+        adminUserMayOmitCustomerAssignment(formPermissions);
+      if (!mayOmitCustomer && selectedCustomers.length === 0) {
         onError("Выберите заказчика из справочника или включите служебный режим");
         setFormSubmitting(false);
         return;

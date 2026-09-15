@@ -27,8 +27,8 @@ export function useRegisteredAccountSync(isWbOnlyUser: boolean, isRedReturnsOnly
       if (!isWildberriesTab(activeTab)) setActiveTab(WB_TAB);
       return;
     }
-    const canHome = true;
-    const canCargo = true;
+    const canHome = !!(perms.home || perms.dashboard || perms.analytics);
+    const canCargo = !!perms.cargo;
     const canDocs = !!(
       perms.doc_invoices ||
       perms.doc_acts ||
