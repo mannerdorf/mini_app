@@ -1312,7 +1312,9 @@ export function RouteForm({
   const [name, setName] = useState(route?.name ?? ""),
     [driver, setDriver] = useState(route?.driver_id ?? ""),
     [vehicle, setVehicle] = useState(route?.vehicle_id ?? ""),
-    [start, setStart] = useState(route?.start_time ?? "08:00");
+    [start, setStart] = useState(route?.start_time ?? "08:00"),
+    [startMode, setStartMode] = useState(route?.snapshot.start?.mode ?? "depot"),
+    [startAddress, setStartAddress] = useState(route?.snapshot.start?.address ?? "");
   return (
     <FormShell
       title={route ? "Изменить маршрут" : "Новый маршрут"}
@@ -1329,6 +1331,8 @@ export function RouteForm({
           driver_id: driver,
           vehicle_id: vehicle,
           start_time: start,
+          start_mode: startMode,
+          start_address: startAddress,
         });
       }}
     >
@@ -1346,6 +1350,17 @@ export function RouteForm({
           onChange={setStart}
           required
         />
+        <Select
+          label="Место старта"
+          value={startMode}
+          onChange={(value) => setStartMode(value as "depot" | "address")}
+          options={[{ id: "depot", name: "Склад HAULZ" }, { id: "address", name: "Другой адрес" }]}
+          required
+        />
+        {startMode === "address" && (
+          <Field label="Адрес старта" value={startAddress} onChange={setStartAddress}
+            required placeholder="Город, улица, дом — например, стоянка автомобиля" />
+        )}
         <Select
           label="Водитель"
           value={driver}

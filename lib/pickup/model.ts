@@ -143,7 +143,7 @@ export type Route = {
   version: number;
   acknowledged_version: number;
   start_time: string;
-  snapshot: { driver?: Resource; vehicle?: Resource; depot?: Resource };
+  snapshot: { driver?: Resource; vehicle?: Resource; depot?: Resource; start?: { mode: "depot" | "address"; address: string } };
 };
 
 /** Удаление маршрута диспетчером (до старта рейса). */
@@ -411,4 +411,11 @@ export function validateCompletion(
       "Объясните расхождение с плановым количеством мест",
     );
   return count;
+}
+
+/** Legacy routes start at their HAULZ depot. */
+export function routeStartAddress(route: Route, depot = route.snapshot.depot): string {
+  return route.snapshot.start?.mode === "address"
+    ? route.snapshot.start.address
+    : depot?.data.address ?? "";
 }

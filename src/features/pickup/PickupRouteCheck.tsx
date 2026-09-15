@@ -1,3 +1,4 @@
+import { routeStartAddress } from "../../../lib/pickup/model";
 import React, { useEffect, useRef, useState } from "react";
 import { Route as RouteIcon, X } from "lucide-react";
 import type { Route, Job, Snapshot } from "../../../lib/pickup/model";
@@ -157,11 +158,11 @@ function CheckDialog({
         {route.name} · {route.date} ·{" "}
         {route.status === "started"
           ? "Проверяем оставшиеся заборы от текущего положения или последней отмеченной остановки"
-          : "По умолчанию старт и финиш — склад HAULZ"}
+          : `Старт: ${routeStartAddress(route, snapshot.resources.find((r) => r.id === route.depot_id)) || "Склад HAULZ"}. Финиш — склад HAULZ`}
         . Переставляются только незапущенные точки.
       </p>
       <label>
-        Другой адрес старта (необязательно)
+        Другой адрес только для этого расчёта (необязательно)
         <input
           value={address}
           maxLength={1000}

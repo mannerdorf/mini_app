@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Job, Route, Resource, Event } from "./model.js";
-import { routeWarnings } from "./model.js";
+import { routeWarnings, routeStartAddress } from "./model.js";
 import {
   usableRoutingLocation,
   locationDistance,
@@ -212,8 +212,10 @@ async function computeCheckRoute(
       );
     }
   } else {
-    originAddress = depot.data.address;
-    base.originLabel = `Старт со склада HAULZ: ${originAddress}`;
+    originAddress = routeStartAddress(route, depot);
+    base.originLabel = route.snapshot.start?.mode === "address"
+      ? `Место старта маршрута: ${originAddress}`
+      : `Старт со склада HAULZ: ${originAddress}`;
   }
   let owned: ReturnType<typeof createRouteProvider> | undefined;
   try {

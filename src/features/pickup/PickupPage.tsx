@@ -21,6 +21,7 @@ import {
   cities,
   plannedPlaces,
   routeWarnings,
+  routeStartAddress,
   pickupJobCanCancel,
   pickupJobCanEdit,
   pickupJobCanDelete,
@@ -1060,6 +1061,7 @@ export function PickupPage({
                       {cities[city]} · {route.date}
                     </p>
                     <h2>{route.name}</h2>
+                    <p className="pk-hint">Место старта: {routeStartAddress(route) || "Склад HAULZ"} · {route.start_time}</p>
                     <p className="pk-route-meta">
                       <PickupRouteStatusBadge status={route.status} /> ·{" "}
                       {route.snapshot.driver?.name} ·{" "}

@@ -781,10 +781,18 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       "Укажите название и время старта",
     );
     body.depot_id = await ensureHaulzDepot(db, body.city);
-    const snapshot = await routeResources(db, body);
+    const resources = await routeResources(db, body);
     const id = body.id ? uuid(body.id) : randomUUID();
+    const existing = body.id ? await routeById(db, id) : undefined;
+    const mode = body.start_mode ?? existing?.snapshot.start?.mode ?? "depot";
+    requireValue(mode === "depot" || mode === "address", "Выберите место старта");
+    const rawAddress = body.start_address ?? existing?.snapshot.start?.address ?? "";
+    requireValue(typeof rawAddress === "string" && rawAddress.length <= 1000, "Некорректный адрес старта");
+    const address = mode === "address" ? rawAddress.trim() : "";
+    requireValue(mode !== "address" || address.length > 0, "Укажите адрес старта маршрута");
+    const snapshot = { ...resources, start: { mode, address } };
     if (body.id) {
-      const route = await routeById(db, id);
+      const route = existing!;
       checkVersion(route, body.version);
       requireValue(
         route.status === "draft",
@@ -1053,7 +1061,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         route.status === "draft" && jobs.length,
         "Добавьте заборы в черновик маршрута",
       );
-      const snapshot = await routeResources(db, route);
+      const snapshot = { ...await routeResources(db, route), start: route.snapshot.start };
       requireValue(
         route.start_time >= snapshot.driver.data.from &&
           route.start_time < snapshot.driver.data.to,

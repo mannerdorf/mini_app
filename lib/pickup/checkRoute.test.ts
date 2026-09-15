@@ -173,3 +173,25 @@ it("invalidates an assessment when running driver's GPS becomes unreliable", () 
   i.location!.warning = "Резкий скачок координат";
   expect(checkSignature(i)).not.toBe(before);
 });
+
+it("uses the saved start address for planned routes and allows a one-off calculation override", async () => {
+  const data = input();
+  data.route.snapshot.start = { mode: "address", address: "Москва, стоянка" };
+  const routing = provider();
+  const result = await checkRoute(data, { windowsConfirmed: true }, routing, now);
+  expect(result.originLabel).toContain("Москва, стоянка");
+  expect(routing.geocode).toHaveBeenCalledWith("Москва, стоянка");
+  expect(routing.geocode).toHaveBeenCalledWith("Москва, склад");
+  const override = await checkRoute(data, { windowsConfirmed: true, startAddress: "Москва, другой адрес" }, provider(), now);
+  expect(override.originLabel).toContain("Москва, другой адрес");
+  expect(data.route.snapshot.start.address).toBe("Москва, стоянка");
+});
+
+it("does not use the original start for a running route with unreliable GPS and no completed stops", async () => {
+  const data = input();
+  data.route.status = "started";
+  data.route.snapshot.start = { mode: "address", address: "Москва, стоянка" };
+  const result = await checkRoute(data, { windowsConfirmed: true }, provider(), now);
+  expect(result.status).toBe("gray");
+  expect(result.warnings.join(" ")).toContain("GPS ненадёжен");
+});

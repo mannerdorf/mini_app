@@ -1212,3 +1212,23 @@ describe("dispatcher route assessment", () => {
     expect((await apply(result)).status).toBe(400);
   });
 });
+
+describe("route start location", () => {
+  it("validates, saves, preserves on legacy edits and publishes the chosen start to the driver", async () => {
+    await setup();
+    let route = (await snapshot()).routes[0];
+    const save = (extra: Record<string, unknown>) => request("dispatch", { ...route, action: "save_route", ...extra });
+    expect((await save({ start_mode: "address", start_address: "  " })).status).toBe(400);
+    expect((await save({ start_mode: "unknown" })).status).toBe(400);
+    expect((await save({ start_mode: "address", start_address: "Москва, стоянка" })).status).toBe(200);
+    route = (await snapshot()).routes[0];
+    expect(route.snapshot.start).toEqual({ mode: "address", address: "Москва, стоянка" });
+    expect((await save({ name: "Новый заголовок" })).status).toBe(200);
+    route = (await snapshot()).routes[0];
+    expect(route.snapshot.start.address).toBe("Москва, стоянка");
+    await ok("dispatch", { action: "publish", id: route.id, version: route.version });
+    const published = (await snapshot("driver")).routes[0];
+    expect(published.snapshot.start.address).toBe("Москва, стоянка");
+    expect(published.snapshot.depot.data.address).not.toBe("Москва, стоянка");
+  });
+});
