@@ -18,5 +18,7 @@ ios/App/App/GoogleService-Info.plist
 .env.vercel
 .env.timeweb
 .env*
+# Локальный MCP с подставленным токеном (в git — только .cursor/mcp.json с ${env:TIMEWEB_TOKEN})
+.cursor/mcp.local.json
 test-results/
 playwright-report/
