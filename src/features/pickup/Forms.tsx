@@ -23,6 +23,7 @@ import {
 import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
 import { PickupJobDefaultPlaceSection } from "./PickupJobDefaultPlaceSection";
 import { PickupVehicleResourceFields } from "./PickupVehicleResourceFields";
+import { cloneJobDataForCopy } from "../../../lib/pickup/cloneJobData";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
@@ -455,6 +456,7 @@ const emptyData: JobData = {
 };
 export function JobForm({
   job,
+  copyFrom,
   city,
   date,
   call,
@@ -462,6 +464,8 @@ export function JobForm({
   done,
 }: {
   job?: Job;
+  /** Новый забор с данными из существующего (без id). */
+  copyFrom?: Job;
   city: City;
   date: string;
   call: PickupCall;
@@ -469,21 +473,22 @@ export function JobForm({
   done: () => void;
 }) {
   const cityCode = pickupCityToCode(city);
-  const [data, setData] = useState<JobData>(job?.data ?? emptyData);
+  const seedData = job?.data ?? (copyFrom ? cloneJobDataForCopy(copyFrom.data) : undefined);
+  const [data, setData] = useState<JobData>(seedData ?? emptyData);
   const [day, setDay] = useState(job?.date ?? date);
   const [addressState, setAddressState] = useState(() =>
-    job?.data
-      ? jobDataToPickupAddressState(job.data, cityCode)
+    seedData
+      ? jobDataToPickupAddressState(seedData, cityCode)
       : defaultPickupAddressState(cityCode),
   );
   const [defaultPlaceState, setDefaultPlaceState] = useState(() =>
-    job?.data
-      ? jobDataToDefaultPlaceState(job.data, cityCode)
+    seedData
+      ? jobDataToDefaultPlaceState(seedData, cityCode)
       : defaultPickupDefaultPlaceState(cityCode),
   );
   const [siteInstructions, setSiteInstructions] = useState(() =>
-    job?.data?.instructions
-      ? parsePickupSiteInstructions(job.data.instructions)
+    seedData?.instructions
+      ? parsePickupSiteInstructions(seedData.instructions)
       : createDefaultPickupSiteInstructions(),
   );
   const update = (key: keyof JobData, v: any) =>
@@ -576,7 +581,13 @@ export function JobForm({
     : null;
   return (
     <FormShell
-      title={job ? "Редактировать забор" : "Новый забор"}
+      title={
+        job
+          ? "Редактировать забор"
+          : copyFrom
+            ? "Новый забор (копия)"
+            : "Новый забор"
+      }
       onClose={done}
       onSave={async () => {
         await call({

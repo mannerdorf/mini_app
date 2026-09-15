@@ -396,6 +396,22 @@
   border-radius: 12px;
   margin-bottom: 12px;
 }
+.pk-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--pk-border);
+  background: var(--pk-panel);
+  padding: 6px 8px;
+  border-radius: 8px;
+  cursor: pointer;
+  color: var(--pk-muted);
+  line-height: 0;
+}
+.pk-icon-btn:hover {
+  color: var(--pk-ink);
+  border-color: #6c96e7;
+}
 .pk-card .pk-actions {
   margin-top: 12px;
 }

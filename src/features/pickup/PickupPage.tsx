@@ -12,6 +12,7 @@ import {
   MapPin,
   Package,
   RefreshCw,
+  Copy,
 } from "lucide-react";
 import type { Account } from "../../types";
 import {
@@ -60,7 +61,7 @@ const empty: Snapshot = {
   dispatcher: false,
 };
 type Editor =
-  | { type: "job"; job?: Job }
+  | { type: "job"; job?: Job; copyFrom?: Job }
   | { type: "route"; route?: Route }
   | { type: ResourceKind; resource?: Resource }
   | null;
@@ -390,6 +391,7 @@ export function PickupPage({
           {editor.type === "job" ? (
             <JobForm
               job={editor.job}
+              copyFrom={editor.copyFrom}
               city={city}
               date={date}
               call={call}
@@ -518,6 +520,15 @@ export function PickupPage({
             <article key={j.id} className="pk-card">
               <JobSummary job={j} />
               <div className="pk-actions">
+                <button
+                  type="button"
+                  className="pk-icon-btn"
+                  aria-label="Копировать забор"
+                  title="Копировать забор"
+                  onClick={() => setEditor({ type: "job", copyFrom: j })}
+                >
+                  <Copy size={16} aria-hidden />
+                </button>
                 <span>{statusLabels[j.status]}</span>
                 {!j.route_id && j.status === "pending" && (
                   <button onClick={() => setEditor({ type: "job", job: j })}>
@@ -570,6 +581,15 @@ export function PickupPage({
                   <article className="pk-card" key={j.id}>
                     <JobSummary job={j} />
                     <div className="pk-actions">
+                      <button
+                        type="button"
+                        className="pk-icon-btn"
+                        aria-label="Копировать забор"
+                        title="Копировать забор"
+                        onClick={() => setEditor({ type: "job", copyFrom: j })}
+                      >
+                        <Copy size={16} aria-hidden />
+                      </button>
                       <button
                         onClick={() => setEditor({ type: "job", job: j })}
                       >
