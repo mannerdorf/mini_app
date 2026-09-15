@@ -419,6 +419,18 @@
 .pk-route-tile span {
   font-size: 12px;
 }
+.pk-route-tile__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.pk-route-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .pk-route-draft-bar {
   margin: 12px 0 16px;
   padding: 14px 16px;
@@ -550,45 +562,87 @@
   padding: 24px 0;
   color: var(--pk-muted);
 }
-.pk-badge {
+.pk-root .pk-badge {
   display: inline-flex;
-  border-radius: 20px;
-  background: #edf3ff;
-  color: #204b92;
+  align-items: center;
+  border-radius: 999px;
   font-size: 12px;
-  padding: 6px 10px;
-  font-weight: 650;
+  line-height: 1.2;
+  padding: 5px 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  white-space: nowrap;
 }
-.pk-badge--pending {
-  background: #eef2f7;
-  color: #475569;
+/* Забор — каждый статус свой цвет */
+.pk-root .pk-badge--pending {
+  background: #e2e8f0;
+  color: #1e293b;
+  border-color: #94a3b8;
 }
-.pk-badge--arrived {
-  background: #e0f2fe;
-  color: #0369a1;
+.pk-root .pk-badge--arrived {
+  background: #bae6fd;
+  color: #0c4a6e;
+  border-color: #0284c7;
 }
-.pk-badge--picked_up,
-.pk-badge--deposited {
-  background: #dcfce7;
-  color: #166534;
+.pk-root .pk-badge--picked_up {
+  background: #bbf7d0;
+  color: #14532d;
+  border-color: #16a34a;
 }
-.pk-badge--partial {
-  background: #fef3c7;
-  color: #b45309;
+.pk-root .pk-badge--partial {
+  background: #fde68a;
+  color: #92400e;
+  border-color: #d97706;
 }
-.pk-badge--problem {
-  background: #fee2e2;
-  color: #b91c1c;
+.pk-root .pk-badge--problem {
+  background: #fecaca;
+  color: #991b1b;
+  border-color: #dc2626;
 }
-.pk-badge--resolved {
-  background: #f3e8ff;
-  color: #7e22ce;
+.pk-root .pk-badge--deposited {
+  background: #99f6e4;
+  color: #115e59;
+  border-color: #0d9488;
 }
-.pk-badge--cancelled {
-  background: #f1f5f9;
+.pk-root .pk-badge--resolved {
+  background: #e9d5ff;
+  color: #6b21a8;
+  border-color: #9333ea;
+}
+.pk-root .pk-badge--cancelled {
+  background: #f8fafc;
   color: #64748b;
+  border-color: #cbd5e1;
   text-decoration: line-through;
-  text-decoration-color: rgba(100, 116, 139, 0.45);
+  text-decoration-color: rgba(100, 116, 139, 0.55);
+}
+/* Маршрут */
+.pk-root .pk-badge--route-draft {
+  background: #f1f5f9;
+  color: #475569;
+  border-color: #94a3b8;
+  border-style: dashed;
+}
+.pk-root .pk-badge--route-published {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #2563eb;
+}
+.pk-root .pk-badge--route-started {
+  background: #ffedd5;
+  color: #c2410c;
+  border-color: #ea580c;
+}
+.pk-root .pk-badge--route-completed {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #059669;
+}
+.pk-root .pk-badge--progress {
+  background: #edf3ff;
+  color: #1e40af;
+  border-color: #6c96e7;
 }
 .pk-card__head {
   margin-bottom: 8px;

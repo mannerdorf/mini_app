@@ -46,6 +46,7 @@ import {
   RouteForm,
 } from "./Forms";
 import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
+import { PickupRouteStatusBadge } from "./PickupRouteStatusBadge";
 import { PickupCancelJobSection } from "./PickupCancelJobSection";
 import "./pickup.css";
 import "../../styles/haulz-calculator.css";
@@ -594,8 +595,8 @@ export function PickupPage({
                   onClick={() => setSelected(r.id)}
                 >
                   <strong>{r.name}</strong>
-                  <span>
-                    {r.start_time} · {routeLabels[r.status]}
+                  <span className="pk-route-tile__meta">
+                    {r.start_time} · <PickupRouteStatusBadge status={r.status} />
                   </span>
                   <span>{r.snapshot.driver?.name}</span>
                   <span>{r.snapshot.vehicle?.data.plate}</span>
@@ -697,13 +698,13 @@ export function PickupPage({
                       {cities[city]} · {route.date}
                     </p>
                     <h2>{route.name}</h2>
-                    <p>
-                      {routeLabels[route.status]} ·{" "}
+                    <p className="pk-route-meta">
+                      <PickupRouteStatusBadge status={route.status} /> ·{" "}
                       {route.snapshot.driver?.name} ·{" "}
                       {route.snapshot.vehicle?.data.plate}
                     </p>
                   </div>
-                  <span className="pk-badge">
+                  <span className="pk-badge pk-badge--progress">
                     {
                       routeJobs.filter((j) =>
                         [
