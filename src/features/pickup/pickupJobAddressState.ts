@@ -22,7 +22,7 @@ export function jobDataToPickupAddressState(
   data: JobData,
   city: CityCode,
 ): PvzSelectionState {
-  const address = data.address.trim();
+  const address = (data.address ?? "").trim();
   if (!address) return defaultPickupAddressState(city);
 
   const lat = data.latitude;
@@ -62,7 +62,7 @@ export function pickupAddressStateToJobPatch(
   const address =
     state.deliveryMode === "point"
       ? state.addr?.fullAddress?.trim() ?? ""
-      : (state.addr?.fullAddress || state.query).trim();
+      : (state.addr?.fullAddress || state.query || "").trim();
 
   const lat = state.addr?.point?.lat ?? null;
   const lon = state.addr?.point?.lon ?? null;
@@ -74,7 +74,7 @@ export function pickupAddressStateToJobPatch(
     deliveryMode: state.deliveryMode,
     addressKind: state.addressKind,
     pvzRef: state.pvzRef,
-    contactPhone: state.phone.trim() || undefined,
-    contactName: state.contactName.trim() || undefined,
+    contactPhone: (state.phone ?? "").trim() || undefined,
+    contactName: (state.contactName ?? "").trim() || undefined,
   };
 }

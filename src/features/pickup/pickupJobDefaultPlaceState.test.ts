@@ -68,4 +68,15 @@ describe("pickupJobDefaultPlaceState", () => {
     expect(state.deliveryMode).toBe("courier");
     expect(state.query).toBe("Калининград, тест");
   });
+
+  it("treats missing defaultPlaceAddress as empty (legacy jobs)", () => {
+    const partial = {
+      defaultPlaceAddress: undefined,
+    } as unknown as Parameters<typeof jobDataToDefaultPlaceState>[0];
+    const state = jobDataToDefaultPlaceState(partial, "moscow");
+    const wh = warehouseForCity("moscow");
+    expect(defaultPlaceStateToJobPatch(state).defaultPlaceAddress).toBe(
+      wh.fullAddress,
+    );
+  });
 });

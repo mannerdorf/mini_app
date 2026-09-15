@@ -31,7 +31,7 @@ export function jobDataToDefaultPlaceState(
   data: JobData,
   city: CityCode,
 ): PvzSelectionState {
-  const address = data.defaultPlaceAddress.trim();
+  const address = (data.defaultPlaceAddress ?? "").trim();
   if (!address) return defaultPickupDefaultPlaceState(city);
 
   const lat = data.defaultPlaceLatitude;
@@ -71,7 +71,7 @@ export function defaultPlaceStateToJobPatch(
   const address =
     state.deliveryMode === "point"
       ? state.addr?.fullAddress?.trim() ?? ""
-      : (state.addr?.fullAddress || state.query).trim();
+      : (state.addr?.fullAddress || state.query || "").trim();
 
   const lat = state.addr?.point?.lat ?? null;
   const lon = state.addr?.point?.lon ?? null;
