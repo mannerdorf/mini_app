@@ -16,7 +16,7 @@ describe("expandPickupScheduleDates", () => {
       until: "2026-09-22",
       weekdays: [1, 3, 5],
     });
-    expect(dates).toEqual(["2026-09-17", "2026-09-19", "2026-09-21"]);
+    expect(dates).toEqual(["2026-09-16", "2026-09-18", "2026-09-21"]);
   });
 
   it("uses explicit date list", () => {
