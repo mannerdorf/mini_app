@@ -29,8 +29,15 @@ function fromParsedItems(items: Array<{ name: string; quantity: number; price: n
 
   const quantity = items.reduce((acc, item) => acc + item.quantity, 0);
   const sum = items.reduce((acc, item) => acc + lineSum(item.quantity, item.price), 0);
+  // В колонке «Наименование» всегда показываем названия из УПД (столбец «Наименование»),
+  // а не служебную метку «Место (N поз.)».
+  const name =
+    items
+      .map((item) => item.name.trim())
+      .filter(Boolean)
+      .join("; ") || "—";
   return {
-    name: items.length > 1 ? `Место (${items.length} поз.)` : items[0]?.name || "—",
+    name,
     quantity: quantity || null,
     price: items.length === 1 ? items[0].price : null,
     sum: sum || null,
