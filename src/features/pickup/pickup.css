@@ -420,6 +420,7 @@
   background: #235ed5;
   color: #fff;
   border-color: #235ed5;
+  box-shadow: 0 2px 8px rgba(35, 94, 213, 0.35);
 }
 .pk-workspace {
   display: grid;
@@ -570,11 +571,16 @@
   background: rgba(255, 255, 255, 0.55);
 }
 .pk-root .haulz-calc-segment .haulz-calc-segment__btn--active {
-  background: #ffffff;
-  color: #1d4ed8;
+  background: #235ed5;
+  color: #ffffff;
   font-weight: 700;
-  box-shadow: 0 2px 6px rgba(29, 78, 216, 0.2);
-  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(35, 94, 213, 0.35);
+  border-color: #235ed5;
+}
+.pk-root .haulz-calc-segment .haulz-calc-segment__btn--active:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+  color: #ffffff;
 }
 .pk-root .haulz-calc-segment .haulz-calc-segment__btn:disabled {
   opacity: 0.45;
