@@ -17,6 +17,7 @@ import {
 import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
+import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
 import {
   createDefaultPickupSiteInstructions,
   formatPickupSiteInstructions,
@@ -832,36 +833,12 @@ export function JobForm({
         value={data.requirements}
         onChange={(v) => update("requirements", v)}
       />
-      <h3>Расчёты с заказчиком</h3>
-      <div className="pk-grid">
-        <Field
-          label="Стоимость для заказчика, ₽"
-          type="number"
-          min="0"
-          step="0.01"
-          value={data.priceRub}
-          onChange={(v) => update("priceRub", num(v))}
-        />
-        <Field
-          label="Оплата / указание бухгалтерии"
-          value={data.payment}
-          onChange={(v) => update("payment", v)}
-        />
-        {city === "moscow" && (
-          <Field
-            label="Километры от МКАД"
-            type="number"
-            min="0"
-            step="any"
-            value={data.mkadKm}
-            onChange={(v) => update("mkadKm", num(v))}
-          />
-        )}
-      </div>
-      <Textarea
-        label="Примечание"
-        value={data.note}
-        onChange={(v) => update("note", v)}
+      <PickupCustomerQuoteSection
+        city={city}
+        data={data}
+        call={call}
+        onPatch={patchJob}
+        num={num}
       />
     </FormShell>
   );

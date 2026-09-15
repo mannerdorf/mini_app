@@ -92,6 +92,26 @@
   flex: 1;
   font-weight: 600;
 }
+.pk-root .pk-customer-quote {
+  margin: 16px 0;
+}
+.pk-root .pk-customer-quote__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pk-root .pk-customer-quote__summary {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f4f8ff;
+  border: 1px solid #c8dafc;
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.pk-root .pk-customer-quote__fields {
+  margin-top: 8px;
+}
 .pk-root p {
   margin: 8px 0;
   overflow-wrap: anywhere;

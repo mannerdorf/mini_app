@@ -9,6 +9,8 @@ import {
   isRateLimited,
   ADMIN_API_LIMIT,
 } from "../../lib/rateLimit.js";
+import { buildPickupCustomerQuote } from "../../lib/pickup/customerQuote.js";
+import { pgTableExists } from "../_haulzReturns.js";
 import {
   PickupError,
   requireValue,
@@ -181,6 +183,35 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         )
       ).rows,
     };
+  }
+  if (action === "customer_quote") {
+    dispatcherOnly(actor);
+    validCity(body.city);
+    const city = body.city;
+    const pool = db as unknown as import("pg").Pool;
+    if (!(await pgTableExists(pool, "haulz_calc_tariff_sets"))) {
+      throw new PickupError("Выполните миграцию migrations/083_haulz_calculator.sql", 503);
+    }
+    const coord = (value: unknown, min: number, max: number, label: string): number | null => {
+      if (value === "" || value == null) return null;
+      const n = Number(value);
+      requireValue(Number.isFinite(n) && n >= min && n <= max, `Некорректное значение: ${label}`);
+      return n;
+    };
+    let quote;
+    try {
+      quote = await buildPickupCustomerQuote(pool, {
+        city,
+        weightKg: numberValue(body.weight_kg, "weight_kg", 100000),
+        volumeM3: numberValue(body.volume_m3, "volume_m3", 1000),
+        latitude: coord(body.latitude, -90, 90, "latitude"),
+        longitude: coord(body.longitude, -180, 180, "longitude"),
+        kmOverride: numberValue(body.km_override, "km_override", 5000),
+      });
+    } catch (e) {
+      throw new PickupError((e as Error).message || "Не удалось рассчитать забор", 400);
+    }
+    return { quote };
   }
   if (action === "photos") {
     const { rows } = await db.query("SELECT * FROM pickup_jobs WHERE id=$1", [
@@ -739,7 +770,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (!actor.dispatcher && !actor.driver)
       throw new PickupError("Нет доступа к заборной логистике", 403);
-    const mutation = !["snapshot", "directory", "photos"].includes(body.action);
+    const mutation = !["snapshot", "directory", "photos", "customer_quote"].includes(
+      body.action,
+    );
     if (mutation) uuid(body.requestId);
     await db.query("BEGIN");
     // Small dispatch workload: serialize writes to protect assignments, capacities and idempotency.
