@@ -490,7 +490,7 @@ export function PickupPage({
           </div>
           <div className="pk-resource-grid">
             {snapshot.resources
-              .filter((r) => r.kind === tab)
+              .filter((r) => r.kind === tab && r.active)
               .map((r) => (
                 <article className="pk-card" key={r.id}>
                   <h3>{r.name}</h3>
@@ -507,15 +507,23 @@ export function PickupPage({
                     {r.data.from}–{r.data.to}
                   </p>
                   <p className="pk-muted">{r.data.login || r.data.model}</p>
-                  <button
-                    onClick={() => setEditor({ type: r.kind, resource: r })}
-                  >
-                    Изменить
-                  </button>
+                  <div className="pk-actions">
+                    <button
+                      type="button"
+                      onClick={() => setEditor({ type: r.kind, resource: r })}
+                    >
+                      Изменить
+                    </button>
+                    <DeleteResourceButton
+                      resource={r}
+                      busy={busy}
+                      act={act}
+                    />
+                  </div>
                 </article>
               ))}
           </div>
-          {!snapshot.resources.some((r) => r.kind === tab) && (
+          {!snapshot.resources.some((r) => r.kind === tab && r.active) && (
             <p className="pk-empty">
               Добавьте первую запись для города {cities[city]}.
             </p>
@@ -1387,6 +1395,42 @@ function RouteMap({ jobs }: { jobs: Job[] }) {
         />
       )}
     </details>
+  );
+}
+
+function DeleteResourceButton({
+  resource,
+  busy,
+  act,
+}: {
+  resource: Resource;
+  busy: boolean;
+  act: Action;
+}) {
+  const label = resource.kind === "driver" ? "водителя" : "автомобиль";
+  return (
+    <ConfirmButton
+      variant="danger"
+      disabled={busy}
+      prompt={`Удалить ${label} из справочника? Если уже был в маршрутах — запись уйдёт в архив и скроется из списка.`}
+      confirmLabel="Удалить"
+      onConfirm={async () => {
+        await act(
+          {
+            action: "delete_resource",
+            id: resource.id,
+            version: resource.version,
+            kind: resource.kind,
+          },
+          resource.kind === "driver"
+            ? "Водитель удалён"
+            : "Автомобиль удалён",
+        );
+      }}
+    >
+      <Trash2 size={16} aria-hidden />
+      Удалить
+    </ConfirmButton>
   );
 }
 
