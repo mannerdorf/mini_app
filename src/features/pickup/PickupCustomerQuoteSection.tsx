@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { City, JobData } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
-import { Field, Textarea } from "./Forms";
+import { Textarea } from "./Forms";
 
 export type PickupCustomerQuoteView = {
   totalRub: number;
@@ -42,17 +42,13 @@ export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: P
         volume_m3: data.volumeM3,
         latitude: data.latitude,
         longitude: data.longitude,
-        km_override: data.mkadKm,
+        km_override: null,
       });
       const q = r.quote as PickupCustomerQuoteView;
       setLastQuote(q);
       onPatch({
         priceRub: q.totalRub,
         mkadKm: q.km,
-        payment:
-          data.payment === "Не указано" || !data.payment.trim()
-            ? `Забор по тарифу (${ringLabel})`
-            : data.payment,
       });
     } catch (e) {
       setError((e as Error).message);
@@ -65,8 +61,8 @@ export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: P
     <section className="pk-customer-quote">
       <h3>Расчёты с заказчиком</h3>
       <p className="pk-hint">
-        Стоимость — по матрице забора из админки HAULZ или вручную. Оплата и километры
-        можно править отдельно.
+        Стоимость — по матрице забора из админки HAULZ (расстояние от {ringLabel}{" "}
+        считается автоматически) или ввод вручную.
       </p>
 
       <div className="pk-grid pk-customer-quote__fields">
@@ -128,20 +124,6 @@ export function PickupCustomerQuoteSection({ city, data, call, onPatch, num }: P
             />
           )}
         </div>
-
-        <Field
-          label="Оплата / указание бухгалтерии"
-          value={data.payment}
-          onChange={(v) => onPatch({ payment: v })}
-        />
-        <Field
-          label={`Километры от ${ringLabel}`}
-          type="number"
-          min="0"
-          step="any"
-          value={data.mkadKm}
-          onChange={(v) => onPatch({ mkadKm: num(v) })}
-        />
       </div>
       <Textarea
         label="Примечание"
