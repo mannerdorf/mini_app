@@ -496,7 +496,7 @@ export function JobForm({
       </div>
       <div className="pk-grid">
         <Directory
-          label="К/А — Заказчик"
+          label="Заказчик"
           kind="customer"
           value={data.customerInn}
           name={data.customerName}
@@ -506,7 +506,7 @@ export function JobForm({
           }
         />
         <Directory
-          label="Отправитель — Поставщики"
+          label="Отправитель"
           kind="supplier"
           value={data.senderInn}
           name={data.senderName}
