@@ -39,7 +39,8 @@ export function PickupJobAddressSection({
   num,
 }: Props) {
   const cityCode = pickupCityToCode(city);
-  const ownerInn = customerInn.trim() || account.activeCustomerInn?.trim() || "";
+  const ownerInn =
+    customerInn.trim() || account.activeCustomerInn?.trim() || "";
 
   const authScope: DocumentsAuthScope = useMemo(
     () => ({
@@ -74,7 +75,8 @@ export function PickupJobAddressSection({
     <>
       {!ownerInn && (
         <p className="pk-hint" role="status">
-          Сначала выберите заказчика — адреса ПВЗ фильтруются по его ИНН, как в заявках.
+          Сначала выберите заказчика — адреса ПВЗ фильтруются по его ИНН, как в
+          заявках.
         </p>
       )}
       <DocumentsOrderPvzSection
@@ -112,7 +114,7 @@ export function PickupJobAddressSection({
           type="number"
           min="0"
           value={data.serviceMinutes}
-          onChange={(v) => onJobPatch({ serviceMinutes: num(v) })}
+          onChange={(v) => onJobPatch({ serviceMinutes: num(v) ?? undefined })}
         />
       </div>
     </>

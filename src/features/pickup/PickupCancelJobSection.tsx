@@ -6,7 +6,7 @@ import { PickupCancelReasonField } from "./PickupCancelReasonField";
 type Props = {
   job: Job;
   busy: boolean;
-  onConfirm: (note: string) => void | Promise<void>;
+  onConfirm: (note: string) => void | Promise<void | boolean>;
   compact?: boolean;
 };
 

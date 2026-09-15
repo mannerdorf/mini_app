@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Contact } from "./model";
+import type { Contact } from "./model.js";
 
 export function contactPhoneDigits(phone: string): string {
   return phone.replace(/\D/g, "");

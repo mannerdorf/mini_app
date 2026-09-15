@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import React, { useMemo } from "react";
 import {
   expandPickupScheduleDates,
@@ -30,7 +31,7 @@ export function defaultPickupScheduleUiState(): PickupScheduleUiState {
 export function pickupScheduleUiToApi(
   state: PickupScheduleUiState,
   startDate: string,
-): Record<string, unknown> | undefined {
+): Record<string, unknown> {
   if (state.mode === "once") return { mode: "once" };
   if (state.pattern === "dates") {
     const dates = [
@@ -154,7 +155,11 @@ export function PickupScheduleSection({
                 От даты пикапа ({startDate}) до выбранного окончания — заборы в
                 отмеченные дни недели.
               </p>
-              <div className="pk-schedule__weekdays" role="group" aria-label="Дни недели">
+              <div
+                className="pk-schedule__weekdays"
+                role="group"
+                aria-label="Дни недели"
+              >
                 {PICKUP_WEEKDAY_LABELS.map(({ iso, short }) => (
                   <button
                     key={iso}
@@ -218,7 +223,9 @@ export function PickupScheduleSection({
                       {d}
                       <button
                         type="button"
-                        className="pk-link-btn"
+                        className="pk-delete-icon"
+                        aria-label={`Удалить дату ${d}`}
+                        title="Удалить дату"
                         onClick={() =>
                           onChange((p) => ({
                             ...p,
@@ -226,7 +233,7 @@ export function PickupScheduleSection({
                           }))
                         }
                       >
-                        Удалить
+                        <Trash2 size={16} aria-hidden />
                       </button>
                     </li>
                   ))}

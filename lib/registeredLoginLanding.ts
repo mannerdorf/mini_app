@@ -1,5 +1,5 @@
-import type { ProfileView } from "../src/types";
-import { adminUserRequiresCustomerAssignment } from "./adminUserCustomerBinding";
+import type { ProfileView } from "../src/types.js";
+import { adminUserRequiresCustomerAssignment } from "./adminUserCustomerBinding.js";
 
 /** Profile screen right after CMS login when no LK customer binding is needed. */
 export function defaultProfileViewAfterRegisteredLogin(

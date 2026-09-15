@@ -20,7 +20,10 @@ export function pickupClient(account: Account): PickupCall {
       : undefined;
     if (effectiveId) attempts.set(fingerprint, effectiveId);
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const timeout = setTimeout(
+      () => controller.abort(),
+      body.action === "check_route" ? 100000 : 30000,
+    );
     try {
       const response = await fetch(`${resolveApiOrigin()}/api/pickup`, {
         method: "POST",

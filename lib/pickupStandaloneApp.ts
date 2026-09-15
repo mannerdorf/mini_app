@@ -1,5 +1,5 @@
-import type { Account } from "../src/types";
-import { adminUserRequiresCustomerAssignment } from "./adminUserCustomerBinding";
+import type { Account } from "../src/types.js";
+import { adminUserRequiresCustomerAssignment } from "./adminUserCustomerBinding.js";
 
 /** Зарегистрированный пользователь только с pickup (водитель/диспетчер), без разделов ЛК заказчика. */
 export function isPickupStandaloneAccount(

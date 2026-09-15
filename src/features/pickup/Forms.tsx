@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import type {
   City,
@@ -7,6 +8,7 @@ import type {
   JobData,
   Route,
 } from "../../../lib/pickup/model";
+import { truckFields } from "../../../lib/pickup/routeAnalysis";
 import { cities } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
 import type { Account } from "../../types";
@@ -20,7 +22,10 @@ import {
   defaultPlaceStateToJobPatch,
   jobDataToDefaultPlaceState,
 } from "./pickupJobDefaultPlaceState";
-import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
+import {
+  PickupJobAddressSection,
+  pickupCityToCode,
+} from "./PickupJobAddressSection";
 import { PickupJobDefaultPlaceSection } from "./PickupJobDefaultPlaceSection";
 import { PickupVehicleResourceFields } from "./PickupVehicleResourceFields";
 import { cloneJobDataForCopy } from "../../../lib/pickup/cloneJobData";
@@ -32,6 +37,7 @@ import {
 import { expandPickupScheduleDates } from "../../../lib/pickup/pickupSchedule";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
+import { PickupSenderDefaults } from "./PickupSenderDefaults";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
 import {
   createDefaultPickupSiteInstructions,
@@ -302,6 +308,13 @@ export function FormShell({
     <section className="pk-panel pk-editor">
       <h2>{title}</h2>
       <form
+        onInvalidCapture={(e) => {
+          let parent = (e.target as HTMLElement).parentElement;
+          while (parent) {
+            if (parent instanceof HTMLDetailsElement) parent.open = true;
+            parent = parent.parentElement;
+          }
+        }}
         onSubmit={async (e) => {
           e.preventDefault();
           setBusy(true);
@@ -322,7 +335,7 @@ export function FormShell({
             {error}
           </p>
         )}
-        <div className="pk-actions">
+        <div className="pk-actions pk-form-footer">
           <button className="pk-primary" disabled={busy}>
             {busy ? "Сохранение…" : "Сохранить"}
           </button>
@@ -461,6 +474,45 @@ export function ResourceForm({
             />
           </div>
           <PickupVehicleResourceFields data={data} update={update} />
+          <details className="pk-panel">
+            <summary>Параметры для грузовой маршрутизации</summary>
+            <p className="pk-hint">
+              Внешние габариты всего ТС, а не размеры кузова. Масса с грузом —
+              максимальная для этого рейса; перед проверкой уточните её.
+              Пропуски указываются числовыми идентификаторами 2ГИС.
+            </p>
+            <div className="pk-grid">
+              {truckFields.map(([field, label]) => (
+                <Field
+                  key={field}
+                  label={label}
+                  type="number"
+                  value={data[field] || ""}
+                  onChange={(v) => update(field, v)}
+                />
+              ))}
+              {[
+                ["truckDangerous", "Опасный груз"],
+                ["truckExplosive", "Взрывоопасный груз"],
+              ].map(([field, label]) => (
+                <Select
+                  key={field}
+                  label={label}
+                  value={data[field] || ""}
+                  onChange={(v) => update(field, v)}
+                  options={[
+                    { id: "no", name: "Нет" },
+                    { id: "yes", name: "Да" },
+                  ]}
+                />
+              ))}
+              <Field
+                label="Идентификаторы пропусков 2ГИС"
+                value={data.truckPassIds || ""}
+                onChange={(v) => update("truckPassIds", v)}
+              />
+            </div>
+          </details>
           <div className="pk-grid">
             <Select
               label="Гидроборт"
@@ -555,6 +607,14 @@ const emptyData: JobData = {
   scheduleUntil: "",
   scheduleDates: "",
 };
+type NewJobDraft = {
+  data: JobData;
+  day: string;
+  addressState: ReturnType<typeof defaultPickupAddressState>;
+  defaultPlaceState: ReturnType<typeof defaultPickupDefaultPlaceState>;
+  siteInstructions: ReturnType<typeof createDefaultPickupSiteInstructions>;
+  scheduleUi: ReturnType<typeof defaultPickupScheduleUiState>;
+};
 export function JobForm({
   job,
   copyFrom,
@@ -576,25 +636,93 @@ export function JobForm({
   onCreatedMany?: (count: number) => void;
 }) {
   const cityCode = pickupCityToCode(city);
-  const seedData = job?.data ?? (copyFrom ? cloneJobDataForCopy(copyFrom.data) : undefined);
-  const [data, setData] = useState<JobData>(seedData ?? emptyData);
-  const [day, setDay] = useState(job?.date ?? date);
-  const [addressState, setAddressState] = useState(() =>
-    seedData
-      ? jobDataToPickupAddressState(seedData, cityCode)
-      : defaultPickupAddressState(cityCode),
+  const draftKey = `pickup-new-draft:v1:${account.login.toLowerCase()}:${city}:${date}:${copyFrom?.id ?? "new"}`;
+  const [restoredDraft] = useState<NewJobDraft | null>(() => {
+    if (job) return null;
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(draftKey) ?? "null");
+      return saved?.data &&
+        Array.isArray(saved.data.places) &&
+        Array.isArray(saved.data.contacts) &&
+        saved.addressState &&
+        saved.defaultPlaceState &&
+        saved.siteInstructions &&
+        saved.scheduleUi
+        ? saved
+        : null;
+    } catch {
+      return null;
+    }
+  });
+  const [draftStatus, setDraftStatus] = useState(
+    restoredDraft ? "Черновик восстановлен из этой вкладки." : "",
   );
-  const [defaultPlaceState, setDefaultPlaceState] = useState(() =>
-    seedData
-      ? jobDataToDefaultPlaceState(seedData, cityCode)
-      : defaultPickupDefaultPlaceState(cityCode),
+  const [resetDraft, setResetDraft] = useState(false);
+  const seedData =
+    job?.data ?? (copyFrom ? cloneJobDataForCopy(copyFrom.data) : undefined);
+  const [data, setData] = useState<JobData>(
+    restoredDraft?.data ?? seedData ?? emptyData,
   );
-  const [siteInstructions, setSiteInstructions] = useState(() =>
-    seedData?.instructions
-      ? parsePickupSiteInstructions(seedData.instructions)
-      : createDefaultPickupSiteInstructions(),
+  const [day, setDay] = useState(restoredDraft?.day ?? job?.date ?? date);
+  const [addressState, setAddressState] = useState(
+    () =>
+      restoredDraft?.addressState ??
+      (seedData
+        ? jobDataToPickupAddressState(seedData, cityCode)
+        : defaultPickupAddressState(cityCode)),
   );
-  const [scheduleUi, setScheduleUi] = useState(defaultPickupScheduleUiState);
+  const [defaultPlaceState, setDefaultPlaceState] = useState(
+    () =>
+      restoredDraft?.defaultPlaceState ??
+      (seedData
+        ? jobDataToDefaultPlaceState(seedData, cityCode)
+        : defaultPickupDefaultPlaceState(cityCode)),
+  );
+  const [siteInstructions, setSiteInstructions] = useState(
+    () =>
+      restoredDraft?.siteInstructions ??
+      (seedData?.instructions
+        ? parsePickupSiteInstructions(seedData.instructions)
+        : createDefaultPickupSiteInstructions()),
+  );
+  const [scheduleUi, setScheduleUi] = useState(
+    () => restoredDraft?.scheduleUi ?? defaultPickupScheduleUiState(),
+  );
+  useEffect(() => {
+    if (job) return;
+    try {
+      sessionStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          data,
+          day,
+          addressState,
+          defaultPlaceState,
+          siteInstructions,
+          scheduleUi,
+        }),
+      );
+      setDraftStatus(
+        restoredDraft
+          ? "Черновик восстановлен. Изменения сохраняются в этой вкладке."
+          : "Черновик сохраняется в этой вкладке до её закрытия.",
+      );
+    } catch {
+      setDraftStatus(
+        "Не удалось сохранить черновик на устройстве. Не закрывайте форму до сохранения.",
+      );
+    }
+  }, [
+    job,
+    draftKey,
+    data,
+    day,
+    addressState,
+    defaultPlaceState,
+    siteInstructions,
+    scheduleUi,
+    restoredDraft,
+  ]);
   const update = (key: keyof JobData, v: any) =>
     setData((prev) => ({ ...prev, [key]: v }));
   const patchJob = (patch: Partial<JobData>) =>
@@ -717,113 +845,186 @@ export function JobForm({
           data,
           schedule: schedulePayload,
         });
-        const count = Number((result as { createdCount?: number })?.createdCount);
+        const count = Number(
+          (result as { createdCount?: number })?.createdCount,
+        );
+        if (!job) {
+          try {
+            sessionStorage.removeItem(draftKey);
+          } catch {
+            /* Save already succeeded on the server. */
+          }
+        }
         if (count > 1) onCreatedMany?.(count);
       }}
     >
-      <div className="pk-grid">
-        <Field
-          label="Дата пикапа"
-          type="date"
-          value={day}
-          onChange={setDay}
-          required
-        />
-      </div>
-      <PickupScheduleSection
-        startDate={day}
-        state={scheduleUi}
-        onChange={setScheduleUi}
-        disabled={Boolean(job?.id)}
-      />
-      <div className="pk-grid">
-        <Field
-          label="Номер заявки"
-          value={data.zayavkaNumber}
-          onChange={(v) => update("zayavkaNumber", v)}
-          placeholder="Как в 1С / документах"
-        />
-        <Field
-          label="№ перевозки (если известен)"
-          value={data.cargoNumber}
-          onChange={(v) => update("cargoNumber", v)}
-        />
-      </div>
-      <div className="pk-grid">
-        <Directory
-          label="Заказчик"
-          kind="customer"
-          value={data.customerInn}
-          name={data.customerName}
-          call={call}
-          onChange={(id, name) =>
-            setData((p) => ({ ...p, customerInn: id, customerName: name }))
-          }
-        />
-        <Directory
-          label="Отправитель"
-          kind="supplier"
-          value={data.senderInn}
-          name={data.senderName}
-          call={call}
-          onChange={(id, name) =>
-            setData((p) => ({ ...p, senderInn: id, senderName: name }))
-          }
-        />
-      </div>
-      <PickupJobAddressSection
-        account={account}
-        city={city}
-        customerInn={data.customerInn}
-        customerName={data.customerName}
-        data={data}
-        addressState={addressState}
-        onAddressStateChange={setAddressState}
-        onJobPatch={patchJob}
-        num={num}
-      />
-      <PickupJobDefaultPlaceSection
-        account={account}
-        city={city}
-        customerInn={data.customerInn}
-        customerName={data.customerName}
-        state={defaultPlaceState}
-        onChange={setDefaultPlaceState}
-      />
-      <PickupWarehouseHoursField
-        value={data.warehouseHours}
-        onChange={(v) => update("warehouseHours", v)}
-      />
-      <PickupInstructionChecklistField
-        state={siteInstructions}
-        onChange={setSiteInstructions}
-      />
-      <Field
-        label="Ссылка на схему проезда"
-        type="url"
-        value={data.directionsUrl}
-        onChange={(v) => update("directionsUrl", v)}
-      />
-      <details>
-        <summary>Координаты точки на карте (необязательно)</summary>
+      {copyFrom && (
+        <p className="pk-warning">
+          Создаётся отдельный забор. Проверьте дату и количество оставшихся
+          мест; исходная заявка сохранится.
+        </p>
+      )}
+      {!job && (
+        <div className="pk-draft-note">
+          <p role="status">{draftStatus}</p>
+          {!resetDraft ? (
+            <button
+              type="button"
+              className="pk-link-btn"
+              onClick={() => setResetDraft(true)}
+            >
+              Начать заново
+            </button>
+          ) : (
+            <div className="pk-actions">
+              <span>Очистить введённые данные?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setData(emptyData);
+                  setDay(date);
+                  setAddressState(defaultPickupAddressState(cityCode));
+                  setDefaultPlaceState(
+                    defaultPickupDefaultPlaceState(cityCode),
+                  );
+                  setSiteInstructions(createDefaultPickupSiteInstructions());
+                  setScheduleUi(defaultPickupScheduleUiState());
+                  setResetDraft(false);
+                }}
+              >
+                Очистить
+              </button>
+              <button type="button" onClick={() => setResetDraft(false)}>
+                Оставить
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      <p className="pk-hint">
+        Обязательные поля отмечены *. Дополнительные сведения можно раскрыть по
+        мере заполнения.
+      </p>
+      <details className="pk-form-section" open>
+        <summary>
+          <span className="pk-form-step">1</span> Заказчик и отправитель
+        </summary>
         <div className="pk-grid">
-          <Field
-            label="Широта"
-            type="number"
-            step="any"
-            value={data.latitude}
-            onChange={(v) => update("latitude", num(v))}
+          <Directory
+            label="Заказчик"
+            kind="customer"
+            value={data.customerInn}
+            name={data.customerName}
+            call={call}
+            onChange={(id, name) =>
+              setData((p) => ({ ...p, customerInn: id, customerName: name }))
+            }
           />
-          <Field
-            label="Долгота"
-            type="number"
-            step="any"
-            value={data.longitude}
-            onChange={(v) => update("longitude", num(v))}
+          <Directory
+            label="Отправитель"
+            kind="supplier"
+            value={data.senderInn}
+            name={data.senderName}
+            call={call}
+            onChange={(id, name) =>
+              setData((p) => ({ ...p, senderInn: id, senderName: name }))
+            }
           />
         </div>
       </details>
-      <h3>Контакты</h3>
+      <details className="pk-form-section" open>
+        <summary>
+          <span className="pk-form-step">2</span> Где и когда забрать
+        </summary>
+        <div className="pk-grid">
+          <Field
+            label="Дата пикапа"
+            type="date"
+            value={day}
+            onChange={setDay}
+            required
+          />
+        </div>
+        <details className="pk-form-extra">
+          <summary>Повторять забор по графику</summary>
+          <PickupScheduleSection
+            startDate={day}
+            state={scheduleUi}
+            onChange={setScheduleUi}
+            disabled={Boolean(job?.id)}
+          />
+        </details>
+        <PickupSenderDefaults
+          key={`${city}:${data.senderInn}`}
+          senderInn={data.senderInn}
+          city={city}
+          call={call}
+          onApply={(patch) => {
+            const next = {
+              ...data,
+              ...patch,
+              deliveryMode: "courier" as const,
+              addressKind: "custom" as const,
+              pvzRef: "",
+            };
+            setData(next);
+            setAddressState(jobDataToPickupAddressState(next, cityCode));
+            setSiteInstructions(parsePickupSiteInstructions(next.instructions));
+          }}
+        />
+        <PickupJobAddressSection
+          account={account}
+          city={city}
+          customerInn={data.customerInn}
+          customerName={data.customerName}
+          data={data}
+          addressState={addressState}
+          onAddressStateChange={setAddressState}
+          onJobPatch={patchJob}
+          num={num}
+        />
+        <PickupJobDefaultPlaceSection
+          account={account}
+          city={city}
+          customerInn={data.customerInn}
+          customerName={data.customerName}
+          state={defaultPlaceState}
+          onChange={setDefaultPlaceState}
+        />
+        <PickupWarehouseHoursField
+          value={data.warehouseHours}
+          onChange={(v) => update("warehouseHours", v)}
+        />
+        <PickupInstructionChecklistField
+          state={siteInstructions}
+          onChange={setSiteInstructions}
+        />
+        <Field
+          label="Ссылка на схему проезда"
+          type="url"
+          value={data.directionsUrl}
+          onChange={(v) => update("directionsUrl", v)}
+        />
+        <details>
+          <summary>Координаты точки на карте (необязательно)</summary>
+          <div className="pk-grid">
+            <Field
+              label="Широта"
+              type="number"
+              step="any"
+              value={data.latitude}
+              onChange={(v) => update("latitude", num(v))}
+            />
+            <Field
+              label="Долгота"
+              type="number"
+              step="any"
+              value={data.longitude}
+              onChange={(v) => update("longitude", num(v))}
+            />
+          </div>
+        </details>
+        <h3>Контакты</h3>
       <SenderContactDirectory
         senderInn={data.senderInn}
         call={call}
@@ -847,211 +1048,249 @@ export function JobForm({
           });
         }}
       />
-      {data.contacts.map((c, i) => (
-        <div className="pk-subrow" key={i}>
-          <div className="pk-grid">
-            {[
-              ["name", "Контактное лицо"],
-              ["phone", "Телефон"],
-              ["extension", "Добавочный"],
-              ["purpose", "Звонки / переписка"],
-            ].map(([k, l]) => (
-              <Field
-                key={k}
-                label={l}
-                value={c[k as keyof typeof c]}
-                onChange={(v) =>
-                  update(
-                    "contacts",
-                    data.contacts.map((r, n) =>
-                      n === i ? { ...r, [k]: v } : r,
-                    ),
-                  )
-                }
-              />
-            ))}
-          </div>
-          <button
-            type="button"
-            onClick={() =>
-              update(
-                "contacts",
-                data.contacts.filter((_, n) => n !== i),
-              )
-            }
-          >
-            Удалить контакт
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() =>
-          update("contacts", [
-            ...data.contacts,
-            { name: "", phone: "", extension: "", purpose: "Звонки" },
-          ])
-        }
-      >
-        + Контакт
-      </button>
-      <h3>Документы для получения груза</h3>
-      <p className="pk-muted">
-        Счета отправителя, по которым нужно получить груз.
-      </p>
-      {data.documents.map((d, i) => (
-        <div className="pk-subrow pk-grid" key={i}>
-          <Field
-            label="Номер счёта / документа"
-            value={d.number}
-            onChange={(v) =>
-              update(
-                "documents",
-                data.documents.map((r, n) =>
-                  n === i ? { ...r, number: v } : r,
-                ),
-              )
-            }
-          />
-          <Field
-            label="Дата документа"
-            type="date"
-            value={d.date}
-            onChange={(v) =>
-              update(
-                "documents",
-                data.documents.map((r, n) => (n === i ? { ...r, date: v } : r)),
-              )
-            }
-          />
-          <button
-            type="button"
-            onClick={() =>
-              update(
-                "documents",
-                data.documents.filter((_, n) => n !== i),
-              )
-            }
-          >
-            Удалить документ
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() =>
-          update("documents", [...data.documents, { number: "", date: "" }])
-        }
-      >
-        + Документ
-      </button>
-      <h3>Грузовые места</h3>
-      {data.places.map((p, i) => (
-        <div className="pk-subrow" key={i}>
-          <div className="pk-grid">
-            <Field
-              label="Упаковка: рулон, коробка…"
-              value={p.kind}
-              onChange={(v) =>
+        {data.contacts.map((c, i) => (
+          <div className="pk-subrow" key={i}>
+            <div className="pk-grid">
+              {[
+                ["name", "Контактное лицо"],
+                ["phone", "Телефон"],
+                ["extension", "Добавочный"],
+                ["purpose", "Звонки / переписка"],
+              ].map(([k, l]) => (
+                <Field
+                  key={k}
+                  label={l}
+                  value={c[k as keyof typeof c]}
+                  onChange={(v) =>
+                    update(
+                      "contacts",
+                      data.contacts.map((r, n) =>
+                        n === i ? { ...r, [k]: v } : r,
+                      ),
+                    )
+                  }
+                />
+              ))}
+            </div>
+            <button
+              className="pk-delete-icon"
+              aria-label="Удалить контакт"
+              title="Удалить контакт"
+              type="button"
+              onClick={() =>
                 update(
-                  "places",
-                  data.places.map((r, n) => (n === i ? { ...r, kind: v } : r)),
+                  "contacts",
+                  data.contacts.filter((_, n) => n !== i),
                 )
               }
-            />
-            {[
-              ["count", "Количество"],
-              ["lengthCm", "Длина одного места, см"],
-              ["widthCm", "Ширина, см"],
-              ["heightCm", "Высота, см"],
-            ].map(([k, l]) => (
+            >
+              <Trash2 size={16} aria-hidden />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            update("contacts", [
+              ...data.contacts,
+              { name: "", phone: "", extension: "", purpose: "Звонки" },
+            ])
+          }
+        >
+          + Контакт
+        </button>
+      </details>
+      <details className="pk-form-section" open>
+        <summary>
+          <span className="pk-form-step">3</span> Груз и погрузка
+        </summary>
+        <h3>Грузовые места</h3>
+        {data.places.map((p, i) => (
+          <div className="pk-subrow" key={i}>
+            <div className="pk-grid">
               <Field
-                key={k}
-                label={l}
-                type="number"
-                min={k === "count" ? "1" : "0"}
-                step={k === "count" ? "1" : "any"}
-                value={p[k as keyof typeof p]}
+                label="Упаковка: рулон, коробка…"
+                value={p.kind}
                 onChange={(v) =>
                   update(
                     "places",
                     data.places.map((r, n) =>
-                      n === i ? { ...r, [k]: num(v) } : r,
+                      n === i ? { ...r, kind: v } : r,
                     ),
                   )
                 }
-                required={k === "count"}
               />
-            ))}
+              {[
+                ["count", "Количество"],
+                ["lengthCm", "Длина одного места, см"],
+                ["widthCm", "Ширина, см"],
+                ["heightCm", "Высота, см"],
+              ].map(([k, l]) => (
+                <Field
+                  key={k}
+                  label={l}
+                  type="number"
+                  min={k === "count" ? "1" : "0"}
+                  step={k === "count" ? "1" : "any"}
+                  value={p[k as keyof typeof p]}
+                  onChange={(v) =>
+                    update(
+                      "places",
+                      data.places.map((r, n) =>
+                        n === i ? { ...r, [k]: num(v) } : r,
+                      ),
+                    )
+                  }
+                  required={k === "count"}
+                />
+              ))}
+            </div>
+            <button
+              className="pk-delete-icon"
+              aria-label="Удалить группу мест"
+              title="Удалить группу мест"
+              type="button"
+              onClick={() =>
+                update(
+                  "places",
+                  data.places.filter((_, n) => n !== i),
+                )
+              }
+            >
+              <Trash2 size={16} aria-hidden />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() =>
-              update(
-                "places",
-                data.places.filter((_, n) => n !== i),
-              )
-            }
-          >
-            Удалить группу мест
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        onClick={() =>
-          update("places", [
-            ...data.places,
-            {
-              kind: "",
-              count: 1,
-              lengthCm: null,
-              widthCm: null,
-              heightCm: null,
-            },
-          ])
-        }
-      >
-        + Группа мест
-      </button>
-      <div className="pk-grid">
-        <Field
-          label="Общий физический вес, кг"
-          type="number"
-          min="0"
-          step="any"
-          value={data.weightKg}
-          onChange={(v) => update("weightKg", num(v))}
-        />
-        <Field
-          label="Общий физический объём, м³"
-          type="number"
-          min="0"
-          step="any"
-          value={data.volumeM3}
-          onChange={(v) => update("volumeM3", num(v))}
-        />
-      </div>
-      {totalVolume !== null && (
+        ))}
         <button
           type="button"
-          onClick={() => update("volumeM3", Number(totalVolume.toFixed(4)))}
+          onClick={() =>
+            update("places", [
+              ...data.places,
+              {
+                kind: "",
+                count: 1,
+                lengthCm: null,
+                widthCm: null,
+                heightCm: null,
+              },
+            ])
+          }
         >
-          Подставить объём по габаритам: {totalVolume.toFixed(3)} м³
+          + Группа мест
         </button>
-      )}
-      <Field
-        label="Требования к машине и погрузке"
-        value={data.requirements}
-        onChange={(v) => update("requirements", v)}
-      />
-      <PickupCustomerQuoteSection
-        city={city}
-        data={data}
-        call={call}
-        onPatch={patchJob}
-        num={num}
-      />
+        <div className="pk-grid">
+          <Field
+            label="Общий физический вес, кг"
+            type="number"
+            min="0"
+            step="any"
+            value={data.weightKg}
+            onChange={(v) => update("weightKg", num(v))}
+          />
+          <Field
+            label="Общий физический объём, м³"
+            type="number"
+            min="0"
+            step="any"
+            value={data.volumeM3}
+            onChange={(v) => update("volumeM3", num(v))}
+          />
+        </div>
+        {totalVolume !== null && (
+          <button
+            type="button"
+            onClick={() => update("volumeM3", Number(totalVolume.toFixed(4)))}
+          >
+            Подставить объём по габаритам: {totalVolume.toFixed(3)} м³
+          </button>
+        )}
+        <Field
+          label="Требования к машине и погрузке"
+          value={data.requirements}
+          onChange={(v) => update("requirements", v)}
+        />
+      </details>
+      <details className="pk-form-section">
+        <summary>
+          <span className="pk-form-step">4</span> Стоимость и документы{" "}
+          <small>Дополнительно</small>
+        </summary>
+        <div className="pk-grid">
+          <Field
+            label="Номер заявки"
+            value={data.zayavkaNumber}
+            onChange={(v) => update("zayavkaNumber", v)}
+            placeholder="Как в 1С / документах"
+          />
+          <Field
+            label="№ перевозки (если известен)"
+            value={data.cargoNumber}
+            onChange={(v) => update("cargoNumber", v)}
+          />
+        </div>
+        <PickupCustomerQuoteSection
+          city={city}
+          data={data}
+          call={call}
+          onPatch={patchJob}
+          num={num}
+        />
+        <h3>Документы для получения груза</h3>
+        <p className="pk-muted">
+          Счета отправителя, по которым нужно получить груз.
+        </p>
+        {data.documents.map((d, i) => (
+          <div className="pk-subrow pk-grid" key={i}>
+            <Field
+              label="Номер счёта / документа"
+              value={d.number}
+              onChange={(v) =>
+                update(
+                  "documents",
+                  data.documents.map((r, n) =>
+                    n === i ? { ...r, number: v } : r,
+                  ),
+                )
+              }
+            />
+            <Field
+              label="Дата документа"
+              type="date"
+              value={d.date}
+              onChange={(v) =>
+                update(
+                  "documents",
+                  data.documents.map((r, n) =>
+                    n === i ? { ...r, date: v } : r,
+                  ),
+                )
+              }
+            />
+            <button
+              className="pk-delete-icon"
+              aria-label="Удалить документ"
+              title="Удалить документ"
+              type="button"
+              onClick={() =>
+                update(
+                  "documents",
+                  data.documents.filter((_, n) => n !== i),
+                )
+              }
+            >
+              <Trash2 size={16} aria-hidden />
+            </button>
+          </div>
+        ))}
+        <button
+          type="button"
+          onClick={() =>
+            update("documents", [...data.documents, { number: "", date: "" }])
+          }
+        >
+          + Документ
+        </button>
+      </details>
     </FormShell>
   );
 }

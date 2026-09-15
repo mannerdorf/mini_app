@@ -1,6 +1,7 @@
 {
   "crons": [],
   "functions": {
+    "api/pickup/index.ts": {"maxDuration": 120},
     "api/ais-stream.ts": {"maxDuration": 60},
     "api/tg-webhook.ts": {"maxDuration": 60},
     "api/cron/*.ts": {"maxDuration": 300},

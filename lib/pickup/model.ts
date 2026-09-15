@@ -124,6 +124,13 @@ export type Job = {
   resolution: string;
   photo_count?: number;
 };
+
+/** Request number is required when handing collected cargo over to the depot. */
+export function pickupJobNeedsZayavka(job: Job): boolean {
+  return ["picked_up", "partial", "deposited"].includes(job.status) &&
+    !job.data.zayavkaNumber?.trim();
+}
+
 export type Route = {
   id: string;
   city: City;
@@ -154,6 +161,8 @@ export type Event = {
   data: Record<string, unknown>;
 };
 export type Snapshot = {
+  locations?: import("./location.js").DriverLocation[];
+  locationAvailable?: boolean;
   resources: Resource[];
   jobs: Job[];
   routes: Route[];

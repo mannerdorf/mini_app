@@ -1,3 +1,9 @@
+import {
+  checkRoute,
+  checkSignature,
+  type CheckInput,
+} from "../../lib/pickup/checkRoute.js";
+import { truckFields } from "../../lib/pickup/routeAnalysis.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { randomUUID } from "node:crypto";
 import type { PoolClient } from "pg";
@@ -19,9 +25,14 @@ import {
 import { pgTableExists } from "../_haulzReturns.js";
 import { upsertPickupSupplierContacts } from "../../lib/pickup/supplierContacts.js";
 import {
+  validateLocation,
+  locationWarning,
+} from "../../lib/pickup/location.js";
+import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
+  pickupJobNeedsZayavka,
   pickupRouteCanDelete,
   requireValue,
   validCity,
@@ -131,6 +142,40 @@ async function routeResources(db: PoolClient, body: any) {
   );
   return { driver, vehicle, depot };
 }
+async function readCheckInput(
+  db: PoolClient,
+  id: unknown,
+): Promise<CheckInput> {
+  const route = (
+    await db.query(
+      "SELECT *,to_char(date,'YYYY-MM-DD') AS date FROM pickup_routes WHERE id=$1",
+      [uuid(id)],
+    )
+  ).rows[0];
+  requireValue(route, "Маршрут не найден");
+  const jobs = (
+    await db.query(
+      "SELECT * FROM pickup_jobs WHERE route_id=$1 AND status<>'cancelled' ORDER BY position,created_at",
+      [route.id],
+    )
+  ).rows;
+  const resources = await routeResources(db, route);
+  const events = (
+    await db.query(
+      "SELECT * FROM pickup_events WHERE route_id=$1 AND action=ANY($2::text[]) ORDER BY created_at DESC LIMIT 1",
+      [route.id, ["Прибыл на точку", "Груз забран", "Проблема на точке"]],
+    )
+  ).rows;
+  const location = (await pgTableExists(db as any, "pickup_driver_locations"))
+    ? (
+        await db.query(
+          "SELECT * FROM pickup_driver_locations WHERE route_id=$1 AND driver_login=$2",
+          [route.id, route.snapshot.driver?.data.login],
+        )
+      ).rows[0]
+    : undefined;
+  return { route, jobs, resources, events, location };
+}
 async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
   validCity(body.city);
   validDate(body.date);
@@ -153,6 +198,20 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
     )
   ).rows;
   const routeIds = routes.map((r) => r.id);
+  // Allow the existing module to keep working while migration 108 is being rolled out.
+  const locationAvailable = await pgTableExists(
+    db as any,
+    "pickup_driver_locations",
+  );
+  const locations = locationAvailable
+    ? (
+        await db.query(
+          `SELECT l.* FROM pickup_driver_locations l JOIN pickup_routes r ON r.id=l.route_id
+     WHERE l.route_id=ANY($1::uuid[]) AND l.driver_login=r.snapshot->'driver'->'data'->>'login'`,
+          [routeIds],
+        )
+      ).rows
+    : [];
   const jobs: Job[] = (
     await db.query(
       `SELECT j.*,to_char(j.date,'YYYY-MM-DD') AS date,
@@ -168,6 +227,8 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
     )
   ).rows;
   return {
+    locations,
+    locationAvailable,
     resources,
     routes,
     jobs: actor.dispatcher ? jobs : jobs.map(driverJob),
@@ -178,6 +239,101 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
 async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
   const action = body.action;
   if (action === "snapshot") return readSnapshot(db, actor, body);
+  if (action === "location") {
+    const route = await routeById(db, body.id);
+    // Even a dispatcher may only report their own position, with a driver badge.
+    if (!actor.driver || route.snapshot.driver?.data.login !== actor.login)
+      throw new PickupError(
+        "Передавать GPS может только назначенный водитель",
+        403,
+      );
+    requireValue(
+      route.status === "started",
+      "GPS доступен только во время выполнения маршрута",
+    );
+    if (!(await pgTableExists(db as any, "pickup_driver_locations")))
+      throw new PickupError(
+        "GPS ещё не настроен: примените миграцию 108_pickup_driver_locations.sql",
+        503,
+      );
+    const fix = validateLocation(body);
+    const schema = await db.query(
+      "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='pickup_driver_locations' AND column_name='warning'",
+    );
+    if (!schema.rows.length)
+      throw new PickupError(
+        "Примените миграцию 109_pickup_gps_quality.sql для защиты GPS",
+        503,
+      );
+    const previous = (
+      await db.query(
+        "SELECT * FROM pickup_driver_locations WHERE route_id=$1 FOR UPDATE",
+        [route.id],
+      )
+    ).rows[0];
+    if (
+      previous &&
+      Date.parse(fix.measured_at) <=
+        new Date(previous.last_observed_at || previous.measured_at).getTime()
+    )
+      return { ok: true, accepted: false, warning: previous.warning };
+    const warning = locationWarning(previous, fix);
+    if (warning && previous) {
+      await db.query(
+        "UPDATE pickup_driver_locations SET warning=$2,last_observed_at=$3 WHERE route_id=$1",
+        [route.id, warning, fix.measured_at],
+      );
+      return { ok: true, accepted: false, warning };
+    }
+    const result = await db.query(
+      `INSERT INTO pickup_driver_locations(route_id,driver_login,latitude,longitude,accuracy,measured_at,last_observed_at,warning)
+       VALUES($1,$2,$3,$4,$5,$6,$6,$7)
+       ON CONFLICT(route_id) DO UPDATE SET driver_login=EXCLUDED.driver_login,
+         latitude=EXCLUDED.latitude,longitude=EXCLUDED.longitude,accuracy=EXCLUDED.accuracy,
+         measured_at=EXCLUDED.measured_at,last_observed_at=EXCLUDED.measured_at,warning=EXCLUDED.warning,received_at=now()
+       RETURNING measured_at,received_at`,
+      [
+        route.id,
+        actor.login,
+        fix.latitude,
+        fix.longitude,
+        fix.accuracy,
+        fix.measured_at,
+        warning,
+      ],
+    );
+    return { ok: true, accepted: true, warning, ...result.rows[0] };
+  }
+
+  if (action === "sender_defaults") {
+    dispatcherOnly(actor);
+    validCity(body.city);
+    const inn = textValue(body.senderInn, 32);
+    requireValue(inn, "Выберите отправителя");
+    const { rows } = await db.query(
+      `SELECT data FROM (
+      SELECT DISTINCT ON (lower(trim(data->>'address'))) data,updated_at
+      FROM pickup_jobs WHERE city=$1 AND data->>'senderInn'=$2 AND status<>'cancelled'
+      AND trim(COALESCE(data->>'address',''))<>''
+      ORDER BY lower(trim(data->>'address')),updated_at DESC
+    ) recent ORDER BY updated_at DESC LIMIT 8`,
+      [body.city, inn],
+    );
+    return {
+      items: rows.map(({ data }) => ({
+        address: data.address,
+        latitude: data.latitude,
+        longitude: data.longitude,
+        contacts: data.contacts,
+        warehouseHours: data.warehouseHours,
+        windowFrom: data.windowFrom,
+        windowTo: data.windowTo,
+        serviceMinutes: data.serviceMinutes,
+        instructions: data.instructions,
+        directionsUrl: data.directionsUrl,
+      })),
+    };
+  }
   if (action === "directory") {
     dispatcherOnly(actor);
     const q = `%${textValue(body.q, 100).replace(/[%_\\]/g, "")}%`;
@@ -248,12 +404,23 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     const city = body.city;
     const pool = db as unknown as import("pg").Pool;
     if (!(await pgTableExists(pool, "haulz_calc_tariff_sets"))) {
-      throw new PickupError("Выполните миграцию migrations/083_haulz_calculator.sql", 503);
+      throw new PickupError(
+        "Выполните миграцию migrations/083_haulz_calculator.sql",
+        503,
+      );
     }
-    const coord = (value: unknown, min: number, max: number, label: string): number | null => {
+    const coord = (
+      value: unknown,
+      min: number,
+      max: number,
+      label: string,
+    ): number | null => {
       if (value === "" || value == null) return null;
       const n = Number(value);
-      requireValue(Number.isFinite(n) && n >= min && n <= max, `Некорректное значение: ${label}`);
+      requireValue(
+        Number.isFinite(n) && n >= min && n <= max,
+        `Некорректное значение: ${label}`,
+      );
       return n;
     };
     let quote;
@@ -267,7 +434,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         kmOverride: numberValue(body.km_override, "km_override", 5000),
       });
     } catch (e) {
-      throw new PickupError((e as Error).message || "Не удалось рассчитать забор", 400);
+      throw new PickupError(
+        (e as Error).message || "Не удалось рассчитать забор",
+        400,
+      );
     }
     return { quote };
   }
@@ -311,6 +481,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       "capacityKg",
       "capacityM3",
       "dimensions",
+      ...truckFields.map(([field]) => field),
+      "truckDangerous",
+      "truckExplosive",
+      "truckPassIds",
       "pallets",
       "loading",
       "lift",
@@ -339,6 +513,26 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     }
     if (body.kind === "vehicle") {
       requireValue(data.plate, "Укажите госномер");
+      for (const [field, label] of truckFields) {
+        if (data[field])
+          requireValue(
+            Number.isFinite(Number(data[field])) &&
+              Number(data[field]) > 0 &&
+              Number(data[field]) <= 200,
+            `Некорректное значение: ${label}`,
+          );
+      }
+      for (const key of ["truckDangerous", "truckExplosive"])
+        if (data[key])
+          requireValue(["yes", "no"].includes(data[key]), "Выберите тип груза");
+      if (data.truckPassIds)
+        requireValue(
+          data.truckPassIds
+            .split(/[,\s]+/)
+            .filter(Boolean)
+            .every((x) => /^\d+$/.test(x)),
+          "Укажите числовые идентификаторы пропусков 2ГИС через запятую",
+        );
       for (const key of ["capacityKg", "capacityM3", "pallets"]) {
         if (textValue(body.data?.[key], 200)) numberValue(data[key], key);
       }
@@ -482,12 +676,12 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       requireValue(job, "Забор не найден");
       checkVersion(job, body.version);
       requireValue(
-        job.status === "pending",
-        "Редактировать можно только забор, который ещё не начат",
-      );
-      requireValue(
         job.status !== "cancelled",
         "Отменённый забор нельзя изменить",
+      );
+      requireValue(
+        job.status === "pending",
+        "Редактировать можно только забор, который ещё не начат",
       );
       if (job.route_id) {
         const route = await routeById(db, job.route_id);
@@ -512,8 +706,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           );
           requireValue(
             data.windowTo > route.start_time &&
-              data.windowFrom <
-                (route.snapshot.depot?.data.to ?? "23:59"),
+              data.windowFrom < (route.snapshot.depot?.data.to ?? "23:59"),
             "Окно забора вне времени маршрута / склада",
           );
         }
@@ -570,7 +763,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       );
       ids.push(jobId);
       await event(db, actor, "Забор сохранён", null, jobId, {
-        schedule: dates.length > 1 ? { groupId, index: i + 1, total: dates.length } : {},
+        schedule:
+          dates.length > 1
+            ? { groupId, index: i + 1, total: dates.length }
+            : {},
       });
     }
     await persistJobContactsToSenderDirectory(db, data.senderInn, data);
@@ -650,10 +846,9 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         [route.id],
       );
     }
-    await db.query(
-      "UPDATE pickup_events SET route_id=NULL WHERE route_id=$1",
-      [route.id],
-    );
+    await db.query("UPDATE pickup_events SET route_id=NULL WHERE route_id=$1", [
+      route.id,
+    ]);
     await db.query("DELETE FROM pickup_routes WHERE id=$1", [route.id]);
     await event(db, actor, "Маршрут удалён", null, null, {
       routeId: route.id,
@@ -661,6 +856,65 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       jobsUnassigned: jobs.length,
     });
     return { ok: true };
+  }
+  if (action === "assign_many") {
+    dispatcherOnly(actor);
+    requireValue(
+      Array.isArray(body.jobs) &&
+        body.jobs.length > 0 &&
+        body.jobs.length <= 100,
+      "Выберите от 1 до 100 заборов",
+    );
+    const ids = body.jobs.map((item: any) => uuid(item.id));
+    requireValue(
+      new Set(ids).size === ids.length,
+      "Заборы не должны повторяться",
+    );
+    const route = await routeById(db, body.route_id);
+    checkVersion(route, body.route_version);
+    requireValue(
+      route.status === "draft" || route.status === "published",
+      "Выберите маршрут, который ещё не начат",
+    );
+    // All assignments share the outer transaction and receipt. Any failure rolls back the entire batch.
+    for (const item of body.jobs) {
+      const { rows } = await db.query(
+        "SELECT route_id,status FROM pickup_jobs WHERE id=$1 FOR UPDATE",
+        [uuid(item.id)],
+      );
+      requireValue(
+        rows[0] && !rows[0].route_id && rows[0].status === "pending",
+        "Один из заборов уже назначен или начат. Обновите план дня",
+      );
+      await perform(db, actor, {
+        action: "assign",
+        id: item.id,
+        version: item.version,
+        route_id: route.id,
+      });
+    }
+    const jobs: Job[] = (
+      await db.query(
+        "SELECT * FROM pickup_jobs WHERE route_id=$1 AND status<>'cancelled'",
+        [route.id],
+      )
+    ).rows;
+    const snapshot = await routeResources(db, route);
+    const warnings = routeWarnings(jobs, snapshot.vehicle);
+    requireValue(
+      !warnings.some((w) => w.startsWith("Превышен")),
+      warnings.join(" "),
+    );
+    requireValue(
+      jobs.every(
+        (j) =>
+          j.data.windowTo > route.start_time &&
+          j.data.windowFrom < snapshot.driver.data.to &&
+          j.data.windowFrom < snapshot.depot.data.to,
+      ),
+      "Есть точки вне времени маршрута / работы склада",
+    );
+    return { ok: true, assignedCount: body.jobs.length };
   }
   if (action === "assign") {
     dispatcherOnly(actor);
@@ -688,9 +942,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       );
     if (route && route.id !== oldRoute?.id && route.status !== "draft") {
       const assigned: Job[] = (
-        await db.query("SELECT * FROM pickup_jobs WHERE route_id=$1", [
-          route.id,
-        ])
+        await db.query(
+          "SELECT * FROM pickup_jobs WHERE route_id=$1 AND status<>'cancelled'",
+          [route.id],
+        )
       ).rows;
       const warnings = routeWarnings(
         [...assigned, job],
@@ -736,7 +991,36 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       )
     ).rows;
     if (action === "reorder") {
-      dispatcherOnly(actor);
+      if (body.analysisSignature) {
+        dispatcherOnly(actor);
+        const current = await readCheckInput(db, route.id);
+        requireValue(
+          checkSignature(current) === body.analysisSignature,
+          "Маршрут, задания или справочники изменились. Повторите проверку маршрута.",
+        );
+        const age = Date.now() - Date.parse(body.checkedAt);
+        requireValue(
+          Number.isFinite(age) && age >= -30000 && age <= 10 * 60000,
+          "Расчёт устарел. Повторите проверку маршрута.",
+        );
+      }
+      const byDriver = !actor.dispatcher || body.asDriver === true;
+      if (byDriver) {
+        if (
+          !actor.driver ||
+          route.snapshot.driver?.data.login !== actor.login ||
+          route.status === "draft"
+        )
+          throw new PickupError(
+            "Можно менять порядок только своего опубликованного маршрута",
+            403,
+          );
+        requireValue(
+          route.status !== "started" ||
+            route.acknowledged_version === route.version,
+          "Сначала ознакомьтесь с изменениями диспетчера",
+        );
+      }
       requireValue(route.status !== "completed", "Маршрут завершён");
       requireValue(
         Array.isArray(body.ids) &&
@@ -758,8 +1042,9 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           [body.ids[i], i + 1],
         );
       await db.query(
-        "UPDATE pickup_routes SET version=version+1,updated_at=now() WHERE id=$1",
-        [route.id],
+        `UPDATE pickup_routes SET version=version+1,updated_at=now(),
+         acknowledged_version=CASE WHEN $2::boolean AND status='started' THEN version+1 ELSE acknowledged_version END WHERE id=$1`,
+        [route.id, byDriver],
       );
     }
     if (action === "publish") {
@@ -836,6 +1121,49 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         jobs.every((j) => j.status !== "partial" || j.resolution),
         "Диспетчер должен принять решение по частичному забору",
       );
+      const missing = jobs.filter(pickupJobNeedsZayavka);
+      const entries = body.zayavka_numbers ?? [];
+      requireValue(
+        Array.isArray(entries) && entries.length <= jobs.length,
+        "Некорректный список номеров заявок",
+      );
+      const numbers = new Map<string, string>();
+      for (const entry of entries) {
+        const job = missing.find((j) => j.id === entry?.id);
+        requireValue(
+          job && !numbers.has(job.id),
+          "Укажите заявку только для забора этого маршрута с незаполненным номером",
+        );
+        checkVersion(job, entry.version);
+        requireValue(
+          typeof entry.number === "string" &&
+            entry.number.trim().length > 0 &&
+            entry.number.trim().length <= 100,
+          "Введите номер заявки: от 1 до 100 символов",
+        );
+        numbers.set(job.id, entry.number.trim());
+      }
+      requireValue(
+        missing.every((job) => numbers.has(job.id)),
+        "Заполните поле «Заявка» для каждого забранного груза перед сдачей на склад",
+      );
+      // Save request numbers and the handoff in the same transaction.
+      for (const job of missing) {
+        const number = numbers.get(job.id)!;
+        await db.query(
+          `UPDATE pickup_jobs SET data=jsonb_set(data,'{zayavkaNumber}',to_jsonb($2::text)),
+           zayavka_number=$2,version=version+1,updated_at=now() WHERE id=$1`,
+          [job.id, number],
+        );
+        await event(
+          db,
+          actor,
+          "Заявка указана при сдаче на склад",
+          route.id,
+          job.id,
+          { note: `Заявка № ${number}` },
+        );
+      }
       await db.query(
         "UPDATE pickup_jobs SET status='deposited',version=version+1,updated_at=now() WHERE route_id=$1 AND status IN ('picked_up','partial')",
         [route.id],
@@ -850,7 +1178,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       actor,
       (
         {
-          reorder: "Порядок точек изменён",
+          reorder:
+            !actor.dispatcher || body.asDriver === true
+              ? "Водитель изменил порядок точек"
+              : "Порядок точек изменён",
           publish: "Маршрут опубликован",
           start: "Водитель приступил",
           acknowledge: "Изменения просмотрены",
@@ -869,10 +1200,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     const job: Job = rows[0];
     requireValue(job, "Забор не найден");
     checkVersion(job, body.version);
-    requireValue(
-      textValue(body.note, 3000),
-      "Укажите причину отмены",
-    );
+    requireValue(textValue(body.note, 3000), "Укажите причину отмены");
     requireValue(
       pickupJobCanCancel(job.status),
       "Этот забор уже нельзя отменить",
@@ -884,10 +1212,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       requireValue(routeId, "Забор не на вашем маршруте");
       const route = await routeById(db, routeId);
       checkRouteAccess(actor, route);
-      requireValue(
-        route.status !== "completed",
-        "Маршрут завершён",
-      );
+      requireValue(route.status !== "completed", "Маршрут завершён");
     }
     await db.query(
       `UPDATE pickup_jobs SET status='cancelled', resolution=$2, route_id=NULL, position=0,
@@ -1086,9 +1411,42 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (!actor.dispatcher && !actor.driver)
       throw new PickupError("Нет доступа к заборной логистике", 403);
-    const mutation = !["snapshot", "directory", "photos", "customer_quote"].includes(
-      body.action,
-    );
+    if (body.action === "check_route") {
+      dispatcherOnly(actor);
+      if (isRateLimited("pickup-route-check", login, 2))
+        throw new PickupError(
+          "Не более двух проверок маршрута в минуту. Повторите чуть позже.",
+          429,
+        );
+      requireValue(
+        body.startAddress == null || typeof body.startAddress === "string",
+        "Некорректный адрес старта",
+      );
+      await db.query("BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY");
+      const input = await readCheckInput(db, body.id);
+      checkVersion(input.route, body.version);
+      await db.query("COMMIT");
+      // Release the connection and all database locks before paid network requests.
+      db.release();
+      db = undefined;
+      return res
+        .status(200)
+        .json(
+          await checkRoute(input, {
+            startAddress: body.startAddress,
+            windowsConfirmed: body.windowsConfirmed === true,
+          }),
+        );
+    }
+    const mutation = ![
+      // GPS uses monotonic measured_at upserts; no receipt for each periodic fix.
+      "location",
+      "snapshot",
+      "directory",
+      "photos",
+      "customer_quote",
+      "sender_defaults",
+    ].includes(body.action);
     if (mutation) uuid(body.requestId);
     await db.query("BEGIN");
     // Small dispatch workload: serialize writes to protect assignments, capacities and idempotency.
@@ -1123,20 +1481,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           : error?.code === "23505"
             ? 409
             : 500;
-    return res
-      .status(status)
-      .json({
-        error:
-          error instanceof PickupError
-            ? error.message
-            : missingColumn
-              ? "Примените миграцию migrations/105_pickup_jobs_search_columns.sql"
-              : missing
-                ? "Модуль ещё не настроен: примените миграцию 104_pickup_dispatch.sql"
+    return res.status(status).json({
+      error:
+        error instanceof PickupError
+          ? error.message
+          : missingColumn
+            ? "Примените миграцию migrations/105_pickup_jobs_search_columns.sql"
+            : missing
+              ? "Модуль ещё не настроен: примените миграцию 104_pickup_dispatch.sql"
               : status === 409
                 ? "Аккаунт уже связан с другим водителем"
                 : "Не удалось выполнить действие. Повторите позже.",
-      });
+    });
   } finally {
     db?.release();
   }
