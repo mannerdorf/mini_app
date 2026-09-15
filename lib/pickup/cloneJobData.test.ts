@@ -22,7 +22,7 @@ const sample: JobData = {
   zayavkaNumber: "Z-1",
   cargoNumber: "",
   priceRub: null,
-  payment: "",
+  payment: "Не указано",
   mkadKm: null,
   requirements: "",
   note: "",
@@ -51,5 +51,15 @@ describe("cloneJobDataForCopy", () => {
     expect(copy).toEqual(sample);
     expect(copy.contacts).not.toBe(sample.contacts);
     expect(copy.places).not.toBe(sample.places);
+  });
+
+  it("fills defaults for legacy jobs without default place fields", () => {
+    const legacy = { ...sample } as JobData;
+    delete (legacy as Partial<JobData>).defaultPlaceAddress;
+    delete (legacy as Partial<JobData>).defaultPlaceMode;
+    const copy = cloneJobDataForCopy(legacy as JobData);
+    expect(copy.defaultPlaceAddress).toBe("");
+    expect(copy.defaultPlaceMode).toBe("point");
+    expect(copy.defaultPlaceKind).toBe("pvz");
   });
 });
