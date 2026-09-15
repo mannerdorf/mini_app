@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import type { Job } from "../../../lib/pickup/model";
 import { pickupJobCanCancel } from "../../../lib/pickup/model";
-import { Textarea } from "./Forms";
+import { PickupCancelReasonField } from "./PickupCancelReasonField";
 
 type Props = {
   job: Job;
@@ -44,11 +44,7 @@ export function PickupCancelJobSection({
 
   return (
     <div className="pk-cancel-box">
-      <Textarea
-        label="Причина отмены"
-        value={note}
-        onChange={setNote}
-      />
+      <PickupCancelReasonField value={note} onChange={setNote} />
       <div className="pk-actions">
         <button
           type="button"
