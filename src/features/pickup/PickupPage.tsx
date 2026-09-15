@@ -13,6 +13,7 @@ import {
   Package,
   RefreshCw,
   Copy,
+  Trash2,
 } from "lucide-react";
 import type { Account } from "../../types";
 import {
@@ -583,18 +584,34 @@ export function PickupPage({
               <Truck size={20} /> Маршруты · {routes.length}
             </h2>
             {routes.map((r) => (
-              <button
-                className={`pk-route-tile ${route?.id === r.id ? "pk-selected" : ""}`}
+              <div
                 key={r.id}
-                onClick={() => setSelected(r.id)}
+                className={`pk-route-row ${route?.id === r.id ? "pk-selected" : ""}`}
               >
-                <strong>{r.name}</strong>
-                <span>
-                  {r.start_time} · {routeLabels[r.status]}
-                </span>
-                <span>{r.snapshot.driver?.name}</span>
-                <span>{r.snapshot.vehicle?.data.plate}</span>
-              </button>
+                <button
+                  type="button"
+                  className="pk-route-tile"
+                  onClick={() => setSelected(r.id)}
+                >
+                  <strong>{r.name}</strong>
+                  <span>
+                    {r.start_time} · {routeLabels[r.status]}
+                  </span>
+                  <span>{r.snapshot.driver?.name}</span>
+                  <span>{r.snapshot.vehicle?.data.plate}</span>
+                </button>
+                {dispatch && r.status === "draft" && (
+                  <DeleteRouteButton
+                    route={r}
+                    busy={busy}
+                    act={act}
+                    compact
+                    onDone={() => {
+                      if (route?.id === r.id) setSelected("");
+                    }}
+                  />
+                )}
+              </div>
             ))}
             {!routes.length && (
               <p className="pk-empty">
@@ -744,33 +761,27 @@ export function PickupPage({
                       )}
                     </div>
                   )}
-                <div className="pk-actions">
-                  {dispatch && route.status === "draft" && (
-                    <>
+                {dispatch && route.status === "draft" && (
+                  <div className="pk-route-draft-bar">
+                    <p className="pk-muted">
+                      Черновик маршрута — можно изменить, удалить или опубликовать
+                      водителю.
+                    </p>
+                    <div className="pk-actions">
                       <button
+                        type="button"
                         onClick={() => setEditor({ type: "route", route })}
                       >
                         Параметры
                       </button>
-                      <ConfirmButton
-                        disabled={busy}
-                        prompt="Заборы вернутся в «Не распределено». Удалить черновик маршрута?"
-                        confirmLabel="Удалить маршрут"
-                        onConfirm={async () => {
-                          const ok = await act(
-                            {
-                              action: "delete_route",
-                              id: route.id,
-                              version: route.version,
-                            },
-                            "Маршрут удалён",
-                          );
-                          if (ok) setSelected("");
-                        }}
-                      >
-                        Удалить маршрут
-                      </ConfirmButton>
+                      <DeleteRouteButton
+                        route={route}
+                        busy={busy}
+                        act={act}
+                        onDone={() => setSelected("")}
+                      />
                       <button
+                        type="button"
                         className="pk-primary"
                         disabled={busy || !routeJobs.length}
                         onClick={() =>
@@ -786,8 +797,10 @@ export function PickupPage({
                       >
                         Опубликовать водителю
                       </button>
-                    </>
-                  )}
+                    </div>
+                  </div>
+                )}
+                <div className="pk-actions">
                   {mode === "driver" && route.status === "published" && (
                     <button
                       className="pk-primary"
@@ -1376,42 +1389,87 @@ function RouteMap({ jobs }: { jobs: Job[] }) {
   );
 }
 
+function DeleteRouteButton({
+  route,
+  busy,
+  act,
+  onDone,
+  compact = false,
+}: {
+  route: Route;
+  busy: boolean;
+  act: Action;
+  onDone: () => void;
+  compact?: boolean;
+}) {
+  return (
+    <ConfirmButton
+      variant="danger"
+      disabled={busy}
+      prompt="Заборы вернутся в «Не распределено». Удалить этот черновик?"
+      confirmLabel="Да, удалить"
+      onConfirm={async () => {
+        const ok = await act(
+          {
+            action: "delete_route",
+            id: route.id,
+            version: route.version,
+          },
+          "Маршрут удалён",
+        );
+        if (ok) onDone();
+      }}
+    >
+      <Trash2 size={compact ? 14 : 16} aria-hidden />
+      {compact ? "Удалить" : "Удалить маршрут"}
+    </ConfirmButton>
+  );
+}
+
 function ConfirmButton({
   children,
   prompt,
   confirmLabel,
   disabled,
   onConfirm,
+  variant = "primary",
 }: {
   children: React.ReactNode;
   prompt: string;
   confirmLabel: string;
   disabled: boolean;
   onConfirm: () => Promise<void>;
+  variant?: "primary" | "danger";
 }) {
   const [confirm, setConfirm] = useState(false);
+  const triggerClass =
+    variant === "danger" ? "pk-btn-danger" : variant === "primary" ? "pk-primary" : "";
   return (
-    <span className="pk-actions">
+    <span className={`pk-confirm ${confirm ? "pk-confirm--open" : ""}`}>
       {confirm ? (
         <>
-          <span>{prompt}</span>
-          <button
-            className="pk-primary"
-            disabled={disabled}
-            onClick={async () => {
-              await onConfirm();
-              setConfirm(false);
-            }}
-          >
-            {confirmLabel}
-          </button>
-          <button disabled={disabled} onClick={() => setConfirm(false)}>
-            Отмена
-          </button>
+          <span className="pk-confirm__prompt">{prompt}</span>
+          <span className="pk-actions">
+            <button
+              type="button"
+              className={variant === "danger" ? "pk-btn-danger" : "pk-primary"}
+              disabled={disabled}
+              onClick={async () => {
+                await onConfirm();
+                setConfirm(false);
+              }}
+            >
+              {confirmLabel}
+            </button>
+            <button type="button" disabled={disabled} onClick={() => setConfirm(false)}>
+              Отмена
+            </button>
+          </span>
         </>
       ) : (
         <button
-          className="pk-primary"
+          type="button"
+          className={triggerClass}
           disabled={disabled}
           onClick={() => setConfirm(true)}
         >
