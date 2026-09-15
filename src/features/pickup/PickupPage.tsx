@@ -1005,11 +1005,10 @@ function JobDetails({
           </a>
         )}
       </div>
-      {pickupSiteInstructionsDisplay(job.data.instructions) && (
-        <p className="pk-instructions">
-          {pickupSiteInstructionsDisplay(job.data.instructions)}
-        </p>
-      )}
+      {(() => {
+        const text = pickupSiteInstructionsDisplay(job.data.instructions);
+        return text ? <p className="pk-instructions">{text}</p> : null;
+      })()}
       <p>
         Склад отправителя: {job.data.warehouseHours || "График не указан"} ·
         Погрузка: {job.data.serviceMinutes} мин.
