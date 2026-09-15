@@ -43,6 +43,7 @@ import {
   RouteForm,
 } from "./Forms";
 import "./pickup.css";
+import "../../styles/haulz-calculator.css";
 
 const routeLabels = {
   draft: "Черновик",
@@ -391,6 +392,7 @@ export function PickupPage({
             city={city}
             date={date}
             call={call}
+            account={account}
             done={finishEditor}
           />
         ) : editor.type === "route" ? (

@@ -30,6 +30,17 @@
   font-weight: 700;
   margin: 8px 0;
 }
+.pk-root .pk-hint {
+  color: var(--pk-muted);
+  font-size: 14px;
+  margin: 0 0 12px;
+}
+.pk-root .pk-address-times {
+  margin-top: 12px;
+}
+.pk-root .pk-editor .haulz-calc-card {
+  margin-bottom: 12px;
+}
 .pk-root p {
   margin: 8px 0;
   overflow-wrap: anywhere;

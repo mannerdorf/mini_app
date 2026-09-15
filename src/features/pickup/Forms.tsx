@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type {
   City,
   Resource,
@@ -8,6 +8,13 @@ import type {
   Route,
 } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
+import type { Account } from "../../types";
+import {
+  defaultPickupAddressState,
+  jobDataToPickupAddressState,
+  pickupAddressStateToJobPatch,
+} from "./pickupJobAddressState";
+import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSection";
 
 export function Field({
   label,
@@ -442,18 +449,64 @@ export function JobForm({
   city,
   date,
   call,
+  account,
   done,
 }: {
   job?: Job;
   city: City;
   date: string;
   call: PickupCall;
+  account: Account;
   done: () => void;
 }) {
+  const cityCode = pickupCityToCode(city);
   const [data, setData] = useState<JobData>(job?.data ?? emptyData);
   const [day, setDay] = useState(job?.date ?? date);
+  const [addressState, setAddressState] = useState(() =>
+    job?.data
+      ? jobDataToPickupAddressState(job.data, cityCode)
+      : defaultPickupAddressState(cityCode),
+  );
   const update = (key: keyof JobData, v: any) =>
     setData((prev) => ({ ...prev, [key]: v }));
+  const patchJob = (patch: Partial<JobData>) =>
+    setData((prev) => ({ ...prev, ...patch }));
+
+  useEffect(() => {
+    setAddressState((prev) =>
+      prev.city === cityCode ? prev : { ...prev, city: cityCode },
+    );
+  }, [cityCode]);
+
+  useEffect(() => {
+    const fields = pickupAddressStateToJobPatch(addressState);
+    setData((prev) => {
+      const contacts = [...prev.contacts];
+      if (fields.contactPhone || fields.contactName) {
+        contacts[0] = {
+          ...contacts[0],
+          phone: fields.contactPhone ?? contacts[0].phone,
+          name: fields.contactName ?? contacts[0].name,
+        };
+      }
+      if (
+        prev.address === fields.address &&
+        prev.latitude === fields.latitude &&
+        prev.longitude === fields.longitude &&
+        contacts[0].phone === prev.contacts[0].phone &&
+        contacts[0].name === prev.contacts[0].name
+      ) {
+        return prev;
+      }
+      return {
+        ...prev,
+        address: fields.address,
+        latitude: fields.latitude,
+        longitude: fields.longitude,
+        contacts,
+      };
+    });
+  }, [addressState]);
   const num = (v: string) => (v === "" ? null : Number(v));
   const totalVolume = data.places.every(
     (p) => p.lengthCm && p.widthCm && p.heightCm,
@@ -516,36 +569,17 @@ export function JobForm({
           }
         />
       </div>
-      <h3>Адрес и время</h3>
-      <Field
-        label="Полный адрес, строение, офис"
-        value={data.address}
-        onChange={(v) => update("address", v)}
-        required
+      <PickupJobAddressSection
+        account={account}
+        city={city}
+        customerInn={data.customerInn}
+        customerName={data.customerName}
+        data={data}
+        addressState={addressState}
+        onAddressStateChange={setAddressState}
+        onJobPatch={patchJob}
+        num={num}
       />
-      <div className="pk-grid">
-        <Field
-          label="Забрать с"
-          type="time"
-          value={data.windowFrom}
-          onChange={(v) => update("windowFrom", v)}
-          required
-        />
-        <Field
-          label="Забрать до"
-          type="time"
-          value={data.windowTo}
-          onChange={(v) => update("windowTo", v)}
-          required
-        />
-        <Field
-          label="Погрузка, минут"
-          type="number"
-          min="0"
-          value={data.serviceMinutes}
-          onChange={(v) => update("serviceMinutes", num(v))}
-        />
-      </div>
       <Field
         label="График склада отправителя: дни, часы, перерывы"
         value={data.warehouseHours}
