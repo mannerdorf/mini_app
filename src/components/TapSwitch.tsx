@@ -71,14 +71,15 @@ export function TapSwitch({ checked, onToggle, variant = "default", "aria-label"
             <div
                 style={{
                     position: "absolute",
-                    top: 2,
+                    top: "50%",
                     left: checked ? 22 : 2,
                     width: 20,
                     height: 20,
                     borderRadius: "50%",
                     background: "#fff",
                     boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-                    transition: "left 0.2s",
+                    transition: "left 0.2s, transform 0.2s",
+                    transform: "translateY(-50%)",
                 }}
             />
         </button>

@@ -88,6 +88,18 @@
   display: inline-flex;
   flex-shrink: 0;
 }
+.pk-root .pk-instruction-checklist__row > button[aria-pressed] {
+  min-height: 24px;
+  height: 24px;
+  width: 44px;
+  padding: 0;
+  border: none;
+  align-self: center;
+  flex-shrink: 0;
+}
+.pk-root .pk-instruction-checklist__row > button[aria-pressed]:hover:not(:disabled) {
+  border: none;
+}
 .pk-root .pk-instruction-checklist__label {
   flex: 1;
   font-weight: 600;
