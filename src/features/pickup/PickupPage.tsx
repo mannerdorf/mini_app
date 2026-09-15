@@ -49,8 +49,8 @@ import {
 import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
 import { PickupRouteStatusBadge } from "./PickupRouteStatusBadge";
 import { PickupCancelJobSection } from "./PickupCancelJobSection";
-import "./pickup.css";
 import "../../styles/haulz-calculator.css";
+import "./pickup.css";
 
 const routeLabels = {
   draft: "Черновик",
