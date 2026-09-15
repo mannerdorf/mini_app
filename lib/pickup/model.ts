@@ -99,6 +99,11 @@ export const statusLabels: Record<JobStatus, string> = {
 export function pickupJobCanCancel(status: JobStatus): boolean {
   return status === "pending" || status === "arrived" || status === "problem";
 }
+
+/** Редактирование диспетчером (данные точки, пока водитель не начал забор). */
+export function pickupJobCanEdit(status: JobStatus): boolean {
+  return status === "pending";
+}
 export type Job = {
   id: string;
   city: City;

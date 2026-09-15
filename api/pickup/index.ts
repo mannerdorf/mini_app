@@ -376,16 +376,49 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     if (body.id) {
       const search = pickupJobSearchColumns(data);
       const { rows } = await db.query(
-        "SELECT * FROM pickup_jobs WHERE id=$1 FOR UPDATE",
+        "SELECT *, to_char(date,'YYYY-MM-DD') AS date FROM pickup_jobs WHERE id=$1 FOR UPDATE",
         [id],
       );
-      requireValue(rows[0], "Забор не найден");
-      checkVersion(rows[0], body.version);
+      const job: Job = rows[0];
+      requireValue(job, "Забор не найден");
+      checkVersion(job, body.version);
       requireValue(
-        !rows[0].route_id && rows[0].status === "pending",
-        "Редактировать можно только нераспределённый забор",
+        job.status === "pending",
+        "Редактировать можно только забор, который ещё не начат",
       );
-      requireValue(rows[0].status !== "cancelled", "Отменённый забор нельзя изменить");
+      requireValue(
+        job.status !== "cancelled",
+        "Отменённый забор нельзя изменить",
+      );
+      if (job.route_id) {
+        const route = await routeById(db, job.route_id);
+        requireValue(route.status !== "completed", "Маршрут завершён");
+        requireValue(
+          body.city === job.city && body.date === job.date,
+          "Чтобы сменить дату или город, сначала снимите забор с маршрута",
+        );
+        if (route.status !== "draft") {
+          const assigned: Job[] = (
+            await db.query("SELECT * FROM pickup_jobs WHERE route_id=$1", [
+              route.id,
+            ])
+          ).rows;
+          const merged = assigned.map((j) =>
+            j.id === job.id ? { ...j, data } : j,
+          );
+          const warnings = routeWarnings(merged, route.snapshot.vehicle);
+          requireValue(
+            !warnings.some((w) => w.startsWith("Превышен")),
+            warnings.join(" "),
+          );
+          requireValue(
+            data.windowTo > route.start_time &&
+              data.windowFrom <
+                (route.snapshot.depot?.data.to ?? "23:59"),
+            "Окно забора вне времени маршрута / склада",
+          );
+        }
+      }
       await db.query(
         `UPDATE pickup_jobs SET data=$2,city=$3,date=$4,
           zayavka_number=$5,cargo_number=$6,customer_inn=$7,sender_inn=$8,
@@ -401,7 +434,13 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           search.sender_inn,
         ],
       );
-      await event(db, actor, "Забор сохранён", null, id);
+      if (job.route_id) {
+        await db.query(
+          "UPDATE pickup_routes SET version=version+1,updated_at=now() WHERE id=$1",
+          [job.route_id],
+        );
+        await event(db, actor, "Забор изменён", job.route_id, id);
+      } else await event(db, actor, "Забор сохранён", null, id);
       return { id };
     }
 

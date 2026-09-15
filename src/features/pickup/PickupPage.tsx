@@ -21,6 +21,7 @@ import {
   plannedPlaces,
   routeWarnings,
   pickupJobCanCancel,
+  pickupJobCanEdit,
   type City,
   type Snapshot,
   type Job,
@@ -540,8 +541,11 @@ export function PickupPage({
                 >
                   <Copy size={16} aria-hidden />
                 </button>
-                {!j.route_id && j.status === "pending" && (
-                  <button onClick={() => setEditor({ type: "job", job: j })}>
+                {pickupJobCanEdit(j.status) && (
+                  <button
+                    type="button"
+                    onClick={() => setEditor({ type: "job", job: j })}
+                  >
                     Изменить
                   </button>
                 )}
@@ -642,11 +646,14 @@ export function PickupPage({
                       >
                         <Copy size={16} aria-hidden />
                       </button>
-                      <button
-                        onClick={() => setEditor({ type: "job", job: j })}
-                      >
-                        Изменить
-                      </button>
+                      {pickupJobCanEdit(j.status) && (
+                        <button
+                          type="button"
+                          onClick={() => setEditor({ type: "job", job: j })}
+                        >
+                          Изменить
+                        </button>
+                      )}
                       {route && route.status !== "completed" && (
                         <button
                           disabled={busy}
@@ -859,6 +866,17 @@ export function PickupPage({
                         />
                         {dispatch && route.status !== "completed" && (
                           <div className="pk-actions">
+                            {pickupJobCanEdit(j.status) && (
+                              <button
+                                type="button"
+                                disabled={busy}
+                                onClick={() =>
+                                  setEditor({ type: "job", job: j })
+                                }
+                              >
+                                Изменить
+                              </button>
+                            )}
                             {j.status === "pending" && (
                               <>
                                 <button
