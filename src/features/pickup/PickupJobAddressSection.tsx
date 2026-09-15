@@ -90,6 +90,7 @@ export function PickupJobAddressSection({
         state={addressState}
         onChange={onAddressStateChange}
         defaultCity={cityCode}
+        courierOnly
       />
       <div className="pk-grid pk-address-times">
         <Field

@@ -51,6 +51,8 @@ type Props = {
   state: PvzSelectionState;
   onChange: React.Dispatch<React.SetStateAction<PvzSelectionState>>;
   defaultCity: CityCode;
+  /** Забор: только адрес курьером, без «Со склада / на складе». */
+  courierOnly?: boolean;
 };
 
 function pvzLabel(p: PvzItem): string {
@@ -90,11 +92,29 @@ export function DocumentsOrderPvzSection({
   state,
   onChange,
   defaultCity,
+  courierOnly = false,
 }: Props) {
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
   const warehouseLabel = side === "from" ? "Со Склада" : "на Складе";
-  const isWarehouseMode = state.deliveryMode === "point";
+  const isWarehouseMode = !courierOnly && state.deliveryMode === "point";
+
+  useEffect(() => {
+    if (!courierOnly) return;
+    onChange((prev) => {
+      if (prev.deliveryMode !== "point") return prev;
+      return clearContacts({
+        ...prev,
+        deliveryMode: "courier",
+        pvzRef: "",
+        pvzItem: null,
+        addr: null,
+        query: "",
+        addressKind: "pvz",
+        city: defaultCity,
+      });
+    });
+  }, [courierOnly, defaultCity, onChange]);
 
   const geocodePvz = useCallback(
     async (p: PvzItem, city: CityCode) => {
@@ -171,26 +191,28 @@ export function DocumentsOrderPvzSection({
     <div className="haulz-calc-card">
       <h2 className="haulz-calc-card__title">{title}</h2>
 
-      <div className="haulz-calc-segment" role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={state.deliveryMode === "courier"}
-          className={`haulz-calc-segment__btn${state.deliveryMode === "courier" ? " haulz-calc-segment__btn--active" : ""}`}
-          onClick={() => setDeliveryMode("courier")}
-        >
-          Курьером
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={state.deliveryMode === "point"}
-          className={`haulz-calc-segment__btn${state.deliveryMode === "point" ? " haulz-calc-segment__btn--active" : ""}`}
-          onClick={() => setDeliveryMode("point")}
-        >
-          {warehouseLabel}
-        </button>
-      </div>
+      {!courierOnly && (
+        <div className="haulz-calc-segment" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={state.deliveryMode === "courier"}
+            className={`haulz-calc-segment__btn${state.deliveryMode === "courier" ? " haulz-calc-segment__btn--active" : ""}`}
+            onClick={() => setDeliveryMode("courier")}
+          >
+            Курьером
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={state.deliveryMode === "point"}
+            className={`haulz-calc-segment__btn${state.deliveryMode === "point" ? " haulz-calc-segment__btn--active" : ""}`}
+            onClick={() => setDeliveryMode("point")}
+          >
+            {warehouseLabel}
+          </button>
+        </div>
+      )}
 
       {isWarehouseMode ? (
         <div className="haulz-calc-warehouse">
