@@ -107,11 +107,34 @@
 .pk-root .pk-customer-quote {
   margin: 16px 0;
 }
+.pk-root .pk-customer-quote__select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--pk-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  background: var(--pk-panel);
+}
+.pk-root .pk-customer-quote__price-mode input[type="number"] {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid var(--pk-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: var(--pk-panel);
+}
+.pk-root .pk-customer-quote__auto {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 .pk-root .pk-customer-quote__btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  margin-bottom: 12px;
+  width: fit-content;
 }
 .pk-root .pk-customer-quote__summary {
   padding: 10px 12px;
