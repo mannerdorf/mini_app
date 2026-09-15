@@ -67,6 +67,13 @@ export type JobData = {
   defaultPlaceMode: "courier" | "point";
   defaultPlaceKind: "pvz" | "custom";
   defaultPlacePvzRef: string;
+  /** Мета графика (серия периодических заборов). */
+  scheduleMode: "once" | "periodic" | "";
+  schedulePattern: "weekdays" | "dates" | "";
+  scheduleGroupId: string;
+  scheduleWeekdays: string;
+  scheduleUntil: string;
+  scheduleDates: string;
 };
 export type JobStatus =
   | "pending"
@@ -300,6 +307,22 @@ export function normalizeJob(raw: any): JobData {
     defaultPlaceMode,
     defaultPlaceKind,
     defaultPlacePvzRef: textValue(raw.defaultPlacePvzRef, 80),
+    scheduleMode:
+      raw.scheduleMode === "periodic"
+        ? "periodic"
+        : raw.scheduleMode === "once"
+          ? "once"
+          : "",
+    schedulePattern:
+      raw.schedulePattern === "dates"
+        ? "dates"
+        : raw.schedulePattern === "weekdays"
+          ? "weekdays"
+          : "",
+    scheduleGroupId: textValue(raw.scheduleGroupId, 80),
+    scheduleWeekdays: textValue(raw.scheduleWeekdays, 40),
+    scheduleUntil: textValue(raw.scheduleUntil, 10),
+    scheduleDates: textValue(raw.scheduleDates, 2000),
   };
 }
 

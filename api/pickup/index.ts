@@ -11,6 +11,11 @@ import {
 } from "../../lib/rateLimit.js";
 import { buildPickupCustomerQuote } from "../../lib/pickup/customerQuote.js";
 import { ensureHaulzDepot } from "../../lib/pickup/haulzDepot.js";
+import {
+  expandPickupScheduleDates,
+  parsePickupScheduleBody,
+  scheduleMetaForJobData,
+} from "../../lib/pickup/pickupSchedule.js";
 import { pgTableExists } from "../_haulzReturns.js";
 import {
   PickupError,
@@ -366,9 +371,9 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     );
     data.customerName = customer.rows[0].customer_name;
     data.senderName = sender.rows[0].supplier_name;
-    const search = pickupJobSearchColumns(data);
     const id = body.id ? uuid(body.id) : randomUUID();
     if (body.id) {
+      const search = pickupJobSearchColumns(data);
       const { rows } = await db.query(
         "SELECT * FROM pickup_jobs WHERE id=$1 FOR UPDATE",
         [id],
@@ -394,23 +399,40 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           search.sender_inn,
         ],
       );
-    } else
+      await event(db, actor, "Забор сохранён", null, id);
+      return { id };
+    }
+
+    const schedule = parsePickupScheduleBody(body);
+    const dates = expandPickupScheduleDates(schedule);
+    const groupId = dates.length > 1 ? randomUUID() : "";
+    const scheduleMeta = scheduleMetaForJobData(schedule, groupId);
+    const ids: string[] = [];
+
+    for (let i = 0; i < dates.length; i++) {
+      const jobId = i === 0 ? id : randomUUID();
+      const jobData = { ...data, ...scheduleMeta };
+      const search = pickupJobSearchColumns(jobData);
       await db.query(
         `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
         [
-          id,
+          jobId,
           body.city,
-          body.date,
-          JSON.stringify(data),
+          dates[i],
+          JSON.stringify(jobData),
           search.zayavka_number,
           search.cargo_number,
           search.customer_inn,
           search.sender_inn,
         ],
       );
-    await event(db, actor, "Забор сохранён", null, id);
-    return { id };
+      ids.push(jobId);
+      await event(db, actor, "Забор сохранён", null, jobId, {
+        schedule: dates.length > 1 ? { groupId, index: i + 1, total: dates.length } : {},
+      });
+    }
+    return { id: ids[0], ids, createdCount: ids.length };
   }
   if (action === "save_route") {
     dispatcherOnly(actor);

@@ -396,6 +396,60 @@
   border-radius: 12px;
   margin-bottom: 12px;
 }
+.pk-schedule {
+  margin: 12px 0;
+}
+.pk-schedule h3 {
+  margin: 0 0 12px;
+  font-size: 17px;
+}
+.pk-schedule__mode,
+.pk-schedule__pattern {
+  margin-bottom: 12px;
+}
+.pk-schedule__weekdays {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.pk-schedule__day {
+  min-width: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--pk-border);
+  background: var(--pk-panel);
+  cursor: pointer;
+  font-weight: 600;
+}
+.pk-schedule__day.pk-selected {
+  border-color: #6c96e7;
+  background: #eef4ff;
+  color: #1e4fa8;
+}
+.pk-schedule__add-date {
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.pk-schedule__date-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 12px;
+}
+.pk-schedule__date-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 0;
+}
+.pk-link-btn {
+  border: none;
+  background: none;
+  color: #1e4fa8;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 14px;
+}
 .pk-icon-btn {
   display: inline-flex;
   align-items: center;

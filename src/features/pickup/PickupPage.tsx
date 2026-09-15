@@ -397,6 +397,9 @@ export function PickupPage({
               call={call}
               account={account}
               done={finishEditor}
+              onCreatedMany={(n) =>
+                setNotice(`Создано заборов по графику: ${n}`)
+              }
             />
           ) : editor.type === "route" ? (
             <RouteForm
@@ -930,6 +933,9 @@ function JobSummary({ job }: { job: Job }) {
         <p className="pk-muted">
           Место по умолчанию: {job.data.defaultPlaceAddress}
         </p>
+      ) : null}
+      {job.data.scheduleGroupId ? (
+        <p className="pk-muted">Серия по графику · {job.data.scheduleGroupId.slice(0, 8)}…</p>
       ) : null}
       <p className="pk-muted">
         Заказчик: {job.data.customerName}

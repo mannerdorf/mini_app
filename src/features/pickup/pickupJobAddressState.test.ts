@@ -43,6 +43,12 @@ describe("pickupJobAddressState", () => {
         defaultPlaceMode: "point",
         defaultPlaceKind: "pvz",
         defaultPlacePvzRef: "",
+        scheduleMode: "",
+        schedulePattern: "",
+        scheduleGroupId: "",
+        scheduleWeekdays: "",
+        scheduleUntil: "",
+        scheduleDates: "",
       },
       "moscow",
     );

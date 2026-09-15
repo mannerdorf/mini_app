@@ -56,6 +56,12 @@ describe("pickupJobDefaultPlaceState", () => {
         defaultPlaceMode: "courier",
         defaultPlaceKind: "custom",
         defaultPlacePvzRef: "",
+        scheduleMode: "",
+        schedulePattern: "",
+        scheduleGroupId: "",
+        scheduleWeekdays: "",
+        scheduleUntil: "",
+        scheduleDates: "",
       },
       "kaliningrad",
     );

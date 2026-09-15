@@ -24,6 +24,12 @@ import { PickupJobAddressSection, pickupCityToCode } from "./PickupJobAddressSec
 import { PickupJobDefaultPlaceSection } from "./PickupJobDefaultPlaceSection";
 import { PickupVehicleResourceFields } from "./PickupVehicleResourceFields";
 import { cloneJobDataForCopy } from "../../../lib/pickup/cloneJobData";
+import {
+  defaultPickupScheduleUiState,
+  PickupScheduleSection,
+  pickupScheduleUiToApi,
+} from "./PickupScheduleSection";
+import { expandPickupScheduleDates } from "../../../lib/pickup/pickupSchedule";
 import { PickupWarehouseHoursField } from "./PickupWarehouseHoursField";
 import { PickupInstructionChecklistField } from "./PickupInstructionChecklistField";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
@@ -453,6 +459,12 @@ const emptyData: JobData = {
   defaultPlaceMode: "point",
   defaultPlaceKind: "pvz",
   defaultPlacePvzRef: "",
+  scheduleMode: "",
+  schedulePattern: "",
+  scheduleGroupId: "",
+  scheduleWeekdays: "",
+  scheduleUntil: "",
+  scheduleDates: "",
 };
 export function JobForm({
   job,
@@ -462,6 +474,7 @@ export function JobForm({
   call,
   account,
   done,
+  onCreatedMany,
 }: {
   job?: Job;
   /** Новый забор с данными из существующего (без id). */
@@ -471,6 +484,7 @@ export function JobForm({
   call: PickupCall;
   account: Account;
   done: () => void;
+  onCreatedMany?: (count: number) => void;
 }) {
   const cityCode = pickupCityToCode(city);
   const seedData = job?.data ?? (copyFrom ? cloneJobDataForCopy(copyFrom.data) : undefined);
@@ -491,6 +505,7 @@ export function JobForm({
       ? parsePickupSiteInstructions(seedData.instructions)
       : createDefaultPickupSiteInstructions(),
   );
+  const [scheduleUi, setScheduleUi] = useState(defaultPickupScheduleUiState);
   const update = (key: keyof JobData, v: any) =>
     setData((prev) => ({ ...prev, [key]: v }));
   const patchJob = (patch: Partial<JobData>) =>
@@ -590,7 +605,20 @@ export function JobForm({
       }
       onClose={done}
       onSave={async () => {
-        await call({
+        const schedulePayload = !job
+          ? pickupScheduleUiToApi(scheduleUi, day)
+          : undefined;
+        if (!job && scheduleUi.mode === "periodic") {
+          expandPickupScheduleDates({
+            mode: "periodic",
+            pattern: scheduleUi.pattern,
+            startDate: day,
+            until: scheduleUi.until,
+            weekdays: scheduleUi.weekdays,
+            dates: (schedulePayload?.dates as string[]) ?? [],
+          });
+        }
+        const result = await call({
           action: "save_job",
           requestId: crypto.randomUUID(),
           id: job?.id,
@@ -598,7 +626,10 @@ export function JobForm({
           city,
           date: day,
           data,
+          schedule: schedulePayload,
         });
+        const count = Number((result as { createdCount?: number })?.createdCount);
+        if (count > 1) onCreatedMany?.(count);
       }}
     >
       <div className="pk-grid">
@@ -609,6 +640,14 @@ export function JobForm({
           onChange={setDay}
           required
         />
+      </div>
+      <PickupScheduleSection
+        startDate={day}
+        state={scheduleUi}
+        onChange={setScheduleUi}
+        disabled={Boolean(job?.id)}
+      />
+      <div className="pk-grid">
         <Field
           label="Номер заявки"
           value={data.zayavkaNumber}

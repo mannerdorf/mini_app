@@ -37,6 +37,12 @@ const sample: JobData = {
   defaultPlaceMode: "point",
   defaultPlaceKind: "pvz",
   defaultPlacePvzRef: "",
+  scheduleMode: "",
+  schedulePattern: "",
+  scheduleGroupId: "",
+  scheduleWeekdays: "",
+  scheduleUntil: "",
+  scheduleDates: "",
 };
 
 describe("cloneJobDataForCopy", () => {
