@@ -27,6 +27,14 @@ import { isCapacitorAndroidApp } from "./lib/androidAppUpdate";
 import { isNativePushEnvironment } from "./lib/androidPushNotifications";
 import { useAndroidAppUpdate } from "./hooks/useAndroidAppUpdate";
 import { AndroidUpdateBanner } from "./components/AndroidUpdateBanner";
+import {
+  isPickupStandaloneAccount,
+  pickupStandaloneMode,
+} from "../lib/pickupStandaloneApp";
+
+const PickupPage = React.lazy(() =>
+  import("./features/pickup/PickupPage").then((m) => ({ default: m.PickupPage })),
+);
 
 function AppRoot() {
     const {
@@ -82,6 +90,11 @@ function AppRoot() {
     }, [activeAccount?.isRegisteredUser, activeAccount?.permissions?.service_mode]);
     const isWbOnlyUser = useMemo(() => isWbOnlyAccount(activeAccount), [activeAccount]);
     const isRedReturnsOnlyUser = useMemo(() => isRedReturnsOnlyAccount(activeAccount), [activeAccount]);
+    const isPickupStandaloneUser = useMemo(
+        () => isPickupStandaloneAccount(activeAccount),
+        [activeAccount],
+    );
+    const pickupMode = useMemo(() => pickupStandaloneMode(activeAccount), [activeAccount]);
     const isNativeAndroid = useMemo(() => isCapacitorAndroidApp(), []);
     const isNativePush = useMemo(() => isNativePushEnvironment(), []);
     const androidUpdate = useAndroidAppUpdate(!!auth && isNativeAndroid);
@@ -185,7 +198,7 @@ function AppRoot() {
     });
     const [isOfferOpen, setIsOfferOpen] = useState(false);
     const [isPersonalConsentOpen, setIsPersonalConsentOpen] = useState(false);
-    useRegisteredAccountSync(isWbOnlyUser, isRedReturnsOnlyUser);
+    useRegisteredAccountSync(isWbOnlyUser, isRedReturnsOnlyUser, isPickupStandaloneUser);
 
     useEffect(() => {
         if (isRedReturnsOnlyUser) syncRedReturnsUrl();
@@ -240,6 +253,32 @@ function AppRoot() {
             >
                 <HaulzReturnsPage auth={redReturnsAuth} pageTitle={RED_RETURNS_LABEL} />
             </WbOnlyAppLayout>
+        );
+    }
+
+    if (isPickupStandaloneUser && pickupMode && activeAccount) {
+        return (
+            <Suspense
+                fallback={
+                    <div className="p-8 flex justify-center items-center min-h-[40vh]">
+                        <Loader2 className="w-8 h-8 animate-spin" />
+                    </div>
+                }
+            >
+                <WbOnlyAppLayout
+                    desktopExpanded={desktopExpanded}
+                    onLogout={handleLogout}
+                    saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
+                >
+                    <PickupPage
+                        key={`${activeAccount.id}:${pickupMode}`}
+                        account={activeAccount}
+                        mode={pickupMode}
+                        onBack={() => {}}
+                        hideBackNav
+                    />
+                </WbOnlyAppLayout>
+            </Suspense>
         );
     }
 

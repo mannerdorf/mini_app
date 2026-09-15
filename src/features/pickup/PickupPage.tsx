@@ -87,10 +87,13 @@ export function PickupPage({
   account,
   mode,
   onBack,
+  hideBackNav = false,
 }: {
   account: Account;
   mode: "dispatch" | "driver";
   onBack: () => void;
+  /** Полноэкранный режим водителя/диспетчера без разделов ЛК — без кнопки «Назад». */
+  hideBackNav?: boolean;
 }) {
   const allowed =
     mode === "dispatch"
@@ -307,9 +310,13 @@ export function PickupPage({
   return (
     <div className="pk-root">
       <header className="pk-header">
-        <button onClick={onBack} aria-label="Назад в Холз">
-          <ArrowLeft size={20} />
-        </button>
+        {hideBackNav ? (
+          <span className="pk-header-spacer" aria-hidden />
+        ) : (
+          <button onClick={onBack} aria-label="Назад в Холз">
+            <ArrowLeft size={20} />
+          </button>
+        )}
         <div>
           <p className="pk-eyebrow">ХОЛЗ / ЗАБОРНАЯ ЛОГИСТИКА</p>
           <h1>{mode === "dispatch" ? "Диспетчеризация" : "Мой маршрут"}</h1>

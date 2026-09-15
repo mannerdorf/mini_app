@@ -291,6 +291,10 @@
 .pk-header > div {
   flex: 1;
 }
+.pk-header-spacer {
+  width: 36px;
+  flex-shrink: 0;
+}
 .pk-eyebrow {
   font-size: 11px;
   letter-spacing: 0.06em;

@@ -11,7 +11,11 @@ import { getClientPlatform } from "../lib/clientPlatform";
 import { WB_TAB, isWildberriesTab } from "../wb/appWb";
 import type { Account, CustomerOption, Tab } from "../types";
 
-export function useRegisteredAccountSync(isWbOnlyUser: boolean, isRedReturnsOnlyUser = false) {
+export function useRegisteredAccountSync(
+  isWbOnlyUser: boolean,
+  isRedReturnsOnlyUser = false,
+  isPickupStandaloneUser = false,
+) {
   const { accounts, setAccounts, activeAccount } = useAuth();
   const { activeTab, setActiveTab } = useAppShell();
 
@@ -22,7 +26,7 @@ export function useRegisteredAccountSync(isWbOnlyUser: boolean, isRedReturnsOnly
   useEffect(() => {
     if (!activeAccount?.isRegisteredUser || !activeAccount?.permissions) return;
     const perms = activeAccount.permissions;
-    if (isRedReturnsOnlyUser) return;
+    if (isRedReturnsOnlyUser || isPickupStandaloneUser) return;
     if (isWbOnlyUser) {
       if (!isWildberriesTab(activeTab)) setActiveTab(WB_TAB);
       return;
@@ -63,7 +67,7 @@ export function useRegisteredAccountSync(isWbOnlyUser: boolean, isRedReturnsOnly
             ? "expense_requests"
             : "profile";
     if (fallback !== activeTab) setActiveTab(fallback);
-  }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser, isRedReturnsOnlyUser, setActiveTab]);
+  }, [activeAccount?.id, activeAccount?.isRegisteredUser, activeAccount?.permissions, activeTab, isWbOnlyUser, isRedReturnsOnlyUser, isPickupStandaloneUser, setActiveTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
