@@ -10,7 +10,6 @@ import {
   ArrowLeft,
   Truck,
   Users,
-  MapPin,
   Package,
   RefreshCw,
   Copy,
@@ -1654,33 +1653,18 @@ export function PickupPage({
                     </li>
                   ))}
                 </ol>
-                <section className="pk-depot">
-                  <MapPin size={24} />
-                  <div>
-                    <p className="pk-eyebrow">КОНЕЧНАЯ ТОЧКА</p>
-                    <h3>{route.snapshot.depot?.name}</h3>
-                    <p>{route.snapshot.depot?.data.address}</p>
-                    <p>
-                      Приёмка: {route.snapshot.depot?.data.from}–
-                      {route.snapshot.depot?.data.to}
+                <p className="pk-route-end">
+                  {route.snapshot.depot?.name?.replace(/,?\s*Москва.*/i, "") ||
+                    "Склад HAULZ"}
+                </p>
+                {mode === "driver" && route.status === "started" && (
+                  <div className="pk-depot-actions">
+                    <p className="pk-hint">
+                      {canDepositJobs(routeJobs)
+                        ? "После передачи всех забранных грузов подтвердите сдачу."
+                        : "Сначала завершите заборы и дождитесь решений по проблемам."}
                     </p>
-                    <p>{route.snapshot.depot?.data.note}</p>
-                    <a
-                      href={navUrl(route.snapshot.depot?.data.address ?? "")}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Навигация до склада ↗
-                    </a>
-                    {mode === "driver" && route.status === "started" && (
-                      <p className="pk-hint">
-                        {canDepositJobs(routeJobs)
-                          ? "После передачи всех забранных грузов подтвердите сдачу."
-                          : "Сначала завершите заборы и дождитесь решений по проблемам."}
-                      </p>
-                    )}
-                    {mode === "driver" && route.status === "started" && (
-                      <PickupDeposit
+                    <PickupDeposit
                         key={route.id}
                         jobs={routeJobs}
                         busy={busy}
@@ -1704,9 +1688,8 @@ export function PickupPage({
                           )
                         }
                       />
-                    )}
                   </div>
-                </section>
+                )}
                 <details className="pk-history">
                   <summary>История маршрута</summary>
                   {snapshot.events

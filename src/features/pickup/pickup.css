@@ -1191,6 +1191,14 @@
   flex-direction: column;
   gap: 4px;
 }
+.pk-route-end {
+  margin: 12px 0 0;
+  font-size: 14px;
+  color: var(--pk-muted, #5c6570);
+}
+.pk-depot-actions {
+  margin-top: 12px;
+}
 .pk-depot {
   display: flex;
   gap: 12px;
