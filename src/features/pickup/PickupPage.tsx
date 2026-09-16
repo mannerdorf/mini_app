@@ -443,9 +443,10 @@ export function PickupPage({
         driver={mode === "driver"}
         label={`${cities[city]} · ${date}`}
       >
-        <div className="pk-toolbar">
+        <div className="pk-toolbar pk-toolbar--app-filters">
           <Select
             label="Город"
+            variant="app"
             value={city}
             onChange={(v) => {
               setCity(v as City);
@@ -453,7 +454,13 @@ export function PickupPage({
             }}
             options={Object.entries(cities).map(([id, name]) => ({ id, name }))}
           />
-          <Field label="Дата" type="date" value={date} onChange={setDate} />
+          <Field
+            label="Дата"
+            variant="app"
+            type="date"
+            value={date}
+            onChange={setDate}
+          />
           {dispatch && (
             <div className="pk-actions">
               <button
@@ -833,15 +840,17 @@ export function PickupPage({
               month: "long",
             }).format(new Date(date + "T12:00:00"))}
           </h2>
-          <div className="pk-day-filters">
+          <div className="pk-day-filters pk-day-filters--app">
             <Field
               label="Поиск заборов"
+              variant="app"
               value={search}
               onChange={setSearch}
               placeholder="Адрес, заказчик, отправитель, № заявки, водитель"
             />
             <Select
               label="Показать"
+              variant="app"
               value={dayFilter}
               onChange={(v) => setDayFilter(v as DayFilter)}
               options={[

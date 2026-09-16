@@ -76,12 +76,19 @@ function PackagingKindField({
   );
 }
 
+type PickupFieldVariant = "default" | "app";
+
+function pickupFieldClass(variant: PickupFieldVariant | undefined) {
+  return variant === "app" ? "pk-field pk-field--app" : "pk-field";
+}
+
 export function Field({
   label,
   value,
   onChange,
   type = "text",
   required = false,
+  variant = "default",
   ...rest
 }: {
   label: string;
@@ -89,12 +96,13 @@ export function Field({
   onChange: (v: string) => void;
   type?: string;
   required?: boolean;
+  variant?: PickupFieldVariant;
   min?: string;
   step?: string;
   placeholder?: string;
 }) {
   return (
-    <label className="pk-field">
+    <label className={pickupFieldClass(variant)}>
       <span>
         {label}
         {required ? " *" : ""}
@@ -105,6 +113,7 @@ export function Field({
         required={required}
         value={value ?? ""}
         onChange={(e) => onChange(e.target.value)}
+        className={variant === "app" ? "admin-form-input" : undefined}
       />
     </label>
   );
@@ -135,15 +144,17 @@ export function Select({
   onChange,
   options,
   required = false,
+  variant = "default",
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   options: { id: string; name: string }[];
   required?: boolean;
+  variant?: PickupFieldVariant;
 }) {
   return (
-    <label className="pk-field">
+    <label className={pickupFieldClass(variant)}>
       <span>
         {label}
         {required ? " *" : ""}
@@ -152,6 +163,7 @@ export function Select({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        className={variant === "app" ? "admin-form-input" : undefined}
       >
         <option value="">Выберите…</option>
         {options.map((o) => (

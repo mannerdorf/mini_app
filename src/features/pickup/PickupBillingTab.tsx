@@ -49,6 +49,7 @@ export function PickupBillingTab({ city, date, jobs, routes }: Props) {
       </p>
       <Field
         label="Поиск"
+        variant="app"
         value={search}
         onChange={setSearch}
         placeholder="Отправитель, заказчик, № перевозки, № заявки"
