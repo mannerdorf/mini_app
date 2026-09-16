@@ -983,14 +983,6 @@ export function JobForm({
           onJobPatch={patchJob}
           num={num}
         />
-        <PickupJobDefaultPlaceSection
-          account={account}
-          city={city}
-          customerInn={data.customerInn}
-          customerName={data.customerName}
-          state={defaultPlaceState}
-          onChange={setDefaultPlaceState}
-        />
         <PickupWarehouseHoursField
           value={data.warehouseHours}
           onChange={(v) => update("warehouseHours", v)}
@@ -1104,6 +1096,14 @@ export function JobForm({
         <summary>
           <span className="pk-form-step">3</span> Груз и погрузка
         </summary>
+        <PickupJobDefaultPlaceSection
+          account={account}
+          city={city}
+          customerInn={data.customerInn}
+          customerName={data.customerName}
+          state={defaultPlaceState}
+          onChange={setDefaultPlaceState}
+        />
         <h3>Грузовые места</h3>
         {data.places.map((p, i) => (
           <div className="pk-subrow" key={i}>
