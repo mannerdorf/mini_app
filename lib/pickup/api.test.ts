@@ -177,8 +177,7 @@ beforeAll(async () => {
     "107_pickup_supplier_contacts.sql",
     "108_pickup_driver_locations.sql",
     "109_pickup_gps_quality.sql",
-    "108_pickup_driver_locations.sql",
-    "109_pickup_gps_quality.sql",
+    "110_pickup_job_number.sql",
   ]) {
     await state.db.exec(
       readFileSync(
@@ -293,6 +292,12 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
         })
       ).status,
     ).toBe(403);
+  });
+  it("assigns unique job_number when creating a pickup job", async () => {
+    const { job } = await setup();
+    const snap = await snapshot();
+    const row = snap.jobs.find((j: any) => j.id === job.id);
+    expect(row?.job_number).toMatch(/^ZB-\d{6}$/);
   });
   it("requires photo and actual count, saves proof and handles repeated delivery once", async () => {
     await setup();

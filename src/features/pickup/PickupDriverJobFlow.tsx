@@ -3,6 +3,7 @@ import { Trash2 } from "lucide-react";
 import { plannedPlaces, type Job } from "../../../lib/pickup/model";
 import { pickupSiteInstructionsDisplay } from "../../../lib/pickup/jobSiteInstructions";
 import { Field, Textarea } from "./Forms";
+import { PickupJobNumber } from "./PickupJobNumber";
 import { preparePhoto } from "./client";
 
 const navUrl = (address: string) =>
@@ -71,6 +72,7 @@ export function PickupDriverJobFlow({
 
   return (
     <section className="pk-driver-mobile-step" aria-live="polite">
+      <PickupJobNumber job={job} prominent />
       <p className="pk-eyebrow">
         Точка {stopIndex + 1} из {stopTotal} · {job.data.windowFrom}–{job.data.windowTo}
       </p>

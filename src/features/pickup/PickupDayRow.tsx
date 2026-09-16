@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { plannedPlaces, type Job, type Route } from "../../../lib/pickup/model";
 import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
+import { PickupJobNumber } from "./PickupJobNumber";
 export function PickupDayRow({
   job,
   route,
@@ -51,8 +52,9 @@ export function PickupDayRow({
             <strong>{job.data.senderName}</strong>
             <span>{job.data.address}</span>
             <small>
+              {job.job_number ? `${job.job_number} · ` : ""}
               {job.data.customerName}
-              {job.data.zayavkaNumber ? ` · № ${job.data.zayavkaNumber}` : ""}
+              {job.data.zayavkaNumber ? ` · заявка ${job.data.zayavkaNumber}` : ""}
             </small>
           </span>
           <span className="pk-day-cargo">
@@ -81,7 +83,10 @@ export function PickupDayRow({
         >
           <div className="pk-day-drawer-body">
             <header className="pk-day-drawer-header">
-              <h2>Карточка забора</h2>
+              <div>
+                <h2>Карточка забора</h2>
+                <PickupJobNumber job={job} prominent />
+              </div>
               <button
                 type="button"
                 autoFocus

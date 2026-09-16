@@ -52,7 +52,7 @@ export function PickupBillingTab({ city, date, jobs, routes }: Props) {
         variant="app"
         value={search}
         onChange={setSearch}
-        placeholder="Отправитель, заказчик, № перевозки, № заявки"
+        placeholder="Номер забора, отправитель, заказчик, № перевозки, № заявки"
       />
       <p className="pk-hint" role="status">
         Найдено: {rows.length}
@@ -66,6 +66,7 @@ export function PickupBillingTab({ city, date, jobs, routes }: Props) {
           <table className="pk-billing-table">
             <thead>
               <tr>
+                <th scope="col">№ забора</th>
                 <th scope="col">Окно</th>
                 <th scope="col">Отправитель</th>
                 <th scope="col">Заказчик</th>
@@ -80,6 +81,9 @@ export function PickupBillingTab({ city, date, jobs, routes }: Props) {
             <tbody>
               {rows.map((job) => (
                 <tr key={job.id}>
+                  <td>
+                    <strong>{job.job_number || "—"}</strong>
+                  </td>
                   <td>
                     {job.data.windowFrom}–{job.data.windowTo}
                   </td>

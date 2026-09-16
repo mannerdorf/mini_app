@@ -18,6 +18,7 @@ export function matchesDaySearch(
 ): boolean {
   const route = routes.find((r) => r.id === job.route_id);
   const haystack = [
+    job.job_number ?? "",
     job.data.senderName,
     job.data.customerName,
     job.data.address,

@@ -116,6 +116,8 @@ export function pickupJobCanDelete(status: JobStatus): boolean {
 
 export type Job = {
   id: string;
+  /** Сквозной номер забора (ZB-000001), не заявка и не перевозка. */
+  job_number?: string;
   city: City;
   date: string;
   data: JobData;

@@ -46,6 +46,7 @@ import {
   pickupDriverServiceBrowse,
   pickupSnapshotSeeAllRoutes,
 } from "../../lib/pickup/serviceBrowse.js";
+import { allocatePickupJobNumber } from "../../lib/pickup/allocateJobNumber.js";
 import {
   PickupError,
   pickupJobCanCancel,
@@ -794,9 +795,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       const jobId = i === 0 ? id : randomUUID();
       const jobData = { ...data, ...scheduleMeta };
       const search = pickupJobSearchColumns(jobData);
+      const jobNumber = await allocatePickupJobNumber(db);
       await db.query(
-        `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn,job_number)
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
         [
           jobId,
           body.city,
@@ -806,6 +808,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           search.cargo_number,
           search.customer_inn,
           search.sender_inn,
+          jobNumber,
         ],
       );
       ids.push(jobId);

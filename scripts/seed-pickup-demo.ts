@@ -212,9 +212,14 @@ async function main() {
     for (let i = 1; i <= 10; i++) {
       const id = randomUUID();
       const data = jobPayload(i, city);
+      const jobNumber = (
+        await client.query<{ job_number: string }>(
+          `SELECT 'ZB-' || lpad(nextval('pickup_job_number_seq')::text, 6, '0') AS job_number`,
+        )
+      ).rows[0].job_number;
       await client.query(
-        `INSERT INTO pickup_jobs (id, city, date, data, zayavka_number, customer_inn, sender_inn)
-         VALUES ($1, $2, $3::date, $4::jsonb, $5, $6, $7)`,
+        `INSERT INTO pickup_jobs (id, city, date, data, zayavka_number, customer_inn, sender_inn, job_number)
+         VALUES ($1, $2, $3::date, $4::jsonb, $5, $6, $7, $8)`,
         [
           id,
           city,
@@ -223,6 +228,7 @@ async function main() {
           data.zayavkaNumber,
           CUSTOMER_INN,
           SUPPLIER_INN,
+          jobNumber,
         ],
       );
       jobIds.push(id);

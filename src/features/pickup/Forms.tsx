@@ -11,6 +11,7 @@ import type {
 import { truckFields } from "../../../lib/pickup/routeAnalysis";
 import { cities } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
+import { PickupJobNumber } from "./PickupJobNumber";
 import type { Account } from "../../types";
 import {
   defaultPickupAddressState,
@@ -915,6 +916,14 @@ export function JobForm({
         if (count > 1) onCreatedMany?.(count);
       }}
     >
+      {job ? (
+        <PickupJobNumber job={job} prominent />
+      ) : (
+        <p className="pk-hint">
+          При сохранении будет присвоен уникальный номер забора (ZB-…). Номер
+          заявки и перевозки — отдельно, по процессу приёмки и сплита.
+        </p>
+      )}
       {copyFrom && (
         <p className="pk-warning">
           Создаётся отдельный забор. Проверьте дату и количество оставшихся

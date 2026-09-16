@@ -2493,6 +2493,34 @@
   width: 100%;
   min-height: 48px;
 }
+
+.pk-job-number {
+  margin: 0 0 10px;
+  font-size: 0.8125rem;
+  color: var(--pk-muted);
+  letter-spacing: 0.02em;
+}
+.pk-job-number strong {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--pk-ink);
+  font-variant-numeric: tabular-nums;
+}
+.pk-job-number--prominent {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: color-mix(in srgb, #4b82f0 10%, var(--pk-panel));
+  border: 1px solid color-mix(in srgb, #4b82f0 25%, var(--pk-border));
+}
+.pk-job-number--prominent strong {
+  font-size: 1.125rem;
+}
+.pk-day-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
 @media (max-width: 768px) {
   .app-container.profile-saas-shell:has(.pk-driver--mobile) .app-main {
     padding-top: calc(

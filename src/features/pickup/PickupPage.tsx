@@ -81,6 +81,7 @@ import { PickupBillingTab } from "./PickupBillingTab";
 import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
 import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { PickupDriverMobileRoute } from "./PickupDriverMobileRoute";
+import { PickupJobNumber } from "./PickupJobNumber";
 
 const empty: Snapshot = {
   resources: [],
@@ -1904,6 +1905,7 @@ function DriverPointWrapper({
 function JobCompactSummary({ job }: { job: Job }) {
   return (
     <div className="pk-job-compact">
+      <PickupJobNumber job={job} />
       <div className="pk-job-compact__head">
         <PickupJobStatusBadge status={job.status} />
         <span className="pk-job-compact__meta">
@@ -1951,6 +1953,7 @@ function JobSummary({
         <JobCompactSummary job={job} />
       ) : (
         <>
+          <PickupJobNumber job={job} prominent />
           <p className="pk-eyebrow">
             {job.data.windowFrom}–{job.data.windowTo} ·{" "}
             {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг

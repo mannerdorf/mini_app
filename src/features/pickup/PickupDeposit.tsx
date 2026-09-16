@@ -68,7 +68,10 @@ export function PickupDeposit({
           </p>
           {missing.map((job) => (
             <div className="pk-deposit-request" key={job.id}>
-              <strong>{job.data.senderName}</strong>
+              <strong>
+                {job.job_number ? `${job.job_number} · ` : ""}
+                {job.data.senderName}
+              </strong>
               <p className="pk-hint">{job.data.address}</p>
               <label htmlFor={`${prefix}-${job.id}`}>Заявка · номер *</label>
               <input
