@@ -270,13 +270,23 @@ function AppRoot() {
                     onLogout={handleLogout}
                     saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
                 >
-                    <PickupPage
-                        key={`${activeAccount.id}:${pickupMode}`}
-                        account={activeAccount}
-                        mode={pickupMode}
-                        onBack={() => {}}
-                        hideBackNav
-                    />
+                    <AppRuntimeProvider
+                        value={{
+                            useServiceRequest,
+                            searchText: "",
+                            activeInn: "",
+                            activeCustomerName: "",
+                            showCustomerColumn: true,
+                        }}
+                    >
+                        <PickupPage
+                            key={`${activeAccount.id}:${pickupMode}:${useServiceRequest ? "svc" : "std"}`}
+                            account={activeAccount}
+                            mode={pickupMode}
+                            onBack={() => {}}
+                            hideBackNav
+                        />
+                    </AppRuntimeProvider>
                 </WbOnlyAppLayout>
             </Suspense>
         );

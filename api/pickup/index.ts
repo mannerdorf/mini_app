@@ -43,6 +43,10 @@ import {
   driverShiftStart,
 } from "../../lib/pickup/driverShift.js";
 import {
+  pickupDriverServiceBrowse,
+  pickupSnapshotSeeAllRoutes,
+} from "../../lib/pickup/serviceBrowse.js";
+import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
@@ -107,12 +111,23 @@ async function routeById(db: PoolClient, id: unknown): Promise<Route> {
   if (!rows[0]) throw new PickupError("Маршрут не найден", 404);
   return rows[0];
 }
-export function checkRouteAccess(actor: Actor, route: Route) {
+export function checkRouteAccess(
+  actor: Actor,
+  route: Route,
+  serviceBrowse?: boolean,
+) {
+  if (actor.dispatcher) return;
   if (
-    !actor.dispatcher &&
-    (!actor.driver ||
-      route.status === "draft" ||
-      route.snapshot.driver?.data.login !== actor.login)
+    serviceBrowse === true &&
+    pickupDriverServiceBrowse(actor) &&
+    route.status !== "draft"
+  ) {
+    return;
+  }
+  if (
+    !actor.driver ||
+    route.status === "draft" ||
+    route.snapshot.driver?.data.login !== actor.login
   ) {
     throw new PickupError("Маршрут недоступен", 403);
   }
@@ -208,11 +223,15 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
         )
       ).rows
     : [];
+  const seeAllRoutes = pickupSnapshotSeeAllRoutes(
+    actor,
+    body.serviceBrowse === true,
+  );
   const routes: Route[] = (
     await db.query(
       `SELECT *,to_char(date,'YYYY-MM-DD') AS date FROM pickup_routes WHERE city=$1 AND date=$2
     AND ($3::boolean OR (status<>'draft' AND snapshot->'driver'->'data'->>'login'=$4)) ORDER BY start_time,name`,
-      [body.city, body.date, actor.dispatcher, actor.login],
+      [body.city, body.date, seeAllRoutes, actor.login],
     )
   ).rows;
   const routeIds = routes.map((r) => r.id);
@@ -235,7 +254,7 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
       `SELECT j.*,to_char(j.date,'YYYY-MM-DD') AS date,
     (SELECT count(*)::int FROM pickup_photos p WHERE p.job_id=j.id) AS photo_count FROM pickup_jobs j WHERE j.city=$1 AND j.date=$2
     AND ($3::boolean OR j.route_id=ANY($4::uuid[])) ORDER BY j.position,j.created_at`,
-      [body.city, body.date, actor.dispatcher, routeIds],
+      [body.city, body.date, seeAllRoutes, routeIds],
     )
   ).rows;
   const events = (
@@ -252,6 +271,7 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
     jobs: actor.dispatcher ? jobs : jobs.map(driverJob),
     events,
     dispatcher: actor.dispatcher,
+    serviceBrowse: seeAllRoutes && !actor.dispatcher,
   };
 }
 async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
@@ -466,7 +486,11 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     requireValue(rows[0], "Забор не найден");
     if (!actor.dispatcher) {
       requireValue(rows[0].route_id, "Нет маршрута");
-      checkRouteAccess(actor, await routeById(db, rows[0].route_id));
+      checkRouteAccess(
+        actor,
+        await routeById(db, rows[0].route_id),
+        body.serviceBrowse === true,
+      );
     }
     return {
       photos: (

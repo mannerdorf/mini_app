@@ -16,6 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import type { Account } from "../../types";
+import { useAppRuntime } from "../../contexts/AppRuntimeContext";
 import {
   cities,
   plannedPlaces,
@@ -130,6 +131,11 @@ export function PickupPage({
     mode === "dispatch"
       ? account.permissions?.dispatcher === true
       : account.permissions?.driver === true;
+  const { useServiceRequest } = useAppRuntime();
+  const serviceBrowse =
+    mode === "driver" &&
+    account.permissions?.service_mode === true &&
+    useServiceRequest;
   const call = useMemo(
     () => pickupClient(account),
     [account.login, account.password],
@@ -193,7 +199,12 @@ export function PickupPage({
     }
     const seq = ++serial.current;
     try {
-      const result: Snapshot = await call({ action: "snapshot", city, date });
+      const result: Snapshot = await call({
+        action: "snapshot",
+        city,
+        date,
+        ...(serviceBrowse ? { serviceBrowse: true } : {}),
+      });
       if (seq !== serial.current) return;
       setSnapshot(result);
       setStale(false);
@@ -230,7 +241,7 @@ export function PickupPage({
     } finally {
       if (seq === serial.current) setLoading(false);
     }
-  }, [allowed, call, city, date, key, mode]);
+  }, [allowed, call, city, date, key, mode, serviceBrowse]);
   useEffect(() => {
     setSnapshot(empty);
     setEditor(null);
@@ -314,7 +325,11 @@ export function PickupPage({
     setError("");
     setNotice("");
     const requestId = crypto.randomUUID(),
-      command = { ...body, requestId };
+      command = {
+        ...body,
+        requestId,
+        ...(serviceBrowse ? { serviceBrowse: true } : {}),
+      };
     try {
       await call(command);
       setNotice(title);
@@ -348,13 +363,15 @@ export function PickupPage({
     void refresh();
   };
   const routes =
-    mode === "driver"
+    mode === "driver" && !serviceBrowse
       ? snapshot.routes.filter(
           (r) =>
             r.status !== "draft" &&
             r.snapshot.driver?.data.login === account.login.toLowerCase(),
         )
-      : snapshot.routes;
+      : mode === "driver"
+        ? snapshot.routes.filter((r) => r.status !== "draft")
+        : snapshot.routes;
   const route =
     routes.find((r) => r.id === selected) ??
     (mode === "driver"
@@ -367,6 +384,12 @@ export function PickupPage({
         .filter((j) => j.route_id === route.id && j.status !== "cancelled")
         .sort((a, b) => a.position - b.position)
     : [];
+  const routeAssignedToMe =
+    !route ||
+    mode !== "driver" ||
+    route.snapshot.driver?.data.login?.toLowerCase() ===
+      account.login.toLowerCase();
+  const driverCanOperate = mode !== "driver" || routeAssignedToMe;
   const attention = attentionItems(snapshot.jobs, routes, city, now);
   const billingCount = snapshot.jobs.filter(pickupJobOnBillingTab).length;
   const currentStop = currentDriverJob(routeJobs);
@@ -400,7 +423,13 @@ export function PickupPage({
         )}
         <div>
           <p className="pk-eyebrow">ХОЛЗ / ЗАБОРНАЯ ЛОГИСТИКА</p>
-          <h1>{mode === "dispatch" ? "Диспетчеризация" : "Мой маршрут"}</h1>
+          <h1>
+            {mode === "dispatch"
+              ? "Диспетчеризация"
+              : serviceBrowse
+                ? "Маршруты водителей"
+                : "Мой маршрут"}
+          </h1>
         </div>
         <button
           disabled={busy}
@@ -443,6 +472,12 @@ export function PickupPage({
       {error && (
         <p className="pk-error" role="alert">
           {error}
+        </p>
+      )}
+      {serviceBrowse && (
+        <p className="pk-hint pk-service-browse-note" role="status">
+          Служебный режим: видны маршруты всех водителей. Отметки и GPS — только
+          на своём рейсе.
         </p>
       )}
       {notice && (
@@ -1250,7 +1285,9 @@ export function PickupPage({
                             </p>
                           ))}
                       </details>
-                      {mode === "driver" && route.status === "started" && (
+                      {driverCanOperate &&
+                        mode === "driver" &&
+                        route.status === "started" && (
                         <button
                           disabled={busy || routePending}
                           onClick={() =>
@@ -1371,7 +1408,9 @@ export function PickupPage({
                   </div>
                 )}
                 <div className="pk-actions">
-                  {mode === "driver" && route.status === "published" && (
+                  {driverCanOperate &&
+                    mode === "driver" &&
+                    route.status === "published" && (
                     <button
                       className="pk-primary"
                       disabled={busy || routePending || !outboxReady}
@@ -1391,7 +1430,9 @@ export function PickupPage({
                     </button>
                   )}
                 </div>
-                {mode === "driver" && route.status === "started" && (
+                {driverCanOperate &&
+                  mode === "driver" &&
+                  route.status === "started" && (
                   <PickupDriverLocation
                     key={route.id}
                     routeId={route.id}
@@ -1399,7 +1440,9 @@ export function PickupPage({
                     call={call}
                   />
                 )}
-                {mode === "driver" && route.status !== "completed" && (
+                {driverCanOperate &&
+                  mode === "driver" &&
+                  route.status !== "completed" && (
                   <div className="pk-driver-order-action">
                     <PickupStopOrder
                       key={route.id}
@@ -1525,6 +1568,7 @@ export function PickupPage({
                             dispatcher={dispatch}
                             compact={dispatch && jobViewCompact}
                             canAct={
+                              driverCanOperate &&
                               mode === "driver" &&
                               route.status === "started" &&
                               !routePending &&
@@ -1536,7 +1580,8 @@ export function PickupPage({
                               !routePending &&
                               outboxReady &&
                               (dispatch ||
-                                (mode === "driver" &&
+                                (driverCanOperate &&
+                                  mode === "driver" &&
                                   route.status !== "completed" &&
                                   route.status !== "draft" &&
                                   (route.status === "published" ||
@@ -1657,7 +1702,9 @@ export function PickupPage({
                   {route.snapshot.depot?.name?.replace(/,?\s*Москва.*/i, "") ||
                     "Склад HAULZ"}
                 </p>
-                {mode === "driver" && route.status === "started" && (
+                {driverCanOperate &&
+                  mode === "driver" &&
+                  route.status === "started" && (
                   <div className="pk-depot-actions">
                     <p className="pk-hint">
                       {canDepositJobs(routeJobs)

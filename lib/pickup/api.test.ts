@@ -217,6 +217,23 @@ beforeEach(async () => {
     );
 });
 describe("pickup API with PostgreSQL (PGlite)", () => {
+  it("lets service-mode driver browse all routes when requested", async () => {
+    await setup();
+    await publishAndStart();
+    expect((await snapshot("driver")).routes).toHaveLength(1);
+    expect((await snapshot("other")).routes).toHaveLength(0);
+    await state.db.query(
+      `UPDATE registered_users SET permissions = permissions || '{"service_mode":true}'::jsonb WHERE login='other'`,
+    );
+    const browse = await ok("other", {
+      action: "snapshot",
+      city: "moscow",
+      date: "2026-09-15",
+      serviceBrowse: true,
+    });
+    expect(browse.routes).toHaveLength(1);
+    expect(browse.serviceBrowse).toBe(true);
+  });
   it("isolates driver data, drafts and server permissions", async () => {
     const ids = await setup();
     expect((await snapshot("driver")).jobs).toHaveLength(0);

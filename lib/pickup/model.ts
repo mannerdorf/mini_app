@@ -177,6 +177,8 @@ export type Snapshot = {
   routes: Route[];
   events: Event[];
   dispatcher: boolean;
+  /** Служебный просмотр всех маршрутов водителей (не диспетчер). */
+  serviceBrowse?: boolean;
 };
 export class PickupError extends Error {
   constructor(
