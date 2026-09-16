@@ -594,29 +594,51 @@ export function PickupPage({
               </button>
             ))}
           </div>
-          <nav className="pk-tabs" aria-label="Разделы диспетчеризации">
-            {[
-              ["jobs", "План дня"],
-              ["routes", "Маршруты"],
-              ["monitor", "Монитор рейсов"],
-              ["attention", `Внимание · ${attention.length}`],
-              ["directories", "Справочники"],
-              ["billing", `Выставление счетов · ${billingCount}`],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                className={
-                  tab === id ||
-                  (id === "directories" && ["driver", "vehicle"].includes(tab))
-                    ? "pk-selected"
-                    : ""
-                }
-                onClick={() => setTab(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </nav>
+          <div className="pk-tabs-stack">
+            <nav className="pk-tabs" aria-label="Разделы диспетчеризации">
+              {(
+                [
+                  ["jobs", "План дня"],
+                  ["routes", "Маршруты"],
+                  ["monitor", "Монитор рейсов"],
+                  ["attention", `Внимание · ${attention.length}`],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={tab === id ? "pk-selected" : ""}
+                  onClick={() => setTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <nav
+              className="pk-tabs pk-tabs--secondary"
+              aria-label="Справочники и выставление счетов"
+            >
+              {(
+                [
+                  ["directories", "Справочники"],
+                  ["billing", `Выставление счетов · ${billingCount}`],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  className={
+                    tab === id ||
+                    (id === "directories" &&
+                      ["driver", "vehicle"].includes(tab))
+                      ? "pk-selected"
+                      : ""
+                  }
+                  onClick={() => setTab(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </div>
           {(tab === "jobs" || tab === "routes") && (
             <div
               className="pk-view-toggle haulz-calc-segment"
