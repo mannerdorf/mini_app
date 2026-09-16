@@ -1278,11 +1278,7 @@ export function PickupPage({
                     {routeJobs
                       .reduce((s, j) => s + (j.data.volumeM3 ?? 0), 0)
                       .toFixed(2)}{" "}
-                    м³. Для оценки времени, окон и проезда нажмите «2ГИС»
-                    {route.status === "draft"
-                      ? " в окне публикации"
-                      : ""}
-                    .
+                    м³
                   </p>
                 )}
                 {route.status !== "draft" &&
