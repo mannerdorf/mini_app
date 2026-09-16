@@ -150,9 +150,9 @@ export type Route = {
   snapshot: { driver?: Resource; vehicle?: Resource; depot?: Resource; start?: { mode: "depot" | "address"; address: string } };
 };
 
-/** Удаление маршрута диспетчером (до завершения; на started — если заборы ещё не начаты). */
-export function pickupRouteCanDelete(status: Route["status"]): boolean {
-  return status === "draft" || status === "published" || status === "started";
+/** Удаление маршрута диспетчером в любом статусе. */
+export function pickupRouteCanDelete(_status: Route["status"]): boolean {
+  return true;
 }
 
 /** Удаление завершённого маршрута супер-администратором в CMS. */

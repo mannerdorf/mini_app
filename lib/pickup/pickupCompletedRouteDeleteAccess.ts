@@ -31,13 +31,9 @@ export function pickupMayDeleteCompletedRoute(
 /** Кнопка «Удалить» в диспетчеризации приложения. */
 export function pickupRouteCanDeleteInDispatchApp(
   status: Route["status"],
-  permissions: Record<string, unknown> | null | undefined,
+  _permissions?: Record<string, unknown> | null | undefined,
 ): boolean {
-  if (pickupRouteCanDelete(status)) return true;
-  return (
-    pickupMayDeleteCompletedRoute(permissions) &&
-    pickupRouteCanSuperAdminDeleteCompleted(status)
-  );
+  return pickupRouteCanDelete(status);
 }
 
 /** Кнопка «Удалить» у забора в диспетчеризации приложения. */
