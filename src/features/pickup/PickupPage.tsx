@@ -1501,7 +1501,9 @@ export function PickupPage({
                     Начатые точки остаются на своих местах.
                   </p>
                 )}
-                <ol className="pk-stops">
+                <ol
+                  className={`pk-stops${dispatch && jobViewCompact ? " pk-stops--compact" : ""}`}
+                >
                   {routeJobs.map((j, i) => (
                     <li
                       key={j.id}
@@ -1574,7 +1576,9 @@ export function PickupPage({
                             </button>
                           )}
                       </div>
-                      <div className="pk-stop-content">
+                      <div
+                        className={`pk-stop-content${dispatch && jobViewCompact ? " pk-stop-content--compact" : ""}`}
+                      >
                         <DriverPointWrapper
                           driver={mode === "driver"}
                           job={j}
@@ -1705,7 +1709,8 @@ export function PickupPage({
                               )}
                             {["published", "started", "completed"].includes(
                               route.status,
-                            ) && (
+                            ) &&
+                              !jobViewCompact && (
                               <PickupDispatcherJobStatusPanel
                                 key={`${j.id}-${j.version}`}
                                 job={j}
@@ -1832,6 +1837,36 @@ function DriverPointWrapper({
     <>{children}</>
   );
 }
+function JobCompactSummary({ job }: { job: Job }) {
+  return (
+    <div className="pk-job-compact">
+      <div className="pk-job-compact__head">
+        <PickupJobStatusBadge status={job.status} />
+        <span className="pk-job-compact__meta">
+          {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
+          м · {job.data.weightKg ?? "—"} кг
+        </span>
+        <a
+          className="pk-job-compact__nav"
+          href={navUrl(
+            job.data.latitude !== null && job.data.longitude !== null
+              ? `${job.data.latitude},${job.data.longitude}`
+              : job.data.address,
+          )}
+          target="_blank"
+          rel="noreferrer"
+        >
+          ↗
+        </a>
+      </div>
+      <p className="pk-job-compact__title">{job.data.senderName}</p>
+      <p className="pk-job-compact__address" title={job.data.address}>
+        {job.data.address}
+      </p>
+    </div>
+  );
+}
+
 function JobSummary({
   job,
   showBadge = false,
@@ -1848,15 +1883,15 @@ function JobSummary({
           <PickupJobStatusBadge status={job.status} />
         </div>
       )}
-      <p className="pk-eyebrow">
-        {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
-        мест · {job.data.weightKg ?? "—"} кг
-      </p>
-      <h3 className={compact ? "pk-job-title-compact" : undefined}>
-        {job.data.senderName}
-      </h3>
-      {compact ? null : (
+      {compact ? (
+        <JobCompactSummary job={job} />
+      ) : (
         <>
+          <p className="pk-eyebrow">
+            {job.data.windowFrom}–{job.data.windowTo} ·{" "}
+            {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг
+          </p>
+          <h3>{job.data.senderName}</h3>
           <p>{job.data.address}</p>
           {job.data.defaultPlaceAddress ? (
             <p className="pk-muted">
@@ -1945,16 +1980,21 @@ function JobDetails({
   const [resultOpen, setResultOpen] = useState(false),
     [problemOpen, setProblemOpen] = useState(false);
   const pending = job.status === "pending" || job.status === "arrived";
+  const dispatcherCompact = compact && dispatcher && !driver;
   return (
-    <article className={`pk-job pk-status-${job.status}`}>
-      <div className="pk-actions">
-        {!driver && <PickupJobStatusBadge status={job.status} />}
-        {job.actual_places !== null && (
-          <strong>Забрано: {job.actual_places} мест</strong>
-        )}
-      </div>
+    <article
+      className={`pk-job pk-status-${job.status}${dispatcherCompact ? " pk-job--dispatcher-compact" : ""}`}
+    >
+      {!dispatcherCompact && (
+        <div className="pk-actions">
+          {!driver && <PickupJobStatusBadge status={job.status} />}
+          {job.actual_places !== null && (
+            <strong>Забрано: {job.actual_places} мест</strong>
+          )}
+        </div>
+      )}
       {!driver ? (
-        <JobSummary job={job} compact={compact && dispatcher} />
+        <JobSummary job={job} compact={dispatcherCompact} />
       ) : (
         <p className="pk-hint">
           Заказчик: {job.data.customerName}
@@ -1962,7 +2002,7 @@ function JobDetails({
           {job.data.cargoNumber ? ` · Перевозка ${job.data.cargoNumber}` : ""}
         </p>
       )}
-      {compact && dispatcher && !driver ? null : (
+      {dispatcherCompact ? null : (
         <>
           <div className="pk-actions">
             <a
@@ -2024,7 +2064,7 @@ function JobDetails({
           </details>
         </>
       )}
-      {!driver && !(compact && dispatcher) && (
+      {!driver && !dispatcherCompact && (
         <p className="pk-muted">
           Стоимость заказчику: {job.data.priceRub ?? "—"} ₽ · Оплата:{" "}
           {job.data.payment || "Не указано"}

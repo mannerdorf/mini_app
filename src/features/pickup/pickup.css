@@ -823,11 +823,11 @@
   margin-bottom: 12px;
 }
 .pk-card--compact {
-  padding: 10px 12px;
-  margin-bottom: 8px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
 }
 .pk-card--compact .pk-card__head {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 .pk-card--compact .pk-eyebrow {
   margin: 0 0 2px;
@@ -835,13 +835,90 @@
 }
 .pk-card--compact h3,
 .pk-card--compact .pk-job-title-compact {
-  margin: 0 0 6px;
-  font-size: 16px;
-  line-height: 1.25;
+  margin: 0 0 4px;
+  font-size: 15px;
+  line-height: 1.2;
 }
 .pk-card--compact .pk-actions {
+  margin-top: 4px;
+  gap: 4px;
+}
+.pk-card--compact .pk-actions button {
+  font-size: 12px;
+  padding: 4px 8px;
+}
+.pk-job-compact__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-bottom: 2px;
+}
+.pk-job-compact__meta {
+  font-size: 11px;
+  color: var(--pk-muted);
+  line-height: 1.2;
+}
+.pk-job-compact__nav {
+  margin-left: auto;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  color: var(--pk-accent, #235ed5);
+  line-height: 1;
+}
+.pk-job-compact__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+.pk-job-compact__address {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--pk-muted);
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.pk-job--dispatcher-compact .pk-warning,
+.pk-job--dispatcher-compact .pk-notice {
   margin-top: 6px;
-  gap: 6px;
+  padding: 6px 8px;
+  font-size: 11px;
+}
+.pk-stops--compact {
+  margin: 12px 0;
+}
+.pk-stops--compact > li {
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.pk-stops--compact .pk-stop-number {
+  height: 24px;
+  min-width: 24px;
+  font-size: 12px;
+}
+.pk-stop-content--compact {
+  padding: 8px 10px;
+  border-radius: 8px;
+}
+.pk-stop-content--compact > .pk-actions {
+  margin-top: 6px;
+  padding-top: 6px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.pk-stop-content--compact > .pk-actions button {
+  font-size: 12px;
+  padding: 3px 7px;
+  min-height: 0;
+}
+.pk-stop-content--compact .pk-job {
+  font-size: 13px;
 }
 .pk-view-toggle {
   margin: 0 0 12px;
