@@ -1,4 +1,3 @@
-import { routeStartAddress } from "../../../lib/pickup/model";
 import React, { useEffect, useRef, useState } from "react";
 import { Route as RouteIcon, X } from "lucide-react";
 import type { Route, Job, Snapshot } from "../../../lib/pickup/model";
@@ -10,8 +9,11 @@ import {
 } from "../../../lib/pickup/routeAnalysis";
 import type { PickupCall } from "./client";
 import { PickupRouteComparisonMap } from "./PickupRouteComparisonMap";
+import { dgisRouteCheckWarnings } from "./pickupRouteCheckDgis";
+
 const duration = (n: number) =>
   `${Math.floor(Math.ceil(n) / 60)} ч ${Math.ceil(n) % 60} мин`;
+
 export function PickupRouteCheck({
   route,
   jobs,
@@ -50,6 +52,7 @@ export function PickupRouteCheck({
     </>
   );
 }
+
 function CheckDialog({
   route,
   jobs,
@@ -75,9 +78,6 @@ function CheckDialog({
     [checking, setChecking] = useState(false),
     [error, setError] = useState(""),
     [map, setMap] = useState(false),
-    [dgisDebugOpen, setDgisDebugOpen] = useState(false),
-    [confirmed, setConfirmed] = useState(false),
-    [address, setAddress] = useState(""),
     [base, setBase] = useState(""),
     [clock, setClock] = useState(Date.now());
   const revision = JSON.stringify([
@@ -90,10 +90,9 @@ function CheckDialog({
       [route.driver_id, route.vehicle_id, route.depot_id].includes(r.id),
     ),
   ]);
-  const signature = JSON.stringify([revision, address, confirmed]);
   const outdated =
     !!result &&
-    (base !== signature || clock - Date.parse(result.checkedAt) > 10 * 60000);
+    (base !== revision || clock - Date.parse(result.checkedAt) > 10 * 60000);
   useEffect(() => {
     dialog.current?.showModal();
     const timer = setInterval(() => setClock(Date.now()), 15000);
@@ -108,18 +107,17 @@ function CheckDialog({
     setError("");
     setResult(undefined);
     setMap(false);
-    const initial = signature;
     try {
       const response = await call<AnalysisResult>({
         action: "check_route",
         id: route.id,
         version: route.version,
-        startAddress: address.trim(),
-        windowsConfirmed: confirmed,
+        startAddress: "",
+        windowsConfirmed: true,
       });
       if (seq === sequence.current) {
         setResult(response);
-        setBase(initial);
+        setBase(revision);
         setClock(Date.now());
       }
     } catch (e) {
@@ -138,63 +136,35 @@ function CheckDialog({
       if (await onApply(result)) onClose();
       else
         setError(
-          "Не удалось применить порядок. Проверьте сообщение и повторите расчёт.",
+          "Не удалось применить порядок. Повторите расчёт через 2ГИС.",
         );
     } catch {
-      setError("Не удалось применить порядок. Повторите проверку маршрута.");
+      setError("Не удалось применить порядок. Повторите расчёт через 2ГИС.");
     }
   };
+
+  const dgisWarnings = result ? dgisRouteCheckWarnings(result.warnings) : [];
+  const dgisFailed = !!result && !result.current;
+
   return (
     <dialog ref={dialog} className="pk-form pk-route-check" onCancel={onClose}>
       <div className="pk-section-heading">
-        <h2>Проверить маршрут</h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Закрыть проверку маршрута"
-        >
+        <h2>2ГИС</h2>
+        <button type="button" onClick={onClose} aria-label="Закрыть">
           <X size={20} />
         </button>
       </div>
-      <p className="pk-hint">
-        {route.name} · {route.date} ·{" "}
-        {route.status === "started"
-          ? "Проверяем оставшиеся заборы от текущего положения или последней отмеченной остановки"
-          : `Старт: ${routeStartAddress(route, snapshot.resources.find((r) => r.id === route.depot_id)) || "Склад HAULZ"}. Финиш — склад HAULZ`}
-        . Переставляются только незапущенные точки.
-      </p>
-      <label>
-        Другой адрес только для этого расчёта (необязательно)
-        <input
-          value={address}
-          maxLength={1000}
-          onChange={(e) => setAddress(e.target.value)}
-          disabled={checking}
-          placeholder="Оставьте пустым для указанного выше начала"
-        />
-      </label>
-      <label className="pk-check-confirm">
-        <input
-          type="checkbox"
-          checked={confirmed}
-          disabled={checking}
-          onChange={(e) => setConfirmed(e.target.checked)}
-        />
-        Окна забора учитывают график, перерывы и выходные отправителей; время
-        погрузки проверено.
-      </label>
       <button
         type="button"
         className="pk-primary"
         disabled={checking || busy || stale}
         onClick={() => void check()}
       >
-        {checking ? "Рассчитываем время и варианты…" : "Рассчитать через 2ГИС"}
+        {checking ? "Запрос к 2ГИС…" : "Рассчитать через 2ГИС"}
       </button>
       {checking && (
         <p className="pk-hint" role="status">
-          Проверка до 20 точек может занять около минуты. Можно продолжить
-          работу после закрытия окна.
+          До минуты на ответ 2ГИС.
         </p>
       )}
       {error && (
@@ -202,7 +172,25 @@ function CheckDialog({
           {error}
         </p>
       )}
-      {result && (
+      {result && dgisFailed && (
+        <div className="pk-dgis-only-result" role="status">
+          {dgisWarnings.length > 0 && (
+            <ul className="pk-check-warnings">
+              {dgisWarnings.map((w) => (
+                <li key={w}>{w}</li>
+              ))}
+            </ul>
+          )}
+          {result.dgisDebug?.length ? (
+            <DgisDebugBody entries={result.dgisDebug} />
+          ) : (
+            !dgisWarnings.length && (
+              <p className="pk-muted">2ГИС не вернул результат. Повторите расчёт.</p>
+            )
+          )}
+        </div>
+      )}
+      {result?.current && (
         <>
           <div
             className={`pk-route-verdict pk-route-verdict--${outdated ? "gray" : result.status}`}
@@ -210,97 +198,53 @@ function CheckDialog({
           >
             <strong>
               {outdated
-                ? "Расчёт устарел — повторите проверку"
+                ? "Расчёт устарел — повторите через 2ГИС"
                 : result.message}
             </strong>
           </div>
-          <ul className="pk-check-warnings">
-            {result.warnings.map((w) => (
-              <li key={w}>{w}</li>
-            ))}
-          </ul>
-          {!!result.dgisDebug?.length && (
-            <>
-              <button
-                type="button"
-                className="pk-dgis-debug-open"
-                onClick={() => setDgisDebugOpen(true)}
-              >
-                Ответ 2ГИС — подробности
-              </button>
-              {dgisDebugOpen && (
-                <DgisDebugDialog
-                  entries={result.dgisDebug}
-                  onClose={() => setDgisDebugOpen(false)}
-                />
-              )}
-            </>
-          )}
-          {result.current && (
-            <>
-              <p className="pk-hint">
-                {result.originLabel}
-                <br />
-                Старт:{" "}
-                {new Date(result.departure).toLocaleString("ru-RU", {
-                  timeZone:
-                    route.city === "moscow"
-                      ? "Europe/Moscow"
-                      : "Europe/Kaliningrad",
-                })}{" "}
-                ·{" "}
-                {result.traffic === "jam"
-                  ? "текущие пробки"
-                  : "статистика движения на время старта"}
+          <p className="pk-hint">
+            {result.originLabel}
+            <br />
+            Старт:{" "}
+            {new Date(result.departure).toLocaleString("ru-RU", {
+              timeZone:
+                route.city === "moscow"
+                  ? "Europe/Moscow"
+                  : "Europe/Kaliningrad",
+            })}{" "}
+            ·{" "}
+            {result.traffic === "jam"
+              ? "текущие пробки"
+              : "статистика движения на время старта"}
+          </p>
+          <div className="pk-check-columns">
+            <AssessmentCard
+              title="Текущий порядок"
+              value={result.current}
+              jobs={jobs}
+            />
+            {result.proposed && (
+              <AssessmentCard
+                title="Предложенный порядок"
+                value={result.proposed}
+                jobs={jobs}
+              />
+            )}
+          </div>
+          {result.proposed &&
+            !result.current.unreachable &&
+            !result.proposed.unreachable && (
+              <p className="pk-check-saving">
+                Изменение:{" "}
+                {(result.current.km - result.proposed.km).toFixed(1)} км и{" "}
+                {Math.round(result.current.minutes - result.proposed.minutes)}{" "}
+                мин.
               </p>
-              <p className="pk-hint">
-                Оценка по дорожной обстановке на время старта: пробки в течение
-                дня могут измениться. Погрузка должна закончиться до закрытия
-                окна. Финиш — прибытие на склад; разгрузка не включена. Поиск
-                улучшения не гарантирует глобально оптимальный порядок.
-              </p>
-              <div className="pk-check-columns">
-                <AssessmentCard
-                  title="Текущий порядок"
-                  value={result.current}
-                  jobs={jobs}
-                />
-                {result.proposed && (
-                  <AssessmentCard
-                    title="Предложенный порядок"
-                    value={result.proposed}
-                    jobs={jobs}
-                  />
-                )}
-              </div>
-              {result.proposed &&
-                !result.current.unreachable &&
-                !result.proposed.unreachable && (
-                  <p className="pk-check-saving">
-                    Изменение:{" "}
-                    {(result.current.km - result.proposed.km).toFixed(1)} км и{" "}
-                    {Math.round(
-                      result.current.minutes - result.proposed.minutes,
-                    )}{" "}
-                    мин экономии. Отрицательное значение означает увеличение
-                    ради соблюдения окон.
-                  </p>
-                )}
-              <button type="button" onClick={() => setMap(!map)}>
-                {map ? "Скрыть карту" : "Сравнить на карте"}
-              </button>
-              {map && (
-                <>
-                  <p className="pk-hint">
-                    Синий — текущий, фиолетовый пунктир — предложенный. Т / П —
-                    номера точек. Дорожная геометрия 2ГИС; подложка
-                    OpenStreetMap.
-                  </p>
-                  <PickupRouteComparisonMap result={result} />
-                </>
-              )}
-            </>
-          )}
+            )}
+          <button type="button" onClick={() => setMap(!map)}>
+            {map ? "Скрыть карту" : "Сравнить на карте"}
+          </button>
+          {map && <PickupRouteComparisonMap result={result} />}
           {result.ids && (
             <button
               type="button"
@@ -317,42 +261,15 @@ function CheckDialog({
               Применить порядок
             </button>
           )}
-          <p className="pk-hint">
-            Проверено: {new Date(result.checkedAt).toLocaleTimeString("ru-RU")}.
-            Применение изменяет только порядок, без автоматического старта
-            рейса.
-          </p>
         </>
       )}
     </dialog>
   );
 }
-function DgisDebugDialog({
-  entries,
-  onClose,
-}: {
-  entries: DgisDebugEntry[];
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-  }, []);
+
+function DgisDebugBody({ entries }: { entries: DgisDebugEntry[] }) {
   return (
-    <dialog
-      ref={ref}
-      className="pk-form pk-dgis-debug-dialog"
-      onCancel={onClose}
-    >
-      <div className="pk-section-heading">
-        <h3>Ответ 2ГИС</h3>
-        <button type="button" onClick={onClose} aria-label="Закрыть">
-          <X size={20} />
-        </button>
-      </div>
-      <p className="pk-hint">
-        Технические данные для диагностики. Ключ API не передаётся.
-      </p>
+    <div className="pk-dgis-only-debug">
       {entries.map((entry, index) => (
         <section key={`${entry.service}-${entry.httpStatus}-${index}`}>
           <p className="pk-muted">
@@ -364,10 +281,7 @@ function DgisDebugDialog({
           </pre>
         </section>
       ))}
-      <button type="button" className="pk-primary" onClick={onClose}>
-        Закрыть
-      </button>
-    </dialog>
+    </div>
   );
 }
 
@@ -394,8 +308,7 @@ function AssessmentCard({
       </p>
       {!!value.unreachable && (
         <p className="pk-warning">
-          Нет проезда на {value.unreachable} участках. Время и километраж
-          неполные.
+          Нет проезда на {value.unreachable} участках.
         </p>
       )}
       {!value.unreachable && !!value.lateStops && (
@@ -420,13 +333,11 @@ function AssessmentCard({
               <span>{job?.data.address}</span>
               <small>
                 {value.unreachable ? (
-                  "Нет достоверного прогноза времени"
+                  "Нет прогноза"
                 ) : (
                   <>
-                    {timeLabel(v.arrival)} → {timeLabel(v.departure)} · окно{" "}
+                    {timeLabel(v.arrival)} → {timeLabel(v.departure)} ·{" "}
                     {job?.data.windowFrom}–{job?.data.windowTo}
-                    {v.wait > 0 ? ` · ожидание ${Math.ceil(v.wait)} мин` : ""}
-                    {v.late > 0 ? ` · опоздание ${Math.ceil(v.late)} мин` : ""}
                   </>
                 )}
               </small>

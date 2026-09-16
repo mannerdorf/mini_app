@@ -1982,6 +1982,8 @@
 .pk-check-saving { font-weight: 650; }
 .pk-route-check .pk-map { width: 100%; height: 400px; border: 0; border-radius: 12px; }
 .pk-check-warnings { padding-left: 22px; }
+.pk-dgis-only-result { margin-top: 12px; }
+.pk-dgis-only-debug { margin-top: 8px; }
 .pk-dgis-debug-open { margin-top: 8px; }
 .pk-dgis-debug-dialog {
   width: min(720px, calc(100vw - 24px));
