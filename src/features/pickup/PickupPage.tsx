@@ -991,25 +991,25 @@ export function PickupPage({
                       {snapshot.routes.find((r) => r.id === j.route_id)?.name ??
                         "Не распределён"}
                     </span>
+                    {dispatch && pickupJobCanCancel(j.status) && (
+                      <PickupCancelJobSection
+                        job={j}
+                        busy={busy}
+                        compact
+                        onConfirm={(note) =>
+                          act(
+                            {
+                              action: "cancel",
+                              id: j.id,
+                              version: j.version,
+                              note,
+                            },
+                            "Забор отменён",
+                          )
+                        }
+                      />
+                    )}
                   </div>
-                  {dispatch && pickupJobCanCancel(j.status) && (
-                    <PickupCancelJobSection
-                      job={j}
-                      busy={busy}
-                      compact
-                      onConfirm={(note) =>
-                        act(
-                          {
-                            action: "cancel",
-                            id: j.id,
-                            version: j.version,
-                            note,
-                          },
-                          "Забор отменён",
-                        )
-                      }
-                    />
-                  )}
                   {j.status === "cancelled" && j.resolution && (
                     <p className="pk-muted pk-cancel-reason">{j.resolution}</p>
                   )}
@@ -1138,25 +1138,25 @@ export function PickupPage({
                             В «{route.name}» →
                           </button>
                         )}
+                        {pickupJobCanCancel(j.status) && (
+                          <PickupCancelJobSection
+                            job={j}
+                            busy={busy}
+                            compact
+                            onConfirm={(note) =>
+                              act(
+                                {
+                                  action: "cancel",
+                                  id: j.id,
+                                  version: j.version,
+                                  note,
+                                },
+                                "Забор отменён",
+                              )
+                            }
+                          />
+                        )}
                       </div>
-                      {dispatch && (
-                        <PickupCancelJobSection
-                          job={j}
-                          busy={busy}
-                          compact
-                          onConfirm={(note) =>
-                            act(
-                              {
-                                action: "cancel",
-                                id: j.id,
-                                version: j.version,
-                                note,
-                              },
-                              "Забор отменён",
-                            )
-                          }
-                        />
-                      )}
                     </article>
                   ))}
                 </>
@@ -1601,18 +1601,17 @@ export function PickupPage({
                               route.acknowledged_version === route.version
                             }
                             canCancel={
+                              !dispatch &&
                               pickupJobCanCancel(j.status) &&
                               !routePending &&
                               outboxReady &&
-                              (dispatch ||
-                                (driverCanOperate &&
-                                  mode === "driver" &&
-                                  route.status !== "completed" &&
-                                  route.status !== "draft" &&
-                                  (route.status === "published" ||
-                                    (route.status === "started" &&
-                                      route.acknowledged_version ===
-                                        route.version))))
+                              driverCanOperate &&
+                              mode === "driver" &&
+                              route.status !== "completed" &&
+                              route.status !== "draft" &&
+                              (route.status === "published" ||
+                                (route.status === "started" &&
+                                  route.acknowledged_version === route.version))
                             }
                             busy={busy}
                             act={act}
@@ -1703,6 +1702,26 @@ export function PickupPage({
                                 </button>
                               </>
                             )}
+                            {pickupJobCanCancel(j.status) &&
+                              !routePending &&
+                              outboxReady && (
+                                <PickupCancelJobSection
+                                  job={j}
+                                  busy={busy}
+                                  compact
+                                  onConfirm={(note) =>
+                                    act(
+                                      {
+                                        action: "cancel",
+                                        id: j.id,
+                                        version: j.version,
+                                        note,
+                                      },
+                                      "Забор отменён",
+                                    )
+                                  }
+                                />
+                              )}
                             {["problem", "partial"].includes(j.status) &&
                               !j.resolution && (
                                 <Resolution job={j} busy={busy} act={act} />
@@ -2310,26 +2329,23 @@ function JobDetails({
         </div>
       )}
       {canCancel && (
-        <details className="pk-more-actions">
-          <summary aria-label="Другие действия с забором">⋯</summary>
-          <div className="pk-more-body">
-            <PickupCancelJobSection
-              job={job}
-              busy={busy}
-              onConfirm={(note) =>
-                act(
-                  {
-                    action: "cancel",
-                    id: job.id,
-                    version: job.version,
-                    note,
-                  },
-                  "Забор отменён",
-                )
-              }
-            />
-          </div>
-        </details>
+        <div className="pk-actions pk-actions--driver-cancel">
+          <PickupCancelJobSection
+            job={job}
+            busy={busy}
+            onConfirm={(note) =>
+              act(
+                {
+                  action: "cancel",
+                  id: job.id,
+                  version: job.version,
+                  note,
+                },
+                "Забор отменён",
+              )
+            }
+          />
+        </div>
       )}
       {error && (
         <p className="pk-error" role="alert">

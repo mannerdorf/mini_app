@@ -917,6 +917,14 @@
   padding: 3px 7px;
   min-height: 0;
 }
+.pk-actions .pk-cancel-box {
+  flex-basis: 100%;
+  width: 100%;
+  margin-top: 4px;
+}
+.pk-actions--driver-cancel {
+  margin-top: 8px;
+}
 .pk-stop-content--compact .pk-job {
   font-size: 13px;
 }
