@@ -1028,8 +1028,29 @@
   font-size: 13px;
 }
 .pk-view-toggle {
-  margin: 0 0 12px;
-  max-width: 320px;
+  margin: 0 0 10px;
+  max-width: 160px;
+  align-self: flex-start;
+}
+.pk-root .pk-view-toggle.haulz-calc-segment {
+  padding: 2px;
+  margin-bottom: 10px;
+  border-radius: 6px;
+}
+.pk-root .pk-view-toggle.haulz-calc-segment .haulz-calc-segment__btn {
+  min-height: 21px;
+  padding: 0 6px;
+  font-size: 0.6875rem;
+  border-radius: 4px;
+  line-height: 1.2;
+}
+.pk-root .pk-view-toggle.haulz-calc-segment .haulz-calc-segment__btn--active {
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(35, 94, 213, 0.32);
+}
+.pk-root .pk-view-toggle.haulz-calc-segment .haulz-calc-segment__btn:focus-visible {
+  outline-width: 2px;
+  outline-offset: 0;
 }
 .pk-dispatcher-status {
   margin-top: 10px;
