@@ -106,16 +106,17 @@ async function computeCheckRoute(
   const scheduleTimes = [
     depot.data.from,
     depot.data.to,
-    vehicle.data.from,
-    vehicle.data.to,
     route.start_time,
   ];
   if (driverHasWorkShift(driver.data)) {
     scheduleTimes.push(driver.data.from, driver.data.to);
   }
+  if (driverHasWorkShift(vehicle.data)) {
+    scheduleTimes.push(vehicle.data.from, vehicle.data.to);
+  }
   if (scheduleTimes.some((x) => !Number.isFinite(minutes(x))))
     return missing(
-      "Заполните рабочее время склада, автомобиля и старт рейса.",
+      "Заполните часы работы склада и старт рейса.",
     );
   const offset = route.city === "moscow" ? 3 : 2;
   const midnight = Date.parse(`${route.date}T00:00:00+0${offset}:00`);
@@ -286,19 +287,20 @@ async function computeCheckRoute(
       depotTo: minutes(depot.data.to),
       shiftTo: Math.min(
         minutes(driverShiftEnd(driver.data)),
-        minutes(vehicle.data.to),
+        minutes(driverShiftEnd(vehicle.data)),
       ),
     });
     const early =
       departure <
       Math.max(
         minutes(driverShiftStart(driver.data)),
-        minutes(vehicle.data.from),
+        minutes(driverShiftStart(vehicle.data)),
       );
-    if (early && driverHasWorkShift(driver.data))
-      warnings.push("Старт до начала смены водителя или работы автомобиля.");
-    else if (early)
-      warnings.push("Старт до начала работы автомобиля.");
+    if (
+      early &&
+      (driverHasWorkShift(driver.data) || driverHasWorkShift(vehicle.data))
+    )
+      warnings.push("Старт раньше смены водителя или доступности автомобиля.");
     // Detailed routes are for map comparison and checking provider restriction warnings.
     const geometry = async (ids: string[]) => {
       try {

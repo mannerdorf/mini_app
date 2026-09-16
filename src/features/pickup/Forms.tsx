@@ -398,10 +398,15 @@ export function ResourceForm({
 }) {
   const [name, setName] = useState(resource?.name ?? ""),
     [active, setActive] = useState(resource?.active ?? true);
-  const defaultData = (): Record<string, string> =>
-    kind === "driver"
-      ? { type: "own" }
-      : { from: "08:00", to: "18:00", type: "own", lift: "Нет" };
+  const defaultData = (): Record<string, string> => {
+    if (kind === "depot") {
+      return { from: "08:00", to: "18:00", address: "" };
+    }
+    if (kind === "vehicle") {
+      return { type: "own", lift: "Нет" };
+    }
+    return { type: "own" };
+  };
   const [data, setData] = useState<Record<string, string>>(
     resource?.data ?? defaultData(),
   );
@@ -418,9 +423,11 @@ export function ResourceForm({
       onClose={done}
       onSave={async () => {
         const payload =
-          kind === "driver"
+          kind === "driver" || kind === "vehicle"
             ? Object.fromEntries(
-                Object.entries(data).filter(([key]) => key !== "from" && key !== "to"),
+                Object.entries(data).filter(
+                  ([key]) => key !== "from" && key !== "to",
+                ),
               )
             : data;
         await call({
@@ -454,7 +461,7 @@ export function ResourceForm({
             ]}
           />
         )}
-        {kind !== "driver" && (
+        {kind === "depot" && (
           <>
             <Field
               label="Начало работы"

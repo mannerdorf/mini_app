@@ -561,7 +561,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "Укажите адрес склада",
       );
     }
-    if (body.kind === "driver") {
+    if (body.kind === "driver" || body.kind === "vehicle") {
       delete data.from;
       delete data.to;
     } else {

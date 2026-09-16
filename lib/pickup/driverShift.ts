@@ -1,6 +1,6 @@
 import { validTime } from "./model.js";
 
-/** Смена водителя задаётся в справочнике; без неё не ограничиваем маршрут. */
+/** Рабочие часы в справочнике (склад); без них — полный день для маршрута. */
 export function driverHasWorkShift(data: Record<string, string>): boolean {
   return (
     validTime(data.from) && validTime(data.to) && data.from < data.to

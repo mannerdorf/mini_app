@@ -718,7 +718,7 @@ export function PickupPage({
                         : ""}
                   </p>
                   <p>{r.data.phone || r.data.plate || r.data.address}</p>
-                  {r.kind !== "driver" && r.data.from && r.data.to ? (
+                  {r.kind === "depot" && r.data.from && r.data.to ? (
                     <p>
                       {r.data.from}–{r.data.to}
                     </p>
