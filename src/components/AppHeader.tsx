@@ -4,15 +4,14 @@ import {
   LogOut,
   Maximize,
   Minimize2,
-  Moon,
   Search,
   Settings,
-  Sun,
   X,
 } from "lucide-react";
 import { Button, Flex, Input, Typography } from "@maxhub/max-ui";
 import { CustomerSwitcher } from "./CustomerSwitcher";
 import { TapSwitch } from "./TapSwitch";
+import { ThemeToggleButton } from "./ThemeToggleButton";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import { useAccountActions } from "../hooks/useAccountActions";
@@ -37,7 +36,7 @@ export function AppHeader({
   onLogout,
 }: Props) {
   const { accounts, activeAccountId, activeAccount } = useAuth();
-  const { activeTab, theme, setTheme, desktopExpanded, setDesktopExpanded, requestProfileView } = useAppShell();
+  const { activeTab, desktopExpanded, setDesktopExpanded, requestProfileView } = useAppShell();
   const { handleSwitchAccount, handleUpdateAccount } = useAccountActions();
 
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -243,14 +242,7 @@ export function AppHeader({
               <Bell className="w-5 h-5" />
             </Button>
           )}
-          <Button
-            className="search-toggle-button"
-            onClick={() => setTheme((prev) => (prev === "light" ? "dark" : "light"))}
-            title={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
-            aria-label={theme === "light" ? "Включить тёмный режим" : "Включить светлый режим"}
-          >
-            {theme === "light" ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </Button>
+          <ThemeToggleButton />
           <Button className="search-toggle-button" onClick={onLogout} title="Выход" aria-label="Выйти">
             <LogOut className="w-5 h-5" />
           </Button>

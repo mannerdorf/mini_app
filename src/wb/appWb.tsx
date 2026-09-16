@@ -5,6 +5,7 @@
 import React, { useEffect } from "react";
 import { Button, Container, Flex } from "@maxhub/max-ui";
 import { LogOut } from "lucide-react";
+import { ThemeToggleButton } from "../components/ThemeToggleButton";
 import type { Account, Tab } from "../types";
 
 export const WB_TAB = "wildberries" as const satisfies Tab;
@@ -101,6 +102,7 @@ export function WbOnlyAppLayout({ desktopExpanded, onLogout, children, saasShell
         <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
           <Flex align="center" justify="flex-end" className="header-top-row">
             <Flex align="center" className="space-x-3">
+              <ThemeToggleButton />
               <Button className="search-toggle-button" onClick={onLogout} title="Выход" aria-label="Выйти">
                 <LogOut className="w-5 h-5" />
               </Button>
