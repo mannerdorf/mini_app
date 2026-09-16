@@ -57,6 +57,7 @@ curl -fsS http://127.0.0.1:3000/api/auth-config | head -c 120; echo
 curl -sS http://127.0.0.1:3000/api/admin-haulz-calculator-tariffs -H "Authorization: Bearer test" | head -c 120; echo
 curl -sS http://127.0.0.1:3000/api/admin-document-cache-backfill -H "Authorization: Bearer test" | head -c 120; echo
 curl -sS http://127.0.0.1:3000/api/admin-push-templates -H "Authorization: Bearer test" | head -c 120; echo
+curl -sS http://127.0.0.1:3000/api/admin-pickup-dispatch -H "Authorization: Bearer test" -H "Content-Type: application/json" -d '{"action":"snapshot","city":"moscow","date":"2026-09-15"}' | head -c 160; echo
 
 echo "==> done"
 echo "Cron worker deploy: see deploy/vps-sync-cron.sh on dedicated cron-VPS (deploy/README-vps-cron.md)"
