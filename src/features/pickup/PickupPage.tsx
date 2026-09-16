@@ -78,6 +78,8 @@ import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
 import { PickupBillingTab } from "./PickupBillingTab";
 import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
+import { useMobileLayout } from "../../hooks/useMobileLayout";
+import { PickupDriverMobileRoute } from "./PickupDriverMobileRoute";
 
 const empty: Snapshot = {
   resources: [],
@@ -182,6 +184,8 @@ export function PickupPage({
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
   const outboxKey = `outbox:${account.login.toLowerCase()}`;
   const dispatch = mode === "dispatch" && snapshot.dispatcher;
+  const isMobileLayout = useMobileLayout();
+  const driverMobileUx = mode === "driver" && isMobileLayout;
   const routeDeleteAllowed = useCallback(
     (status: Route["status"]) =>
       pickupRouteCanDeleteInDispatchApp(status, account.permissions),
@@ -412,7 +416,9 @@ export function PickupPage({
       </div>
     );
   return (
-    <div className={`pk-root ${mode === "driver" ? "pk-driver-root" : ""}`}>
+    <div
+      className={`pk-root ${mode === "driver" ? "pk-driver-root" : ""}${driverMobileUx ? " pk-driver--mobile" : ""}`}
+    >
       <header className="pk-header">
         {hideBackNav ? (
           <span className="pk-header-spacer" aria-hidden />
@@ -497,7 +503,7 @@ export function PickupPage({
           Сохранённая копия маршрута. Статусы могут быть неактуальны.
         </p>
       )}
-      {!!outbox.length && (
+      {!!outbox.length && !driverMobileUx && (
         <section className="pk-panel">
           <h3>Ожидают отправки: {outbox.length}</h3>
           <p>
@@ -1195,7 +1201,45 @@ export function PickupPage({
             </aside>
           )}
           <main className={`pk-panel${route ? " pk-route-detail" : ""}`}>
-            {route ? (
+            {route && driverMobileUx ? (
+              <PickupDriverMobileRoute
+                route={route}
+                routeJobs={routeJobs}
+                city={city}
+                busy={busy}
+                error={error}
+                stale={stale}
+                outboxCount={outbox.length}
+                outboxReady={outboxReady}
+                routePending={routePending}
+                driverCanOperate={driverCanOperate}
+                call={call}
+                locationAvailable={snapshot.locationAvailable === true}
+                onSync={() => void sync()}
+                onStartRoute={() =>
+                  void act(
+                    {
+                      action: "start",
+                      id: route.id,
+                      version: route.version,
+                    },
+                    "Приступил к выполнению",
+                    true,
+                  )
+                }
+                onAckRoute={() =>
+                  void act(
+                    {
+                      action: "acknowledge",
+                      id: route.id,
+                      version: route.version,
+                    },
+                    "Изменения просмотрены",
+                  )
+                }
+                act={act}
+              />
+            ) : route ? (
               <>
                 <div className="pk-route-detail__head pk-route-detail__head--compact">
                 <div className="pk-route-heading pk-route-heading--compact">

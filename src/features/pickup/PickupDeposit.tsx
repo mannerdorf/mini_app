@@ -9,14 +9,17 @@ export function PickupDeposit({
   disabled,
   error,
   onConfirm,
+  autoOpen = false,
 }: {
   jobs: Job[];
   busy: boolean;
   disabled: boolean;
   error: string;
   onConfirm: (numbers: DepositZayavka[]) => Promise<boolean>;
+  /** Мобильный водитель: сразу форма сдачи, без лишнего клика. */
+  autoOpen?: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [values, setValues] = useState<Record<string, string>>({});
   const prefix = useId();
   const missing = jobs.filter(pickupJobNeedsZayavka);
