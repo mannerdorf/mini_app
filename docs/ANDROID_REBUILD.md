@@ -68,4 +68,7 @@ curl -sS https://app.haulz.space/version.json
 |--------|---------|
 | `@capacitor/filesystem` not resolved | `npm ci`, затем снова `npm run android:release` |
 | `versionCode` не больше серверного | `./scripts/bump-android-version.sh`, push в `main` |
-| SSH на `200.165.236.49` | Ключ должен быть на Mac (не на cloud agent) |
+| SSH `Permission denied (publickey,password)` | Публичный ключ Mac → `/root/.ssh/authorized_keys` на VPS (Timeweb консоль / VNC). Затем: `export ANDROID_RELEASE_SSH_IDENTITY=~/.ssh/haulz_android_vps` и `./scripts/deploy-android-vps.sh` |
+| SSH на `200.165.236.49` | Деплой только с Mac (cloud agent не имеет вашего ключа) |
+| `Network is unreachable` к VPS | DNS/VPN: `curl https://haulz.space` может работать, а ICMP/SSH — нет; повторить позже или другая сеть |
+| Gradle cache corrupt на `/Volumes/Cursor/...` | `./gradlew --stop`; `rm -rf "$GRADLE_USER_HOME/caches/journal-1"` или перенести `GRADLE_USER_HOME` на диск с местом |

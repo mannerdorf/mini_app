@@ -21,6 +21,11 @@ HOST="${ANDROID_RELEASE_HOST:-app.haulz.space}"
 ORIGIN="https://${HOST}"
 SSH_TARGET="${ANDROID_RELEASE_SSH:-}"
 REMOTE_DIR="${ANDROID_RELEASE_DIR:-/var/www/app.haulz.space}"
+SSH_IDENTITY="${ANDROID_RELEASE_SSH_IDENTITY:-}"
+SSH_COMMON_OPTS=()
+if [[ -n "$SSH_IDENTITY" ]]; then
+  SSH_COMMON_OPTS=(-i "$SSH_IDENTITY" -o IdentitiesOnly=yes)
+fi
 GRADLE_FILE="$ROOT/android/app/build.gradle"
 INDEX_FILE="$ROOT/deploy/android-release-index.html"
 
@@ -103,9 +108,9 @@ if [[ "$LOCAL_ONLY" == "--local" || -z "$SSH_TARGET" ]]; then
 fi
 
 echo "Uploading to ${SSH_TARGET}:${REMOTE_DIR} ..."
-ssh "$SSH_TARGET" "mkdir -p '${REMOTE_DIR}/releases'"
-scp -q "$STAGING/version.json" "$STAGING/index.html" "$STAGING/latest.apk" "${SSH_TARGET}:${REMOTE_DIR}/"
-scp -q "$STAGING/$RELEASES_PATH" "${SSH_TARGET}:${REMOTE_DIR}/${RELEASES_PATH}"
+ssh "${SSH_COMMON_OPTS[@]}" "$SSH_TARGET" "mkdir -p '${REMOTE_DIR}/releases'"
+scp "${SSH_COMMON_OPTS[@]}" -q "$STAGING/version.json" "$STAGING/index.html" "$STAGING/latest.apk" "${SSH_TARGET}:${REMOTE_DIR}/"
+scp "${SSH_COMMON_OPTS[@]}" -q "$STAGING/$RELEASES_PATH" "${SSH_TARGET}:${REMOTE_DIR}/${RELEASES_PATH}"
 
 echo ""
 echo "Published:"

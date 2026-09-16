@@ -41,16 +41,25 @@ cat dist/android-release/version.json
 
 ### 2) Mac → VPS APK (`200.165.236.49`) — выложить
 
+Один раз: добавить `~/.ssh/haulz_android_vps.pub` в `authorized_keys` на VPS (Timeweb → сервер → консоль).
+
 ```bash
-ssh root@200.165.236.49 'mkdir -p /var/www/app.haulz.space/releases'
+export ANDROID_RELEASE_SSH=root@200.165.236.49
+export ANDROID_RELEASE_SSH_IDENTITY="$HOME/.ssh/haulz_android_vps"
+export ANDROID_RELEASE_NOTES='…'
 
-scp ~/mini_app/dist/android-release/latest.apk \
-    ~/mini_app/dist/android-release/version.json \
-    ~/mini_app/dist/android-release/index.html \
-    root@200.165.236.49:/var/www/app.haulz.space/
+# если bundle уже есть после --local:
+./scripts/deploy-android-vps.sh dist/haulz-miniapp-release.apk
 
-scp ~/mini_app/dist/android-release/releases/haulz-miniapp-<versionName>.apk \
-    root@200.165.236.49:/var/www/app.haulz.space/releases/
+# или вручную scp (с -i "$ANDROID_RELEASE_SSH_IDENTITY"):
+ssh -i "$ANDROID_RELEASE_SSH_IDENTITY" -o IdentitiesOnly=yes root@200.165.236.49 \
+  'mkdir -p /var/www/app.haulz.space/releases'
+scp -i "$ANDROID_RELEASE_SSH_IDENTITY" -o IdentitiesOnly=yes \
+  dist/android-release/latest.apk dist/android-release/version.json dist/android-release/index.html \
+  root@200.165.236.49:/var/www/app.haulz.space/
+scp -i "$ANDROID_RELEASE_SSH_IDENTITY" -o IdentitiesOnly=yes \
+  dist/android-release/releases/haulz-miniapp-<versionName>.apk \
+  root@200.165.236.49:/var/www/app.haulz.space/releases/
 ```
 
 ### 3) Mac — проверить
