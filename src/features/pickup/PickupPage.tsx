@@ -76,6 +76,8 @@ import { PickupDispatcherJobStatusPanel } from "./PickupDispatcherJobStatusPanel
 import { PickupBulkAssign } from "./PickupBulkAssign";
 import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
+import { PickupBillingTab } from "./PickupBillingTab";
+import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
 
 const empty: Snapshot = {
   resources: [],
@@ -367,6 +369,7 @@ export function PickupPage({
         .sort((a, b) => a.position - b.position)
     : [];
   const attention = attentionItems(snapshot.jobs, routes, city, now);
+  const billingCount = snapshot.jobs.filter(pickupJobOnBillingTab).length;
   const currentStop = currentDriverJob(routeJobs);
   const activeJobs = snapshot.jobs.filter((j) => j.status !== "cancelled");
   const unassigned = activeJobs.filter((j) => !j.route_id);
@@ -554,6 +557,7 @@ export function PickupPage({
             {[
               ["jobs", "План дня"],
               ["routes", "Маршруты"],
+              ["billing", `Выставление счетов · ${billingCount}`],
               ["monitor", "Монитор рейсов"],
               ["attention", `Внимание · ${attention.length}`],
               ["directories", "Справочники"],
@@ -607,6 +611,13 @@ export function PickupPage({
             setTab("routes");
             setSelected(r.id);
           }}
+        />
+      ) : dispatch && tab === "billing" ? (
+        <PickupBillingTab
+          city={city}
+          date={date}
+          jobs={snapshot.jobs}
+          routes={routes}
         />
       ) : dispatch && tab === "attention" ? (
         <PickupAttention
