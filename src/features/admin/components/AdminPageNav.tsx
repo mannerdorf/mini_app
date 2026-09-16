@@ -21,6 +21,7 @@ import {
   Mail,
   Bell,
   Megaphone,
+  Truck,
 } from "lucide-react";
 import type { AdminTab } from "../hooks/useAdminTab";
 import type { AccountingSubsection } from "../types/expenseAccounting";
@@ -170,6 +171,16 @@ export function AdminPageNav({
           >
             <Bell className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
             Push-уведомления
+          </Button>
+        )}
+        {isSuperAdmin && (
+          <Button
+            className="filter-button"
+            style={tabBtnStyle(tab === "pickup_dispatch")}
+            onClick={() => setTab("pickup_dispatch")}
+          >
+            <Truck className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
+            Диспетчеризация
           </Button>
         )}
         <Button

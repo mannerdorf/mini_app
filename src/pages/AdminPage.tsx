@@ -33,6 +33,7 @@ import { useAdminUsers } from "../features/admin/hooks/useAdminUsers";
 import { useAdminEmployeeDirectory } from "../features/admin/hooks/useAdminEmployeeDirectory";
 import { AdminHaulzCalculatorSection } from "../features/admin/sections/AdminHaulzCalculatorSection";
 import { AdminMediaMarketingPanel } from "../features/admin/sections/AdminMediaMarketingPanel";
+import { AdminPickupDispatchSection } from "../features/admin/sections/AdminPickupDispatchSection";
 import { buildAdminSandboxAccount } from "../features/admin/lib/adminSandboxAccount";
 import { fetchAdminMe } from "../api/client/admin/me";
 import { HaulzApiSandboxPage } from "./HaulzApiSandboxPage";
@@ -121,7 +122,8 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
         tab === "claims" ||
         tab === "dashboards" ||
         tab === "pnl" ||
-        tab === "push_notifications")
+        tab === "push_notifications" ||
+        tab === "pickup_dispatch")
     ) {
       setTab("users");
     }
@@ -278,6 +280,10 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
 
       {tab === "push_notifications" && isSuperAdmin && (
         <AdminPushNotificationsTab adminToken={adminToken} onError={setError} />
+      )}
+
+      {tab === "pickup_dispatch" && isSuperAdmin && (
+        <AdminPickupDispatchSection adminToken={adminToken} />
       )}
 
       {tab === "haulz_sandbox" &&

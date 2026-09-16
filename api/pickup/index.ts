@@ -28,12 +28,12 @@ import {
   validateLocation,
   locationWarning,
 } from "../../lib/pickup/location.js";
+import { deletePickupRoute } from "../../lib/pickup/deleteRoute.js";
 import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
   pickupJobNeedsZayavka,
-  pickupRouteCanDelete,
   requireValue,
   validCity,
   validDate,
@@ -834,36 +834,14 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
   }
   if (action === "delete_route") {
     dispatcherOnly(actor);
-    const route = await routeById(db, uuid(body.id));
-    checkVersion(route, body.version);
-    requireValue(
-      pickupRouteCanDelete(route.status),
-      "Удалить можно черновик или опубликованный маршрут, который ещё не начат",
-    );
-    const { rows: jobs } = await db.query<Job>(
-      "SELECT * FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
-      [route.id],
-    );
-    requireValue(
-      jobs.every((j) => j.status === "pending"),
-      "На маршруте есть начатые заборы — удаление недоступно",
-    );
-    if (jobs.length) {
-      await db.query(
-        "UPDATE pickup_jobs SET route_id=NULL, position=0, version=version+1, updated_at=now() WHERE route_id=$1",
-        [route.id],
-      );
-    }
-    await db.query("UPDATE pickup_events SET route_id=NULL WHERE route_id=$1", [
-      route.id,
-    ]);
-    await db.query("DELETE FROM pickup_routes WHERE id=$1", [route.id]);
-    await event(db, actor, "Маршрут удалён", null, null, {
-      routeId: route.id,
-      name: route.name,
-      jobsUnassigned: jobs.length,
+    return deletePickupRoute(db, {
+      routeId: uuid(body.id),
+      version: body.version,
+      policy: "dispatcher",
+      actorLogin: actor.login,
+      logEvent: (actionName, routeId, jobId, data) =>
+        event(db, actor, actionName, routeId, jobId, data ?? {}),
     });
-    return { ok: true };
   }
   if (action === "assign_many") {
     dispatcherOnly(actor);

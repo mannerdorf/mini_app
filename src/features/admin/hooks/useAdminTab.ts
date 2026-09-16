@@ -32,6 +32,7 @@ export const ADMIN_TABS = [
   "haulz_summary",
   "push_notifications",
   "media",
+  "pickup_dispatch",
 ] as const;
 
 export type AdminTab = (typeof ADMIN_TABS)[number];

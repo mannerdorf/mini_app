@@ -151,6 +151,11 @@ export function pickupRouteCanDelete(status: Route["status"]): boolean {
   return status === "draft" || status === "published";
 }
 
+/** Удаление завершённого маршрута супер-администратором в CMS. */
+export function pickupRouteCanSuperAdminDeleteCompleted(status: Route["status"]): boolean {
+  return status === "completed";
+}
+
 export type Event = {
   id: string;
   route_id: string | null;
