@@ -44,6 +44,37 @@ import {
   formatPickupSiteInstructions,
   parsePickupSiteInstructions,
 } from "../../../lib/pickup/jobSiteInstructions";
+import { PICKUP_PACKAGING_KIND_OPTIONS } from "../../../lib/pickup/packagingKindOptions";
+
+const PICKUP_PACKAGING_DATALIST_ID = "pickup-packaging-kinds";
+
+function PackagingKindField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="pk-field">
+      <span>{label}</span>
+      <input
+        type="text"
+        list={PICKUP_PACKAGING_DATALIST_ID}
+        value={value ?? ""}
+        placeholder="Выберите или введите"
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <datalist id={PICKUP_PACKAGING_DATALIST_ID}>
+        {PICKUP_PACKAGING_KIND_OPTIONS.map((kind) => (
+          <option key={kind} value={kind} />
+        ))}
+      </datalist>
+    </label>
+  );
+}
 
 export function Field({
   label,
@@ -802,15 +833,6 @@ export function JobForm({
   }, [siteInstructions]);
 
   const num = (v: string) => (v === "" ? null : Number(v));
-  const totalVolume = data.places.every(
-    (p) => p.lengthCm && p.widthCm && p.heightCm,
-  )
-    ? data.places.reduce(
-        (s, p) =>
-          s + (p.count * p.lengthCm! * p.widthCm! * p.heightCm!) / 1000000,
-        0,
-      )
-    : null;
   return (
     <FormShell
       title={
@@ -983,14 +1005,6 @@ export function JobForm({
           onJobPatch={patchJob}
           num={num}
         />
-        <PickupJobDefaultPlaceSection
-          account={account}
-          city={city}
-          customerInn={data.customerInn}
-          customerName={data.customerName}
-          state={defaultPlaceState}
-          onChange={setDefaultPlaceState}
-        />
         <PickupWarehouseHoursField
           value={data.warehouseHours}
           onChange={(v) => update("warehouseHours", v)}
@@ -1104,12 +1118,20 @@ export function JobForm({
         <summary>
           <span className="pk-form-step">3</span> Груз и погрузка
         </summary>
+        <PickupJobDefaultPlaceSection
+          account={account}
+          city={city}
+          customerInn={data.customerInn}
+          customerName={data.customerName}
+          state={defaultPlaceState}
+          onChange={setDefaultPlaceState}
+        />
         <h3>Грузовые места</h3>
         {data.places.map((p, i) => (
           <div className="pk-subrow" key={i}>
             <div className="pk-grid">
-              <Field
-                label="Упаковка: рулон, коробка…"
+              <PackagingKindField
+                label="Упаковка"
                 value={p.kind}
                 onChange={(v) =>
                   update(
@@ -1120,30 +1142,22 @@ export function JobForm({
                   )
                 }
               />
-              {[
-                ["count", "Количество"],
-                ["lengthCm", "Длина одного места, см"],
-                ["widthCm", "Ширина, см"],
-                ["heightCm", "Высота, см"],
-              ].map(([k, l]) => (
-                <Field
-                  key={k}
-                  label={l}
-                  type="number"
-                  min={k === "count" ? "1" : "0"}
-                  step={k === "count" ? "1" : "any"}
-                  value={p[k as keyof typeof p]}
-                  onChange={(v) =>
-                    update(
-                      "places",
-                      data.places.map((r, n) =>
-                        n === i ? { ...r, [k]: num(v) } : r,
-                      ),
-                    )
-                  }
-                  required={k === "count"}
-                />
-              ))}
+              <Field
+                label="Количество"
+                type="number"
+                min="1"
+                step="1"
+                value={p.count}
+                onChange={(v) =>
+                  update(
+                    "places",
+                    data.places.map((r, n) =>
+                      n === i ? { ...r, count: num(v) ?? 1 } : r,
+                    ),
+                  )
+                }
+                required
+              />
             </div>
             <button
               className="pk-delete-icon"
@@ -1196,19 +1210,6 @@ export function JobForm({
             onChange={(v) => update("volumeM3", num(v))}
           />
         </div>
-        {totalVolume !== null && (
-          <button
-            type="button"
-            onClick={() => update("volumeM3", Number(totalVolume.toFixed(4)))}
-          >
-            Подставить объём по габаритам: {totalVolume.toFixed(3)} м³
-          </button>
-        )}
-        <Field
-          label="Требования к машине и погрузке"
-          value={data.requirements}
-          onChange={(v) => update("requirements", v)}
-        />
       </details>
       <details className="pk-form-section">
         <summary>

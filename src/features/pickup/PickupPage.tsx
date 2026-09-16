@@ -1825,12 +1825,11 @@ function JobDetails({
         <summary>Груз и примечания</summary>
         {job.data.places.map((p, i) => (
           <p key={i}>
-            {p.count} × {p.kind || "место"} · {p.lengthCm ?? "—"} ×{" "}
-            {p.widthCm ?? "—"} × {p.heightCm ?? "—"} см
+            {p.count} × {p.kind || "место"}
           </p>
         ))}
         <p>Объём: {job.data.volumeM3 ?? "—"} м³</p>
-        <p>{job.data.requirements}</p>
+        {job.data.requirements?.trim() ? <p>{job.data.requirements}</p> : null}
         <p>{job.data.note}</p>
       </details>
       {!driver && (
