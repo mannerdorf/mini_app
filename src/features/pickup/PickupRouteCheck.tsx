@@ -2,6 +2,7 @@ import { routeStartAddress } from "../../../lib/pickup/model";
 import React, { useEffect, useRef, useState } from "react";
 import { Route as RouteIcon, X } from "lucide-react";
 import type { Route, Job, Snapshot } from "../../../lib/pickup/model";
+import type { DgisDebugEntry } from "../../../lib/pickup/dgisRouteError";
 import {
   timeLabel,
   type Assessment,
@@ -74,6 +75,7 @@ function CheckDialog({
     [checking, setChecking] = useState(false),
     [error, setError] = useState(""),
     [map, setMap] = useState(false),
+    [dgisDebugOpen, setDgisDebugOpen] = useState(false),
     [confirmed, setConfirmed] = useState(false),
     [address, setAddress] = useState(""),
     [base, setBase] = useState(""),
@@ -217,6 +219,23 @@ function CheckDialog({
               <li key={w}>{w}</li>
             ))}
           </ul>
+          {!!result.dgisDebug?.length && (
+            <>
+              <button
+                type="button"
+                className="pk-dgis-debug-open"
+                onClick={() => setDgisDebugOpen(true)}
+              >
+                Ответ 2ГИС — подробности
+              </button>
+              {dgisDebugOpen && (
+                <DgisDebugDialog
+                  entries={result.dgisDebug}
+                  onClose={() => setDgisDebugOpen(false)}
+                />
+              )}
+            </>
+          )}
           {result.current && (
             <>
               <p className="pk-hint">
@@ -308,6 +327,50 @@ function CheckDialog({
     </dialog>
   );
 }
+function DgisDebugDialog({
+  entries,
+  onClose,
+}: {
+  entries: DgisDebugEntry[];
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    ref.current?.showModal();
+  }, []);
+  return (
+    <dialog
+      ref={ref}
+      className="pk-form pk-dgis-debug-dialog"
+      onCancel={onClose}
+    >
+      <div className="pk-section-heading">
+        <h3>Ответ 2ГИС</h3>
+        <button type="button" onClick={onClose} aria-label="Закрыть">
+          <X size={20} />
+        </button>
+      </div>
+      <p className="pk-hint">
+        Технические данные для диагностики. Ключ API не передаётся.
+      </p>
+      {entries.map((entry, index) => (
+        <section key={`${entry.service}-${entry.httpStatus}-${index}`}>
+          <p className="pk-muted">
+            {entry.service === "geocode" ? "Геокодер" : "Маршрутизация"} · HTTP{" "}
+            {entry.httpStatus}
+          </p>
+          <pre className="pk-dgis-debug-body">
+            {JSON.stringify(entry.responseBody, null, 2)}
+          </pre>
+        </section>
+      ))}
+      <button type="button" className="pk-primary" onClick={onClose}>
+        Закрыть
+      </button>
+    </dialog>
+  );
+}
+
 function AssessmentCard({
   title,
   value,

@@ -1,5 +1,13 @@
 import { getDgisApiKey } from "../haulzCalculator/dgisClient.js";
+import {
+  DgisRouteError,
+  dgisErrorMessage,
+  sanitizeDgisDebugPayload,
+  type DgisDebugEntry,
+} from "./dgisRouteError.js";
 import { pointValid, type Point, type Leg } from "./routeAnalysis.js";
+
+export type { DgisDebugEntry } from "./dgisRouteError.js";
 export type RoutingOptions = {
   truck: Record<string, unknown>;
   traffic: "jam" | "statistics";
@@ -14,7 +22,23 @@ export interface RouteProvider {
   ): Promise<{ lines: number[][][]; warnings: string[] }>;
 }
 const endpoint = "https://routing.api.2gis.com/routing/7.0.0/global";
-async function request(url: string, body: unknown, signal: AbortSignal) {
+
+function userMessageForHttpStatus(status: number): string {
+  if ([401, 403].includes(status)) {
+    return "Ключ 2ГИС не даёт доступ к грузовой маршрутизации или геокодеру. Проверьте серверные настройки доступа.";
+  }
+  if (status === 429) {
+    return "Лимит запросов 2ГИС исчерпан. Повторите позже.";
+  }
+  return "Ошибка сервиса 2ГИС. Расчёт недоступен.";
+}
+
+async function request(
+  service: DgisDebugEntry["service"],
+  url: string,
+  body: unknown,
+  signal: AbortSignal,
+) {
   let response: Response;
   try {
     response = await fetch(url, {
@@ -26,22 +50,37 @@ async function request(url: string, body: unknown, signal: AbortSignal) {
   } catch {
     throw new Error("2ГИС не ответил вовремя. Повторите проверку позже.");
   }
-  if (!response.ok)
-    throw new Error(
-      [401, 403].includes(response.status)
-        ? "Ключ 2ГИС не даёт доступ к грузовой маршрутизации или геокодеру. Проверьте серверные настройки доступа."
-        : response.status === 429
-          ? "Лимит запросов 2ГИС исчерпан. Повторите позже."
-          : "Ошибка сервиса 2ГИС. Расчёт недоступен.",
+  const rawText = await response.text();
+  let payload: unknown = null;
+  if (rawText) {
+    try {
+      payload = JSON.parse(rawText);
+    } catch {
+      payload = rawText.length > 8000 ? `${rawText.slice(0, 8000)}…` : rawText;
+    }
+  }
+  const debugEntry = (): DgisDebugEntry => ({
+    service,
+    httpStatus: response.status,
+    responseBody: sanitizeDgisDebugPayload(payload),
+  });
+  if (!response.ok) {
+    const detail = dgisErrorMessage(payload);
+    const base = userMessageForHttpStatus(response.status);
+    throw new DgisRouteError(
+      detail ? `${base} ${detail}` : base,
+      debugEntry(),
     );
+  }
   try {
-    const payload: unknown = await response.json();
-    if (!payload || typeof payload !== "object")
-      throw new Error("Invalid response object");
+    if (payload == null || typeof payload !== "object") {
+      throw new DgisRouteError("2ГИС вернул некорректный ответ.", debugEntry());
+    }
     return payload as { status?: string; result?: any } | Record<string, any>[];
-  } catch {
-    throw new Error("2ГИС вернул некорректный ответ.");
-  } // Never forward upstream messages/URLs containing the key.
+  } catch (error) {
+    if (error instanceof DgisRouteError) throw error;
+    throw new DgisRouteError("2ГИС вернул некорректный ответ.", debugEntry());
+  }
 }
 export async function mapConcurrent<T, R>(
   items: T[],
@@ -83,6 +122,7 @@ export function createRouteProvider(): {
   });
   const route = (body: unknown) =>
     request(
+      "routing",
       `${endpoint}?key=${encodeURIComponent(key)}`,
       body,
       controller.signal,
@@ -96,6 +136,7 @@ export function createRouteProvider(): {
         page_size: "2",
       });
       const result = await request(
+        "geocode",
         `https://catalog.api.2gis.com/3.0/items/geocode?${query}`,
         undefined,
         controller.signal,
@@ -159,7 +200,14 @@ export function createRouteProvider(): {
               ].includes(value.status)
             )
               return;
-            throw new Error("2ГИС не смог оценить все участки маршрута.");
+            throw new DgisRouteError(
+              `2ГИС не смог оценить участок маршрута (${String(value.status)}).`,
+              {
+                service: "routing",
+                httpStatus: 200,
+                responseBody: sanitizeDgisDebugPayload(value),
+              },
+            );
           }
           if (
             typeof value.distance !== "number" ||
@@ -185,8 +233,13 @@ export function createRouteProvider(): {
         points: points.map((p) => ({ ...p, type: "stop" })),
       });
       const path = !Array.isArray(response) && response.result?.[0];
-      if (Array.isArray(response) || response.status !== "OK" || !path)
-        throw new Error("Геометрия маршрута недоступна");
+      if (Array.isArray(response) || response.status !== "OK" || !path) {
+        throw new DgisRouteError("Геометрия маршрута недоступна.", {
+          service: "routing",
+          httpStatus: 200,
+          responseBody: sanitizeDgisDebugPayload(response),
+        });
+      }
       const lines: number[][][] = [];
       for (const step of path.maneuvers || [])
         for (const geo of step.outcoming_path?.geometry || []) {

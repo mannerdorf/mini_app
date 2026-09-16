@@ -1,4 +1,5 @@
 import { it, expect, vi } from "vitest";
+import { DgisRouteError } from "./dgisRouteError";
 import { checkRoute, checkSignature, type CheckInput } from "./checkRoute";
 import type { RouteProvider } from "./routeProvider";
 const now = Date.parse("2026-09-16T06:00:00Z");
@@ -194,4 +195,31 @@ it("does not use the original start for a running route with unreliable GPS and 
   const result = await checkRoute(data, { windowsConfirmed: true }, provider(), now);
   expect(result.status).toBe("gray");
   expect(result.warnings.join(" ")).toContain("GPS ненадёжен");
+});
+
+it("returns dgisDebug when the provider throws DgisRouteError", async () => {
+  const fail: RouteProvider = {
+    ...provider(),
+    geocode: vi.fn(async () => {
+      throw new DgisRouteError("Ошибка сервиса 2ГИС. bad", {
+        service: "geocode",
+        httpStatus: 502,
+        responseBody: { error: { message: "upstream" } },
+      });
+    }),
+  };
+  const result = await checkRoute(
+    input(),
+    { windowsConfirmed: true },
+    fail,
+    now,
+  );
+  expect(result.dgisDebug).toEqual([
+    {
+      service: "geocode",
+      httpStatus: 502,
+      responseBody: { error: { message: "upstream" } },
+    },
+  ]);
+  expect(result.warnings.join(" ")).toContain("Ошибка сервиса 2ГИС");
 });

@@ -21,6 +21,7 @@ import {
   type AnalysisResult,
   type Point,
 } from "./routeAnalysis.js";
+import { DgisRouteError } from "./dgisRouteError.js";
 import {
   createRouteProvider,
   mapConcurrent,
@@ -362,8 +363,11 @@ async function computeCheckRoute(
       proposedGeometry,
     };
   } catch (error) {
+    const dgisDebug =
+      error instanceof DgisRouteError ? [error.debug] : undefined;
     return {
       ...base,
+      dgisDebug,
       warnings: [
         ...warnings,
         error instanceof Error ? error.message : "Расчёт 2ГИС недоступен",

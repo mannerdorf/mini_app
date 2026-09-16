@@ -2,6 +2,7 @@ import { it, expect, vi, afterEach } from "vitest";
 vi.mock("../haulzCalculator/dgisClient.js", () => ({
   getDgisApiKey: () => "fixture-key-not-real",
 }));
+import { DgisRouteError } from "./dgisRouteError";
 import { createRouteProvider } from "./routeProvider";
 afterEach(() => vi.unstubAllGlobals());
 const options = {
@@ -55,6 +56,36 @@ it("builds directed truck pairs with traffic/time and validates matching respons
     dispose();
   }
 });
+it("attaches sanitized 2GIS body on HTTP errors", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { message: "Invalid truck mass", type: "bad_truck" },
+          }),
+          { status: 400 },
+        ),
+    ),
+  );
+  const { provider, dispose } = createRouteProvider();
+  try {
+    const err = await provider.geocode("Москва").catch((e) => e);
+    expect(err).toBeInstanceOf(DgisRouteError);
+    expect(err.debug).toMatchObject({
+      service: "geocode",
+      httpStatus: 400,
+      responseBody: {
+        error: { message: "Invalid truck mass", type: "bad_truck" },
+      },
+    });
+    expect(String(err.message)).toContain("Invalid truck mass");
+  } finally {
+    dispose();
+  }
+});
+
 it("does not leak the key or provider error message on denied access", async () => {
   vi.stubGlobal(
     "fetch",

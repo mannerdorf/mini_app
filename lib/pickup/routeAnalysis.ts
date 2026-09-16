@@ -1,4 +1,5 @@
 import type { Job, Route } from "./model.js";
+import type { DgisDebugEntry } from "./dgisRouteError.js";
 
 export type Point = { lat: number; lon: number };
 export type Leg = { distance: number; duration: number } | null;
@@ -38,6 +39,8 @@ export type AnalysisResult = {
   points?: { id: string; address: string; point: Point }[];
   currentGeometry?: number[][][];
   proposedGeometry?: number[][][];
+  /** Ответ 2ГИС при ошибке расчёта (без ключа API). */
+  dgisDebug?: DgisDebugEntry[];
 };
 export const truckFields = [
   ["truckMaxMass", "Разрешённая максимальная масса, т", "max_perm_mass"],
