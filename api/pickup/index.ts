@@ -34,6 +34,10 @@ import {
   pickupMayDeleteCompletedRoute,
 } from "../../lib/pickup/pickupCompletedRouteDeleteAccess.js";
 import {
+  buildDispatcherManualJobUpdate,
+  parseDispatcherManualJobStatus,
+} from "../../lib/pickup/dispatcherJobStatus.js";
+import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
@@ -1277,6 +1281,42 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     } else {
       await event(db, actor, "Забор удалён", null, null, { jobId: job.id });
     }
+    return { ok: true };
+  }
+  if (action === "set_job_status") {
+    dispatcherOnly(actor);
+    const { rows } = await db.query(
+      "SELECT *, to_char(date,'YYYY-MM-DD') AS date FROM pickup_jobs WHERE id=$1 FOR UPDATE",
+      [uuid(body.id)],
+    );
+    const job: Job = rows[0];
+    requireValue(job, "Забор не найден");
+    checkVersion(job, body.version);
+    requireValue(job.route_id, "Ручной статус доступен для заборов на маршруте");
+    const route = await routeById(db, job.route_id);
+    requireValue(
+      ["published", "started", "completed"].includes(route.status),
+      "Изменить статус можно для опубликованного или выполняемого маршрута",
+    );
+    const target = parseDispatcherManualJobStatus(body.status);
+    const update = buildDispatcherManualJobUpdate(job, target, body);
+    await db.query(
+      `UPDATE pickup_jobs SET status=$2, actual_places=$3, note=$4, resolution=$5,
+       version=version+1, updated_at=now() WHERE id=$1`,
+      [job.id, update.status, update.actual_places, update.note, update.resolution ?? ""],
+    );
+    await db.query(
+      "UPDATE pickup_routes SET version=version+1, updated_at=now() WHERE id=$1",
+      [route.id],
+    );
+    await event(db, actor, "Статус забора изменён диспетчером", route.id, job.id, {
+      from: job.status,
+      to: update.status,
+      requested: target,
+      note: update.note,
+      actualPlaces: update.actual_places,
+      manual: true,
+    });
     return { ok: true };
   }
   if (["arrive", "complete", "problem", "resolve"].includes(action)) {

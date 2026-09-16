@@ -72,6 +72,7 @@ import { PickupStopOrder } from "./PickupStopOrder";
 import { pickupProgress } from "./monitor";
 import { PickupAttention } from "./PickupAttention";
 import { PickupPublishReview } from "./PickupPublishReview";
+import { PickupDispatcherJobStatusPanel } from "./PickupDispatcherJobStatusPanel";
 import { PickupBulkAssign } from "./PickupBulkAssign";
 import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
@@ -1601,6 +1602,16 @@ export function PickupPage({
                               !j.resolution && (
                                 <Resolution job={j} busy={busy} act={act} />
                               )}
+                            {["published", "started", "completed"].includes(
+                              route.status,
+                            ) && (
+                              <PickupDispatcherJobStatusPanel
+                                key={`${j.id}-${j.version}`}
+                                job={j}
+                                busy={busy}
+                                act={act}
+                              />
+                            )}
                           </div>
                         )}
                       </div>
