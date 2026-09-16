@@ -1671,11 +1671,16 @@
   padding: 8px 0;
   font-size: 14px;
 }
-.pk-publish-dialog > .pk-actions {
+.pk-publish-dialog > .pk-actions,
+.pk-publish-dialog__actions {
   position: sticky;
   bottom: -24px;
   padding: 14px 0;
   background: var(--pk-panel);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
 }
 .pk-more-actions {
   position: relative;
