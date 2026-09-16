@@ -46,41 +46,18 @@ export async function deletePickupRoute(
       409,
     );
   }
-  let policy = input.policy;
-  if (!policy) {
-    if (pickupRouteCanDelete(route.status)) {
-      policy = "dispatcher";
-    } else if (
-      input.allowCompletedDelete &&
-      pickupRouteCanSuperAdminDeleteCompleted(route.status)
-    ) {
-      policy = "super_admin_completed";
-    } else {
-      requireValue(
-        false,
-        pickupRouteCanSuperAdminDeleteCompleted(route.status)
-          ? "Завершённые маршруты могут удалять пользователи с доступом в CMS, служебным режимом, аналитикой и HAULZ"
-          : "Удалить можно черновик, опубликованный или выполняемый маршрут, если заборы ещё не начаты",
-      );
-    }
-  }
+  const policy: PickupRouteDeletePolicy = input.policy ?? "dispatcher";
   requireValue(
     pickupRouteDeleteAllowed(route.status, policy),
-    policy === "dispatcher"
-      ? "Удалить можно черновик или опубликованный маршрут, который ещё не начат"
-      : "Удалить можно только завершённый маршрут",
+    policy === "super_admin_completed"
+      ? "Удалить можно только завершённый маршрут"
+      : "Удаление маршрута недоступно",
   );
 
   const { rows: jobs } = await db.query<{ id: string; status: string }>(
     "SELECT id, status FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
     [route.id],
   );
-  if (policy === "dispatcher") {
-    requireValue(
-      jobs.every((j) => j.status === "pending"),
-      "На маршруте есть начатые заборы — удаление недоступно",
-    );
-  }
 
   if (jobs.length) {
     await db.query(

@@ -1345,7 +1345,7 @@ export function PickupPage({
                     </div>
                   </div>
                 )}
-                {dispatch && route.status === "completed" && routeDeleteAllowed("completed") && (
+                {dispatch && route.status === "completed" && (
                   <div className="pk-route-draft-bar">
                     <p className="pk-muted">
                       Маршрут завершён. Можно удалить запись маршрута — заборы
@@ -1387,9 +1387,9 @@ export function PickupPage({
                 {dispatch && route.status === "started" && (
                   <div className="pk-route-draft-bar">
                     <p className="pk-muted">
-                      Рейс выполняется. Пока все точки в статусе «Ожидает
-                      забора», можно изменить параметры или удалить маршрут
-                      (заборы вернутся в «Не распределено»).
+                      Рейс выполняется. Можно изменить параметры (пока все
+                      точки «Ожидает забора») или удалить маршрут — заборы
+                      останутся в журнале дня без привязки к рейсу.
                     </p>
                     <div className="pk-actions">
                       <button
@@ -2375,11 +2375,7 @@ function DeleteRouteButton({
         prompt={
           route.status === "draft"
             ? "Заборы вернутся в «Не распределено». Удалить этот черновик?"
-            : route.status === "completed"
-              ? "Заборы останутся в журнале дня без маршрута. Удалить завершённый маршрут?"
-              : route.status === "started"
-                ? "Заборы вернутся в «Не распределено». Удалить выполняемый маршрут?"
-                : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
+            : "Заборы останутся в журнале дня без маршрута. Удалить этот маршрут?"
         }
         confirmLabel="Да, удалить"
         onConfirm={async () => {

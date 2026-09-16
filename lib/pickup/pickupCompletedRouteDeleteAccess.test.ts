@@ -39,10 +39,10 @@ describe("pickupRouteCanDeleteInDispatchApp", () => {
     expect(pickupRouteCanDeleteInDispatchApp("draft", {})).toBe(true);
   });
 
-  it("allows completed only with full service permissions", () => {
+  it("allows any route status for any dispatcher", () => {
     expect(pickupRouteCanDeleteInDispatchApp("completed", power)).toBe(true);
-    expect(pickupRouteCanDeleteInDispatchApp("completed", {})).toBe(false);
-    expect(pickupRouteCanDeleteInDispatchApp("started", power)).toBe(false);
+    expect(pickupRouteCanDeleteInDispatchApp("completed", {})).toBe(true);
+    expect(pickupRouteCanDeleteInDispatchApp("started", {})).toBe(true);
   });
 });
 

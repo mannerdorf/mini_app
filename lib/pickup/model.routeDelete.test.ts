@@ -6,11 +6,11 @@ import {
 } from "./model";
 
 describe("pickupRouteCanDelete", () => {
-  it("allows delete for draft, published and started", () => {
+  it("allows delete in any route status", () => {
     expect(pickupRouteCanDelete("draft")).toBe(true);
     expect(pickupRouteCanDelete("published")).toBe(true);
     expect(pickupRouteCanDelete("started")).toBe(true);
-    expect(pickupRouteCanDelete("completed")).toBe(false);
+    expect(pickupRouteCanDelete("completed")).toBe(true);
   });
 });
 

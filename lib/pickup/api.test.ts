@@ -1248,4 +1248,53 @@ describe("route start location", () => {
     expect(published.snapshot.start.address).toBe("Москва, стоянка");
     expect(published.snapshot.depot.data.address).not.toBe("Москва, стоянка");
   });
+  it("lets dispatcher delete routes in any status, including with started pickups", async () => {
+    const ids = await setup();
+    let s = await publishAndStart();
+    await ok("driver", {
+      action: "arrive",
+      id: ids.job.id,
+      version: s.jobs[0].version,
+    });
+    s = await snapshot();
+    expect(s.jobs[0].status).toBe("arrived");
+    await ok("dispatch", {
+      action: "delete_route",
+      id: ids.route.id,
+      version: s.routes[0].version,
+    });
+    const after = await snapshot();
+    expect(after.routes).toHaveLength(0);
+    const job = after.jobs.find((j: any) => j.id === ids.job.id);
+    expect(job?.route_id).toBeNull();
+    expect(job?.status).toBe("arrived");
+  });
+  it("lets dispatcher delete completed routes", async () => {
+    const ids = await setup();
+    let s = await publishAndStart();
+    await ok("driver", {
+      action: "complete",
+      id: ids.job.id,
+      version: s.jobs[0].version,
+      actual_places: 2,
+      photos: [photo],
+    });
+    s = await snapshot();
+    await ok("driver", {
+      action: "deposit",
+      id: s.routes[0].id,
+      version: s.routes[0].version,
+    });
+    s = await snapshot();
+    expect(s.routes[0].status).toBe("completed");
+    await ok("dispatch", {
+      action: "delete_route",
+      id: ids.route.id,
+      version: s.routes[0].version,
+    });
+    const after = await snapshot();
+    expect(after.routes).toHaveLength(0);
+    expect(after.jobs[0].status).toBe("deposited");
+    expect(after.jobs[0].route_id).toBeNull();
+  });
 });
