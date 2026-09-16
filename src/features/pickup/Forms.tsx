@@ -1118,14 +1118,6 @@ export function JobForm({
         <summary>
           <span className="pk-form-step">3</span> Груз и погрузка
         </summary>
-        <PickupJobDefaultPlaceSection
-          account={account}
-          city={city}
-          customerInn={data.customerInn}
-          customerName={data.customerName}
-          state={defaultPlaceState}
-          onChange={setDefaultPlaceState}
-        />
         <h3>Грузовые места</h3>
         {data.places.map((p, i) => (
           <div className="pk-subrow" key={i}>
@@ -1211,9 +1203,22 @@ export function JobForm({
           />
         </div>
       </details>
+      <details className="pk-form-section" open>
+        <summary>
+          <span className="pk-form-step">4</span> Место выгрузки
+        </summary>
+        <PickupJobDefaultPlaceSection
+          account={account}
+          city={city}
+          customerInn={data.customerInn}
+          customerName={data.customerName}
+          state={defaultPlaceState}
+          onChange={setDefaultPlaceState}
+        />
+      </details>
       <details className="pk-form-section">
         <summary>
-          <span className="pk-form-step">4</span> Стоимость и документы{" "}
+          <span className="pk-form-step">5</span> Стоимость и документы{" "}
           <small>Дополнительно</small>
         </summary>
         <div className="pk-grid">
