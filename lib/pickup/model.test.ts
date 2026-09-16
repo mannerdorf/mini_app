@@ -7,6 +7,7 @@ import {
   driverJob,
   routeWarnings,
   validateCompletion,
+  pickupJobNumberLabel,
   type Job,
   type Resource,
 } from "./model";
@@ -89,5 +90,9 @@ describe("pickup validation", () => {
     expect(
       routeWarnings([{ data: { ...validJobData(), weightKg: null } }] as Job[]),
     ).toHaveLength(1);
+  });
+  it("formats internal pickup job number", () => {
+    expect(pickupJobNumberLabel(42)).toBe("№42");
+    expect(pickupJobNumberLabel(undefined)).toBe("");
   });
 });

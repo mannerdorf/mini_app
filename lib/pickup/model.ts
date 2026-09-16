@@ -112,6 +112,8 @@ export function pickupJobCanDelete(status: JobStatus): boolean {
 
 export type Job = {
   id: string;
+  /** Уникальный номер забора в БД (не номер заявки 1С). */
+  job_number: number;
   city: City;
   date: string;
   data: JobData;
@@ -124,6 +126,11 @@ export type Job = {
   resolution: string;
   photo_count?: number;
 };
+
+export function pickupJobNumberLabel(job_number: number | null | undefined): string {
+  if (job_number == null || !Number.isFinite(Number(job_number))) return "";
+  return `№${Number(job_number)}`;
+}
 
 /** Request number is required when handing collected cargo over to the depot. */
 export function pickupJobNeedsZayavka(job: Job): boolean {

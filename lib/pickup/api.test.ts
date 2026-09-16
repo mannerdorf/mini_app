@@ -177,8 +177,7 @@ beforeAll(async () => {
     "107_pickup_supplier_contacts.sql",
     "108_pickup_driver_locations.sql",
     "109_pickup_gps_quality.sql",
-    "108_pickup_driver_locations.sql",
-    "109_pickup_gps_quality.sql",
+    "110_pickup_job_number.sql",
   ]) {
     await state.db.exec(
       readFileSync(
@@ -217,6 +216,24 @@ beforeEach(async () => {
     );
 });
 describe("pickup API with PostgreSQL (PGlite)", () => {
+  it("assigns unique job_number when saving pickups", async () => {
+    const a = await ok("dispatch", {
+      action: "save_job",
+      city: "moscow",
+      date: "2026-09-15",
+      data: data(),
+    });
+    const b = await ok("dispatch", {
+      action: "save_job",
+      city: "moscow",
+      date: "2026-09-15",
+      data: data(),
+    });
+    expect(a.job_number).toBeGreaterThan(0);
+    expect(b.job_number).toBeGreaterThan(a.job_number);
+    const s = await snapshot();
+    expect(s.jobs.find((j) => j.id === a.id)?.job_number).toBe(a.job_number);
+  });
   it("isolates driver data, drafts and server permissions", async () => {
     const ids = await setup();
     expect((await snapshot("driver")).jobs).toHaveLength(0);

@@ -9,7 +9,7 @@ import type {
   Route,
 } from "../../../lib/pickup/model";
 import { truckFields } from "../../../lib/pickup/routeAnalysis";
-import { cities } from "../../../lib/pickup/model";
+import { cities, pickupJobNumberLabel } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
 import type { Account } from "../../types";
 import {
@@ -836,8 +836,8 @@ export function JobForm({
   return (
     <FormShell
       title={
-        job
-          ? "Редактировать забор"
+        job?.job_number
+          ? `Забор ${pickupJobNumberLabel(job.job_number)}`
           : copyFrom
             ? "Новый забор (копия)"
             : "Новый забор"

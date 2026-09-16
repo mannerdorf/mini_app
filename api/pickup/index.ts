@@ -747,7 +747,11 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         await event(db, actor, "Забор изменён", job.route_id, id);
       } else await event(db, actor, "Забор сохранён", null, id);
       await persistJobContactsToSenderDirectory(db, data.senderInn, data);
-      return { id };
+      const numRow = await db.query(
+        "SELECT job_number FROM pickup_jobs WHERE id=$1",
+        [id],
+      );
+      return { id, job_number: Number(numRow.rows[0]?.job_number) };
     }
 
     const schedule = parsePickupScheduleBody(body);
@@ -755,14 +759,16 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     const groupId = dates.length > 1 ? randomUUID() : "";
     const scheduleMeta = scheduleMetaForJobData(schedule, groupId);
     const ids: string[] = [];
+    let firstJobNumber: number | undefined;
 
     for (let i = 0; i < dates.length; i++) {
       const jobId = i === 0 ? id : randomUUID();
       const jobData = { ...data, ...scheduleMeta };
       const search = pickupJobSearchColumns(jobData);
-      await db.query(
+      const inserted = await db.query(
         `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn)
-         VALUES($1,$2,$3,$4,$5,$6,$7,$8)`,
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+         RETURNING job_number`,
         [
           jobId,
           body.city,
@@ -775,6 +781,9 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         ],
       );
       ids.push(jobId);
+      if (i === 0) {
+        firstJobNumber = Number(inserted.rows[0]?.job_number);
+      }
       await event(db, actor, "Забор сохранён", null, jobId, {
         schedule:
           dates.length > 1
@@ -783,7 +792,12 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       });
     }
     await persistJobContactsToSenderDirectory(db, data.senderInn, data);
-    return { id: ids[0], ids, createdCount: ids.length };
+    return {
+      id: ids[0],
+      job_number: firstJobNumber,
+      ids,
+      createdCount: ids.length,
+    };
   }
   if (action === "save_route") {
     dispatcherOnly(actor);
@@ -1534,7 +1548,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         error instanceof PickupError
           ? error.message
           : missingColumn
-            ? "Примените миграцию migrations/105_pickup_jobs_search_columns.sql"
+            ? "Примените миграции pickup_jobs (105–110_pickup_job_number.sql)"
             : missing
               ? "Модуль ещё не настроен: примените миграцию 104_pickup_dispatch.sql"
               : status === 409

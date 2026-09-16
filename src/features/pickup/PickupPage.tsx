@@ -24,6 +24,7 @@ import {
   routeStartAddress,
   pickupJobCanCancel,
   pickupJobCanEdit,
+  pickupJobNumberLabel,
   type City,
   type Snapshot,
   type Job,
@@ -1762,6 +1763,7 @@ function JobSummary({
         </div>
       )}
       <p className="pk-eyebrow">
+        {job.job_number ? `${pickupJobNumberLabel(job.job_number)} · ` : ""}
         {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
         мест · {job.data.weightKg ?? "—"} кг
       </p>
