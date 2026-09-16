@@ -29,7 +29,10 @@ import {
   locationWarning,
 } from "../../lib/pickup/location.js";
 import { deletePickupRoute } from "../../lib/pickup/deleteRoute.js";
-import { pickupMayDeleteCompletedRoute } from "../../lib/pickup/pickupCompletedRouteDeleteAccess.js";
+import {
+  pickupJobIsFinishedForCleanup,
+  pickupMayDeleteCompletedRoute,
+} from "../../lib/pickup/pickupCompletedRouteDeleteAccess.js";
 import {
   PickupError,
   pickupJobCanCancel,
@@ -1235,12 +1238,21 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     const job: Job = rows[0];
     requireValue(job, "Забор не найден");
     checkVersion(job, body.version);
-    requireValue(
-      pickupJobCanDelete(job.status),
-      "Удалить можно только ожидающий или отменённый забор",
-    );
+    const allowFinishedDelete = pickupMayDeleteCompletedRoute(actor.permissions);
+    const standardDelete = pickupJobCanDelete(job.status);
+    const powerFinishedDelete =
+      allowFinishedDelete && pickupJobIsFinishedForCleanup(job.status);
+    let deleteDeniedMessage = "Удалить можно только ожидающий или отменённый забор";
+    if (pickupJobIsFinishedForCleanup(job.status)) {
+      deleteDeniedMessage =
+        "Завершённые заборы могут удалять пользователи с доступом в CMS, служебным режимом, аналитикой и HAULZ";
+    } else if (!standardDelete) {
+      deleteDeniedMessage =
+        "Забор в процессе выполнения нельзя удалить — отмените или дождитесь завершения";
+    }
+    requireValue(standardDelete || powerFinishedDelete, deleteDeniedMessage);
     const routeId = job.route_id;
-    if (routeId) {
+    if (routeId && standardDelete) {
       const route = await routeById(db, routeId);
       requireValue(route.status !== "completed", "Маршрут завершён");
       requireValue(

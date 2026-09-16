@@ -24,7 +24,6 @@ import {
   routeStartAddress,
   pickupJobCanCancel,
   pickupJobCanEdit,
-  pickupJobCanDelete,
   type City,
   type Snapshot,
   type Job,
@@ -32,7 +31,11 @@ import {
   type Resource,
   type ResourceKind,
 } from "../../../lib/pickup/model";
-import { pickupRouteCanDeleteInDispatchApp } from "../../../lib/pickup/pickupCompletedRouteDeleteAccess";
+import {
+  pickupJobCanDeleteInDispatchApp,
+  pickupJobIsFinishedForCleanup,
+  pickupRouteCanDeleteInDispatchApp,
+} from "../../../lib/pickup/pickupCompletedRouteDeleteAccess";
 import { pickupSiteInstructionsDisplay } from "../../../lib/pickup/jobSiteInstructions";
 import {
   pickupClient,
@@ -151,6 +154,11 @@ export function PickupPage({
   const routeDeleteAllowed = useCallback(
     (status: Route["status"]) =>
       pickupRouteCanDeleteInDispatchApp(status, account.permissions),
+    [account.permissions],
+  );
+  const jobDeleteAllowed = useCallback(
+    (status: Job["status"]) =>
+      pickupJobCanDeleteInDispatchApp(status, account.permissions),
     [account.permissions],
   );
   const refresh = useCallback(async () => {
@@ -878,7 +886,7 @@ export function PickupPage({
                         Изменить
                       </button>
                     )}
-                    {pickupJobCanDelete(j.status) && (
+                    {jobDeleteAllowed(j.status) && (
                       <DeleteJobButton job={j} busy={busy} act={act} compact />
                     )}
                     <span>
@@ -1006,7 +1014,7 @@ export function PickupPage({
                             Изменить
                           </button>
                         )}
-                        {pickupJobCanDelete(j.status) && (
+                        {jobDeleteAllowed(j.status) && (
                           <DeleteJobButton
                             job={j}
                             busy={busy}
@@ -1466,7 +1474,7 @@ export function PickupPage({
                                 Изменить
                               </button>
                             )}
-                            {pickupJobCanDelete(j.status) && (
+                            {jobDeleteAllowed(j.status) && (
                               <DeleteJobButton
                                 job={j}
                                 busy={busy}
@@ -2179,9 +2187,11 @@ function DeleteJobButton({
         variant="danger"
         disabled={busy}
         prompt={
-          job.route_id
-            ? "Забор исчезнет из плана и списков. Удалить?"
-            : "Забор будет удалён без возможности восстановления. Удалить?"
+          pickupJobIsFinishedForCleanup(job.status)
+            ? "Завершённый забор будет удалён вместе с фото в журнале. Восстановить нельзя. Удалить?"
+            : job.route_id
+              ? "Забор исчезнет из плана и списков. Удалить?"
+              : "Забор будет удалён без возможности восстановления. Удалить?"
         }
         confirmLabel="Да, удалить"
         onConfirm={async () => {
