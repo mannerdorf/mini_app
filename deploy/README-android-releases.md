@@ -170,6 +170,7 @@ curl -I https://android.haulz.space/latest.apk
 | Переменная | Пример |
 |------------|--------|
 | `ANDROID_RELEASE_SSH` | `root@185.x.x.x` |
+| `ANDROID_RELEASE_SSH_IDENTITY` | `$HOME/.ssh/haulz_android_vps` (приватный ключ для scp/ssh) |
 | `ANDROID_RELEASE_HOST` | `app.haulz.space` |
 | `ANDROID_RELEASE_DIR` | `/var/www/app.haulz.space` |
 | `ANDROID_RELEASE_NOTES` | текст для баннера |
