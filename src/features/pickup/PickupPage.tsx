@@ -25,7 +25,6 @@ import {
   pickupJobCanCancel,
   pickupJobCanEdit,
   pickupJobCanDelete,
-  pickupRouteCanDelete,
   type City,
   type Snapshot,
   type Job,
@@ -33,6 +32,7 @@ import {
   type Resource,
   type ResourceKind,
 } from "../../../lib/pickup/model";
+import { pickupRouteCanDeleteInDispatchApp } from "../../../lib/pickup/pickupCompletedRouteDeleteAccess";
 import { pickupSiteInstructionsDisplay } from "../../../lib/pickup/jobSiteInstructions";
 import {
   pickupClient,
@@ -148,6 +148,11 @@ export function PickupPage({
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
   const outboxKey = `outbox:${account.login.toLowerCase()}`;
   const dispatch = mode === "dispatch" && snapshot.dispatcher;
+  const routeDeleteAllowed = useCallback(
+    (status: Route["status"]) =>
+      pickupRouteCanDeleteInDispatchApp(status, account.permissions),
+    [account.permissions],
+  );
   const refresh = useCallback(async () => {
     if (!allowed) {
       setLoading(false);
@@ -947,7 +952,7 @@ export function PickupPage({
                       }
                     </span>
                   </button>
-                  {dispatch && pickupRouteCanDelete(r.status) && (
+                  {dispatch && routeDeleteAllowed(r.status) && (
                     <DeleteRouteButton
                       route={r}
                       busy={busy}
@@ -1228,6 +1233,22 @@ export function PickupPage({
                             "Маршрут опубликован водителю",
                           )
                         }
+                      />
+                    </div>
+                  </div>
+                )}
+                {dispatch && route.status === "completed" && routeDeleteAllowed("completed") && (
+                  <div className="pk-route-draft-bar">
+                    <p className="pk-muted">
+                      Маршрут завершён. Можно удалить запись маршрута — заборы
+                      останутся в журнале дня без привязки к рейсу.
+                    </p>
+                    <div className="pk-actions">
+                      <DeleteRouteButton
+                        route={route}
+                        busy={busy}
+                        act={act}
+                        onDone={() => setSelected("")}
                       />
                     </div>
                   </div>
@@ -2202,7 +2223,9 @@ function DeleteRouteButton({
         prompt={
           route.status === "draft"
             ? "Заборы вернутся в «Не распределено». Удалить этот черновик?"
-            : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
+            : route.status === "completed"
+              ? "Заборы останутся в журнале дня без маршрута. Удалить завершённый маршрут?"
+              : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
         }
         confirmLabel="Да, удалить"
         onConfirm={async () => {

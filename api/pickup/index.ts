@@ -29,6 +29,7 @@ import {
   locationWarning,
 } from "../../lib/pickup/location.js";
 import { deletePickupRoute } from "../../lib/pickup/deleteRoute.js";
+import { pickupMayDeleteCompletedRoute } from "../../lib/pickup/pickupCompletedRouteDeleteAccess.js";
 import {
   PickupError,
   pickupJobCanCancel,
@@ -52,7 +53,12 @@ import {
   type Resource,
 } from "../../lib/pickup/model.js";
 
-type Actor = { login: string; dispatcher: boolean; driver: boolean };
+type Actor = {
+  login: string;
+  dispatcher: boolean;
+  driver: boolean;
+  permissions?: Record<string, unknown>;
+};
 async function persistJobContactsToSenderDirectory(
   db: PoolClient,
   senderInn: string,
@@ -837,7 +843,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     return deletePickupRoute(db, {
       routeId: uuid(body.id),
       version: body.version,
-      policy: "dispatcher",
+      allowCompletedDelete: pickupMayDeleteCompletedRoute(actor.permissions),
       actorLogin: actor.login,
       logEvent: (actionName, routeId, jobId, data) =>
         event(db, actor, actionName, routeId, jobId, data ?? {}),
@@ -1394,6 +1400,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       login,
       dispatcher: user.permissions?.dispatcher === true,
       driver: user.permissions?.driver === true,
+      permissions: user.permissions ?? {},
     };
     if (!actor.dispatcher && !actor.driver)
       throw new PickupError("Нет доступа к заборной логистике", 403);

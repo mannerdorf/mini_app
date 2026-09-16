@@ -22,7 +22,9 @@ export async function deletePickupRoute(
   input: {
     routeId: string;
     version: unknown;
-    policy: PickupRouteDeletePolicy;
+    policy?: PickupRouteDeletePolicy;
+    /** Диспетчер с cms_access + service_mode + analytics + haulz. */
+    allowCompletedDelete?: boolean;
     actorLogin: string;
     logEvent: (
       action: string,
@@ -44,18 +46,36 @@ export async function deletePickupRoute(
       409,
     );
   }
+  let policy = input.policy;
+  if (!policy) {
+    if (pickupRouteCanDelete(route.status)) {
+      policy = "dispatcher";
+    } else if (
+      input.allowCompletedDelete &&
+      pickupRouteCanSuperAdminDeleteCompleted(route.status)
+    ) {
+      policy = "super_admin_completed";
+    } else {
+      requireValue(
+        false,
+        pickupRouteCanSuperAdminDeleteCompleted(route.status)
+          ? "Завершённые маршруты могут удалять пользователи с доступом в CMS, служебным режимом, аналитикой и HAULZ"
+          : "Удалить можно черновик или опубликованный маршрут, который ещё не начат",
+      );
+    }
+  }
   requireValue(
-    pickupRouteDeleteAllowed(route.status, input.policy),
-    input.policy === "dispatcher"
+    pickupRouteDeleteAllowed(route.status, policy),
+    policy === "dispatcher"
       ? "Удалить можно черновик или опубликованный маршрут, который ещё не начат"
-      : "Удалить из CMS можно только завершённый маршрут",
+      : "Удалить можно только завершённый маршрут",
   );
 
   const { rows: jobs } = await db.query<{ id: string; status: string }>(
     "SELECT id, status FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
     [route.id],
   );
-  if (input.policy === "dispatcher") {
+  if (policy === "dispatcher") {
     requireValue(
       jobs.every((j) => j.status === "pending"),
       "На маршруте есть начатые заборы — удаление недоступно",
@@ -74,7 +94,7 @@ export async function deletePickupRoute(
     routeId: route.id,
     name: route.name,
     jobsUnassigned: jobs.length,
-    policy: input.policy,
+    policy,
     actor: input.actorLogin,
   });
   return { ok: true, jobsUnassigned: jobs.length };
