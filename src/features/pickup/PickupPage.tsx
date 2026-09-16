@@ -1194,7 +1194,9 @@ export function PickupPage({
                     / {routeJobs.length}
                   </span>
                 </div>
-                {dispatch && route.status !== "completed" && (
+                {dispatch &&
+                  route.status !== "completed" &&
+                  route.status !== "draft" && (
                   <PickupRouteCheck
                     key={route.id}
                     route={route}
@@ -1244,8 +1246,11 @@ export function PickupPage({
                     {routeJobs
                       .reduce((s, j) => s + (j.data.volumeM3 ?? 0), 0)
                       .toFixed(2)}{" "}
-                    м³. Для оценки времени, окон и проезда нажмите «Проверить
-                    маршрут».
+                    м³. Для оценки времени, окон и проезда нажмите «2ГИС»
+                    {route.status === "draft"
+                      ? " в окне публикации"
+                      : ""}
+                    .
                   </p>
                 )}
                 {route.status !== "draft" &&
@@ -1329,6 +1334,9 @@ export function PickupPage({
                         route={route}
                         jobs={routeJobs}
                         resources={snapshot.resources}
+                        snapshot={snapshot}
+                        call={call}
+                        stale={stale}
                         busy={busy}
                         error={error}
                         onPublish={() =>
@@ -1339,6 +1347,19 @@ export function PickupPage({
                               version: route.version,
                             },
                             "Маршрут опубликован водителю",
+                          )
+                        }
+                        onApplyRouteOrder={(result) =>
+                          act(
+                            {
+                              action: "reorder",
+                              id: route.id,
+                              version: result.routeVersion,
+                              ids: result.ids,
+                              analysisSignature: result.signature,
+                              checkedAt: result.checkedAt,
+                            },
+                            "Предложенный порядок применён",
                           )
                         }
                       />

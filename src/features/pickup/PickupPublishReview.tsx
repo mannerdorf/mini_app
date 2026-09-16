@@ -6,21 +6,33 @@ import {
   type Route,
   type Resource,
 } from "../../../lib/pickup/model";
+import type { Snapshot } from "../../../lib/pickup/model";
+import type { AnalysisResult } from "../../../lib/pickup/routeAnalysis";
+import type { PickupCall } from "./client";
+import { PickupRouteCheck } from "./PickupRouteCheck";
 import { publicationCapacityWarnings, publicationIssues } from "./operations";
 export function PickupPublishReview({
   route,
   jobs,
   resources,
+  snapshot,
+  call,
+  stale,
   busy,
   error,
   onPublish,
+  onApplyRouteOrder,
 }: {
   route: Route;
   jobs: Job[];
   resources: Resource[];
+  snapshot: Snapshot;
+  call: PickupCall;
+  stale: boolean;
   busy: boolean;
   error: string;
   onPublish: () => Promise<boolean>;
+  onApplyRouteOrder: (result: AnalysisResult) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -107,7 +119,16 @@ export function PickupPublishReview({
               {error}
             </p>
           )}
-          <div className="pk-actions">
+          <div className="pk-actions pk-publish-dialog__actions">
+            <PickupRouteCheck
+              route={route}
+              jobs={jobs}
+              snapshot={snapshot}
+              call={call}
+              busy={busy}
+              stale={stale}
+              onApply={onApplyRouteOrder}
+            />
             <button
               className="pk-primary"
               disabled={busy || issues.length > 0}
