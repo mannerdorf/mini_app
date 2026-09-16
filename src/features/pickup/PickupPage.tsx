@@ -718,9 +718,11 @@ export function PickupPage({
                         : ""}
                   </p>
                   <p>{r.data.phone || r.data.plate || r.data.address}</p>
-                  <p>
-                    {r.data.from}–{r.data.to}
-                  </p>
+                  {r.kind !== "driver" && r.data.from && r.data.to ? (
+                    <p>
+                      {r.data.from}–{r.data.to}
+                    </p>
+                  ) : null}
                   <p className="pk-muted">{r.data.login || r.data.model}</p>
                   <div className="pk-resource-workload">
                     <strong>Рейсы на {date}</strong>

@@ -5,6 +5,7 @@ import {
   type Route,
   type Resource,
 } from "../../../lib/pickup/model";
+import { driverHasWorkShift } from "../../../lib/pickup/driverShift";
 export function cityClock(city: City, now: Date) {
   const timeZone = city === "moscow" ? "Europe/Moscow" : "Europe/Kaliningrad";
   return {
@@ -113,6 +114,7 @@ export function publicationIssues(
   resources: Resource[],
 ): string[] {
   const driver = resources.find((r) => r.id === route.driver_id),
+    vehicle = resources.find((r) => r.id === route.vehicle_id),
     depot = resources.find((r) => r.id === route.depot_id);
   const issues: string[] = [];
   if (!jobs.length) issues.push("Добавьте хотя бы один забор.");
@@ -121,14 +123,18 @@ export function publicationIssues(
   if (!depot?.active) issues.push("Склад недоступен.");
   if (
     driver &&
-    (route.start_time < driver.data.from || route.start_time >= driver.data.to)
+    driverHasWorkShift(driver.data) &&
+    (route.start_time < driver.data.from ||
+      route.start_time >= driver.data.to)
   )
     issues.push("Старт вне смены водителя.");
   if (
     jobs.some(
       (j) =>
         j.data.windowTo <= route.start_time ||
-        (driver && j.data.windowFrom >= driver.data.to) ||
+        (driver &&
+          driverHasWorkShift(driver.data) &&
+          j.data.windowFrom >= driver.data.to) ||
         (depot && j.data.windowFrom >= depot.data.to),
     )
   )

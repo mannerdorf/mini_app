@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import type { Job, Route, Resource, Event } from "./model.js";
 import { routeWarnings, routeStartAddress } from "./model.js";
 import {
+  driverHasWorkShift,
+  driverShiftEnd,
+  driverShiftStart,
+} from "./driverShift.js";
+import {
   usableRoutingLocation,
   locationDistance,
   type DriverLocation,
@@ -98,19 +103,19 @@ async function computeCheckRoute(
     return missing(
       "Заполните адреса, окна забора и длительность погрузки для каждой точки.",
     );
-  if (
-    [
-      depot.data.from,
-      depot.data.to,
-      driver.data.from,
-      driver.data.to,
-      vehicle.data.from,
-      vehicle.data.to,
-      route.start_time,
-    ].some((x) => !Number.isFinite(minutes(x)))
-  )
+  const scheduleTimes = [
+    depot.data.from,
+    depot.data.to,
+    vehicle.data.from,
+    vehicle.data.to,
+    route.start_time,
+  ];
+  if (driverHasWorkShift(driver.data)) {
+    scheduleTimes.push(driver.data.from, driver.data.to);
+  }
+  if (scheduleTimes.some((x) => !Number.isFinite(minutes(x))))
     return missing(
-      "Заполните рабочее время склада, водителя, автомобиля и старт рейса.",
+      "Заполните рабочее время склада, автомобиля и старт рейса.",
     );
   const offset = route.city === "moscow" ? 3 : 2;
   const midnight = Date.parse(`${route.date}T00:00:00+0${offset}:00`);
@@ -279,13 +284,21 @@ async function computeCheckRoute(
       departure,
       depotFrom: minutes(depot.data.from),
       depotTo: minutes(depot.data.to),
-      shiftTo: Math.min(minutes(driver.data.to), minutes(vehicle.data.to)),
+      shiftTo: Math.min(
+        minutes(driverShiftEnd(driver.data)),
+        minutes(vehicle.data.to),
+      ),
     });
     const early =
       departure <
-      Math.max(minutes(driver.data.from), minutes(vehicle.data.from));
-    if (early)
+      Math.max(
+        minutes(driverShiftStart(driver.data)),
+        minutes(vehicle.data.from),
+      );
+    if (early && driverHasWorkShift(driver.data))
       warnings.push("Старт до начала смены водителя или работы автомобиля.");
+    else if (early)
+      warnings.push("Старт до начала работы автомобиля.");
     // Detailed routes are for map comparison and checking provider restriction warnings.
     const geometry = async (ids: string[]) => {
       try {

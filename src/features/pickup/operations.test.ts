@@ -78,7 +78,7 @@ describe("pickup operational guidance", () => {
       { id: "v", active: true, data: { capacityKg: "5" } },
       { id: "s", active: true, data: { to: "18:00" } },
     ] as Resource[];
-    expect(publicationIssues(route, [job("a")], resources).length).toBe(2);
+    expect(publicationIssues(route, [job("a")], resources).length).toBe(1);
     expect(
       publicationIssues({ ...route, start_time: "09:00" }, [job("a")], []),
     ).toHaveLength(3);

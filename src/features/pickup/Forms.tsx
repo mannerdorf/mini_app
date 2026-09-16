@@ -398,8 +398,12 @@ export function ResourceForm({
 }) {
   const [name, setName] = useState(resource?.name ?? ""),
     [active, setActive] = useState(resource?.active ?? true);
+  const defaultData = (): Record<string, string> =>
+    kind === "driver"
+      ? { type: "own" }
+      : { from: "08:00", to: "18:00", type: "own", lift: "Нет" };
   const [data, setData] = useState<Record<string, string>>(
-    resource?.data ?? { from: "08:00", to: "18:00", type: "own", lift: "Нет" },
+    resource?.data ?? defaultData(),
   );
   const update = (key: string, v: string) =>
     setData((prev) => ({ ...prev, [key]: v }));
@@ -413,6 +417,12 @@ export function ResourceForm({
       title={resource ? `Изменить: ${title}` : `Добавить: ${title}`}
       onClose={done}
       onSave={async () => {
+        const payload =
+          kind === "driver"
+            ? Object.fromEntries(
+                Object.entries(data).filter(([key]) => key !== "from" && key !== "to"),
+              )
+            : data;
         await call({
           action: "save_resource",
           requestId: crypto.randomUUID(),
@@ -422,7 +432,7 @@ export function ResourceForm({
           city,
           name,
           active,
-          data,
+          data: payload,
         });
       }}
     >
@@ -444,20 +454,24 @@ export function ResourceForm({
             ]}
           />
         )}
-        <Field
-          label="Начало работы"
-          type="time"
-          value={data.from}
-          onChange={(v) => update("from", v)}
-          required
-        />
-        <Field
-          label="Окончание работы"
-          type="time"
-          value={data.to}
-          onChange={(v) => update("to", v)}
-          required
-        />
+        {kind !== "driver" && (
+          <>
+            <Field
+              label="Начало работы"
+              type="time"
+              value={data.from}
+              onChange={(v) => update("from", v)}
+              required
+            />
+            <Field
+              label="Окончание работы"
+              type="time"
+              value={data.to}
+              onChange={(v) => update("to", v)}
+              required
+            />
+          </>
+        )}
       </div>
       {kind === "driver" && (
         <>

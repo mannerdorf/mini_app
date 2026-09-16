@@ -38,6 +38,11 @@ import {
   parseDispatcherManualJobStatus,
 } from "../../lib/pickup/dispatcherJobStatus.js";
 import {
+  driverHasWorkShift,
+  driverShiftEnd,
+  driverShiftStart,
+} from "../../lib/pickup/driverShift.js";
+import {
   PickupError,
   pickupJobCanCancel,
   pickupJobCanDelete,
@@ -556,10 +561,15 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "Укажите адрес склада",
       );
     }
-    requireValue(
-      validTime(data.from) && validTime(data.to) && data.from < data.to,
-      "Укажите рабочее время в пределах дня",
-    );
+    if (body.kind === "driver") {
+      delete data.from;
+      delete data.to;
+    } else {
+      requireValue(
+        validTime(data.from) && validTime(data.to) && data.from < data.to,
+        "Укажите рабочее время в пределах дня",
+      );
+    }
     data.directionsUrl = safeUrl(data.directionsUrl);
     if (body.id) {
       const { rows } = await db.query(
@@ -908,7 +918,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       jobs.every(
         (j) =>
           j.data.windowTo > route.start_time &&
-          j.data.windowFrom < snapshot.driver.data.to &&
+          j.data.windowFrom < driverShiftEnd(snapshot.driver.data) &&
           j.data.windowFrom < snapshot.depot.data.to,
       ),
       "Есть точки вне времени маршрута / работы склада",
@@ -1053,16 +1063,18 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "Добавьте заборы в черновик маршрута",
       );
       const snapshot = { ...await routeResources(db, route), start: route.snapshot.start };
-      requireValue(
-        route.start_time >= snapshot.driver.data.from &&
-          route.start_time < snapshot.driver.data.to,
-        "Старт вне смены водителя",
-      );
+      if (driverHasWorkShift(snapshot.driver.data)) {
+        requireValue(
+          route.start_time >= snapshot.driver.data.from &&
+            route.start_time < snapshot.driver.data.to,
+          "Старт вне смены водителя",
+        );
+      }
       requireValue(
         jobs.every(
           (j) =>
             j.data.windowTo > route.start_time &&
-            j.data.windowFrom < snapshot.driver.data.to &&
+            j.data.windowFrom < driverShiftEnd(snapshot.driver.data) &&
             j.data.windowFrom < snapshot.depot.data.to,
         ),
         "Есть точки вне времени маршрута / работы склада",
