@@ -818,9 +818,23 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       const route = existing!;
       checkVersion(route, body.version);
       requireValue(
-        route.status === "draft",
-        "Параметры маршрута можно менять только в черновике",
+        route.status === "draft" ||
+          route.status === "published" ||
+          route.status === "started",
+        "Параметры маршрута нельзя менять у завершённого рейса",
       );
+      if (route.status === "published" || route.status === "started") {
+        const activeJobs = (
+          await db.query(
+            "SELECT status FROM pickup_jobs WHERE route_id=$1 AND status<>'cancelled'",
+            [id],
+          )
+        ).rows as { status: string }[];
+        requireValue(
+          activeJobs.every((j) => j.status === "pending"),
+          "Изменять маршрут нельзя после начала заборов на точках",
+        );
+      }
       requireValue(
         route.city === body.city && route.date === body.date,
         "Создайте новый маршрут для другого города или дня",

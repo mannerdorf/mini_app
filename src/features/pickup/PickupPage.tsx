@@ -1348,6 +1348,29 @@ export function PickupPage({
                     </div>
                   </div>
                 )}
+                {dispatch && route.status === "started" && (
+                  <div className="pk-route-draft-bar">
+                    <p className="pk-muted">
+                      Рейс выполняется. Пока все точки в статусе «Ожидает
+                      забора», можно изменить параметры или удалить маршрут
+                      (заборы вернутся в «Не распределено»).
+                    </p>
+                    <div className="pk-actions">
+                      <button
+                        type="button"
+                        onClick={() => setEditor({ type: "route", route })}
+                      >
+                        Параметры
+                      </button>
+                      <DeleteRouteButton
+                        route={route}
+                        busy={busy}
+                        act={act}
+                        onDone={() => setSelected("")}
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="pk-actions">
                   {mode === "driver" && route.status === "published" && (
                     <button
@@ -2324,7 +2347,9 @@ function DeleteRouteButton({
             ? "Заборы вернутся в «Не распределено». Удалить этот черновик?"
             : route.status === "completed"
               ? "Заборы останутся в журнале дня без маршрута. Удалить завершённый маршрут?"
-              : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
+              : route.status === "started"
+                ? "Заборы вернутся в «Не распределено». Удалить выполняемый маршрут?"
+                : "Заборы вернутся в «Не распределено». Удалить опубликованный маршрут?"
         }
         confirmLabel="Да, удалить"
         onConfirm={async () => {
