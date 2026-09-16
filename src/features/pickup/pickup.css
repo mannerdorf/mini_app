@@ -790,15 +790,131 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
-  max-height: calc(100dvh - 168px);
+  max-height: calc(100dvh - 132px);
+  min-height: min(640px, calc(100dvh - 132px));
   overflow: hidden;
 }
 .pk-route-detail__head {
   flex-shrink: 0;
 }
-.pk-route-detail__stops-scroll {
+.pk-route-detail__head--compact {
+  max-height: min(32dvh, 240px);
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+.pk-route-heading--compact {
+  margin-bottom: 6px;
+}
+.pk-route-heading--compact .pk-eyebrow {
+  margin-bottom: 2px;
+}
+.pk-route-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.pk-route-heading--compact h2 {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+.pk-route-meta--compact {
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: var(--pk-muted);
+  gap: 4px;
+}
+.pk-badge--sm {
+  font-size: 0.6875rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.pk-warning--compact {
+  margin: 4px 0;
+  padding: 6px 10px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+}
+.pk-route-plan-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 6px 0 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--pk-border);
+}
+.pk-route-plan-summary {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--pk-ink);
+  flex: 1 1 160px;
+  min-width: 0;
+}
+.pk-route-actions--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   flex: 1 1 auto;
-  min-height: 140px;
+  justify-content: flex-end;
+}
+.pk-route-actions--compact > button,
+.pk-route-actions--compact .pk-primary,
+.pk-route-actions--compact .pk-primary--sm,
+.pk-route-actions--compact .pk-btn-danger,
+.pk-route-actions--compact .pk-confirm > button {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+  margin: 0;
+}
+.pk-route-actions--compact .pk-btn-danger,
+.pk-route-actions--compact .pk-confirm > button.pk-btn-danger {
+  padding: 0 8px;
+  min-width: 28px;
+}
+.pk-primary--sm {
+  min-height: 28px;
+  height: 28px;
+  padding: 0 10px;
+  font-size: 0.75rem;
+  border-radius: 6px;
+}
+.pk-route-map-fold {
+  margin: 4px 0 0;
+}
+.pk-route-map-fold summary {
+  padding: 4px 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--pk-muted);
+  list-style: none;
+  cursor: pointer;
+}
+.pk-route-map-fold summary::-webkit-details-marker {
+  display: none;
+}
+.pk-route-map-fold .pk-map {
+  height: 160px;
+  margin-top: 4px;
+}
+.pk-hint--stops-toolbar {
+  margin: 0 0 8px;
+  padding: 0 4px;
+  font-size: 0.6875rem;
+  line-height: 1.3;
+}
+.pk-route-detail__stops-scroll {
+  flex: 1 1 66%;
+  min-height: min(66dvh, calc(100dvh - 280px));
   overflow-y: auto;
   overscroll-behavior: contain;
   margin: 4px 0 8px;
@@ -1442,7 +1558,14 @@
     grid-template-columns: 1fr;
   }
   .pk-workspace > main.pk-route-detail {
-    max-height: min(62dvh, calc(100dvh - 220px));
+    max-height: calc(100dvh - 180px);
+    min-height: calc(100dvh - 180px);
+  }
+  .pk-route-detail__stops-scroll {
+    min-height: min(68dvh, calc(100dvh - 260px));
+  }
+  .pk-route-detail__head--compact {
+    max-height: min(28dvh, 200px);
   }
   .pk-panel {
     padding: 14px;

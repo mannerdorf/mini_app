@@ -22,6 +22,7 @@ export function PickupPublishReview({
   error,
   onPublish,
   onApplyRouteOrder,
+  compact = false,
 }: {
   route: Route;
   jobs: Job[];
@@ -33,6 +34,7 @@ export function PickupPublishReview({
   error: string;
   onPublish: () => Promise<boolean>;
   onApplyRouteOrder: (result: AnalysisResult) => Promise<boolean>;
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -47,11 +49,12 @@ export function PickupPublishReview({
   return (
     <>
       <button
-        className="pk-primary"
+        type="button"
+        className={compact ? "pk-primary pk-primary--sm" : "pk-primary"}
         disabled={busy || !jobs.length}
         onClick={() => setOpen(true)}
       >
-        Проверить и опубликовать
+        {compact ? "Опубликовать" : "Проверить и опубликовать"}
       </button>
       {open && (
         <dialog

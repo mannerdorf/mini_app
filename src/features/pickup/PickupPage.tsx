@@ -1197,34 +1197,37 @@ export function PickupPage({
           <main className={`pk-panel${route ? " pk-route-detail" : ""}`}>
             {route ? (
               <>
-                <div className="pk-route-detail__head">
-                <div className="pk-route-heading">
-                  <div>
+                <div className="pk-route-detail__head pk-route-detail__head--compact">
+                <div className="pk-route-heading pk-route-heading--compact">
+                  <div className="pk-route-heading__main">
                     <p className="pk-eyebrow">
                       {cities[city]} · {route.date}
                     </p>
-                    <h2>{route.name}</h2>
-                    <p className="pk-hint">Место старта: {routeStartAddress(route) || "Склад HAULZ"} · {route.start_time}</p>
-                    <p className="pk-route-meta">
+                    <div className="pk-route-title-row">
+                      <h2>{route.name}</h2>
+                      <span className="pk-badge pk-badge--progress pk-badge--sm">
+                        {
+                          routeJobs.filter((j) =>
+                            [
+                              "picked_up",
+                              "partial",
+                              "deposited",
+                              "resolved",
+                            ].includes(j.status),
+                          ).length
+                        }{" "}
+                        / {routeJobs.length}
+                      </span>
+                    </div>
+                    <p className="pk-route-meta pk-route-meta--compact">
                       <PickupRouteStatusBadge status={route.status} /> ·{" "}
                       {route.snapshot.driver?.name} ·{" "}
-                      {route.snapshot.vehicle?.data.plate}
+                      {route.snapshot.vehicle?.data.plate} · {route.start_time}
+                      {routeStartAddress(route)
+                        ? ` · ${routeStartAddress(route)}`
+                        : " · Склад HAULZ"}
                     </p>
                   </div>
-                  <span className="pk-badge pk-badge--progress">
-                    Обработано:
-                    {
-                      routeJobs.filter((j) =>
-                        [
-                          "picked_up",
-                          "partial",
-                          "deposited",
-                          "resolved",
-                        ].includes(j.status),
-                      ).length
-                    }{" "}
-                    / {routeJobs.length}
-                  </span>
                 </div>
                 {dispatch &&
                   route.status !== "completed" &&
@@ -1262,24 +1265,88 @@ export function PickupPage({
                 )}
                 {dispatch &&
                   routeWarnings(routeJobs, route.snapshot.vehicle).map((w) => (
-                    <p key={w} className="pk-warning">
+                    <p key={w} className="pk-warning pk-warning--compact">
                       {w}
                     </p>
                   ))}
                 {dispatch && (
-                  <p className="pk-muted">
-                    План:{" "}
-                    {routeJobs.reduce((s, j) => s + plannedPlaces(j.data), 0)}{" "}
-                    мест ·{" "}
-                    {routeJobs
-                      .reduce((s, j) => s + (j.data.weightKg ?? 0), 0)
-                      .toFixed(1)}{" "}
-                    кг ·{" "}
-                    {routeJobs
-                      .reduce((s, j) => s + (j.data.volumeM3 ?? 0), 0)
-                      .toFixed(2)}{" "}
-                    м³
-                  </p>
+                  <div className="pk-route-plan-bar">
+                    <p className="pk-route-plan-summary">
+                      План:{" "}
+                      {routeJobs.reduce((s, j) => s + plannedPlaces(j.data), 0)}{" "}
+                      мест ·{" "}
+                      {routeJobs
+                        .reduce((s, j) => s + (j.data.weightKg ?? 0), 0)
+                        .toFixed(1)}{" "}
+                      кг ·{" "}
+                      {routeJobs
+                        .reduce((s, j) => s + (j.data.volumeM3 ?? 0), 0)
+                        .toFixed(2)}{" "}
+                      м³
+                    </p>
+                    {(route.status === "draft" ||
+                      route.status === "published" ||
+                      route.status === "started" ||
+                      route.status === "completed") && (
+                      <div className="pk-route-actions pk-route-actions--compact">
+                        {(route.status === "draft" ||
+                          route.status === "published" ||
+                          route.status === "started") && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditor({ type: "route", route })
+                            }
+                          >
+                            Параметры
+                          </button>
+                        )}
+                        <DeleteRouteButton
+                          route={route}
+                          busy={busy}
+                          act={act}
+                          compact
+                          onDone={() => setSelected("")}
+                        />
+                        {route.status === "draft" && (
+                          <PickupPublishReview
+                            route={route}
+                            jobs={routeJobs}
+                            resources={snapshot.resources}
+                            snapshot={snapshot}
+                            call={call}
+                            stale={stale}
+                            busy={busy}
+                            error={error}
+                            compact
+                            onPublish={() =>
+                              act(
+                                {
+                                  action: "publish",
+                                  id: route.id,
+                                  version: route.version,
+                                },
+                                "Маршрут опубликован водителю",
+                              )
+                            }
+                            onApplyRouteOrder={(result) =>
+                              act(
+                                {
+                                  action: "reorder",
+                                  id: route.id,
+                                  version: result.routeVersion,
+                                  ids: result.ids,
+                                  analysisSignature: result.signature,
+                                  checkedAt: result.checkedAt,
+                                },
+                                "Предложенный порядок применён",
+                              )
+                            }
+                          />
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {route.status !== "draft" &&
                   route.status !== "completed" &&
@@ -1339,123 +1406,6 @@ export function PickupPage({
                       )}
                     </div>
                   )}
-                {dispatch && route.status === "draft" && (
-                  <div className="pk-route-draft-bar">
-                    <p className="pk-muted">
-                      Черновик маршрута — можно изменить, удалить или
-                      опубликовать водителю.
-                    </p>
-                    <div className="pk-actions">
-                      <button
-                        type="button"
-                        onClick={() => setEditor({ type: "route", route })}
-                      >
-                        Параметры
-                      </button>
-                      <DeleteRouteButton
-                        route={route}
-                        busy={busy}
-                        act={act}
-                        onDone={() => setSelected("")}
-                      />
-                      <PickupPublishReview
-                        route={route}
-                        jobs={routeJobs}
-                        resources={snapshot.resources}
-                        snapshot={snapshot}
-                        call={call}
-                        stale={stale}
-                        busy={busy}
-                        error={error}
-                        onPublish={() =>
-                          act(
-                            {
-                              action: "publish",
-                              id: route.id,
-                              version: route.version,
-                            },
-                            "Маршрут опубликован водителю",
-                          )
-                        }
-                        onApplyRouteOrder={(result) =>
-                          act(
-                            {
-                              action: "reorder",
-                              id: route.id,
-                              version: result.routeVersion,
-                              ids: result.ids,
-                              analysisSignature: result.signature,
-                              checkedAt: result.checkedAt,
-                            },
-                            "Предложенный порядок применён",
-                          )
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-                {dispatch && route.status === "completed" && (
-                  <div className="pk-route-draft-bar">
-                    <p className="pk-muted">
-                      Маршрут завершён. Можно удалить запись маршрута — заборы
-                      останутся в журнале дня без привязки к рейсу.
-                    </p>
-                    <div className="pk-actions">
-                      <DeleteRouteButton
-                        route={route}
-                        busy={busy}
-                        act={act}
-                        onDone={() => setSelected("")}
-                      />
-                    </div>
-                  </div>
-                )}
-                {dispatch && route.status === "published" && (
-                  <div className="pk-route-draft-bar">
-                    <p className="pk-muted">
-                      Маршрут опубликован, но ещё не начат. Можно удалить
-                      (заборы вернутся в «Не распределено») или изменить
-                      параметры.
-                    </p>
-                    <div className="pk-actions">
-                      <button
-                        type="button"
-                        onClick={() => setEditor({ type: "route", route })}
-                      >
-                        Параметры
-                      </button>
-                      <DeleteRouteButton
-                        route={route}
-                        busy={busy}
-                        act={act}
-                        onDone={() => setSelected("")}
-                      />
-                    </div>
-                  </div>
-                )}
-                {dispatch && route.status === "started" && (
-                  <div className="pk-route-draft-bar">
-                    <p className="pk-muted">
-                      Рейс выполняется. Можно изменить параметры (пока все
-                      точки «Ожидает забора») или удалить маршрут — заборы
-                      останутся в журнале дня без привязки к рейсу.
-                    </p>
-                    <div className="pk-actions">
-                      <button
-                        type="button"
-                        onClick={() => setEditor({ type: "route", route })}
-                      >
-                        Параметры
-                      </button>
-                      <DeleteRouteButton
-                        route={route}
-                        busy={busy}
-                        act={act}
-                        onDone={() => setSelected("")}
-                      />
-                    </div>
-                  </div>
-                )}
                 <div className="pk-actions">
                   {driverCanOperate &&
                     mode === "driver" &&
@@ -1522,15 +1472,21 @@ export function PickupPage({
                     />
                   </div>
                 )}
-                <RouteMap jobs={routeJobs} />
-                {dispatch && route.status !== "completed" && (
-                  <p className="pk-hint">
-                    Перетаскивайте за ручку ⠿ или используйте «Выше / Ниже».
-                    Начатые точки остаются на своих местах.
-                  </p>
+                {dispatch ? (
+                  <details className="pk-route-map-fold">
+                    <summary>Карта</summary>
+                    <RouteMap jobs={routeJobs} />
+                  </details>
+                ) : (
+                  <RouteMap jobs={routeJobs} />
                 )}
                 </div>
                 <div className="pk-route-detail__stops-scroll">
+                {dispatch && route.status !== "completed" && (
+                  <p className="pk-hint pk-hint--stops-toolbar">
+                    ⠿ перетаскивание · «Выше / Ниже»
+                  </p>
+                )}
                 <ol
                   className={`pk-stops${dispatch && jobViewCompact ? " pk-stops--compact" : ""}`}
                 >
