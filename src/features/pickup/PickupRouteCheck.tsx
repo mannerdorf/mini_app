@@ -40,7 +40,7 @@ export function PickupRouteCheck({
         onClick={() => setOpen(true)}
       >
         <RouteIcon size={18} />
-        Проверить маршрут
+        2ГИС
       </button>
       {open && (
         <CheckDialog
