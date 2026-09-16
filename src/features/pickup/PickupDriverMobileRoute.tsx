@@ -1,4 +1,6 @@
 import React from "react";
+import { PickupStopOrder } from "./PickupStopOrder";
+import { routeStartAddress, statusLabels } from "../../../lib/pickup/model";
 import { cities, type City, type Job, type Route } from "../../../lib/pickup/model";
 import { PickupRouteStatusBadge } from "./PickupRouteStatusBadge";
 import { PickupDeposit } from "./PickupDeposit";
@@ -15,6 +17,8 @@ import type { PickupCall } from "./client";
 type ActBody = Record<string, unknown> & { action: string; id: string; version: number };
 
 type Props = {
+  onDraftChange?: (dirty: boolean) => void;
+  draftDirty?: boolean;
   route: Route;
   routeJobs: Job[];
   city: City;
@@ -34,11 +38,13 @@ type Props = {
     body: ActBody,
     ok: string,
     queue?: boolean,
-  ) => Promise<boolean | void>;
+  ) => Promise<boolean>;
 };
 
 export function PickupDriverMobileRoute({
   route,
+  onDraftChange,
+  draftDirty = false,
   routeJobs,
   city,
   busy,
@@ -69,7 +75,7 @@ export function PickupDriverMobileRoute({
     (route.status === "started" && route.acknowledged_version !== route.version);
 
   return (
-    <main className="pk-panel pk-route-detail pk-driver-mobile-route">
+    <section className="pk-panel pk-route-detail pk-driver-mobile-route">
       <header className="pk-driver-mobile-route__head">
         <p className="pk-eyebrow">
           {cities[city]} · {route.date}
@@ -91,6 +97,14 @@ export function PickupDriverMobileRoute({
         ) : null}
       </header>
 
+      <details className="pk-driver-itinerary">
+        <summary>Все остановки · {total}</summary>
+        <p className="pk-hint">Старт: {routeStartAddress(route) || "Склад HAULZ"}</p>
+        <ol>{routeJobs.map((job) => <li key={job.id}><strong>{job.data.senderName}</strong><span>{job.data.address}</span><span>{job.data.windowFrom}–{job.data.windowTo} · {statusLabels[job.status]}</span></li>)}</ol>
+        <p><strong>Финиш: {route.snapshot.depot?.name || "Склад HAULZ"}</strong><br />{route.snapshot.depot?.data.address}</p>
+        <PickupStopOrder route={route} jobs={routeJobs} busy={busy} error={error} disabled={blocked || draftDirty || stale || outboxCount > 0 || route.status === "completed"} onSave={async (ids, version) => Boolean(await act({ action: "reorder", id: route.id, version, ids, asDriver: true }, "Порядок точек сохранён"))} />
+      </details>
+      {route.status === "started" && driverCanOperate && <details className="pk-driver-itinerary"><summary>Передача GPS диспетчеру</summary><PickupDriverLocation key={route.id} routeId={route.id} available={locationAvailable} call={call} /></details>}
       {phase === "sync" && (
         <section className="pk-driver-mobile-step">
           <h2 className="pk-driver-mobile-step__title">Отправьте сохранённые отметки</h2>
@@ -147,15 +161,8 @@ export function PickupDriverMobileRoute({
 
       {phase === "on_stop" && current && (
         <>
-          {route.status === "started" && driverCanOperate ? (
-            <PickupDriverLocation
-              key={route.id}
-              routeId={route.id}
-              available={locationAvailable}
-              call={call}
-            />
-          ) : null}
           <PickupDriverJobFlow
+            onDraftChange={onDraftChange}
             job={current}
             stopIndex={currentIndex}
             stopTotal={total}
@@ -188,7 +195,10 @@ export function PickupDriverMobileRoute({
         <section className="pk-driver-mobile-step">
           <h2 className="pk-driver-mobile-step__title">Сдача на склад</h2>
           <p className="pk-hint">Все заборы закрыты. Подтвердите передачу груза на склад HAULZ.</p>
+          <p>{route.snapshot.depot?.data.address}</p>
+          <a className="pk-driver-mobile-nav" href={`https://yandex.ru/maps/?rtext=~${encodeURIComponent(route.snapshot.depot?.data.address || "")}&rtt=auto`} target="_blank" rel="noreferrer">Навигация до склада</a>
           <PickupDeposit
+            onDraftChange={onDraftChange}
             key={route.id}
             jobs={routeJobs}
             busy={busy}
@@ -217,6 +227,6 @@ export function PickupDriverMobileRoute({
           <p className="pk-hint">Спасибо. Все точки закрыты, данные сохранены.</p>
         </section>
       )}
-    </main>
+    </section>
   );
 }

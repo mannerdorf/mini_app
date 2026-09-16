@@ -1,4 +1,4 @@
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import { pickupJobNeedsZayavka, type Job } from "../../../lib/pickup/model";
 
 export type DepositZayavka = { id: string; version: number; number: string };
@@ -10,7 +10,9 @@ export function PickupDeposit({
   error,
   onConfirm,
   autoOpen = false,
+  onDraftChange,
 }: {
+  onDraftChange?: (dirty: boolean) => void;
   jobs: Job[];
   busy: boolean;
   disabled: boolean;
@@ -21,6 +23,8 @@ export function PickupDeposit({
 }) {
   const [open, setOpen] = useState(autoOpen);
   const [values, setValues] = useState<Record<string, string>>({});
+  useEffect(() => { onDraftChange?.(Object.values(values).some(Boolean)); }, [values, onDraftChange]);
+  useEffect(() => () => onDraftChange?.(false), [onDraftChange]);
   const prefix = useId();
   const missing = jobs.filter(pickupJobNeedsZayavka);
   const ready = missing.every((job) => values[job.id]?.trim());

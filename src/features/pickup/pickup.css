@@ -2507,3 +2507,35 @@
     margin-bottom: 8px;
   }
 }
+
+/* Driver's three primary destinations; scoped to the mobile pickup module. */
+.pk-driver--mobile { padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px)); }
+.pk-driver-nav { position: fixed; bottom: 0; left: 0; right: 0; z-index: 40; display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px)); background: var(--pk-panel); border-top: 1px solid var(--pk-border); box-shadow: 0 -4px 24px #0000000a; }
+.pk-root .pk-driver-nav button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-height: 54px; background: transparent; color: var(--pk-muted); border: 0; border-radius: 14px; font-size: 12px; }
+.pk-root .pk-driver-nav button[aria-current="page"] { color: var(--color-primary, #2563eb); background: color-mix(in srgb, var(--color-primary, #2563eb) 12%, var(--pk-panel)); font-weight: 700; }
+.pk-driver-home, .pk-driver-profile { display: grid; gap: 14px; }
+.pk-driver-day-card { border: 1px solid var(--pk-border); border-radius: 20px; padding: 20px; background: color-mix(in srgb, var(--color-primary, #2563eb) 8%, var(--pk-panel)); }
+.pk-driver-day-card h2 { font-size: 23px; margin: 8px 0; text-transform: capitalize; }
+.pk-driver-day-card > p:not(.pk-eyebrow) { color: var(--pk-muted); font-size: 13px; }
+.pk-driver-day-numbers { display: flex; gap: 28px; margin: 20px 0; }
+.pk-driver-day-numbers span { display: grid; gap: 4px; font-size: 13px; }
+.pk-driver-day-numbers strong { font-size: 26px; }
+.pk-root .pk-driver-trip-card { display: grid; gap: 12px; width: 100%; padding: 18px; text-align: left; white-space: normal; background: var(--pk-panel); color: var(--pk-ink); border: 1px solid var(--pk-border); border-radius: 18px; }
+.pk-driver-trip-card__top { display: flex; justify-content: space-between; gap: 12px; }
+.pk-driver-trip-card > span:not(:first-child) { font-size: 13px; }
+.pk-driver-trip-card progress { width: 100%; height: 6px; accent-color: #16966b; }
+.pk-driver-itinerary { padding: 14px; border: 1px solid var(--pk-border); border-radius: 14px; margin: 12px 0; }
+.pk-driver-itinerary summary { min-height: 32px; font-weight: 700; cursor: pointer; }
+.pk-driver-itinerary ol { padding-left: 24px; }
+.pk-driver-itinerary li { padding: 10px 0; border-bottom: 1px solid var(--pk-border); }
+.pk-driver-itinerary li span { display: block; margin-top: 5px; font-size: 13px; color: var(--pk-muted); }
+.pk-driver-profile p { overflow-wrap: anywhere; }
+.pk-driver--mobile .pk-driver-mobile-cta { min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 10px; }
+.pk-driver--mobile button:focus-visible, .pk-driver--mobile a:focus-visible { outline: 3px solid var(--color-primary, #2563eb); outline-offset: 3px; }
+.pk-root .pk-driver-date-fields { border: 0; padding: 0; margin: 0; min-width: 0; }
+.pk-driver-contact-actions { display: grid; gap: 8px; }
+.pk-driver-contact-link { display: flex; align-items: center; min-height: 48px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--pk-border); color: var(--color-primary, #2563eb); text-decoration: none; }
+.pk-driver-trip-card .pk-badge { justify-self: start; }
+.pk-driver--mobile .pk-day-controls > summary { flex-wrap: wrap; gap: 6px; }
+/* Embedded profile entry also uses the driver's own navigation. */
+body:has(.pk-driver--mobile) .tabbar-container { display: none; }

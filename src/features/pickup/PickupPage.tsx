@@ -1,3 +1,4 @@
+import { DriverBottomNav, DriverHome, DriverProfile, type DriverTab } from "./PickupDriverNavigation";
 import { PickupRouteCheck } from "./PickupRouteCheck";
 import React, {
   useCallback,
@@ -184,6 +185,8 @@ export function PickupPage({
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
   const outboxKey = `outbox:${account.login.toLowerCase()}`;
   const dispatch = mode === "dispatch" && snapshot.dispatcher;
+  const [driverTab, setDriverTab] = useState<DriverTab>("home");
+  const [driverDraftDirty, setDriverDraftDirty] = useState(false);
   const isMobileLayout = useMobileLayout();
   const driverMobileUx = mode === "driver" && isMobileLayout;
   const routeDeleteAllowed = useCallback(
@@ -419,11 +422,12 @@ export function PickupPage({
     <div
       className={`pk-root ${mode === "driver" ? "pk-driver-root" : ""}${driverMobileUx ? " pk-driver--mobile" : ""}`}
     >
+      {driverMobileUx && <DriverBottomNav tab={driverTab} onChange={setDriverTab} />}
       <header className="pk-header">
         {hideBackNav ? (
           <span className="pk-header-spacer" aria-hidden />
         ) : (
-          <button onClick={onBack} aria-label="Назад в Холз">
+          <button disabled={driverMobileUx && driverDraftDirty} onClick={onBack} aria-label="Назад в Холз">
             <ArrowLeft size={20} />
           </button>
         )}
@@ -434,7 +438,7 @@ export function PickupPage({
               ? "Диспетчеризация"
               : serviceBrowse
                 ? "Маршруты водителей"
-                : "Мой маршрут"}
+                : driverMobileUx ? ({ home: "Мой день", route: "Мой маршрут", profile: "Профиль" }[driverTab]) : "Мой маршрут"}
           </h1>
         </div>
         <button
@@ -445,6 +449,7 @@ export function PickupPage({
           <RefreshCw size={18} />
         </button>
       </header>
+      <fieldset className="pk-driver-date-fields" disabled={driverMobileUx && driverDraftDirty} hidden={driverMobileUx && driverTab === "profile"}>
       <DayControls
         driver={mode === "driver"}
         label={`${cities[city]} · ${date}`}
@@ -482,6 +487,10 @@ export function PickupPage({
           )}
         </div>
       </DayControls>
+      </fieldset>
+      {driverMobileUx && driverTab === "home" && <DriverHome routes={routes} jobs={snapshot.jobs} date={date} today={today(city)} loading={loading} stale={stale} pending={outbox.length} onToday={() => { if (!driverDraftDirty) setDate(today(city)); else setNotice("Сначала сохраните данные текущей точки"); }} onRoute={(id) => { if (driverDraftDirty && id !== route?.id) { setNotice("Сначала сохраните данные текущей точки"); return; } setSelected(id); setDriverTab("route"); }} />}
+      {driverMobileUx && driverTab === "profile" && <DriverProfile account={account} route={route} blocked={busy || driverDraftDirty || outbox.length > 0 || !outboxReady} />}
+
       {error && (
         <p className="pk-error" role="alert">
           {error}
@@ -1056,6 +1065,7 @@ export function PickupPage({
         </section>
       ) : (
         <div
+          style={driverMobileUx && driverTab !== "route" ? { display: "none" } : undefined}
           className={`pk-workspace ${!dispatch ? "pk-driver-workspace" : ""}`}
         >
           {(dispatch || routes.length > 1) && (
@@ -1071,7 +1081,7 @@ export function PickupPage({
                   <button
                     type="button"
                     className="pk-route-tile"
-                    onClick={() => setSelected(r.id)}
+                    onClick={() => { if (driverMobileUx && driverDraftDirty && r.id !== route?.id) { setNotice("Сначала сохраните данные текущей точки"); return; } setSelected(r.id); }}
                   >
                     <strong>{r.name}</strong>
                     <span className="pk-route-tile__meta">
@@ -1203,6 +1213,8 @@ export function PickupPage({
           <main className={`pk-panel${route ? " pk-route-detail" : ""}`}>
             {route && driverMobileUx ? (
               <PickupDriverMobileRoute
+                onDraftChange={setDriverDraftDirty}
+                draftDirty={driverDraftDirty}
                 route={route}
                 routeJobs={routeJobs}
                 city={city}

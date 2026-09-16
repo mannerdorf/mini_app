@@ -11,6 +11,7 @@ const navUrl = (address: string) =>
 type ActBody = Record<string, unknown> & { action: string; id: string; version: number };
 
 type Props = {
+  onDraftChange?: (dirty: boolean) => void;
   job: Job;
   stopIndex: number;
   stopTotal: number;
@@ -26,6 +27,7 @@ type PickupStep = "arrive" | "pickup_places" | "pickup_photos" | "pickup_confirm
 
 export function PickupDriverJobFlow({
   job,
+  onDraftChange,
   stopIndex,
   stopTotal,
   busy,
@@ -40,6 +42,11 @@ export function PickupDriverJobFlow({
   const [photos, setPhotos] = useState<string[]>([]);
   const [photoBusy, setPhotoBusy] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    onDraftChange?.(photos.length > 0 || note.length > 0 || actual.length > 0);
+  }, [photos.length, note, actual, onDraftChange]);
+  useEffect(() => () => onDraftChange?.(false), [onDraftChange]);
 
   useEffect(() => {
     setStep(job.status === "arrived" ? "pickup_places" : "arrive");
@@ -70,6 +77,15 @@ export function PickupDriverJobFlow({
       <h2 className="pk-driver-mobile-step__title">{job.data.senderName}</h2>
       <p className="pk-driver-mobile-step__address">{job.data.address}</p>
 
+      <div className="pk-driver-contact-actions">
+        {job.data.contacts.filter((c) => c.phone).map((c, index) => <a key={index} href={`tel:${c.phone.replace(/[^+0-9]/g, "")}`} className="pk-driver-contact-link">Позвонить: {c.name || "отправитель"}{c.extension ? ` · доб. ${c.extension}` : ""}</a>)}
+      </div>
+      <details className="pk-driver-itinerary"><summary>Груз и документы</summary>
+        <p>{planned} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</p>
+        <p>Склад: {job.data.warehouseHours || `${job.data.windowFrom}–${job.data.windowTo}`}</p>
+        {job.data.documents.map((d, i) => <p key={i}>Счёт {d.number}{d.date ? ` от ${d.date}` : ""}</p>)}
+        {job.data.requirements && <p>{job.data.requirements}</p>}
+      </details>
       {step === "arrive" && (
         <div className="pk-driver-mobile-step__body">
           {instructions ? <p className="pk-instructions">{instructions}</p> : null}
