@@ -113,7 +113,6 @@ export function publicationIssues(
   resources: Resource[],
 ): string[] {
   const driver = resources.find((r) => r.id === route.driver_id),
-    vehicle = resources.find((r) => r.id === route.vehicle_id),
     depot = resources.find((r) => r.id === route.depot_id);
   const issues: string[] = [];
   if (!jobs.length) issues.push("Добавьте хотя бы один забор.");
@@ -134,10 +133,15 @@ export function publicationIssues(
     )
   )
     issues.push("Есть точки вне времени маршрута или работы склада.");
-  issues.push(
-    ...routeWarnings(jobs, vehicle).filter((w) => w.startsWith("Превышен")),
-  );
   return issues;
+}
+export function publicationCapacityWarnings(
+  jobs: Job[],
+  resources: Resource[],
+  route: Route,
+): string[] {
+  const vehicle = resources.find((r) => r.id === route.vehicle_id);
+  return routeWarnings(jobs, vehicle).filter((w) => w.startsWith("Превышен"));
 }
 export function currentDriverJob(jobs: Job[]) {
   return (

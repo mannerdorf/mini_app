@@ -6,7 +6,7 @@ import {
   type Route,
   type Resource,
 } from "../../../lib/pickup/model";
-import { publicationIssues } from "./operations";
+import { publicationCapacityWarnings, publicationIssues } from "./operations";
 export function PickupPublishReview({
   route,
   jobs,
@@ -28,6 +28,7 @@ export function PickupPublishReview({
     if (open) dialog.current?.showModal();
   }, [open]);
   const issues = publicationIssues(route, jobs, resources);
+  const capacityWarnings = publicationCapacityWarnings(jobs, resources, route);
   const vehicle = resources.find((r) => r.id === route.vehicle_id),
     driver = resources.find((r) => r.id === route.driver_id),
     depot = resources.find((r) => r.id === route.depot_id);
@@ -83,6 +84,11 @@ export function PickupPublishReview({
           {issues.map((x) => (
             <p key={x} className="pk-error">
               {x}
+            </p>
+          ))}
+          {capacityWarnings.map((x) => (
+            <p key={x} className="pk-warning">
+              {x} Публикация возможна — проверьте решение диспетчера.
             </p>
           ))}
           {routeWarnings(jobs, vehicle)

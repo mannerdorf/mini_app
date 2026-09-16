@@ -434,8 +434,8 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
           version: s.routes[0].version,
         })
       ).status,
-    ).toBe(400);
-    expect((await snapshot()).routes[0].status).toBe("draft");
+    ).toBe(200);
+    expect((await snapshot()).routes[0].status).toBe("published");
   });
   it("locks completed points and requires acknowledging changed routes", async () => {
     const ids = await setup();

@@ -1063,15 +1063,18 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         ),
         "Есть точки вне времени маршрута / работы склада",
       );
-      const warnings = routeWarnings(jobs, snapshot.vehicle);
-      requireValue(
-        !warnings.some((w) => w.startsWith("Превышен")),
-        warnings.join(" "),
+      const capacityWarnings = routeWarnings(jobs, snapshot.vehicle).filter((w) =>
+        w.startsWith("Превышен"),
       );
       await db.query(
         "UPDATE pickup_routes SET status='published',snapshot=$2,version=version+1,updated_at=now() WHERE id=$1",
         [route.id, JSON.stringify(snapshot)],
       );
+      if (capacityWarnings.length) {
+        await event(db, actor, "Маршрут опубликован с предупреждением о вместимости", route.id, null, {
+          warnings: capacityWarnings,
+        });
+      }
     }
     if (action === "start") {
       requireValue(
