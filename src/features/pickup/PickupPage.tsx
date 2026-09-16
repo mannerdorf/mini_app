@@ -99,6 +99,19 @@ const today = (city: City) =>
 const navUrl = (address: string) =>
   `https://yandex.ru/maps/?rtext=~${encodeURIComponent(address)}&rtt=auto`;
 
+const PICKUP_JOB_VIEW_KEY = "haulz.pickup.jobView";
+type PickupJobView = "detailed" | "compact";
+
+function readPickupJobView(): PickupJobView {
+  if (typeof window === "undefined") return "detailed";
+  try {
+    const v = localStorage.getItem(PICKUP_JOB_VIEW_KEY);
+    return v === "compact" ? "compact" : "detailed";
+  } catch {
+    return "detailed";
+  }
+}
+
 export function PickupPage({
   account,
   mode,
@@ -144,6 +157,16 @@ export function PickupPage({
   const [dayFilter, setDayFilter] = useState<DayFilter>("all");
   const [search, setSearch] = useState("");
   const [directorySearch, setDirectorySearch] = useState("");
+  const [jobView, setJobView] = useState<PickupJobView>(readPickupJobView);
+  const jobViewCompact = jobView === "compact";
+  const setJobViewPersist = (next: PickupJobView) => {
+    setJobView(next);
+    try {
+      localStorage.setItem(PICKUP_JOB_VIEW_KEY, next);
+    } catch {
+      /* ignore */
+    }
+  };
   const [outbox, setOutbox] = useState<Pending[]>([]);
   const [outboxReady, setOutboxReady] = useState(false);
   const serial = useRef(0),
@@ -548,6 +571,30 @@ export function PickupPage({
               </button>
             ))}
           </nav>
+          {(tab === "jobs" || tab === "routes") && (
+            <div
+              className="pk-view-toggle haulz-calc-segment"
+              role="group"
+              aria-label="Вид карточек заборов"
+            >
+              <button
+                type="button"
+                className={`haulz-calc-segment__btn${!jobViewCompact ? " haulz-calc-segment__btn--active" : ""}`}
+                aria-pressed={!jobViewCompact}
+                onClick={() => setJobViewPersist("detailed")}
+              >
+                Подробно
+              </button>
+              <button
+                type="button"
+                className={`haulz-calc-segment__btn${jobViewCompact ? " haulz-calc-segment__btn--active" : ""}`}
+                aria-pressed={jobViewCompact}
+                onClick={() => setJobViewPersist("compact")}
+              >
+                Сжатый
+              </button>
+            </div>
+          )}
         </>
       )}
       {loading ? null : dispatch && tab === "monitor" ? (
@@ -856,12 +903,15 @@ export function PickupPage({
                   )
                 }
               >
-                <article className={`pk-card pk-card--${j.status}`}>
+                <article
+                  className={`pk-card pk-card--${j.status}${jobViewCompact ? " pk-card--compact" : ""}`}
+                >
                   <JobDetails
                     job={j}
                     call={call}
                     driver={false}
                     dispatcher={true}
+                    compact={jobViewCompact}
                     canAct={false}
                     canCancel={false}
                     busy={busy}
@@ -987,13 +1037,13 @@ export function PickupPage({
                   </h2>
                   {unassigned.map((j) => (
                     <article
-                      className={`pk-card pk-card--${j.status}`}
+                      className={`pk-card pk-card--${j.status}${jobViewCompact ? " pk-card--compact" : ""}`}
                       key={j.id}
                     >
                       <div className="pk-card__head">
                         <PickupJobStatusBadge status={j.status} />
                       </div>
-                      <JobSummary job={j} />
+                      <JobSummary job={j} compact={jobViewCompact} />
                       <div className="pk-actions">
                         <button
                           type="button"
@@ -1437,6 +1487,7 @@ export function PickupPage({
                             call={call}
                             driver={mode === "driver"}
                             dispatcher={dispatch}
+                            compact={dispatch && jobViewCompact}
                             canAct={
                               mode === "driver" &&
                               route.status === "started" &&
@@ -1686,9 +1737,11 @@ function DriverPointWrapper({
 function JobSummary({
   job,
   showBadge = false,
+  compact = false,
 }: {
   job: Job;
   showBadge?: boolean;
+  compact?: boolean;
 }) {
   return (
     <>
@@ -1701,23 +1754,29 @@ function JobSummary({
         {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
         мест · {job.data.weightKg ?? "—"} кг
       </p>
-      <h3>{job.data.senderName}</h3>
-      <p>{job.data.address}</p>
-      {job.data.defaultPlaceAddress ? (
-        <p className="pk-muted">
-          Место по умолчанию: {job.data.defaultPlaceAddress}
-        </p>
-      ) : null}
-      {job.data.scheduleGroupId ? (
-        <p className="pk-muted">
-          Серия по графику · {job.data.scheduleGroupId.slice(0, 8)}…
-        </p>
-      ) : null}
-      <p className="pk-muted">
-        Заказчик: {job.data.customerName}
-        {job.data.zayavkaNumber ? ` · Заявка ${job.data.zayavkaNumber}` : ""}
-        {job.data.cargoNumber ? ` · Перевозка ${job.data.cargoNumber}` : ""}
-      </p>
+      <h3 className={compact ? "pk-job-title-compact" : undefined}>
+        {job.data.senderName}
+      </h3>
+      {compact ? null : (
+        <>
+          <p>{job.data.address}</p>
+          {job.data.defaultPlaceAddress ? (
+            <p className="pk-muted">
+              Место по умолчанию: {job.data.defaultPlaceAddress}
+            </p>
+          ) : null}
+          {job.data.scheduleGroupId ? (
+            <p className="pk-muted">
+              Серия по графику · {job.data.scheduleGroupId.slice(0, 8)}…
+            </p>
+          ) : null}
+          <p className="pk-muted">
+            Заказчик: {job.data.customerName}
+            {job.data.zayavkaNumber ? ` · Заявка ${job.data.zayavkaNumber}` : ""}
+            {job.data.cargoNumber ? ` · Перевозка ${job.data.cargoNumber}` : ""}
+          </p>
+        </>
+      )}
     </>
   );
 }
@@ -1762,6 +1821,7 @@ function JobDetails({
   call,
   driver,
   dispatcher,
+  compact = false,
   canAct,
   canCancel,
   busy,
@@ -1771,6 +1831,7 @@ function JobDetails({
   call: PickupCall;
   driver: boolean;
   dispatcher: boolean;
+  compact?: boolean;
   canAct: boolean;
   canCancel: boolean;
   busy: boolean;
@@ -1795,7 +1856,7 @@ function JobDetails({
         )}
       </div>
       {!driver ? (
-        <JobSummary job={job} />
+        <JobSummary job={job} compact={compact && dispatcher} />
       ) : (
         <p className="pk-hint">
           Заказчик: {job.data.customerName}
@@ -1803,65 +1864,69 @@ function JobDetails({
           {job.data.cargoNumber ? ` · Перевозка ${job.data.cargoNumber}` : ""}
         </p>
       )}
-      <div className="pk-actions">
-        <a
-          className={driver ? "pk-action-link" : undefined}
-          href={navUrl(
-            job.data.latitude !== null && job.data.longitude !== null
-              ? `${job.data.latitude},${job.data.longitude}`
-              : job.data.address,
+      {compact && dispatcher && !driver ? null : (
+        <>
+          <div className="pk-actions">
+            <a
+              className={driver ? "pk-action-link" : undefined}
+              href={navUrl(
+                job.data.latitude !== null && job.data.longitude !== null
+                  ? `${job.data.latitude},${job.data.longitude}`
+                  : job.data.address,
+              )}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Навигация ↗
+            </a>
+            {job.data.directionsUrl && (
+              <a href={job.data.directionsUrl} target="_blank" rel="noreferrer">
+                Схема проезда ↗
+              </a>
+            )}
+          </div>
+          {(() => {
+            const text = pickupSiteInstructionsDisplay(job.data.instructions);
+            return text ? <p className="pk-instructions">{text}</p> : null;
+          })()}
+          <p>
+            Склад отправителя: {job.data.warehouseHours || "График не указан"} ·
+            Погрузка: {job.data.serviceMinutes} мин.
+          </p>
+          <div>
+            {job.data.contacts.map((c, i) => (
+              <p key={i}>
+                <strong>{c.name || "Контакт"}</strong> · {c.purpose} ·{" "}
+                <a href={`tel:${c.phone.replace(/[^+\d]/g, "")}`}>{c.phone}</a>
+                {c.extension && ` доб. ${c.extension}`}
+              </p>
+            ))}
+          </div>
+          {!!job.data.documents.length && (
+            <div>
+              <strong>Получить по документам:</strong>
+              {job.data.documents.map((d, i) => (
+                <p key={i}>
+                  № {d.number}
+                  {d.date ? ` от ${d.date}` : " — дата не указана"}
+                </p>
+              ))}
+            </div>
           )}
-          target="_blank"
-          rel="noreferrer"
-        >
-          Навигация ↗
-        </a>
-        {job.data.directionsUrl && (
-          <a href={job.data.directionsUrl} target="_blank" rel="noreferrer">
-            Схема проезда ↗
-          </a>
-        )}
-      </div>
-      {(() => {
-        const text = pickupSiteInstructionsDisplay(job.data.instructions);
-        return text ? <p className="pk-instructions">{text}</p> : null;
-      })()}
-      <p>
-        Склад отправителя: {job.data.warehouseHours || "График не указан"} ·
-        Погрузка: {job.data.serviceMinutes} мин.
-      </p>
-      <div>
-        {job.data.contacts.map((c, i) => (
-          <p key={i}>
-            <strong>{c.name || "Контакт"}</strong> · {c.purpose} ·{" "}
-            <a href={`tel:${c.phone.replace(/[^+\d]/g, "")}`}>{c.phone}</a>
-            {c.extension && ` доб. ${c.extension}`}
-          </p>
-        ))}
-      </div>
-      {!!job.data.documents.length && (
-        <div>
-          <strong>Получить по документам:</strong>
-          {job.data.documents.map((d, i) => (
-            <p key={i}>
-              № {d.number}
-              {d.date ? ` от ${d.date}` : " — дата не указана"}
-            </p>
-          ))}
-        </div>
+          <details>
+            <summary>Груз и примечания</summary>
+            {job.data.places.map((p, i) => (
+              <p key={i}>
+                {p.count} × {p.kind || "место"}
+              </p>
+            ))}
+            <p>Объём: {job.data.volumeM3 ?? "—"} м³</p>
+            {job.data.requirements?.trim() ? <p>{job.data.requirements}</p> : null}
+            <p>{job.data.note}</p>
+          </details>
+        </>
       )}
-      <details>
-        <summary>Груз и примечания</summary>
-        {job.data.places.map((p, i) => (
-          <p key={i}>
-            {p.count} × {p.kind || "место"}
-          </p>
-        ))}
-        <p>Объём: {job.data.volumeM3 ?? "—"} м³</p>
-        {job.data.requirements?.trim() ? <p>{job.data.requirements}</p> : null}
-        <p>{job.data.note}</p>
-      </details>
-      {!driver && (
+      {!driver && !(compact && dispatcher) && (
         <p className="pk-muted">
           Стоимость заказчику: {job.data.priceRub ?? "—"} ₽ · Оплата:{" "}
           {job.data.payment || "Не указано"}
