@@ -365,6 +365,17 @@
 .pk-root .pk-customer-quote {
   margin: 16px 0;
 }
+.pk-root .pk-customer-quote__toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 12px 0 16px;
+}
+.pk-root .pk-customer-quote__toggle-label {
+  font-weight: 600;
+  line-height: 1.3;
+}
 .pk-root .pk-customer-quote__select {
   width: 100%;
   min-height: 42px;

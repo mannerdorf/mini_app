@@ -618,6 +618,8 @@ const emptyData: JobData = {
   priceRub: null,
   payment: "Не указано",
   mkadKm: null,
+  issueCustomerBill: false,
+  customerBillMode: "",
   requirements: "",
   note: "",
   latitude: null,

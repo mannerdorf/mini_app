@@ -37,6 +37,8 @@ export const validJobData = () =>
     volumeM3: 0.27,
     priceRub: 1500,
     payment: "Оплачен",
+    issueCustomerBill: true,
+    customerBillMode: "manual",
   });
 describe("pickup validation", () => {
   it("preserves multiple pickup documents and extensions independently", () => {

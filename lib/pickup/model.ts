@@ -51,6 +51,10 @@ export type JobData = {
   priceRub: number | null;
   payment: string;
   mkadKm: number | null;
+  /** Выставлять счёт заказчику (блок «Расчёты с заказчиком»). */
+  issueCustomerBill: boolean;
+  /** Сумма счёта: автоматически по матрице или вручную. */
+  customerBillMode: "auto" | "manual" | "";
   requirements: string;
   note: string;
   latitude: number | null;
@@ -332,6 +336,13 @@ export function normalizeJob(raw: any): JobData {
     priceRub: numberValue(raw.priceRub, "стоимость", 100000000),
     payment: textValue(raw.payment, 100),
     mkadKm: numberValue(raw.mkadKm, "км от МКАД", 10000),
+    issueCustomerBill: raw.issueCustomerBill === true,
+    customerBillMode:
+      raw.customerBillMode === "manual"
+        ? "manual"
+        : raw.customerBillMode === "auto"
+          ? "auto"
+          : "",
     requirements: textValue(raw.requirements),
     note: textValue(raw.note, 3000),
     latitude,

@@ -63,6 +63,13 @@ export function cloneJobDataForCopy(data: JobData): JobData {
     priceRub: data.priceRub ?? null,
     payment: textValue(data.payment, 100) || "Не указано",
     mkadKm: data.mkadKm ?? null,
+    issueCustomerBill: data.issueCustomerBill === true,
+    customerBillMode:
+      data.customerBillMode === "manual"
+        ? "manual"
+        : data.customerBillMode === "auto"
+          ? "auto"
+          : "",
     requirements: textValue(data.requirements),
     note: textValue(data.note, 3000),
     latitude: data.latitude ?? null,
