@@ -716,7 +716,39 @@
   display: grid;
   grid-template-columns: minmax(250px, 330px) minmax(0, 1fr);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
+  min-height: 0;
+}
+.pk-workspace > main.pk-route-detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100dvh - 168px);
+  overflow: hidden;
+}
+.pk-route-detail__head {
+  flex-shrink: 0;
+}
+.pk-route-detail__stops-scroll {
+  flex: 1 1 auto;
+  min-height: 140px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  margin: 4px 0 8px;
+  padding: 4px 2px 8px;
+  border-top: 1px solid var(--pk-border);
+  border-bottom: 1px solid var(--pk-border);
+  -webkit-overflow-scrolling: touch;
+}
+.pk-route-detail__stops-scroll .pk-stops {
+  margin: 0;
+}
+.pk-route-detail__stops-scroll .pk-route-end {
+  margin: 8px 0 0;
+  padding: 0 4px;
+}
+.pk-route-detail__foot {
+  flex-shrink: 0;
 }
 .pk-route-row {
   display: flex;
@@ -1320,6 +1352,9 @@
   .pk-workspace,
   .pk-driver-workspace {
     grid-template-columns: 1fr;
+  }
+  .pk-workspace > main.pk-route-detail {
+    max-height: min(62dvh, calc(100dvh - 220px));
   }
   .pk-panel {
     padding: 14px;

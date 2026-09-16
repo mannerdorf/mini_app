@@ -1163,9 +1163,10 @@ export function PickupPage({
               )}
             </aside>
           )}
-          <main className="pk-panel">
+          <main className={`pk-panel${route ? " pk-route-detail" : ""}`}>
             {route ? (
               <>
+                <div className="pk-route-detail__head">
                 <div className="pk-route-heading">
                   <div>
                     <p className="pk-eyebrow">
@@ -1501,6 +1502,8 @@ export function PickupPage({
                     Начатые точки остаются на своих местах.
                   </p>
                 )}
+                </div>
+                <div className="pk-route-detail__stops-scroll">
                 <ol
                   className={`pk-stops${dispatch && jobViewCompact ? " pk-stops--compact" : ""}`}
                 >
@@ -1747,6 +1750,8 @@ export function PickupPage({
                   {route.snapshot.depot?.name?.replace(/,?\s*Москва.*/i, "") ||
                     "Склад HAULZ"}
                 </p>
+                </div>
+                <div className="pk-route-detail__foot">
                 {driverCanOperate &&
                   mode === "driver" &&
                   route.status === "started" && (
@@ -1800,6 +1805,7 @@ export function PickupPage({
                       </p>
                     ))}
                 </details>
+                </div>
               </>
             ) : (
               <p className="pk-empty">
