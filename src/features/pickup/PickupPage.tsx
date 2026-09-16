@@ -591,10 +591,10 @@ export function PickupPage({
             {[
               ["jobs", "План дня"],
               ["routes", "Маршруты"],
-              ["billing", `Выставление счетов · ${billingCount}`],
               ["monitor", "Монитор рейсов"],
               ["attention", `Внимание · ${attention.length}`],
               ["directories", "Справочники"],
+              ["billing", `Выставление счетов · ${billingCount}`],
             ].map(([id, label]) => (
               <button
                 key={id}
