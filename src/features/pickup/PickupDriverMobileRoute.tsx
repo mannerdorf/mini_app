@@ -6,11 +6,7 @@ import { PickupRouteStatusBadge } from "./PickupRouteStatusBadge";
 import { PickupDeposit } from "./PickupDeposit";
 import { PickupDriverLocation } from "./PickupDriverLocation";
 import { PickupDriverJobFlow } from "./PickupDriverJobFlow";
-import {
-  driverMobilePhase,
-  driverStopProgress,
-  jobsAwaitingDispatcher,
-} from "./driverMobileFlow";
+import { driverMobilePhase, driverStopProgress } from "./driverMobileFlow";
 import { canDepositJobs, currentDriverJob } from "./operations";
 import type { PickupCall } from "./client";
 
@@ -65,8 +61,6 @@ export function PickupDriverMobileRoute({
   const { closed, total } = driverStopProgress(routeJobs);
   const current = currentDriverJob(routeJobs);
   const currentIndex = current ? routeJobs.findIndex((j) => j.id === current.id) : -1;
-  const waiting = jobsAwaitingDispatcher(routeJobs);
-
   const blocked =
     busy ||
     routePending ||
@@ -170,25 +164,6 @@ export function PickupDriverMobileRoute({
             act={act}
           />
         </>
-      )}
-
-      {phase === "wait_dispatcher" && (
-        <section className="pk-driver-mobile-step">
-          <h2 className="pk-driver-mobile-step__title">Ждём диспетчера</h2>
-          <p className="pk-hint">
-            {waiting.length === 1
-              ? "По одной точке нужно решение диспетчера перед продолжением."
-              : `Точек с ожиданием: ${waiting.length}. Продолжить маршрут можно после решения.`}
-          </p>
-          <ul className="pk-driver-mobile-wait-list">
-            {waiting.map((j) => (
-              <li key={j.id}>
-                <strong>{j.data.senderName}</strong>
-                <span>{j.note || j.resolution || "Ожидает решения"}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
       )}
 
       {phase === "deposit" && driverCanOperate && (

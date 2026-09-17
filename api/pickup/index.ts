@@ -1165,16 +1165,8 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       requireValue(route.status === "started", "Маршрут ещё не начат");
       requireValue(
         jobs.length &&
-          jobs.every((j) =>
-            ["picked_up", "partial", "resolved", "deposited"].includes(
-              j.status,
-            ),
-          ),
-        "Остались незавершённые заборы или проблемы без решения диспетчера",
-      );
-      requireValue(
-        jobs.every((j) => j.status !== "partial" || j.resolution),
-        "Диспетчер должен принять решение по частичному забору",
+          jobs.every((j) => !["pending", "arrived"].includes(j.status)),
+        "Остались точки, где водитель ещё не зафиксировал результат",
       );
       const missing = jobs.filter(pickupJobNeedsZayavka);
       const entries = body.zayavka_numbers ?? [];

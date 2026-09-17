@@ -18,9 +18,6 @@ export function PickupDriverGuide({
       ["picked_up", "partial", "deposited"].includes(j.status),
     ).length;
   const closed = jobs.filter((j) => canDepositJobs([j])).length;
-  const problems = jobs.filter(
-    (j) => ["partial", "problem"].includes(j.status) && !j.resolution,
-  ).length;
   const title =
     route.status === "completed"
       ? "Маршрут завершён"
@@ -32,7 +29,7 @@ export function PickupDriverGuide({
             ? "Следующий шаг — склад HAULZ"
             : current
               ? `Текущая точка · ${jobs.indexOf(current) + 1} из ${jobs.length}`
-              : "Дождитесь решения диспетчера";
+              : "Продолжайте маршрут";
   return (
     <section
       className={`pk-driver-guide ${route.status === "completed" ? "pk-driver-guide--done" : ""}`}
@@ -61,12 +58,6 @@ export function PickupDriverGuide({
         Забрано с {done} точек. Без забора закрыто:{" "}
         {jobs.filter((j) => j.status === "resolved").length}.
       </p>
-      {problems > 0 && (
-        <p className="pk-warning">
-          Требуют решения диспетчера: {problems}. Перед сдачей на склад
-          дождитесь решения по этим точкам.
-        </p>
-      )}
       {route.status === "completed" && (
         <p>
           {done

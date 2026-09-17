@@ -62,10 +62,21 @@ describe("driverMobilePhase", () => {
     ).toBe("on_stop");
   });
 
-  it("waits for dispatcher on unresolved problem", () => {
+  it("goes to depot after problem without dispatcher resolution", () => {
     const route = baseRoute("started");
     expect(
       driverMobilePhase(route, [job("j1", "problem")], { outboxCount: 0 }),
-    ).toBe("wait_dispatcher");
+    ).toBe("deposit");
+  });
+
+  it("goes to depot when partial has no dispatcher resolution", () => {
+    const route = baseRoute("started");
+    expect(
+      driverMobilePhase(
+        route,
+        [job("j1", "partial"), job("j2", "picked_up")],
+        { outboxCount: 0 },
+      ),
+    ).toBe("deposit");
   });
 });

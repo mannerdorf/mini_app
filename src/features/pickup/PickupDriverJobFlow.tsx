@@ -282,12 +282,12 @@ export function PickupDriverJobFlow({
                   version: job.version,
                   note,
                 },
-                "Проблема передана диспетчеру",
+                "Результат по точке сохранён",
                 true,
               )
             }
           >
-            Отправить диспетчеру
+            Зафиксировать и продолжить
           </button>
           <button
             type="button"

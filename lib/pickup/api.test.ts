@@ -349,7 +349,7 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
     expect(final.routes[0].status).toBe("completed");
     expect(final.jobs[0].status).toBe("deposited");
   });
-  it("keeps discrepancies open until dispatcher resolution", async () => {
+  it("lets driver deposit after partial pickup without dispatcher resolution", async () => {
     await setup();
     let s = await publishAndStart(),
       j = s.jobs[0];
@@ -374,27 +374,14 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
     });
     s = await snapshot();
     expect(s.jobs[0].status).toBe("partial");
-    expect(
-      (
-        await request("driver", {
-          action: "deposit",
-          id: s.routes[0].id,
-          version: s.routes[0].version,
-        })
-      ).status,
-    ).toBe(400);
-    await ok("dispatch", {
-      action: "resolve",
-      id: j.id,
-      version: s.jobs[0].version,
-      note: "Остаток заберём завтра, создано отдельное задание",
-    });
     await ok("driver", {
       action: "deposit",
       id: s.routes[0].id,
       version: s.routes[0].version,
     });
-    expect((await snapshot()).jobs[0].resolution).toContain("Остаток");
+    const final = await snapshot();
+    expect(final.routes[0].status).toBe("completed");
+    expect(final.jobs[0].status).toBe("deposited");
   });
   it("rejects stale edits, cross-city assignments, overload and invalid directory IDs", async () => {
     const ids = await setup();

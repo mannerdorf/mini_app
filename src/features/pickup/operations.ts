@@ -155,13 +155,10 @@ export function currentDriverJob(jobs: Job[]) {
     jobs.find((j) => j.status === "pending")
   );
 }
+/** Все точки закрыты водителем — можно ехать на склад (без ожидания диспетчера). */
 export function canDepositJobs(jobs: Job[]): boolean {
   return (
     jobs.length > 0 &&
-    jobs.every(
-      (j) =>
-        ["picked_up", "deposited", "resolved"].includes(j.status) ||
-        (j.status === "partial" && Boolean(j.resolution)),
-    )
+    jobs.every((j) => !["pending", "arrived"].includes(j.status))
   );
 }

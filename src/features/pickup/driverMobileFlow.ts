@@ -6,10 +6,10 @@ export type DriverMobilePhase =
   | "published"
   | "ack"
   | "on_stop"
-  | "wait_dispatcher"
   | "deposit"
   | "completed";
 
+/** Для мониторинга диспетчера (не блокирует водителя). */
 export function jobsAwaitingDispatcher(jobs: Job[]): Job[] {
   return jobs.filter(
     (j) => (j.status === "problem" || j.status === "partial") && !j.resolution,
@@ -29,14 +29,12 @@ export function driverMobilePhase(
 
   if (route.acknowledged_version !== route.version) return "ack";
 
-  const waiting = jobsAwaitingDispatcher(jobs);
   const current = currentDriverJob(jobs);
 
   if (current) return "on_stop";
-  if (waiting.length > 0) return "wait_dispatcher";
   if (canDepositJobs(jobs)) return "deposit";
 
-  return "wait_dispatcher";
+  return "deposit";
 }
 
 export function driverStopProgress(jobs: Job[]) {

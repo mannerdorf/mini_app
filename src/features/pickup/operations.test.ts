@@ -53,18 +53,18 @@ describe("pickup operational guidance", () => {
     expect(movePendingStop(jobs, "a", "c")).toBeNull();
     expect(movePendingStop(jobs, "b", "a")).toBeNull();
   });
-  it("prioritizes arrived point and holds depot handoff for unresolved issues", () => {
+  it("prioritizes arrived point and allows depot when every stop is closed", () => {
     expect(currentDriverJob([job("a"), job("b", "arrived")])?.id).toBe("b");
     expect(canDepositJobs([])).toBe(false);
     expect(canDepositJobs([job("a", "picked_up"), job("b", "partial")])).toBe(
-      false,
+      true,
     );
     expect(
-      canDepositJobs([
-        job("a", "picked_up"),
-        { ...job("b", "partial"), resolution: "Принято" },
-      ]),
+      canDepositJobs([job("a", "picked_up"), job("b", "problem")]),
     ).toBe(true);
+    expect(canDepositJobs([job("a", "pending"), job("b", "picked_up")])).toBe(
+      false,
+    );
   });
   it("blocks publication for unavailable resources, windows and overload", () => {
     const route = {
