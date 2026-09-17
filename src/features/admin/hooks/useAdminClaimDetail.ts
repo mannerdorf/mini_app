@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { fetchAdminClaimDetail, postAdminClaimUpdate } from "../../../api/client/admin/claims";
+import { fetchAdminClaimDetail, postAdminClaimUpdate, type AdminClaimDetail } from "../../../api/client/admin/claims";
 import { downloadAdminDocument } from "../../../api/client/admin/catalogs";
 import { downloadBase64File } from "../../../utils";
 import { fileToBase64 } from "../../documents/claims/claimFormUtils";
@@ -24,7 +24,7 @@ export function useAdminClaimDetail({
 }: Params) {
   const [adminClaimDetailReloadTick, setAdminClaimDetailReloadTick] = useState(0);
   const [adminClaimDetailLoading, setAdminClaimDetailLoading] = useState(false);
-  const [adminClaimDetail, setAdminClaimDetail] = useState<Record<string, unknown> | null>(null);
+  const [adminClaimDetail, setAdminClaimDetail] = useState<AdminClaimDetail | null>(null);
   const [adminClaimNoteDraft, setAdminClaimNoteDraft] = useState("");
   const [adminLeaderCommentDraft, setAdminLeaderCommentDraft] = useState("");
   const [adminClaimApprovedAmountDraft, setAdminClaimApprovedAmountDraft] = useState("");

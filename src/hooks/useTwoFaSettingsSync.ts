@@ -10,7 +10,7 @@ export function useTwoFaSettingsSync() {
     let cancelled = false;
     const load = async () => {
       try {
-        const data = await fetchTwoFaSettings(activeAccount.login);
+        const data = await fetchTwoFaSettings(activeAccount.login, activeAccount.password);
         const settings = data?.settings;
         if (!settings || cancelled) return;
         setAccounts(prev =>
@@ -34,5 +34,5 @@ export function useTwoFaSettingsSync() {
     return () => {
       cancelled = true;
     };
-  }, [activeAccount?.id, activeAccount?.login, setAccounts]);
+  }, [activeAccount?.id, activeAccount?.login, activeAccount?.password, setAccounts]);
 }

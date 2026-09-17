@@ -39,15 +39,8 @@ export function CompaniesListPage({
       setLoading(false);
       return;
     }
-    const logins = [...new Set(accounts.map((a) => a.login.trim().toLowerCase()))];
-    const accessAllLogins = [
-      ...new Set(accounts.filter((a) => a.accessAllInns).map((a) => a.login.trim().toLowerCase())),
-    ];
-    const query =
-      logins.map((l) => `login=${encodeURIComponent(l)}`).join("&") +
-      (accessAllLogins.length ? "&" + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join("&") : "");
     setLoading(true);
-    fetchCompanies(query)
+    fetchCompanies(accounts)
       .then((list) => setCompanies(dedupeCompaniesByName(list)))
       .catch(() => setCompanies([]))
       .finally(() => setLoading(false));

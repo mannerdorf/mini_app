@@ -17,7 +17,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited("auth_change_password", ip, AUTH_CHANGE_PASSWORD_LIMIT)) {
+  if (await isRateLimited("auth_change_password", ip, AUTH_CHANGE_PASSWORD_LIMIT)) {
     return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
   }
 

@@ -1,3 +1,4 @@
+import { fetchCompanies } from "./api/client/companiesList";
 import type { CustomerOption, CompanyRow } from "./types";
 import { decodeBase64Payload, normalizeBase64Payload } from "../lib/base64Document.js";
 import { CapacitorHttp } from "@capacitor/core";
@@ -231,18 +232,9 @@ export function extractInnFromPerevozki(payload: any): string | null {
 }
 
 /** Список ИНН, уже добавленных в «Мои компании» для данных логинов */
-export async function getExistingInns(logins: string[]): Promise<Set<string>> {
-    if (logins.length === 0) return new Set();
-    const query = logins.map((l) => `login=${encodeURIComponent(l.trim().toLowerCase())}`).join("&");
-    const r = await fetch(`/api/companies?${query}`);
-    const data = await r.json().catch(() => ({}));
-    const list = Array.isArray(data?.companies) ? data.companies : [];
-    const inns = new Set<string>();
-    for (const c of list) {
-        const inn = (c?.inn ?? "").toString().trim();
-        if (inn.length > 0) inns.add(inn);
-    }
-    return inns;
+export async function getExistingInns(accounts: { login: string; password: string }[]): Promise<Set<string>> {
+    const companies = await fetchCompanies(accounts);
+    return new Set(companies.map(company => company.inn.trim()).filter(Boolean));
 }
 
 /** Одна компания на одно название (для списка компаний/заказчиков). Приоритет — строка с непустым ИНН. */

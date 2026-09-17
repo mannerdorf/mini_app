@@ -1051,7 +1051,7 @@ export function ClaimsCreateModal({
             {error}
           </Typography.Body>
         ) : null}
-        <Flex justify="flex-end" gap="0.45rem" align="center" wrap="nowrap" style={{ flexWrap: "nowrap" }}>
+        <Flex justify="end" gap="0.45rem" align="center" wrap="nowrap" style={{ flexWrap: "nowrap" }}>
           <Button
             className="filter-button"
             disabled={submitting}

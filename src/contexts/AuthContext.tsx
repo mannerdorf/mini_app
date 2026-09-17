@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import type { Account, AccountPermissions, AuthData } from "../types";
-import { getInitialAuthState } from "../lib/authState";
+import { getInitialAuthState, persistAuthState } from "../lib/authState";
 import { normalizeAccountCustomerSelection } from "../lib/accountCustomer";
 
 const toBooleanPermission = (value: unknown): boolean | undefined => {
@@ -119,38 +119,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
     try {
-      const saved = window.localStorage.getItem("haulz.auth");
-      if (window.localStorage.getItem("haulz.accounts")) return;
-      if (!saved) return;
-      const parsed = JSON.parse(saved) as AuthData;
-      if (parsed?.login && parsed?.password) {
-        const accountId = parsed.id || `acc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        setAccounts([{ login: parsed.login, password: parsed.password, id: accountId }]);
-        setActiveAccountId(accountId);
-        setSelectedAccountIds([accountId]);
-      }
+      persistAuthState({
+        accounts: accounts.map((acc) => normalizeAccountCustomerSelection(acc)),
+        activeAccountId,
+        selectedAccountIds,
+      });
     } catch {
-      // ignore
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || accounts.length === 0) return;
-    try {
-      window.localStorage.setItem(
-        "haulz.accounts",
-        JSON.stringify(accounts.map((acc) => normalizeAccountCustomerSelection(acc)))
-      );
-      if (activeAccountId) {
-        window.localStorage.setItem("haulz.activeAccountId", activeAccountId);
-      }
-      if (selectedAccountIds.length > 0) {
-        window.localStorage.setItem("haulz.selectedAccountIds", JSON.stringify(selectedAccountIds));
-      }
-    } catch {
-      // ignore
+      // Storage can be unavailable; keep the in-memory session usable.
     }
   }, [accounts, activeAccountId, selectedAccountIds]);
 

@@ -181,6 +181,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
                             active={page.docSection === 'Заявки' && !page.documentsOrderFormOpen}
                             ordersLoading={page.ordersLoading}
                             ordersError={page.ordersError}
+                            ordersMetadata={page.ordersMetadata}
                             tableModeEffective={page.tableModeEffective}
                             docsMotionEnabled={page.docsMotionEnabled}
                             effectiveServiceMode={page.effectiveServiceMode}

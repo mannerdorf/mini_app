@@ -76,6 +76,13 @@ export function PickupDriverLocation({
             ` · ${new Date(state.sentAt).toLocaleTimeString("ru-RU")}`}
         </p>
       )}
+      {available && <button type="button" onClick={async () => {
+        setEnabled(false);
+        try {
+          await call({ action: "location_unreliable", id: routeId, requestId: crypto.randomUUID() });
+          setState({ status: "error", message: "Позиция отмечена как ненадёжная. Передача остановлена. Включите её снова, когда GPS восстановится." });
+        } catch { setState({ status: "error", message: "Не удалось сообщить диспетчеру. Передача остановлена; повторите сообщение при наличии связи." }); }
+      }}>Моя позиция неверна</button>}
       {!enabled && !state && (
         <p className="pk-hint">
           После отключения на мониторе останется последняя позиция с временем её

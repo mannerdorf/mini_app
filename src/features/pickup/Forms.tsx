@@ -1,3 +1,4 @@
+import { GuardedDialog, useDialogClose } from "../../components/GuardedDialog";
 import { Trash2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import type {
@@ -348,10 +349,17 @@ export function FormShell({
 }) {
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
+  const [dirty, setDirty] = useState(false);
+  const close = useDialogClose(onClose, dirty, busy);
   return (
-    <section className="pk-panel pk-editor">
+    <GuardedDialog title={title} onClose={close} className="pk-panel pk-editor">
       <h2>{title}</h2>
       <form
+        onChangeCapture={() => setDirty(true)}
+        onClickCapture={event => {
+          const button = (event.target as HTMLElement).closest('button');
+          if (button?.type === 'button' && !button.hasAttribute('data-dialog-close')) setDirty(true);
+        }}
         onInvalidCapture={(e) => {
           let parent = (e.target as HTMLElement).parentElement;
           while (parent) {
@@ -386,14 +394,15 @@ export function FormShell({
           <button
             type="button"
             className="pk-btn-secondary"
-            onClick={onClose}
+            onClick={close}
+            data-dialog-close
             disabled={busy}
           >
             Отмена
           </button>
         </div>
       </form>
-    </section>
+    </GuardedDialog>
   );
 }
 export function ResourceForm({
@@ -416,9 +425,9 @@ export function ResourceForm({
       return { from: "08:00", to: "18:00", address: "" };
     }
     if (kind === "vehicle") {
-      return { type: "own", lift: "Нет" };
+      return { type: "own", lift: "Нет", from: "08:00", to: "18:00" };
     }
-    return { type: "own" };
+    return { type: "own", from: "08:00", to: "18:00" };
   };
   const [data, setData] = useState<Record<string, string>>(
     resource?.data ?? defaultData(),
@@ -435,14 +444,6 @@ export function ResourceForm({
       title={resource ? `Изменить: ${title}` : `Добавить: ${title}`}
       onClose={done}
       onSave={async () => {
-        const payload =
-          kind === "driver" || kind === "vehicle"
-            ? Object.fromEntries(
-                Object.entries(data).filter(
-                  ([key]) => key !== "from" && key !== "to",
-                ),
-              )
-            : data;
         await call({
           action: "save_resource",
           requestId: crypto.randomUUID(),
@@ -452,7 +453,7 @@ export function ResourceForm({
           city,
           name,
           active,
-          data: payload,
+          data,
         });
       }}
     >
@@ -473,6 +474,12 @@ export function ResourceForm({
               { id: "hired", name: "Наёмный" },
             ]}
           />
+        )}
+        {kind !== "depot" && (
+          <>
+            <Field label={kind === "driver" ? "Начало смены" : "Доступен с"} type="time" value={data.from ?? ""} onChange={(v) => update("from", v)} required />
+            <Field label={kind === "driver" ? "Окончание смены" : "Доступен до"} type="time" value={data.to ?? ""} onChange={(v) => update("to", v)} required />
+          </>
         )}
         {kind === "depot" && (
           <>

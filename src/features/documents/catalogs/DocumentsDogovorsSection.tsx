@@ -187,7 +187,7 @@ export function DocumentsDogovorsSection({
                           </Typography.Label>
                         )}
                         <Typography.Body style={{ marginBottom: "0.45rem", fontSize: "0.9rem" }}>{row.title || "—"}</Typography.Body>
-                        <Flex justify="flex-end">
+                        <Flex justify="end">
                           {hasDownload ? (
                             <button
                               type="button"

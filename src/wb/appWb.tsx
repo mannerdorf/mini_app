@@ -100,7 +100,7 @@ export function WbOnlyAppLayout({ desktopExpanded, onLogout, children, saasShell
     <>
       <Container className={`app-container${saasShellClassName ? ` ${saasShellClassName}` : ""}`}>
         <header className={`app-header${desktopExpanded ? " app-header-wide" : ""}`}>
-          <Flex align="center" justify="flex-end" className="header-top-row">
+          <Flex align="center" justify="end" className="header-top-row">
             <Flex align="center" className="space-x-3">
               <ThemeToggleButton />
               <Button className="search-toggle-button" onClick={onLogout} title="Выход" aria-label="Выйти">

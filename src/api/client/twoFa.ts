@@ -1,75 +1,27 @@
-/**
- * 2FA: Redis-бэкенд (Telegram / Google).
- */
-
-import { readJsonOrText } from "../../utils";
-
-export type TwoFaSettingsPayload = {
-    settings?: {
-        enabled?: boolean;
-        method?: string;
-        telegramLinked?: boolean;
-        googleSecretSet?: boolean;
-    };
+/** Server-confirmed 2FA settings. Settings grants live only in component memory. */
+export type TwoFaSettings = {
+  enabled:boolean;method:'google'|'telegram';telegramLinked:boolean;googleSecretSet:boolean;maxLinked?:boolean;
 };
-
-export async function fetchTwoFaSettings(login: string): Promise<TwoFaSettingsPayload | null> {
-    const res = await fetch(`/api/2fa?login=${encodeURIComponent(login)}`);
-    if (!res.ok) return null;
-    return (await res.json().catch(() => ({}))) as TwoFaSettingsPayload;
+export type TwoFaSettingsPayload = {settings:TwoFaSettings};
+export async function twoFaRequest<T>(path:'2fa'|'2fa-google'|'2fa-telegram',body:Record<string,unknown>):Promise<T> {
+  const response=await fetch(`/api/${path}`,{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(30000),
+  });
+  const data=await response.json().catch(()=>null);
+  if (!response.ok || !data?.ok) throw new Error(typeof data?.error==='string'?data.error:'Не удалось проверить 2FA. Повторите позже.');
+  return data as T;
 }
-
-/** Сохранение настроек 2FA на сервере — best-effort, ошибки глотаются. */
-export async function persistTwoFaSettingsSilent(body: {
-    login: string;
-    enabled: boolean;
-    method: string;
-    telegramLinked: boolean;
-}): Promise<void> {
-    try {
-        await fetch("/api/2fa", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-        });
-    } catch {
-        /* silent */
-    }
+export async function fetchTwoFaSettings(login:string,password:string):Promise<TwoFaSettingsPayload> {
+  const result=await twoFaRequest<TwoFaSettingsPayload>('2fa',{action:'read',login,password});
+  const settings=result.settings;
+  if (!settings || typeof settings.enabled !== 'boolean' || !['google','telegram'].includes(settings.method) || typeof settings.telegramLinked !== 'boolean' || typeof settings.googleSecretSet !== 'boolean') {
+    throw new Error('Некорректный ответ настроек 2FA. Вход не подтверждён. Повторите позже.');
+  }
+  return result;
 }
-
-export async function sendTelegramTwoFaCode(loginKey: string): Promise<void> {
-    const res = await fetch("/api/2fa-telegram", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: loginKey, action: "send" }),
-    });
-    if (!res.ok) {
-        const err = await readJsonOrText(res);
-        const msg =
-            err && typeof err === "object" && err !== null && "error" in err
-                ? String((err as { error?: unknown }).error)
-                : "";
-        throw new Error(msg || "Не удалось отправить код");
-    }
+export function sendTelegramTwoFaCode(login:string,password:string):Promise<void> {
+  return twoFaRequest('2fa-telegram',{login,password,action:'send'});
 }
-
-export async function verifyTwoFactorCode(
-    method: "telegram" | "google",
-    loginKey: string,
-    code: string,
-): Promise<void> {
-    const url = method === "google" ? "/api/2fa-google" : "/api/2fa-telegram";
-    const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ login: loginKey, action: "verify", code: code.trim() }),
-    });
-    if (!res.ok) {
-        const err = await readJsonOrText(res);
-        const msg =
-            err && typeof err === "object" && err !== null && "error" in err
-                ? String((err as { error?: unknown }).error)
-                : "";
-        throw new Error(msg || "Неверный код");
-    }
+export function verifyTwoFactorCode(method:'telegram'|'google',login:string,code:string,password:string):Promise<void> {
+  return twoFaRequest(method==='google'?'2fa-google':'2fa-telegram',{login,password,action:'verify',code:code.trim()});
 }

@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
-import { setDraftStatusByManager, type HaulzCalcDraftRow } from "./haulzCalculator/calculatorDraftAgree.js";
+import { setDraftStatusByManager } from "./haulzCalculator/calculatorDraftAgree.js";
+import type { HaulzCalcDraftRow } from "./haulzCalculator/calculatorDraft.js";
 import { enrichManagerDraftForApi } from "./haulzCalculator/managerDraftJournalEnrich.js";
 import {
   buildZayavkaUpstreamRequestMeta,

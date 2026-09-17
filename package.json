@@ -36,7 +36,10 @@
     "test:watch": "vitest",
     "store:screenshots": "node scripts/capture-rustore-screenshots.mjs",
     "store:screenshots:app": "node scripts/capture-rustore-screenshots.mjs --app",
-    "test:e2e:guest:install": "playwright install chromium"
+    "test:e2e:guest": "playwright test --project=guest-mobile",
+    "test:e2e:guest:install": "playwright install chromium",
+    "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "typecheck:frontend": "tsc -p tsconfig.frontend.json"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.2",
@@ -102,6 +105,7 @@
     "autoprefixer": "^10.4.19",
     "playwright": "^1.58.2",
     "postcss": "^8.4.38",
+    "react-test-renderer": "^18.3.1",
     "tailwindcss": "^3.4.4",
     "tsx": "^4.19.4",
     "typescript": "^5.2.2",

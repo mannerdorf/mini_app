@@ -1,4 +1,4 @@
-import { adminAuthHeaders } from "./auth";
+import { adminAuthHeaders } from "./auth.js";
 
 export type LastMileTripRow = {
   cargoNumber: string;

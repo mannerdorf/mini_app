@@ -51,12 +51,16 @@ export async function deletePickupRoute(
     pickupRouteDeleteAllowed(route.status, policy),
     policy === "super_admin_completed"
       ? "Удалить можно только завершённый маршрут"
-      : "Удаление маршрута недоступно",
+      : "Начатый маршрут нельзя удалить. Сначала завершите заборы и сдайте груз на склад: водитель и история рейса должны сохраниться.",
   );
 
   const { rows: jobs } = await db.query<{ id: string; status: string }>(
     "SELECT id, status FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
     [route.id],
+  );
+  requireValue(
+    jobs.every(job => ["pending", "cancelled", "deposited", "resolved"].includes(job.status)),
+    "В маршруте есть незавершённые заборы или несданный груз. Завершите их до удаления маршрута.",
   );
 
   if (jobs.length) {
@@ -65,7 +69,10 @@ export async function deletePickupRoute(
       [route.id],
     );
   }
-  await db.query("UPDATE pickup_events SET route_id=NULL WHERE route_id=$1", [route.id]);
+  await db.query(
+    "UPDATE pickup_events SET route_id=NULL, data=COALESCE(data,'{}'::jsonb) || jsonb_build_object('deletedRoute',$2::jsonb) WHERE route_id=$1",
+    [route.id, JSON.stringify({ id: route.id, name: route.name, city: route.city, date: route.date, driverId: route.driver_id, vehicleId: route.vehicle_id, status: route.status })],
+  );
   await db.query("DELETE FROM pickup_routes WHERE id=$1", [route.id]);
   await input.logEvent("Маршрут удалён", null, null, {
     routeId: route.id,

@@ -20,7 +20,7 @@ function readSuggestParams(req: VercelRequest, body: Record<string, unknown>): {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "documents_address_suggest");
-  if (isRateLimited("documents_address_suggest", getClientIp(req), HAULZ_CALC_SUGGEST_LIMIT)) {
+  if (await isRateLimited("documents_address_suggest", getClientIp(req), HAULZ_CALC_SUGGEST_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов подсказок", request_id: ctx.requestId });
   }
   if (req.method !== "GET" && req.method !== "POST") {

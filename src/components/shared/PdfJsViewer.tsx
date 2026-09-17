@@ -63,7 +63,7 @@ export function PdfJsViewer({ blob, title, height = 500 }: PdfJsViewerProps) {
           if (!context) {
             throw new Error("Canvas unavailable");
           }
-          await page.render({ canvasContext: context, viewport, canvas }).promise;
+          await page.render({ canvasContext: context, viewport }).promise;
           images.push(canvas.toDataURL("image/jpeg", 0.92));
         }
 

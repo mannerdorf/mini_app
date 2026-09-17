@@ -1,3 +1,4 @@
+import { resolveOrdersAccessInns } from "./ordersAccess.js";
 import type { Pool, PoolClient } from "pg";
 import { cityToCode } from "./cityToCode.js";
 import type { FivepostRowRecord } from "./fivepost/importBatch.js";
@@ -385,7 +386,8 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
     if (!payload || typeof payload !== "object") return "";
     return String((payload as Record<string, unknown>).НомерЗаявкиКлиента ?? "").trim();
   })();
-  const statusLabel = resolvePendingOrderStatusLabel(tableRows);
+  const createdIn1c = tableRowByType(tableRows, "one_c_created");
+  const statusLabel = createdIn1c ? "Создана в 1С" : resolvePendingOrderStatusLabel(tableRows);
 
   return {
     Дата: createdDate,
@@ -407,8 +409,9 @@ export function pendingOrderToListItem(row: PendingOrderDbRow): Record<string, u
     ПолучательНаименование: partyDisplayName(toParty),
     Статус: statusLabel,
     State: statusLabel,
-    Комментарий: "Ожидает обработки в 1С",
-    _pendingOrder: true,
+    Комментарий: createdIn1c ? "Создана в 1С; ожидается обновление списка по расписанию" : "Ожидает обработки в 1С",
+    ...(createdIn1c ? { Ссылка: createdIn1c.reference } : {}),
+    _pendingOrder: !createdIn1c,
     _pendingOrderId: row.id,
   };
 }
@@ -434,6 +437,7 @@ export function mergeOrdersWithPending(list: unknown[], pending: Record<string, 
     cached
       .map((item) =>
         String(
+          (item as Record<string, unknown>)?.Номер ??
           (item as Record<string, unknown>)?.НомерЗаявки ??
             (item as Record<string, unknown>)?.Number ??
             (item as Record<string, unknown>)?.number ??
@@ -447,42 +451,6 @@ export function mergeOrdersWithPending(list: unknown[], pending: Record<string, 
     return number && !existingNumbers.has(number);
   });
   return [...extra, ...cached];
-}
-
-async function resolvePendingInnFilter(
-  pool: Pool,
-  verified: VerifiedRegisteredUser,
-  login: string,
-  inn: unknown,
-  serviceMode: unknown,
-): Promise<Set<string> | null> {
-  const requestedInn = normalizePendingOrderInn(inn);
-  const isService = !!serviceMode;
-  if (isService) return null;
-
-  let filterInns: Set<string> | null = null;
-  if (!verified.accessAllInns) {
-    const acRows = await pool.query<{ inn: string }>(
-      "SELECT inn FROM account_companies WHERE login = $1",
-      [normalizeLogin(login)],
-    );
-    const allowed = new Set<string>(
-      acRows.rows
-        .map((r: { inn?: unknown }) => normalizePendingOrderInn(r.inn))
-        .filter(Boolean) as string[]
-    );
-    const verifiedInn = normalizePendingOrderInn(verified.inn);
-    if (verifiedInn) allowed.add(verifiedInn);
-    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set<string>([verifiedInn]) : null;
-  }
-
-  if (filterInns === null) {
-    return requestedInn ? new Set([requestedInn]) : null;
-  }
-  if (requestedInn) {
-    return filterInns.has(requestedInn) ? new Set([requestedInn]) : new Set<string>();
-  }
-  return filterInns;
 }
 
 /** Данные заявки из ЛК для журнала / карточки менеджера (табличная часть из сохранённой заявки). */
@@ -530,14 +498,9 @@ export async function fetchPendingOrdersForList(
   const filtered = rows
     .filter((row) => pendingOrderMatchesDateRange(row, dateFrom, dateTo))
     .filter((row) => {
-      if (filterInns === null && !normalizedScopeName) return true;
-      const item = pendingOrderToListItem(row);
-      if (normalizedScopeName) {
-        const scopeInn = filterInns?.size === 1 ? [...filterInns][0] : undefined;
-        return orderMatchesCustomerScope(item, { inn: scopeInn, name: normalizedScopeName });
-      }
-      const itemInn = normalizePendingOrderInn(row.inn);
-      return itemInn && filterInns!.has(itemInn);
+      if (filterInns !== null && !filterInns.has(normalizePendingOrderInn(row.inn))) return false;
+      if (!normalizedScopeName) return true;
+      return orderMatchesCustomerScope(pendingOrderToListItem(row), { name: normalizedScopeName });
     });
 
   const items = filtered.map(pendingOrderToListItem);
@@ -556,23 +519,19 @@ export async function appendPendingOrdersForUser(
   list: unknown[],
   customerName?: unknown,
 ): Promise<unknown[]> {
-  try {
-    if (serviceMode) return list;
-    const filterInns = await resolvePendingInnFilter(pool, verified, login, inn, serviceMode);
-    const scopeName = normalizeCompanyName(customerName);
-    if (filterInns && filterInns.size === 0 && !scopeName) return list;
-    const pending = await fetchPendingOrdersForList(
-      pool,
-      login,
-      dateFrom,
-      dateTo,
-      scopeName ? null : filterInns,
-      scopeName || undefined,
-    );
-    return mergeOrdersWithPending(list, pending);
-  } catch {
-    return list;
-  }
+  if (serviceMode) return list;
+  const filterInns = await resolveOrdersAccessInns(pool, verified, login, inn, serviceMode);
+  const scopeName = normalizeCompanyName(customerName);
+  if (filterInns && filterInns.size === 0) return list;
+  const pending = await fetchPendingOrdersForList(
+    pool,
+    login,
+    dateFrom,
+    dateTo,
+    filterInns,
+    scopeName || undefined,
+  );
+  return mergeOrdersWithPending(list, pending);
 }
 
 async function deleteLinkedCalcDrafts(client: PoolClient, nomerZayavki: string): Promise<void> {
@@ -607,7 +566,7 @@ export async function deletePendingOrderByNomerForUser(
     }
 
     const { rowCount } = await client.query(
-      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
+      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2 AND NOT coalesce(table_rows,'[]'::jsonb) @> '[{"type":"one_c_created"}]'::jsonb`,
       [rows[0].id, normalizedLogin],
     );
     if ((rowCount ?? 0) === 0) {
@@ -649,7 +608,7 @@ export async function deletePendingOrderForUser(
     }
 
     const { rowCount } = await client.query(
-      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2`,
+      `DELETE FROM pending_order_requests WHERE id = $1 AND lower(trim(login)) = $2 AND NOT coalesce(table_rows,'[]'::jsonb) @> '[{"type":"one_c_created"}]'::jsonb`,
       [pendingOrderId, normalizedLogin],
     );
     if ((rowCount ?? 0) === 0) {

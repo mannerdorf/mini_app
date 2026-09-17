@@ -1,0 +1,32 @@
+import { PGlite } from '@electric-sql/pglite';
+import { beforeAll, afterAll, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { submitOnce } from './oneCSubmission';
+let db:PGlite;
+beforeAll(async()=>{db=new PGlite();await db.exec(readFileSync('migrations/112_one_c_submissions.sql','utf8'));});
+afterAll(()=>db.close());
+it('serializes independent callers and replays the receipt without another upload',async()=>{
+  let finish!:(v:{ok:boolean;status:number;nomerZayavki:string})=>void;
+  let entered!:()=>void;
+  const started=new Promise<void>(r=>entered=r);
+  const send=vi.fn(()=>{entered();return new Promise<{ok:boolean;status:number;nomerZayavki:string}>(r=>finish=r);});
+  const first=submitOnce(db as any,'order-1',{items:[1]},send);
+  await started;
+  expect((await submitOnce(db as any,'order-1',{items:[1]},send)).status).toBe(409);
+  finish({ok:true,status:200,nomerZayavki:'Z1'});
+  expect((await first).ok).toBe(true);
+  expect((await submitOnce(db as any,'order-1',{items:[1]},send)).nomerZayavki).toBe('Z1');
+  expect((await submitOnce(db as any,'order-1',{items:[2]},send)).status).toBe(409);
+  expect(send).toHaveBeenCalledTimes(1);
+});
+it('does not resend after network uncertainty or local persistence failure after external success',async()=>{
+  const offline=vi.fn().mockRejectedValue(new Error('timeout'));
+  expect((await submitOnce(db as any,'order-2',{},offline)).ok).toBe(false);
+  expect((await submitOnce(db as any,'order-2',{},offline)).status).toBe(409);
+  expect(offline).toHaveBeenCalledTimes(1);
+  const broken={query:vi.fn((sql:string,args:unknown[])=>sql.startsWith('UPDATE')?Promise.reject(new Error('db')):db.query(sql,args))};
+  const sent=vi.fn().mockResolvedValue({ok:true,status:200});
+  await expect(submitOnce(broken as any,'order-3',{},sent)).rejects.toThrow('db');
+  expect((await submitOnce(db as any,'order-3',{},sent)).status).toBe(409);
+  expect(sent).toHaveBeenCalledTimes(1);
+});

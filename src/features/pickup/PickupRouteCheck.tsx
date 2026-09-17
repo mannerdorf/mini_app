@@ -80,6 +80,7 @@ function CheckDialog({
     [map, setMap] = useState(false),
     [base, setBase] = useState(""),
     [clock, setClock] = useState(Date.now());
+  const [confirmedRevision, setConfirmedRevision] = useState("");
   const revision = JSON.stringify([
     route,
     route.status === "started"
@@ -93,6 +94,7 @@ function CheckDialog({
   const outdated =
     !!result &&
     (base !== revision || clock - Date.parse(result.checkedAt) > 10 * 60000);
+  const windowsConfirmed = confirmedRevision === revision;
   useEffect(() => {
     dialog.current?.showModal();
     const timer = setInterval(() => setClock(Date.now()), 15000);
@@ -113,7 +115,7 @@ function CheckDialog({
         id: route.id,
         version: route.version,
         startAddress: "",
-        windowsConfirmed: true,
+        windowsConfirmed,
       });
       if (seq === sequence.current) {
         setResult(response);
@@ -154,6 +156,16 @@ function CheckDialog({
           <X size={20} />
         </button>
       </div>
+      <ul className="pk-check-stops">{jobs.map(job => <li key={job.id}>
+        <strong>{job.data.senderName}</strong>
+        <span>Окно забора: {job.data.windowFrom}–{job.data.windowTo}</span>
+        <span>Часы отправителя: {job.data.warehouseHours || "Не указаны"}</span>
+      </li>)}</ul>
+      <label><input type="checkbox" checked={windowsConfirmed} disabled={checking}
+        onChange={event => { setConfirmedRevision(event.target.checked ? revision : ""); setResult(undefined); }} />
+        Я сверил окна забора с часами отправителей и перерывами на выбранную дату
+      </label>
+      {!windowsConfirmed && <p className="pk-hint">Без подтверждения окон оценка будет неполной. При изменении маршрута подтверждение сбрасывается.</p>}
       <button
         type="button"
         className="pk-primary"
@@ -214,9 +226,10 @@ function CheckDialog({
             })}{" "}
             ·{" "}
             {result.traffic === "jam"
-              ? "текущие пробки"
-              : "статистика движения на время старта"}
+              ? "текущие пробки на старте; далее прогноз на время выезда с каждой точки"
+              : "статистика движения на время выезда с каждой точки"}
           </p>
+          <p className="pk-hint">Время уточнено с учётом ожидания и погрузки. Это прогноз: дорожная обстановка может измениться. Линии на карте рассчитаны на время старта.</p>
           <div className="pk-check-columns">
             <AssessmentCard
               title="Текущий порядок"

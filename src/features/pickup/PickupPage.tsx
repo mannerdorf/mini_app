@@ -1,3 +1,5 @@
+import { usePickupOutbox } from "./usePickupOutbox";
+import { PickupOutbox } from "./PickupOutbox";
 import { DriverBottomNav, DriverHome, DriverProfile, type DriverTab } from "./PickupDriverNavigation";
 import { PickupRouteCheck } from "./PickupRouteCheck";
 import React, {
@@ -79,9 +81,10 @@ import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
 import { PickupBillingTab } from "./PickupBillingTab";
 import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
-import { useMobileLayout } from "../../hooks/useMobileLayout";
 import { PickupDriverMobileRoute } from "./PickupDriverMobileRoute";
 import { PickupJobNumber } from "./PickupJobNumber";
+import { sendOutbox } from "./outbox";
+import { readDriverCity, saveDriverCity } from "./driverCity";
 
 const empty: Snapshot = {
   resources: [],
@@ -95,7 +98,6 @@ type Editor =
   | { type: "route"; route?: Route }
   | { type: ResourceKind; resource?: Resource }
   | null;
-type Pending = { id: string; body: Record<string, unknown>; title: string };
 const today = (city: City) =>
   new Intl.DateTimeFormat("en-CA", {
     timeZone: city === "moscow" ? "Europe/Moscow" : "Europe/Kaliningrad",
@@ -144,8 +146,15 @@ export function PickupPage({
     () => pickupClient(account),
     [account.login, account.password],
   );
-  const [city, setCity] = useState<City>("moscow"),
-    [date, setDate] = useState(today("moscow"));
+  const [city, setCity] = useState<City>(() => readDriverCity(account.login) || "moscow"),
+    [date, setDate] = useState(() => today(readDriverCity(account.login) || "moscow"));
+  const cityChosen = useRef(!!readDriverCity(account.login));
+  useEffect(() => {
+    const saved = readDriverCity(account.login);
+    cityChosen.current = !!saved;
+    setCity(saved || "moscow");
+    setDate(today(saved || "moscow"));
+  }, [account.login]);
   const [snapshot, setSnapshot] = useState<Snapshot>(empty),
     [loading, setLoading] = useState(true),
     [busy, setBusy] = useState(false);
@@ -179,17 +188,15 @@ export function PickupPage({
       /* ignore */
     }
   };
-  const [outbox, setOutbox] = useState<Pending[]>([]);
-  const [outboxReady, setOutboxReady] = useState(false);
   const serial = useRef(0),
     lock = useRef(false);
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
   const outboxKey = `outbox:${account.login.toLowerCase()}`;
+  const { items: outbox, ready: outboxReady, save: saveOutbox } = usePickupOutbox(outboxKey, setError);
   const dispatch = mode === "dispatch" && snapshot.dispatcher;
   const [driverTab, setDriverTab] = useState<DriverTab>("home");
   const [driverDraftDirty, setDriverDraftDirty] = useState(false);
-  const isMobileLayout = useMobileLayout();
-  const driverMobileUx = mode === "driver" && isMobileLayout;
+  const driverMobileUx = mode === "driver";
   const routeDeleteAllowed = useCallback(
     (status: Route["status"]) =>
       pickupRouteCanDeleteInDispatchApp(status, account.permissions),
@@ -214,6 +221,12 @@ export function PickupPage({
         ...(serviceBrowse ? { serviceBrowse: true } : {}),
       });
       if (seq !== serial.current) return;
+      if (mode === "driver" && !cityChosen.current && result.driverProfile?.city) {
+        cityChosen.current = true;
+        const preferred = result.driverProfile.city;
+        if (preferred !== city) { setCity(preferred); setDate(today(preferred)); return; }
+      }
+      result.syncedAt = result.syncedAt || new Date().toISOString();
       setSnapshot(result);
       setStale(false);
       setError("");
@@ -269,44 +282,13 @@ export function PickupPage({
       clearInterval(timer);
     };
   }, [refresh]);
-  useEffect(() => {
-    setOutboxReady(false);
-    let active = true;
-    cacheRead<Pending[]>(outboxKey)
-      .then((items) => {
-        if (active) {
-          setOutbox(items ?? []);
-          setOutboxReady(true);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setOutboxReady(true);
-          setError(
-            "Локальное хранилище недоступно. Офлайн-отметки не будут сохранены.",
-          );
-        }
-      });
-    return () => {
-      active = false;
-    };
-  }, [outboxKey]);
-  const saveOutbox = async (items: Pending[]) => {
-    await cacheWrite(outboxKey, items);
-    setOutbox(items);
-  };
   const sync = async () => {
     if (lock.current || !allowed || !outboxReady) return;
     lock.current = true;
     setBusy(true);
-    let remaining = [...outbox];
     try {
-      while (remaining.length) {
-        await call(remaining[0].body);
-        remaining = remaining.slice(1);
-        await saveOutbox(remaining);
-      }
-      setNotice("Все отметки отправлены");
+      const remaining = await sendOutbox(outbox, call, saveOutbox);
+      setNotice(remaining.length ? `Требуют проверки: ${remaining.length}. Независимые отметки отправлены.` : "Все отметки отправлены");
       await refresh();
     } catch (e) {
       setError(
@@ -348,7 +330,7 @@ export function PickupPage({
         try {
           await saveOutbox([
             ...outbox,
-            { id: requestId, body: command, title },
+            { id: requestId, body: command, title, context: { address: snapshot.jobs.find(j => j.id === body.id)?.data.address || "", date, city } },
           ]);
           setNotice(
             "Отметка сохранена на устройстве и ожидает отправки. Не выходите из аккаунта до синхронизации.",
@@ -462,6 +444,8 @@ export function PickupPage({
             value={city}
             onChange={(v) => {
               setCity(v as City);
+              cityChosen.current = true;
+              saveDriverCity(account.login, v as City);
               setDate(today(v as City));
             }}
             options={Object.entries(cities).map(([id, name]) => ({ id, name }))}
@@ -489,8 +473,8 @@ export function PickupPage({
         </div>
       </DayControls>
       </fieldset>
-      {driverMobileUx && driverTab === "home" && <DriverHome routes={routes} jobs={snapshot.jobs} date={date} today={today(city)} loading={loading} stale={stale} pending={outbox.length} onToday={() => { if (!driverDraftDirty) setDate(today(city)); else setNotice("Сначала сохраните данные текущей точки"); }} onRoute={(id) => { if (driverDraftDirty && id !== route?.id) { setNotice("Сначала сохраните данные текущей точки"); return; } setSelected(id); setDriverTab("route"); }} />}
-      {driverMobileUx && driverTab === "profile" && <DriverProfile account={account} route={route} blocked={busy || driverDraftDirty || outbox.length > 0 || !outboxReady} />}
+      {driverMobileUx && driverTab === "home" && <DriverHome syncedAt={snapshot.syncedAt} error={error} routes={routes} jobs={snapshot.jobs} date={date} today={today(city)} loading={loading} stale={stale} pending={outbox.length} onToday={() => { if (!driverDraftDirty) setDate(today(city)); else setNotice("Сначала сохраните данные текущей точки"); }} onRoute={(id) => { if (driverDraftDirty && id !== route?.id) { setNotice("Сначала сохраните данные текущей точки"); return; } setSelected(id); setDriverTab("route"); }} />}
+      {driverMobileUx && driverTab === "profile" && <DriverProfile profile={snapshot.driverProfile} account={account} route={route} blocked={busy || driverDraftDirty || outbox.length > 0 || !outboxReady} />}
 
       {error && (
         <p className="pk-error" role="alert">
@@ -513,41 +497,11 @@ export function PickupPage({
           Сохранённая копия маршрута. Статусы могут быть неактуальны.
         </p>
       )}
-      {!!outbox.length && !driverMobileUx && (
-        <section className="pk-panel">
-          <h3>Ожидают отправки: {outbox.length}</h3>
-          <p>
-            Сначала отправьте сохранённые отметки. Остальные действия по этому
-            маршруту временно недоступны.
-          </p>
-          <button disabled={busy} onClick={() => void sync()}>
-            Отправить отметки
-          </button>
-          {outbox.map((p) => (
-            <div className="pk-actions" key={p.id}>
-              <span>{p.title}</span>
-              <ConfirmButton
-                disabled={busy}
-                iconLabel="Удалить локальную отметку"
-                prompt="Удалить только локальную отметку? Затем проверьте серверный статус."
-                confirmLabel="Подтвердить удаление"
-                onConfirm={async () => {
-                  try {
-                    await saveOutbox(outbox.filter((x) => x.id !== p.id));
-                  } catch (e) {
-                    setError((e as Error).message);
-                  }
-                }}
-              >
-                <Trash2 size={16} aria-hidden />
-              </ConfirmButton>
-            </div>
-          ))}
-        </section>
-      )}
+      <PickupOutbox key={outboxKey} items={outbox} jobs={snapshot.jobs} busy={busy} stale={stale || loading}
+        onSave={saveOutbox} onSync={sync} onRefresh={refresh} />
       {loading && <p role="status">Загрузка маршрутов…</p>}
       {editor && dispatch && (
-        <div className="pk-editor-overlay" role="dialog" aria-modal="true">
+        <div className="pk-editor-overlay">
           {editor.type === "job" ? (
             <JobForm
               job={editor.job}
@@ -692,7 +646,7 @@ export function PickupPage({
           }}
         />
       ) : dispatch && tab === "billing" ? (
-        <PickupBillingTab
+        <PickupBillingTab key={`${city}:${date}`} call={call}
           city={city}
           date={date}
           jobs={snapshot.jobs}
@@ -1214,6 +1168,8 @@ export function PickupPage({
           <main className={`pk-panel${route ? " pk-route-detail" : ""}`}>
             {route && driverMobileUx ? (
               <PickupDriverMobileRoute
+                syncedAt={snapshot.syncedAt}
+                driverLogin={account.login}
                 onDraftChange={setDriverDraftDirty}
                 draftDirty={driverDraftDirty}
                 route={route}
@@ -1222,7 +1178,7 @@ export function PickupPage({
                 busy={busy}
                 error={error}
                 stale={stale}
-                outboxCount={outbox.length}
+                outboxCount={outbox.filter(p => p.body.id === route.id || routeJobs.some(j => j.id === p.body.id)).length}
                 outboxReady={outboxReady}
                 routePending={routePending}
                 driverCanOperate={driverCanOperate}

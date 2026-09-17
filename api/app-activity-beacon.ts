@@ -46,7 +46,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited("app_activity_beacon", `${ip}:${login.toLowerCase()}`, BEACON_LIMIT_PER_MIN)) {
+  if (await isRateLimited("app_activity_beacon", `${ip}:${login.toLowerCase()}`, BEACON_LIMIT_PER_MIN)) {
     return res.status(429).json({ error: "Слишком часто", request_id: ctx.requestId });
   }
 

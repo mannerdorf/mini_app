@@ -9,7 +9,7 @@ describe("pickupRouteCanDelete", () => {
   it("allows delete in any route status", () => {
     expect(pickupRouteCanDelete("draft")).toBe(true);
     expect(pickupRouteCanDelete("published")).toBe(true);
-    expect(pickupRouteCanDelete("started")).toBe(true);
+    expect(pickupRouteCanDelete("started")).toBe(false);
     expect(pickupRouteCanDelete("completed")).toBe(true);
   });
 });

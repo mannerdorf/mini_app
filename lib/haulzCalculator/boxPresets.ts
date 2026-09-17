@@ -4,7 +4,7 @@ export const HAULZ_BOX_PRESET_LABELS = ["XS", "S", "M", "L", "XL"] as const;
 export type HaulzBoxPresetLabel = (typeof HAULZ_BOX_PRESET_LABELS)[number];
 
 export type BoxPreset = {
-  label: string;
+  label: HaulzBoxPresetLabel;
   weightKg: number;
   volumeM3: number;
   lengthCm: number;

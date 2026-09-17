@@ -81,7 +81,7 @@ export function AdminExpenseViewModal(props: AdminExpenseModalSharedProps) {
             )}
           </div>
         </div>
-        <Flex gap="0.5rem" justify="flex-end">
+        <Flex gap="0.5rem" justify="end">
           <Button type="button" className="filter-button" onClick={() => setExpenseViewId(null)}>Закрыть</Button>
           <Button type="button" className="filter-button" onClick={() => { setExpenseViewId(null); beginExpenseEdit(item); }}>Изменить</Button>
         </Flex>

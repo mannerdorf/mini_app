@@ -1,0 +1,4 @@
+dialog.pk-editor { width: min(760px, 94vw); margin: auto; }
+dialog.pk-editor::backdrop, dialog.modal-overlay::backdrop { background: rgb(15 23 42 / 55%); }
+
+dialog.modal-overlay { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh !important; margin: 0; padding: 0; border: 0; }

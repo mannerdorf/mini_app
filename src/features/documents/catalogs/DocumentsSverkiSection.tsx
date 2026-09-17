@@ -388,7 +388,7 @@ export function DocumentsSverkiSection({
                             Контрагент: {stripOoo(row.customerName) || "—"}
                           </Typography.Label>
                         )}
-                        <Flex justify="flex-end">
+                        <Flex justify="end">
                           {hasDownload ? (
                             <button
                               type="button"

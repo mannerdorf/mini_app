@@ -28,3 +28,8 @@ export const ProfilePage = lazyWithRetry(
   () => import("../pages/ProfilePage").then((m) => ({ default: m.ProfilePage })),
   "ProfilePage",
 );
+
+export const HaulzReturnsPage = lazyWithRetry(
+  () => import("../pages/HaulzReturnsPage").then(m => ({ default: m.HaulzReturnsPage })),
+  "HaulzReturnsPage",
+);

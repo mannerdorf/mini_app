@@ -4,8 +4,9 @@ const ALG = "sha256";
 const TTL_MS = 8 * 60 * 60 * 1000; // 8 hours
 
 /** Один и тот же секрет для создания и проверки токена. Задайте ADMIN_TOKEN_SECRET в Vercel (одинаково везде). */
-function getSecret(): string {
-  return process.env.ADMIN_TOKEN_SECRET || "haulz-admin";
+function getSecret(): string | null {
+  const secret = process.env.ADMIN_TOKEN_SECRET;
+  return secret?.trim() ? secret : null;
 }
 
 export type AdminTokenPayload = {
@@ -16,6 +17,8 @@ export type AdminTokenPayload = {
 };
 
 export function createAdminToken(superAdmin?: boolean, login?: string): string {
+  const secret = getSecret();
+  if (!secret) throw new Error("ADMIN_TOKEN_SECRET is required");
   const payload: AdminTokenPayload = {
     admin: true,
     exp: Date.now() + TTL_MS,
@@ -23,7 +26,7 @@ export function createAdminToken(superAdmin?: boolean, login?: string): string {
     ...(login ? { login } : {}),
   };
   const payloadB64 = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
+  const sig = crypto.createHmac(ALG, secret).update(payloadB64).digest("base64url");
   return `${payloadB64}.${sig}`;
 }
 
@@ -32,7 +35,9 @@ export function getAdminTokenPayload(token: string | undefined): AdminTokenPaylo
   const parts = token.split(".");
   if (parts.length !== 2) return null;
   const [payloadB64, sig] = parts;
-  const expectedSig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
+  const secret = getSecret();
+  if (!secret) return null;
+  const expectedSig = crypto.createHmac(ALG, secret).update(payloadB64).digest("base64url");
   if (sig !== expectedSig) return null;
   try {
     const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8")) as AdminTokenPayload;
@@ -47,7 +52,9 @@ export function verifyAdminToken(token: string | undefined): boolean {
   const parts = token.split(".");
   if (parts.length !== 2) return false;
   const [payloadB64, sig] = parts;
-  const expectedSig = crypto.createHmac(ALG, getSecret()).update(payloadB64).digest("base64url");
+  const secret = getSecret();
+  if (!secret) return false;
+  const expectedSig = crypto.createHmac(ALG, secret).update(payloadB64).digest("base64url");
   if (sig !== expectedSig) return false;
   try {
     const payload = JSON.parse(Buffer.from(payloadB64, "base64url").toString("utf8"));

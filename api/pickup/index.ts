@@ -1,3 +1,5 @@
+import { billingJournal, billingEdit, billingSend } from "../../lib/pickup/billing.js";
+import { uuid } from "../../lib/pickup/model.js";
 import {
   checkRoute,
   checkSignature,
@@ -47,6 +49,7 @@ import {
   pickupSnapshotSeeAllRoutes,
 } from "../../lib/pickup/serviceBrowse.js";
 import { allocatePickupJobNumber } from "../../lib/pickup/allocateJobNumber.js";
+import { lockPickupMutation } from "../../lib/pickup/mutationLocks.js";
 import {
   PickupError,
   pickupJobCanCancel,
@@ -85,14 +88,6 @@ async function persistJobContactsToSenderDirectory(
   if (!(await pgTableExists(pool, "pickup_supplier_contacts"))) return;
   await upsertPickupSupplierContacts(db, senderInn, data.contacts);
 }
-const uuid = (v: unknown): string => {
-  requireValue(
-    typeof v === "string" &&
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
-    "Некорректный идентификатор",
-  );
-  return v;
-};
 function checkVersion(row: { version: number }, version: unknown) {
   if (row.version !== version)
     throw new PickupError(
@@ -228,6 +223,15 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
     actor,
     body.serviceBrowse === true,
   );
+  const driverProfile = actor.driver ? (await db.query(
+    `SELECT name, city, data->>'phone' AS phone, data->>'phoneExtra' AS "phoneExtra", data->>'carrier' AS carrier
+     FROM pickup_resources WHERE kind='driver' AND active=true AND lower(trim(data->>'login'))=$1
+     ORDER BY EXISTS (
+       SELECT 1 FROM pickup_routes r WHERE r.city=pickup_resources.city
+       AND lower(trim(r.snapshot->'driver'->'data'->>'login'))=$1 AND r.status IN ('published','started')
+       AND r.date=(now() AT TIME ZONE CASE WHEN r.city='moscow' THEN 'Europe/Moscow' ELSE 'Europe/Kaliningrad' END)::date
+     ) DESC, updated_at DESC,id LIMIT 1`, [actor.login],
+  )).rows[0] ?? null : null;
   const routes: Route[] = (
     await db.query(
       `SELECT *,to_char(date,'YYYY-MM-DD') AS date FROM pickup_routes WHERE city=$1 AND date=$2
@@ -241,11 +245,18 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
     db as any,
     "pickup_driver_locations",
   );
+  if (locationAvailable) await db.query(
+    `DELETE FROM pickup_driver_locations WHERE route_id IN (
+      SELECT route_id FROM pickup_driver_locations WHERE COALESCE(last_observed_at,measured_at)<now()-interval '7 days'
+      ORDER BY last_observed_at LIMIT 100 FOR UPDATE SKIP LOCKED
+    )`,
+  );
   const locations = locationAvailable
     ? (
         await db.query(
           `SELECT l.* FROM pickup_driver_locations l JOIN pickup_routes r ON r.id=l.route_id
-     WHERE l.route_id=ANY($1::uuid[]) AND l.driver_login=r.snapshot->'driver'->'data'->>'login'`,
+     WHERE l.route_id=ANY($1::uuid[]) AND l.driver_login=r.snapshot->'driver'->'data'->>'login'
+     AND COALESCE(l.last_observed_at,l.measured_at)>=now()-interval '7 days'`,
           [routeIds],
         )
       ).rows
@@ -266,6 +277,8 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
   ).rows;
   return {
     locations,
+    driverProfile,
+    syncedAt: new Date().toISOString(),
     locationAvailable,
     resources,
     routes,
@@ -278,7 +291,7 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
 async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
   const action = body.action;
   if (action === "snapshot") return readSnapshot(db, actor, body);
-  if (action === "location") {
+  if (action === "location" || action === "location_unreliable") {
     const route = await routeById(db, body.id);
     // Even a dispatcher may only report their own position, with a driver badge.
     if (!actor.driver || route.snapshot.driver?.data.login !== actor.login)
@@ -295,6 +308,11 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "GPS ещё не настроен: примените миграцию 108_pickup_driver_locations.sql",
         503,
       );
+    if (action === "location_unreliable") {
+      await db.query("UPDATE pickup_driver_locations SET warning=$2,last_observed_at=now() WHERE route_id=$1", [route.id, "Водитель сообщил: позиция GPS неверна"]);
+      await event(db, actor, "Водитель сообщил о неверной позиции GPS", route.id, null);
+      return { ok: true };
+    }
     const fix = validateLocation(body);
     const schema = await db.query(
       "SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='pickup_driver_locations' AND column_name='warning'",
@@ -316,8 +334,8 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         new Date(previous.last_observed_at || previous.measured_at).getTime()
     )
       return { ok: true, accepted: false, warning: previous.warning };
-    const warning = locationWarning(previous, fix);
-    if (warning && previous) {
+    const warning = locationWarning(previous, fix, route.city);
+    if (warning && previous && !previous.warning?.startsWith("Первое определение")) {
       await db.query(
         "UPDATE pickup_driver_locations SET warning=$2,last_observed_at=$3 WHERE route_id=$1",
         [route.id, warning, fix.measured_at],
@@ -587,8 +605,11 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       );
     }
     if (body.kind === "driver" || body.kind === "vehicle") {
-      delete data.from;
-      delete data.to;
+      if (data.from || data.to)
+        requireValue(
+          validTime(data.from) && validTime(data.to) && data.from < data.to,
+          "Укажите рабочее время в пределах дня; ночные смены пока не поддерживаются",
+        );
     } else {
       requireValue(
         validTime(data.from) && validTime(data.to) && data.from < data.to,
@@ -1477,7 +1498,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST")
     return res.status(405).json({ error: "Используйте POST" });
-  if (isRateLimited("pickup", getClientIp(req), ADMIN_API_LIMIT))
+  if (await isRateLimited("pickup", getClientIp(req), ADMIN_API_LIMIT))
     return res.status(429).json({ error: "Слишком много запросов" });
   let db: PoolClient | undefined;
   try {
@@ -1504,9 +1525,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (!actor.dispatcher && !actor.driver)
       throw new PickupError("Нет доступа к заборной логистике", 403);
+    if (["billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
+      dispatcherOnly(actor);
+      db.release(); db = undefined;
+      const pool = getPool();
+      const result = body.action === "billing_journal" ? await billingJournal(pool,body.city,body.date,login)
+        : body.action === "billing_send" ? await billingSend(pool,login,body) : await billingEdit(pool,login,body);
+      return res.status(200).json(result);
+    }
     if (body.action === "check_route") {
       dispatcherOnly(actor);
-      if (isRateLimited("pickup-route-check", login, 2))
+      if (await isRateLimited("pickup-route-check", login, 2))
         throw new PickupError(
           "Не более двух проверок маршрута в минуту. Повторите чуть позже.",
           429,
@@ -1542,9 +1571,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ].includes(body.action);
     if (mutation) uuid(body.requestId);
     await db.query("BEGIN");
-    // Small dispatch workload: serialize writes to protect assignments, capacities and idempotency.
+    // Gate structural changes; independent route execution can proceed concurrently.
     if (mutation) {
-      await db.query("SELECT pg_advisory_xact_lock(104,1)");
+      await lockPickupMutation(db, login, body);
       const receipt = await db.query(
         "SELECT result FROM pickup_receipts WHERE actor=$1 AND request_id=$2",
         [login, body.requestId],

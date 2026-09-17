@@ -1,6 +1,6 @@
 /** Webpush / push / email уведомления (профиль). */
 
-import { fetchJson } from "./_base";
+import { apiErrorMessage, fetchJson } from "./_base";
 
 export type NotificationPrefs = {
   push: Record<string, boolean>;

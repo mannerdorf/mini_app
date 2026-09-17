@@ -1,3 +1,5 @@
+import { twoFaSecurity } from "../lib/twoFaApi.js";
+import { TwoFaError } from "../lib/twoFaSecurity.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { deleteRedisValue } from "./redis.js";
@@ -23,10 +25,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const login = loginRaw.toLowerCase();
   if (!login) return res.status(400).json({ error: "login is required", request_id: ctx.requestId });
 
-  await Promise.allSettled([
-    deleteRedisValue(`tg:by_login:${login}`),
-    ...(loginRaw && loginRaw !== login ? [deleteRedisValue(`tg:by_login:${loginRaw}`)] : []),
-  ]);
+  // This legacy alias must not bypass the protected 2FA unlink operation.
+  try {
+    await twoFaSecurity.change(String(body?.settingsToken || ""), "unlink", "", loginRaw);
+  } catch (error) {
+    return res.status(error instanceof TwoFaError ? error.status : 503).json({error:error instanceof TwoFaError ? error.message : "Не удалось подтвердить доступ к 2FA",request_id:ctx.requestId});
+  }
 
   try {
     const pool = getPool();

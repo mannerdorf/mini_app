@@ -372,10 +372,11 @@ type OrdersParams = {
     enabled?: boolean;
 };
 
-async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
+type OrdersResult = { items: unknown[]; metadata?: { fetchedAt: string | null; stale: boolean } };
+async function fetcherOrders(params: OrdersParams): Promise<OrdersResult> {
     const { auth, dateFrom, dateTo, activeInn, activeCustomerName, useServiceRequest, mode } = params;
-    if (!auth?.login || !auth?.password) return [];
-    const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_ORDERS_URL, {
+    if (!auth?.login || !auth?.password) return { items: [] };
+    const data = await apiFetchJson<OrdersResult | unknown[]>(PROXY_API_ORDERS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -385,13 +386,14 @@ async function fetcherOrders(params: OrdersParams): Promise<unknown[]> {
             dateTo,
             inn: activeInn || undefined,
             customerName: activeCustomerName || undefined,
+            withMetadata: true,
             mode: mode || undefined,
             serviceMode: useServiceRequest,
             ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? [] : []);
-    return Array.isArray(list) ? list : [];
+    return { items: Array.isArray(list) ? list : [], metadata: Array.isArray(data) ? undefined : data.metadata };
 }
 
 export function useOrders(params: OrdersParams) {
@@ -399,13 +401,14 @@ export function useOrders(params: OrdersParams) {
     const key = enabled && auth?.login && auth?.password
         ? ["orders", auth.login, dateFrom, dateTo, activeInn ?? "", activeCustomerName ?? "", !!useServiceRequest, mode ?? ""]
         : null;
-    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+    const { data, error, isLoading, mutate } = useSWR<OrdersResult>(
         key,
         () => fetcherOrders(params),
         SWR_OPTIONS
     );
     return {
-        items: data ?? [],
+        items: data?.items ?? [],
+        metadata: data?.metadata,
         error: error?.message ?? null,
         loading: isLoading,
         mutate,

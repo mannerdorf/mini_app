@@ -63,16 +63,55 @@ export async function fetchAdminClaims(
   };
 }
 
+export type AdminClaimDetail = {
+  claim: {
+    id: number;
+    requestedAmount: number | string | null;
+    approvedAmount: number | string | null;
+    claimNumber: string | null;
+    customerLogin: string | null;
+    customerCompanyName: string | null;
+    customerInn: string | null;
+    customerPhone: string | null;
+    customerEmail: string | null;
+    cargoNumber: string | null;
+    claimType: string | null;
+    description: string | null;
+    status: string | null;
+    statusChangedAt: string | null;
+    slaDueAt: string | null;
+    managerLogin: string | null;
+    expertLogin: string | null;
+    leaderLogin: string | null;
+    accountantLogin: string | null;
+    managerNote: string | null;
+    leaderComment: string | null;
+    accountingNote: string | null;
+    customerResolution: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
+  };
+  customerPayload: { contactName: string; selectedPlaces: string[]; manipulationSigns: string[]; packagingTypes: string[] };
+  claimTypeLabel: string;
+  ttnCheck: {orderFound:boolean;sendingFound:boolean;ttnFound:boolean;damageMarksFound:boolean};
+  photos: Array<{id:number;fileName?:string;mimeType?:string;base64?:string;caption?:string}>;
+  documents: Array<{id:number;fileName?:string;mimeType?:string;base64?:string;docType?:string}>;
+  videoLinks: Array<{id:number;url?:string;title?:string}>;
+  comments: Array<{id:number;authorLogin?:string;authorRole?:string;commentText?:string;isInternal?:boolean;createdAt?:string}>;
+  events: Array<{id:number;actorLogin?:string;actorRole?:string;eventType?:string;fromStatus?:string;toStatus?:string;payload?:unknown;createdAt?:string}>;
+};
+
 export async function fetchAdminClaimDetail(
   adminToken: string,
   id: number
-): Promise<Record<string, unknown> | null> {
+): Promise<AdminClaimDetail | null> {
   const res = await fetch(`/api/admin-claim-detail?id=${id}`, {
     headers: adminAuthHeaders(adminToken),
   });
-  const data = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: string };
+  const data = (await res.json().catch(() => ({}))) as AdminClaimDetail & { error?: string };
   if (!res.ok) throw new Error(data.error || "Ошибка загрузки претензии");
-  return data || null;
+  if (!data.claim || !Number.isFinite(Number(data.claim.id))) throw new Error("Некорректный ответ претензии");
+  return data;
 }
 
 export async function postAdminClaimUpdate(

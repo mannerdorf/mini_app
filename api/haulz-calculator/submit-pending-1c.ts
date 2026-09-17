@@ -12,7 +12,7 @@ import { sendSubmitPendingDocumentsOrderTo1cJson } from "../../lib/documentsOrde
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (haulzCalculatorPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "haulz_calculator_submit_pending_1c");
-  if (isRateLimited("haulz_calc_submit_pending_1c", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
+  if (await isRateLimited("haulz_calc_submit_pending_1c", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов", request_id: ctx.requestId });
   }
   if (req.method !== "POST") {

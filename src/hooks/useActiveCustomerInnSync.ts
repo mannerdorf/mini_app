@@ -1,3 +1,4 @@
+import { fetchCompanies } from "../api/client/companiesList";
 import { useEffect } from "react";
 import { postGetCustomers } from "../api/client/perevozkiClient";
 import { useAuth } from "../contexts/AuthContext";
@@ -68,10 +69,8 @@ export function useActiveCustomerInnSync() {
 
     (async () => {
       try {
-        const res = await fetch(`/api/companies?login=${encodeURIComponent(login)}`);
-        const data = await res.json().catch(() => ({}));
+        const list = await fetchCompanies([activeAccount]);
         if (cancelled) return;
-        const list = Array.isArray(data?.companies) ? data.companies : [];
         const forLogin = list.filter(
           (c: { login?: string }) => (c.login ?? "").trim().toLowerCase() === login,
         );

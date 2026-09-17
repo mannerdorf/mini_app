@@ -42,7 +42,7 @@ describe("pickupRouteCanDeleteInDispatchApp", () => {
   it("allows any route status for any dispatcher", () => {
     expect(pickupRouteCanDeleteInDispatchApp("completed", power)).toBe(true);
     expect(pickupRouteCanDeleteInDispatchApp("completed", {})).toBe(true);
-    expect(pickupRouteCanDeleteInDispatchApp("started", {})).toBe(true);
+    expect(pickupRouteCanDeleteInDispatchApp("started", {})).toBe(false);
   });
 });
 

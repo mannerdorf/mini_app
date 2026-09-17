@@ -27,7 +27,7 @@ export function AdminExpenseRejectModal(props: AdminExpenseModalSharedProps) {
           rows={3}
           autoFocus
         />
-        <Flex gap="0.5rem" justify="flex-end">
+        <Flex gap="0.5rem" justify="end">
           <Button type="button" className="filter-button" onClick={() => setExpenseRejectId(null)}>Отмена</Button>
           <Button
             type="button"

@@ -104,6 +104,7 @@ export function itemDate(kind: DatedDocumentCacheKind, item: any): string {
 }
 
 export function itemKey(kind: DatedDocumentCacheKind, item: any): string {
+  if (kind === "orders") return JSON.stringify(item?.Ссылка ? ["orders", item.Ссылка] : ["orders", item?.ЗаказчикИНН || "", item?.Номер || item?.Number || "", itemDate(kind, item)]);
   const number = String(
     item?.Number ??
       item?.number ??
@@ -144,6 +145,7 @@ export function mergeChunkIntoCache(
 export async function fetchServiceJson(login: string, password: string, url: string) {
   const response = await fetch(url, {
     method: "GET",
+    signal: AbortSignal.timeout(45000),
     headers: {
       Auth: `Basic ${login}:${password}`,
       Authorization: SERVICE_AUTH,
@@ -225,6 +227,10 @@ export async function refreshDatedKindForWindow(
 ): Promise<RefreshWindowResult> {
   const { url, table, jsonKeys } = kindEndpoint(kind, dateFrom, dateTo);
   const json = await fetchServiceJson(login, password, url);
+  // A malformed HTTP 200 must never erase the previous window of orders.
+  if (kind === "orders" && (!Array.isArray(json) || json.some(row => !row || typeof row !== "object" || !row.Номер || !row.ЗаказчикИНН || !row.Ссылка))) {
+    throw new Error("GetZayavki: неверный формат ответа, предыдущие данные сохранены");
+  }
   const chunkRows = extractKnownArray(json, ...jsonKeys);
 
   const normalizedKind = kind as NormalizedDocumentKind;

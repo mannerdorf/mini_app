@@ -9,10 +9,10 @@ import {
   PROXY_API_SENDINGS_URL,
 } from "../../constants/config";
 import { apiFetchJson } from "../../utils";
-import type { SendingItem } from "../lib/adminSendingsAnalytics";
+import type { SendingItem } from "../../lib/adminSendingsAnalytics";
 import type { CargoTimelineReport } from "../../lib/adminCargoTimelineReport";
 import type { CargoTimelineDelayFilter } from "../../lib/cargoTimelineReportShared";
-import type { AuthData, CargoItem } from "../types";
+import type { AuthData, CargoItem } from "../../types";
 import type { AdminPerevozkiDateField } from "./admin/perevozki";
 
 function authBody(auth: AuthData): Record<string, unknown> {

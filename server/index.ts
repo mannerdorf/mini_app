@@ -1,11 +1,12 @@
 import http from "node:http";
+import { withRequestSignal } from "../lib/requestCancellation.js";
 import fs from "node:fs";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
 import type { VercelRequest } from "@vercel/node";
 import { buildRouteIndex, getProjectRoot, loadHandler, matchRoute } from "./routes.js";
 import { applyCors } from "./cors.js";
-import { readRequestBody, toVercelRequest, toVercelResponse } from "./vercelAdapter.js";
+import { RequestBodyError, readRequestBody, toVercelRequest, toVercelResponse } from "./vercelAdapter.js";
 
 const ENV_PATH = process.env.HAULZ_ENV_FILE || "/opt/haulz/.env";
 if (fs.existsSync(ENV_PATH)) {
@@ -68,7 +69,9 @@ const server = http.createServer(async (req, res) => {
   const hardTimeoutMs = requestHardTimeoutMs(pathname);
 
   let settled = false;
+  const requestAbort = new AbortController();
   const hardTimer = setTimeout(() => {
+    requestAbort.abort(new Error("Request deadline exceeded"));
     if (settled || res.headersSent) return;
     settled = true;
     res.statusCode = 504;
@@ -84,6 +87,7 @@ const server = http.createServer(async (req, res) => {
   };
   res.on("finish", finish);
   res.on("close", finish);
+  res.on("close", () => { if (!res.writableFinished) requestAbort.abort(new Error("Client disconnected")); });
 
   if ((req.method || "GET").toUpperCase() === "OPTIONS") {
     res.statusCode = 204;
@@ -124,6 +128,7 @@ const server = http.createServer(async (req, res) => {
     // Multipart: не буферизуем тело — formidable читает живой стрим.
     // Иначе stream уже пуст → parseMultipart висит до hard timeout (504 Gateway timeout).
     const body = isMultipartRequest(req) ? undefined : await readRequestBody(req);
+    if (res.writableEnded || settled) return;
     const vercelReq = toVercelRequest(req, body);
     for (const [key, value] of Object.entries(matched.params)) {
       (vercelReq as VercelRequest & { params?: Record<string, string> }).params = {
@@ -134,8 +139,17 @@ const server = http.createServer(async (req, res) => {
     }
 
     const vercelRes = toVercelResponse(res);
-    await handler(vercelReq, vercelRes);
+    await withRequestSignal(requestAbort.signal, () => handler(vercelReq, vercelRes));
   } catch (err) {
+    if (err instanceof RequestBodyError) {
+      if (!res.headersSent) {
+        res.statusCode = err.status;
+        res.setHeader("Content-Type", "application/json");
+        res.setHeader("Connection", "close");
+        res.end(JSON.stringify({ error: err.message }));
+      }
+      return;
+    }
     console.error(
       JSON.stringify({
         level: "error",

@@ -60,7 +60,7 @@ export function AdminFerryAddModal({ f }: { f: AdminFerriesState }) {
         {f.ferryAddError && (
           <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginBottom: "0.5rem" }}>{f.ferryAddError}</Typography.Body>
         )}
-        <Flex gap="0.5rem" justify="flex-end">
+        <Flex gap="0.5rem" justify="end">
           <Button type="button" className="filter-button" disabled={f.ferryAddLoading} onClick={f.closeAddModal}>Отмена</Button>
           <Button
             type="button"

@@ -166,7 +166,7 @@ function VehicleDayBlock({ row }: { row: LastMileEntityDayRow }) {
               </Typography.Body>
             </div>
           </Flex>
-          <Flex align="center" gap="0.35rem" wrap="wrap" justify="flex-end">
+          <Flex align="center" gap="0.35rem" wrap="wrap" justify="end">
             <span style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{formatWorkDuration(row)}</span>
             <AccrualBadge amount={row.timesheetAccrual} matched={row.timesheetMatched} />
             <CostPerKgBadge accrual={row.timesheetAccrual} pw={row.totals.pw} />
@@ -229,7 +229,7 @@ function EntityDayRow({
               </Typography.Body>
             </div>
           </Flex>
-          <Flex align="center" gap="0.35rem" wrap="wrap" justify="flex-end">
+          <Flex align="center" gap="0.35rem" wrap="wrap" justify="end">
             <span style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{formatWorkDuration(row)}</span>
             <AccrualBadge amount={row.timesheetAccrual} matched={row.timesheetMatched} />
             <CostPerKgBadge accrual={row.timesheetAccrual} pw={row.totals.pw} />
@@ -286,7 +286,7 @@ function EntityGroupBlock({
               <Typography.Body style={{ fontSize: "0.74rem", color: "var(--color-text-secondary)" }}>{group.subtitle}</Typography.Body>
             </div>
           </Flex>
-          <Flex align="center" gap="0.35rem" wrap="wrap" justify="flex-end">
+          <Flex align="center" gap="0.35rem" wrap="wrap" justify="end">
             <span style={{ fontSize: "0.74rem", fontWeight: 600 }}>
               табель: {Math.round(group.totals.timesheetAccrual).toLocaleString("ru-RU")} ₽
             </span>

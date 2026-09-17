@@ -141,7 +141,7 @@ export function AdminTimesheetPayoutPanel({ emp, stats, isSuperAdmin, ts }: Admi
                       {isSuperAdmin ? (
                         <td style={{ padding: "0.28rem 0.35rem", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
                           {isEditing ? (
-                            <Flex align="center" justify="flex-end" gap="0.3rem">
+                            <Flex align="center" justify="end" gap="0.3rem">
                               <Button
                                 type="button"
                                 className="filter-button"
@@ -167,7 +167,7 @@ export function AdminTimesheetPayoutPanel({ emp, stats, isSuperAdmin, ts }: Admi
                               </Button>
                             </Flex>
                           ) : (
-                            <Flex align="center" justify="flex-end" gap="0.3rem">
+                            <Flex align="center" justify="end" gap="0.3rem">
                               <Button
                                 type="button"
                                 className="filter-button"

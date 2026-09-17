@@ -111,7 +111,7 @@ export function SverkiOrderModal({
         {error ? (
           <Typography.Body style={{ color: "#ef4444", fontSize: "0.78rem", marginBottom: "0.6rem" }}>{error}</Typography.Body>
         ) : null}
-        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ flexWrap: "nowrap" }}>
+        <Flex justify="end" gap="0.45rem" wrap="nowrap" style={{ flexWrap: "nowrap" }}>
           <Button
             className="filter-button"
             disabled={submitting}

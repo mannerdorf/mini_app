@@ -1,3 +1,4 @@
+import { fetchCompanies } from "../api/client/companiesList";
 import { useEffect, useRef } from "react";
 import { postAuthRegisteredLogin } from "../api/client/auth";
 import { normalizePermissions, useAuth } from "../contexts/AuthContext";
@@ -262,11 +263,10 @@ export function useRegisteredAccountSync(
     if (isSingleRegisteredCustomerAccount(activeAccount) && (activeAccount.customers?.length ?? 0) === 1) return;
     const loginKey = activeAccount.login.trim().toLowerCase();
     let cancelled = false;
-    fetch(`/api/companies?login=${encodeURIComponent(loginKey)}`)
-      .then((r) => r.json())
-      .then((data: { companies?: { login: string; inn: string; name: string }[] }) => {
+    fetchCompanies([activeAccount])
+      .then((companies) => {
         if (cancelled) return;
-        const list = (data.companies ?? []).filter((c) => c.login === loginKey && (c.inn || "").trim());
+        const list = companies.filter((c) => c.login === loginKey && (c.inn || "").trim());
         if (list.length !== 1) return;
         const only = list[0];
         if (only.inn === activeAccount.activeCustomerInn && only.name === activeAccount.customer) return;

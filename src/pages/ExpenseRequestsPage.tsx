@@ -1333,7 +1333,7 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                                         </button>
                                     )}
                                     {(r.status === "draft" || r.status === "rejected") && (
-                                        <Flex gap="0.3rem" wrap="wrap" justify="flex-end">
+                                        <Flex gap="0.3rem" wrap="wrap" justify="end">
                                             <button type="button" onClick={() => sendForApproval(r.id)} disabled={sending}
                                                 style={{ display: "flex", alignItems: "center", gap: "0.2rem", fontSize: "0.7rem", padding: "0.25rem 0.5rem", borderRadius: 7, border: "1px solid var(--color-primary-blue, #3b82f6)", background: "transparent", color: "var(--color-primary-blue, #3b82f6)", cursor: "pointer", whiteSpace: "nowrap" }}>
                                                 <SendHorizonal className="w-3 h-3" /> На согласование

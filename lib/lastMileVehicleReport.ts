@@ -43,15 +43,20 @@ function isDeliveringStage(key: string): boolean {
 export function parseCargoDateTime(raw: unknown): Date | null {
   const text = String(raw ?? "").trim();
   if (!text) return null;
-  const parsed = new Date(text);
+  // 1C timestamps without an offset are business timestamps. Keep their
+  // calendar/time fields stable across servers with different TZ settings.
+  const normalized = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(text)
+    ? `${text}Z`
+    : text;
+  const parsed = new Date(normalized);
   if (!Number.isFinite(parsed.getTime())) return null;
   return parsed;
 }
 
 function toYmd(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
@@ -162,16 +167,16 @@ function isoOrNull(d: Date | null): string | null {
 
 function formatTime(d: Date | null): string | null {
   if (!d) return null;
-  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && !String(d.toISOString()).includes("T")) {
+  if (d.getUTCHours() === 0 && d.getUTCMinutes() === 0 && d.getUTCSeconds() === 0 && !String(d.toISOString()).includes("T")) {
     return null;
   }
-  const hh = String(d.getHours()).padStart(2, "0");
-  const mm = String(d.getMinutes()).padStart(2, "0");
+  const hh = String(d.getUTCHours()).padStart(2, "0");
+  const mm = String(d.getUTCMinutes()).padStart(2, "0");
   return `${hh}:${mm}`;
 }
 
 function hasTimePart(d: Date): boolean {
-  return d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+  return d.getUTCHours() !== 0 || d.getUTCMinutes() !== 0 || d.getUTCSeconds() !== 0;
 }
 
 function vehicleKeyFromMeta(meta: ReturnType<typeof extractCargoLastMileMeta>): string {

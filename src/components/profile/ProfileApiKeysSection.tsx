@@ -28,6 +28,7 @@ const defaultScopeChecks = (): Record<UserApiKeyScopeClient, boolean> => ({
     "invoices:read": false,
     "acts:read": false,
     "orders:read": false,
+    "orders:write": false,
     "claims:read": false,
     "contracts:read": false,
     "sverki:read": false,

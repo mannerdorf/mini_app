@@ -178,6 +178,7 @@ beforeAll(async () => {
     "108_pickup_driver_locations.sql",
     "109_pickup_gps_quality.sql",
     "110_pickup_job_number.sql",
+    "114_pickup_1c_integration.sql",
   ]) {
     await state.db.exec(
       readFileSync(
@@ -216,6 +217,28 @@ beforeEach(async () => {
     );
 });
 describe("pickup API with PostgreSQL (PGlite)", () => {
+  it("lets only the assigned driver flag GPS and records the report", async () => {
+    await setup();
+    const started = await publishAndStart();
+    const id = started.routes[0].id;
+    await ok("driver", { action: "location", id, latitude: 55.75, longitude: 37.62, accuracy: 5, measured_at: new Date().toISOString() });
+    expect((await request("other", { action: "location_unreliable", id })).status).toBe(403);
+    await ok("driver", { action: "location_unreliable", id });
+    const result = await snapshot();
+    expect(result.locations[0].warning).toContain("Водитель сообщил");
+    expect(result.events.some((e: any) => e.action === "Водитель сообщил о неверной позиции GPS")).toBe(true);
+  });
+  it("returns only the current driver's directory card even without a visible route", async () => {
+    await setup();
+    const own = await snapshot("driver");
+    expect(own.routes).toHaveLength(0);
+    expect(own.driverProfile).toMatchObject({ name: "Водитель 1", phone: "+79990000001", city: "moscow" });
+    expect(own.driverProfile).not.toHaveProperty("data");
+    expect((await snapshot("other")).driverProfile).toBeNull();
+    const otherDay = await ok("driver", { action: "snapshot", city: "kaliningrad", date: "2026-09-20" });
+    expect(otherDay.driverProfile).toEqual(own.driverProfile);
+    expect(Number.isFinite(Date.parse(otherDay.syncedAt))).toBe(true);
+  });
   it("lets service-mode driver browse all routes when requested", async () => {
     await setup();
     await publishAndStart();
@@ -801,6 +824,17 @@ describe("pickup GPS", () => {
     accuracy: 18,
     measured_at: new Date(Date.now() - 10000).toISOString(),
   });
+  it("expires old GPS without changing route or pickup progress", async () => {
+    await setup();
+    const before = await publishAndStart();
+    await ok("driver", {action:"location",id:before.routes[0].id,...fix(),requestId:undefined});
+    await state.db.query("UPDATE pickup_driver_locations SET measured_at=now()-interval '8 days',last_observed_at=now()-interval '8 days'");
+    const after = await snapshot();
+    expect(after.locations).toEqual([]);
+    expect(after.routes).toEqual(before.routes);
+    expect(after.jobs).toEqual(before.jobs);
+    expect((await state.db.query("SELECT * FROM pickup_driver_locations")).rows).toEqual([]);
+  });
   it("stores only the latest fix without changing route version or creating receipts, isolates driver data", async () => {
     await setup();
     const s = await publishAndStart();
@@ -1048,6 +1082,8 @@ describe("request numbers at depot handoff", () => {
         (e: any) => e.action === "Заявка указана при сдаче на склад",
       ),
     ).toHaveLength(2);
+    const queued = await state.db.query("SELECT order_number,state FROM pickup_number_sync ORDER BY order_number");
+    expect(queued.rows).toEqual([{order_number:"З-001",state:"pending"},{order_number:"З-002",state:"pending"}]);
     await ok("driver", complete);
     expect((await snapshot()).jobs.map((j: any) => j.version)).toEqual(
       after.jobs.map((j: any) => j.version),
@@ -1240,7 +1276,7 @@ describe("route start location", () => {
     expect(published.snapshot.start.address).toBe("Москва, стоянка");
     expect(published.snapshot.depot.data.address).not.toBe("Москва, стоянка");
   });
-  it("lets dispatcher delete routes in any status, including with started pickups", async () => {
+  it("keeps started routes, responsible driver and active pickup available", async () => {
     const ids = await setup();
     let s = await publishAndStart();
     await ok("driver", {
@@ -1250,15 +1286,16 @@ describe("route start location", () => {
     });
     s = await snapshot();
     expect(s.jobs[0].status).toBe("arrived");
-    await ok("dispatch", {
+    const deletion = await request("dispatch", {
       action: "delete_route",
       id: ids.route.id,
       version: s.routes[0].version,
     });
-    const after = await snapshot();
-    expect(after.routes).toHaveLength(0);
+    expect(deletion.status).toBe(400);
+    const after = await snapshot("driver");
+    expect(after.routes).toHaveLength(1);
     const job = after.jobs.find((j: any) => j.id === ids.job.id);
-    expect(job?.route_id).toBeNull();
+    expect(job?.route_id).toBe(ids.route.id);
     expect(job?.status).toBe("arrived");
   });
   it("lets dispatcher delete completed routes", async () => {
@@ -1289,4 +1326,10 @@ describe("route start location", () => {
     expect(after.jobs[0].status).toBe("deposited");
     expect(after.jobs[0].route_id).toBeNull();
   });
+});
+
+it("denies drivers all billing actions", async () => {
+  for (const action of ["billing_journal","billing_save","billing_send","billing_mark_issued"]) {
+    expect((await request("driver",{action,city:"moscow",date:"2026-09-15"})).status).toBe(403);
+  }
 });

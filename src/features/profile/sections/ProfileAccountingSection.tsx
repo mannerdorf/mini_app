@@ -461,7 +461,7 @@ export function ProfileAccountingSection({ activeAccount, onBack, accounting }: 
                                 </div>
                             )}
                         </div>
-                        <Flex gap="0.5rem" justify="flex-end">
+                        <Flex gap="0.5rem" justify="end">
                             <Button type="button" className="filter-button" onClick={() => setSelectedAccountingRequest(null)}>Закрыть</Button>
                             {selectedAccountingRequest.status === "approved" && (
                                 <Button type="button" className="filter-button" onClick={() => { markAwaitingPayment(selectedAccountingRequest.id); setSelectedAccountingRequest(null); }} style={{ borderColor: "#2563eb", color: "#2563eb" }}>

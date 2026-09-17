@@ -102,7 +102,7 @@ export function AdminClaimDetailResponseSection({ detail, claims }: { detail: De
             {adminClaimAttachError}
           </Typography.Body>
         )}
-        <Flex justify="flex-end">
+        <Flex justify="end">
           <Button type="button" className="filter-button" onClick={uploadAdminClaimDocuments} disabled={adminClaimAttachSubmitting}>
             {adminClaimAttachSubmitting ? "Отправка..." : "Ответить"}
           </Button>

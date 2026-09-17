@@ -25,14 +25,14 @@ export async function fetchPerevozkaByNumber(number: string): Promise<unknown> {
     return data;
 }
 
-export async function postGetCustomers(login: string, password: string): Promise<{ ok: boolean; data: unknown }> {
+export async function postGetCustomers(login: string, password: string): Promise<{ ok: boolean; data: Record<string, unknown> }> {
     const res = await fetch(PROXY_API_GETCUSTOMERS_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ login, password }),
     });
     const data = await res.json().catch(() => ({}));
-    return { ok: res.ok, data };
+    return { ok: res.ok, data: data && typeof data === "object" && !Array.isArray(data) ? data : {} };
 }
 
 /** Запрос списка перевозок за период (проверка учётки API v1). */

@@ -12,7 +12,7 @@ import { AppNavigationProvider } from "./contexts/AppNavigationContext";
 import { shouldShowNotFound } from "./lib/notFoundRoute";
 import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
 import { isRedReturnsOnlyAccount, RED_RETURNS_LABEL, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
-import { HaulzReturnsPage } from "./pages/HaulzReturnsPage";
+import { HaulzReturnsPage } from "./app/lazyPages";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
 import { useMobileLayout } from "./hooks/useMobileLayout";
@@ -251,7 +251,9 @@ function AppRoot() {
                 onLogout={handleLogout}
                 saasShellClassName={profileSaasShellActive ? "profile-saas-shell" : ""}
             >
-                <HaulzReturnsPage auth={redReturnsAuth} pageTitle={RED_RETURNS_LABEL} />
+                <Suspense fallback={<div role="status" className="p-8">Загрузка возвратов…</div>}>
+                  <HaulzReturnsPage auth={redReturnsAuth} pageTitle={RED_RETURNS_LABEL} />
+                </Suspense>
             </WbOnlyAppLayout>
         );
     }

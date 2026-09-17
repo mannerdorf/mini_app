@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   applyApiCors(res);
   const ctx = initRequestContext(req, res, "public_v1_estimate");
 
-  if (isRateLimited("public_estimate", getClientIp(req), PUBLIC_ESTIMATE_LIMIT)) {
+  if (await isRateLimited("public_estimate", getClientIp(req), PUBLIC_ESTIMATE_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов", request_id: ctx.requestId });
   }
 

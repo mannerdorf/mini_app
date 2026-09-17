@@ -1,9 +1,8 @@
+import { CompanyAccessError, resolveCompanyAccess } from "../lib/companyAccess.js";
+import { respondCorsPreflight } from "./_lib/cors.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import type { Pool } from "pg";
 import { getPool } from "./_db.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
-import { lookupCustomerInnByName } from "../lib/resolveCustomerInn.js";
-import { normalizeOrderInn } from "../lib/orderCustomerScope.js";
 import {
   assertHaulzSummarySandboxAccess,
   loadHaulzSummaryDirectories,
@@ -13,9 +12,10 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse
 ) {
+  if (respondCorsPreflight(req, res)) return;
   const ctx = initRequestContext(req, res, "companies");
-  if (req.method !== "GET") {
-    res.setHeader("Allow", "GET");
+  if (req.method !== "GET" && req.method !== "POST") {
+    res.setHeader("Allow", "GET, POST");
     return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
   }
 
@@ -37,71 +37,29 @@ export default async function handler(
     }
   }
 
-  const loginParam = req.query.login;
-  const logins = (Array.isArray(loginParam) ? loginParam : loginParam ? [loginParam] : [])
-    .map((l) => (typeof l === "string" ? l.trim() : ""))
-    .filter(Boolean);
-  const accessAllParam = req.query.access_all;
-  const accessAllLogins = new Set(
-    (Array.isArray(accessAllParam) ? accessAllParam : accessAllParam ? [accessAllParam] : [])
-      .map((l) => (typeof l === "string" ? l.trim().toLowerCase() : ""))
-      .filter(Boolean)
-  );
-  if (logins.length === 0) {
-    return res.status(400).json({ error: "query login (or multiple login) is required", request_id: ctx.requestId });
+  let body: any = req.body;
+  if (typeof body === "string") {
+    try { body = JSON.parse(body); }
+    catch { return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId }); }
   }
-
+  const credentials = req.method === "GET"
+    ? [{ login: req.headers["x-login"], password: req.headers["x-password"] }]
+    : Array.isArray(body?.accounts) ? body.accounts : [body];
+  if (!credentials.length || credentials.length > 20) return res.status(400).json({ error: "Допустимо от 1 до 20 аккаунтов", request_id: ctx.requestId });
   try {
-    let pool: Pool;
-    try {
-      pool = getPool();
-    } catch {
-      return res.status(200).json({ companies: [], request_id: ctx.requestId });
-    }
+    const pool = getPool();
     const all: { login: string; inn: string; name: string }[] = [];
-
-    let verifiedAccessAll: Set<string> = new Set();
-    if (accessAllLogins.size > 0) {
-      const { rows } = await pool.query<{ login: string }>(
-        `SELECT LOWER(TRIM(login)) as login FROM registered_users
-         WHERE active = true AND COALESCE(access_all_inns, false) = true`
-      );
-      verifiedAccessAll = new Set(rows.map((r) => r.login));
-    }
-
-    for (const login of logins) {
-      const loginLower = login.toLowerCase();
-      if (accessAllLogins.has(loginLower) && verifiedAccessAll.has(loginLower)) {
-        const { rows } = await pool.query<{ inn: string; customer_name: string }>(
-          "SELECT inn, customer_name FROM cache_customers ORDER BY customer_name, inn"
-        );
-        for (const r of rows) {
-          all.push({ login: loginLower, inn: r.inn, name: r.customer_name || r.inn });
-        }
-      } else {
-        const { rows } = await pool.query<{ inn: string; name: string }>(
-          "SELECT inn, name FROM account_companies WHERE login = $1 ORDER BY name, inn",
-          [loginLower]
-        );
-        for (const r of rows) {
-          let inn = normalizeOrderInn(r.inn);
-          let name = String(r.name ?? "").trim();
-          if (!inn && name) {
-            const resolved = await lookupCustomerInnByName(pool, loginLower, name);
-            if (resolved?.inn) {
-              inn = normalizeOrderInn(resolved.inn);
-              name = resolved.name || name;
-            }
-          }
-          all.push({ login: loginLower, inn, name: name || inn });
-        }
+    for (const credential of credentials) {
+      const access = await resolveCompanyAccess(pool, credential?.login, credential?.password);
+      if (req.method === "GET" && req.query.login && req.query.login !== access.login) {
+        return res.status(403).json({ error: "Чужой аккаунт недоступен", request_id: ctx.requestId });
       }
+      all.push(...access.customers.map(customer => ({ ...customer, login: access.login })));
     }
     return res.status(200).json({ companies: all, request_id: ctx.requestId });
-  } catch (e: any) {
+  } catch (e) {
+    if (e instanceof CompanyAccessError) return res.status(e.status).json({ error: e.message, request_id: ctx.requestId });
     logError(ctx, "companies_list_failed", e);
-    return res
-      .status(500)
-      .json({ error: "Database error", details: e?.message || String(e), request_id: ctx.requestId });
+    return res.status(500).json({ error: "Не удалось загрузить компании", request_id: ctx.requestId });
   }
 }

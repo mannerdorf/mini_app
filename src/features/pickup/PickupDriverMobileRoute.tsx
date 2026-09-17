@@ -13,6 +13,8 @@ import type { PickupCall } from "./client";
 type ActBody = Record<string, unknown> & { action: string; id: string; version: number };
 
 type Props = {
+  syncedAt?: string;
+  driverLogin: string;
   onDraftChange?: (dirty: boolean) => void;
   draftDirty?: boolean;
   route: Route;
@@ -38,6 +40,8 @@ type Props = {
 };
 
 export function PickupDriverMobileRoute({
+  syncedAt,
+  driverLogin,
   route,
   onDraftChange,
   draftDirty = false,
@@ -91,6 +95,8 @@ export function PickupDriverMobileRoute({
         ) : null}
       </header>
 
+      <p className="pk-hint" role="status">{syncedAt ? `Последняя синхронизация: ${new Date(syncedAt).toLocaleString("ru-RU")}` : "Время синхронизации неизвестно"} · Ожидают отправки: {outboxCount}</p>
+      {error && <p className="pk-warning" role="alert">{error}</p>}
       <details className="pk-driver-itinerary">
         <summary>Все остановки · {total}</summary>
         <p className="pk-hint">Старт: {routeStartAddress(route) || "Склад HAULZ"}</p>
@@ -156,6 +162,8 @@ export function PickupDriverMobileRoute({
       {phase === "on_stop" && current && (
         <>
           <PickupDriverJobFlow
+            key={`${driverLogin.toLowerCase()}:${current.id}`}
+            driverLogin={driverLogin}
             onDraftChange={onDraftChange}
             job={current}
             stopIndex={currentIndex}

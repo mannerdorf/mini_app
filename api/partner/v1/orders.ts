@@ -1,10 +1,10 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { initRequestContext } from "../../_lib/observability.js";
+import { initRequestContext, logError } from "../../_lib/observability.js";
 import { withErrorLog } from "../../../lib/requestErrorLog.js";
 import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.js";
 import { assertBodyInnAllowedForApiKey, filterRowsByApiKeyInns } from "../../../lib/userApiKeyInnFilter.js";
 import { getPool } from "../../_db.js";
-import { readRegisteredOrdersFromCache, ordersItemInn } from "../../orders.js";
+import { readRegisteredOrdersFromCache, ordersItemInn } from "../../orders/index.js";
 
 function readJsonBody(req: VercelRequest): Record<string, unknown> {
   let body: any = req.body;
@@ -45,18 +45,27 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(403).json({ error: innErr, request_id: ctx.requestId });
   }
 
-  const pool = getPool();
-  const rows = await readRegisteredOrdersFromCache(
-    pool,
-    auth.verified,
-    auth.login,
-    dateFrom,
-    dateTo,
-    body.inn,
-    body.serviceMode,
-  );
-  const out = filterRowsByApiKeyInns(rows, auth.keyAllowedInnsCanon, ordersItemInn);
-  return res.status(200).json(out);
+  try {
+    const pool = getPool();
+    const rows = await readRegisteredOrdersFromCache(
+      pool,
+      auth.verified,
+      auth.login,
+      dateFrom,
+      dateTo,
+      body.inn,
+      body.serviceMode,
+    );
+    const out = filterRowsByApiKeyInns(rows, auth.keyAllowedInnsCanon, ordersItemInn);
+    return res.status(200).json(out);
+  } catch (error) {
+    logError(ctx, "partner_orders_unavailable", error);
+    return res.status(503).json({
+      error: "Не удалось загрузить заявки. Попробуйте обновить список позже.",
+      code: "ORDERS_UNAVAILABLE",
+      request_id: ctx.requestId,
+    });
+  }
 }
 
 export default withErrorLog(handler);

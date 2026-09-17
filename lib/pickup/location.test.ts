@@ -4,6 +4,15 @@ import {
   usableRoutingLocation,
   type DriverLocation,
 } from "./location";
+it("rejects a first fix in the wrong city and recovers without using it as a baseline", () => {
+  const falseFix = { latitude: 54.71, longitude: 20.51, accuracy: 5, measured_at: "2026-09-17T10:00:00Z" };
+  const warning = locationWarning(undefined, falseFix, "moscow");
+  expect(warning).toContain("Первое определение");
+  const stored = { ...falseFix, warning, route_id: "r", driver_login: "d", received_at: falseFix.measured_at };
+  expect(usableRoutingLocation(stored, Date.parse(falseFix.measured_at))).toBeUndefined();
+  expect(locationWarning(stored, { ...falseFix, latitude: 55.75, longitude: 37.62 }, "moscow")).toBe("");
+  expect(locationWarning(undefined, falseFix, "kaliningrad")).toBe("");
+});
 const previous: DriverLocation = {
   route_id: "r",
   driver_login: "d",

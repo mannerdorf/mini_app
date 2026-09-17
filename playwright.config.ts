@@ -9,6 +9,7 @@ import { defineConfig, devices } from "@playwright/test";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || "http://localhost:5173";
 
 export default defineConfig({
+  webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : { command: "npm run dev -- --host localhost", url: baseURL, reuseExistingServer: !process.env.CI },
   testDir: "e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

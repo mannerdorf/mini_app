@@ -5,7 +5,7 @@ import {
   type Route,
   type Resource,
 } from "../../../lib/pickup/model";
-import { driverHasWorkShift } from "../../../lib/pickup/driverShift";
+import { driverHasInvalidWorkShift, driverHasWorkShift } from "../../../lib/pickup/driverShift";
 export function cityClock(city: City, now: Date) {
   const timeZone = city === "moscow" ? "Europe/Moscow" : "Europe/Kaliningrad";
   return {
@@ -121,6 +121,8 @@ export function publicationIssues(
   if (!driver?.active) issues.push("Водитель недоступен для назначения.");
   if (!vehicle?.active) issues.push("Автомобиль недоступен для назначения.");
   if (!depot?.active) issues.push("Склад недоступен.");
+  if (driver && driverHasInvalidWorkShift(driver.data))
+    issues.push("Некорректная смена водителя: начало должно быть раньше окончания.");
   if (
     driver &&
     driverHasWorkShift(driver.data) &&

@@ -54,6 +54,7 @@ export function useDocumentsDataLoad(params: Params) {
 
   const {
     items: ordersItems,
+    metadata: ordersMetadata,
     error: ordersError,
     loading: ordersLoading,
     mutate: mutateOrders,
@@ -159,6 +160,7 @@ export function useDocumentsDataLoad(params: Params) {
     actsLoading,
     ordersItems,
     ordersError,
+    ordersMetadata,
     ordersLoading,
     sendingsItems,
     sendingsError,
@@ -172,4 +174,3 @@ export function useDocumentsDataLoad(params: Params) {
     mutateSendings,
   };
 }
-

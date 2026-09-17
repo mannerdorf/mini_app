@@ -1,3 +1,5 @@
+import { fetchDownloadDocumentDetailed } from "../lib/downloadDocumentDirect";
+import { saveBlobFile } from "../lib/saveBlobFile";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button, Flex, Panel, Typography, Input } from "@maxhub/max-ui";
 import { Download, FileDown, FileUp, RefreshCw, Trash2, Upload, ChevronDown, X } from "lucide-react";
@@ -6,7 +8,6 @@ import { DOCUMENT_METHODS } from "../documentMethods";
 import { PROXY_API_DOWNLOAD_URL } from "../constants/config";
 import { coerceStatusDisplay } from "../lib/statusUtils";
 import { normalizeWbPerevozkaHaulzDigits } from "../lib/wbPerevozkaNumber";
-import { downloadBase64File } from "../utils";
 import { usePullRefreshListener } from "../hooks/usePullRefreshListener";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 import { getDateInfo, parseDateOnly } from "../lib/dateUtils";
@@ -476,18 +477,6 @@ type WbAppDebugPayload = {
   responseText: string;
   networkError: string;
 };
-
-function sanitizeWbDebugResponse(payload: unknown): unknown {
-  if (!payload || typeof payload !== "object") return payload;
-  const p = payload as Record<string, unknown>;
-  if (typeof p.data === "string" && p.data.length > 120) {
-    return {
-      ...p,
-      data: `<base64:${p.data.length} chars>`,
-    };
-  }
-  return payload;
-}
 
 const wbPosilkaInflight = new Map<string, Promise<WbPosilkaCached>>();
 const wbPosilkaResolved = new Map<string, WbPosilkaCached>();
@@ -1501,60 +1490,20 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
     setUploadError(null);
     setWbAppDownloadingKey(loadingKey);
     const metod = DOCUMENT_METHODS["АПП"] ?? "АПП";
-    const requestUrl = typeof window !== "undefined" && window.location?.origin
-      ? `${window.location.origin}${PROXY_API_DOWNLOAD_URL}`
-      : PROXY_API_DOWNLOAD_URL;
-    const requestBody: Record<string, unknown> = {
-      login: auth.login,
-      password: auth.password,
-      metod,
-      number: n,
-      ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
-    };
-    const debugBase: WbAppDebugPayload = {
-      at: new Date().toLocaleString("ru-RU"),
-      requestUrl,
-      requestBody: {
-        ...requestBody,
-        password: "***",
-      },
-      responseStatus: null,
-      responseBody: null,
-      responseText: "",
-      networkError: "",
-    };
     try {
-      const res = await fetch(requestUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
-      });
-      const raw = await res.text();
-      let data: Record<string, unknown> = {};
-      try {
-        data = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
-      } catch {
-        data = {};
-      }
+      const result = await fetchDownloadDocumentDetailed(auth, { metod, number: n });
       setWbAppDebug({
-        ...debugBase,
-        responseStatus: res.status,
-        responseBody: sanitizeWbDebugResponse(data),
-        responseText: raw.slice(0, 5000),
+        at: new Date().toLocaleString("ru-RU"),
+        requestUrl: PROXY_API_DOWNLOAD_URL,
+        requestBody: result.debug.client_body ?? {},
+        responseStatus: result.status,
+        responseBody: { ok: result.ok, error: result.error, fileName: result.fileName },
+        responseText: result.error || "",
+        networkError: result.status === 0 ? result.error || "Ошибка сети" : "",
       });
-      if (!res.ok) throw new Error(data?.message || data?.error || "Не удалось получить АПП");
-      if (!data?.data) throw new Error("Документ АПП не найден");
-      await downloadBase64File({
-        data: String(data.data),
-        name: data?.name || `АПП_${n}.pdf`,
-        isHtml: Boolean(data?.isHtml),
-      });
+      if (!result.ok || !result.blob) throw new Error(result.error || "Документ АПП не найден");
+      await saveBlobFile(result.blob, result.fileName || `АПП_${n}.pdf`);
     } catch (e: unknown) {
-      setWbAppDebug((prev) =>
-        prev
-          ? { ...prev, networkError: (e as Error)?.message || "Ошибка скачивания АПП" }
-          : { ...debugBase, networkError: (e as Error)?.message || "Ошибка скачивания АПП" },
-      );
       setUploadError((e as Error)?.message || "Ошибка скачивания АПП");
     } finally {
       setWbAppDownloadingKey(null);

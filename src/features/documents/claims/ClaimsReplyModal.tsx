@@ -119,7 +119,7 @@ export function ClaimsReplyModal({
         {error ? (
           <Typography.Body style={{ color: "#ef4444", fontSize: "0.78rem", marginTop: "0.6rem" }}>{error}</Typography.Body>
         ) : null}
-        <Flex justify="flex-end" gap="0.45rem" wrap="nowrap" style={{ marginTop: "0.7rem", flexWrap: "nowrap" }}>
+        <Flex justify="end" gap="0.45rem" wrap="nowrap" style={{ marginTop: "0.7rem", flexWrap: "nowrap" }}>
           <Button className="filter-button" disabled={submitting} onClick={onClose} style={{ flexShrink: 0 }}>
             Отмена
           </Button>

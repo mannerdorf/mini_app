@@ -1,3 +1,4 @@
+import { GuardedDialog, useDialogClose } from "../../../components/GuardedDialog";
 import React, { useState, useEffect, useCallback } from "react";
 import { Button, Flex, Typography, Input } from "@maxhub/max-ui";
 import { X, Loader2, Upload, FileText } from "lucide-react";
@@ -48,6 +49,8 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
   const [submitLoading, setSubmitLoading] = useState(false);
   const [createMestaLoading, setCreateMestaLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const close = useDialogClose(onClose, !!(punktOtpravki || punktNaznacheniya || nomerZayavki || dataZabora || fileZayavki || fileUpd || tableRows.length || kolvoMest), submitLoading || createMestaLoading);
 
   const loadPvz = useCallback(() => {
     if (!auth?.login || !auth?.password) return;
@@ -173,7 +176,7 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 10000 }}>
+    <GuardedDialog title="Новая заявка" className="modal-overlay" onClose={close}>
       <div
         className="modal-content"
         onClick={(e) => e.stopPropagation()}
@@ -181,7 +184,7 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
       >
         <div className="modal-header" style={{ flexShrink: 0 }}>
           <Typography.Headline>Новая заявка</Typography.Headline>
-          <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть">
+          <Button className="modal-close-button" onClick={close} aria-label="Закрыть">
             <X size={20} />
           </Button>
         </div>
@@ -366,8 +369,8 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
           )}
         </div>
         <div style={{ padding: "1rem", flexShrink: 0, borderTop: "1px solid var(--color-border)" }}>
-          <Flex gap="0.5rem" justify="flex-end">
-            <Button variant="secondary" onClick={onClose}>
+          <Flex gap="0.5rem" justify="end">
+            <Button variant="secondary" onClick={close}>
               Отмена
             </Button>
             <Button
@@ -380,6 +383,6 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
           </Flex>
         </div>
       </div>
-    </div>
+    </GuardedDialog>
   );
 }

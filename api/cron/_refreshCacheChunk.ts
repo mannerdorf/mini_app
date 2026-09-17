@@ -222,10 +222,24 @@ export async function handleRefreshOrdersCacheChunk(req: VercelRequest, res: Ver
   try {
     const pool = getPool();
     await ensureDocumentCacheTables(pool);
-    const { dateFrom, dateTo } = getFixedWindowRange(CACHE_DEEP_DAYS);
-    const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", dateFrom, dateTo, "chunk", { webPush: false });
-    logInfo(auth.ctx, "refresh_orders_cache_done", result);
-    return res.status(200).json({ ok: true, mode: "orders", historyDays: CACHE_HISTORY_DAYS, result, request_id: auth.ctx.requestId });
+    const guard = await pool.connect();
+    let locked = false;
+    try {
+      locked = (await guard.query("SELECT pg_try_advisory_lock(114,2) AS locked")).rows[0]?.locked === true;
+      if (!locked) return res.status(200).json({ok:true,skipped:true,reason:"refresh_in_progress"});
+      const defaults = getFixedWindowRange(CACHE_DEEP_DAYS);
+      const dateFrom = getStringQuery(req,"dateFrom") || defaults.dateFrom;
+      const dateTo = getStringQuery(req,"dateTo") || defaults.dateTo;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo) || dateFrom>dateTo ||
+          !Number.isFinite(Date.parse(dateFrom)) || !Number.isFinite(Date.parse(dateTo)) || Date.parse(dateTo)-Date.parse(dateFrom)>90*86400000) {
+        return res.status(400).json({error:"Укажите период YYYY-MM-DD не более 90 дней"});
+      }
+      const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", dateFrom, dateTo, "chunk", { webPush: false });
+      logInfo(auth.ctx, "refresh_orders_cache_done", result);
+      return res.status(200).json({ ok: true, mode: "orders", historyDays: CACHE_DEEP_DAYS, result, request_id: auth.ctx.requestId });
+    } finally {
+      try { if (locked) await guard.query("SELECT pg_advisory_unlock(114,2)"); } finally { guard.release(); }
+    }
   } catch (e: any) {
     logError(auth.ctx, "refresh_orders_cache_failed", e);
     return res.status(500).json({ error: "Ошибка обновления chunk-кэша заявок", details: e?.message || String(e), request_id: auth.ctx.requestId });

@@ -240,6 +240,7 @@ export function useDocumentsPageState({
         actsError: dataLoad.actsError,
         ordersLoading: dataLoad.ordersLoading,
         ordersError: dataLoad.ordersError,
+        ordersMetadata: dataLoad.ordersMetadata,
         mutateInvoices: dataLoad.mutateInvoices,
         mutatePerevozki: dataLoad.mutatePerevozki,
         mutateActs: dataLoad.mutateActs,

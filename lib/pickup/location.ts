@@ -63,7 +63,16 @@ export function locationDistance(
 export function locationWarning(
   previous: DriverLocation | undefined,
   fix: ReturnType<typeof validateLocation>,
+  city?: "moscow" | "kaliningrad",
 ): string {
+  if ((!previous || previous.warning?.startsWith("Первое определение")) && city) {
+    const center = city === "moscow" ? { latitude: 55.75, longitude: 37.62 } : { latitude: 54.71, longitude: 20.51 };
+    const radius = city === "moscow" ? 200_000 : 150_000;
+    if (locationDistance(center, fix) > radius)
+      return "Первое определение GPS вне района маршрута. Проверьте позицию";
+    // A rejected initial fix must not become the baseline for jump detection.
+    if (previous?.warning?.startsWith("Первое определение")) previous = undefined;
+  }
   if (previous) {
     // Once a jump is detected, repeated bad fixes cannot buy unlimited travel time.
     const seconds = Math.min(

@@ -7,6 +7,13 @@ export function driverHasWorkShift(data: Record<string, string>): boolean {
   );
 }
 
+export function driverHasInvalidWorkShift(data: Record<string, string>): boolean {
+  const hasFrom = Boolean(data.from?.trim());
+  const hasTo = Boolean(data.to?.trim());
+  if (!hasFrom && !hasTo) return false;
+  return !validTime(data.from) || !validTime(data.to) || data.from >= data.to;
+}
+
 export function driverShiftStart(data: Record<string, string>): string {
   return driverHasWorkShift(data) ? data.from : "00:00";
 }

@@ -12,7 +12,7 @@ const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export type CustomerItem = { name: string; inn: string; balance?: number; debtsCount?: number };
 
-function normalizeCustomers(raw: unknown): CustomerItem[] {
+export function normalizeCustomers(raw: unknown): CustomerItem[] {
   if (!raw || typeof raw !== "object") return [];
   let arr: any[] = [];
   if (Array.isArray(raw)) {

@@ -1,3 +1,5 @@
+import { draftKey, type PickupStep } from "./driverDraft";
+import { useDriverDraft } from "./useDriverDraft";
 import React, { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import { plannedPlaces, type Job } from "../../../lib/pickup/model";
@@ -12,6 +14,7 @@ const navUrl = (address: string) =>
 type ActBody = Record<string, unknown> & { action: string; id: string; version: number };
 
 type Props = {
+  driverLogin: string;
   onDraftChange?: (dirty: boolean) => void;
   job: Job;
   stopIndex: number;
@@ -24,44 +27,48 @@ type Props = {
   ) => Promise<boolean | void>;
 };
 
-type PickupStep = "arrive" | "pickup_places" | "pickup_photos" | "pickup_confirm" | "problem";
 
 export function PickupDriverJobFlow({
+  driverLogin,
   job,
   onDraftChange,
   stopIndex,
   stopTotal,
-  busy,
-  act,
+  busy: parentBusy,
+  act: parentAct,
 }: Props) {
   const planned = plannedPlaces(job.data);
-  const [step, setStep] = useState<PickupStep>(() =>
-    job.status === "arrived" ? "pickup_places" : "arrive",
-  );
-  const [actual, setActual] = useState("");
-  const [note, setNote] = useState("");
-  const [photos, setPhotos] = useState<string[]>([]);
+  const store = useDriverDraft(draftKey(driverLogin, job.id), {
+    actual: "", note: "", photos: [], version: job.version,
+    step: job.status === "arrived" ? "pickup_places" : "arrive",
+  });
+  const { step, actual, note, photos } = store.draft;
+  const setStep = (value: PickupStep) => store.update("step", value);
+  const setActual = (value: string) => store.update("actual", value);
+  const setNote = (value: string) => store.update("note", value);
+  const setPhotos = (value: string[] | ((old: string[]) => string[])) => store.update("photos", value);
+  const changed = store.dirty && store.draft.version !== job.version;
+  const busy = parentBusy || !store.ready || store.clearing || changed;
+  const act: Props["act"] = async (body, title, queue) => {
+    const accepted = await parentAct(body, title, queue);
+    if (accepted && (body.action === "complete" || body.action === "problem")) {
+      try { await store.clear(); }
+      catch { setError("Отметка отправлена, но старый черновик не удалось удалить с устройства."); }
+    }
+    return accepted;
+  };
   const [photoBusy, setPhotoBusy] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    onDraftChange?.(photos.length > 0 || note.length > 0 || actual.length > 0);
-  }, [photos.length, note, actual, onDraftChange]);
+    onDraftChange?.(!store.ready || store.dirty || photoBusy);
+  }, [store.ready, store.dirty, photoBusy, onDraftChange]);
   useEffect(() => () => onDraftChange?.(false), [onDraftChange]);
 
   useEffect(() => {
-    setStep(job.status === "arrived" ? "pickup_places" : "arrive");
-    setActual("");
-    setNote("");
-    setPhotos([]);
-    setError("");
-  }, [job.id, job.status, job.version]);
-
-  useEffect(() => {
-    if (step === "pickup_places" && !actual) {
-      setActual(String(planned));
-    }
-  }, [step, actual, planned]);
+    if (!store.ready) return;
+    if (job.status === "arrived" && step === "arrive") setStep("pickup_places");
+  }, [store.ready, job.status, step]);
 
   const navTarget =
     job.data.latitude !== null && job.data.longitude !== null
@@ -69,6 +76,8 @@ export function PickupDriverJobFlow({
       : job.data.address;
 
   const instructions = pickupSiteInstructionsDisplay(job.data.instructions);
+
+  if (!store.ready) return <p role="status">Восстанавливаем черновик точки…</p>;
 
   return (
     <section className="pk-driver-mobile-step" aria-live="polite">
@@ -79,6 +88,18 @@ export function PickupDriverJobFlow({
       <h2 className="pk-driver-mobile-step__title">{job.data.senderName}</h2>
       <p className="pk-driver-mobile-step__address">{job.data.address}</p>
 
+      {store.storageError && <p className="pk-warning" role="alert">{store.storageError}</p>}
+      {store.needsReview && <p className="pk-warning">Старый черновик: проверьте дату и данные перед отправкой. Фото сохранены; удаление доступно только по вашему подтверждению.</p>}
+      {store.dirty && !store.storageError && <p role="status" className="pk-hint">{store.saving ? "Сохраняем черновик…" : "Черновик сохранён на этом устройстве"}</p>}
+      {store.dirty && <button type="button" className="pk-driver-mobile-link" disabled={parentBusy || photoBusy || store.clearing} onClick={() => {
+        if (window.confirm("Удалить введённые места, комментарий и фотографии этой точки?")) {
+          void store.clear().catch(() => setError("Не удалось удалить черновик. Попробуйте ещё раз."));
+        }
+      }}>Удалить черновик</button>}
+      {changed && <div className="pk-warning" role="alert">
+        <p>Диспетчер обновил точку. Ваш ввод сохранён. Проверьте адрес, груз и документы перед отправкой.</p>
+        <button type="button" disabled={parentBusy} onClick={() => store.update("version", job.version)}>Проверил изменения — продолжить</button>
+      </div>}
       <div className="pk-driver-contact-actions">
         {job.data.contacts.filter((c) => c.phone).map((c, index) => <a key={index} href={`tel:${c.phone.replace(/[^+0-9]/g, "")}`} className="pk-driver-contact-link">Позвонить: {c.name || "отправитель"}{c.extension ? ` · доб. ${c.extension}` : ""}</a>)}
       </div>
@@ -88,6 +109,7 @@ export function PickupDriverJobFlow({
         {job.data.documents.map((d, i) => <p key={i}>Счёт {d.number}{d.date ? ` от ${d.date}` : ""}</p>)}
         {job.data.requirements && <p>{job.data.requirements}</p>}
       </details>
+      <fieldset disabled={busy || photoBusy} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}>
       {step === "arrive" && (
         <div className="pk-driver-mobile-step__body">
           {instructions ? <p className="pk-instructions">{instructions}</p> : null}
@@ -119,6 +141,7 @@ export function PickupDriverJobFlow({
       {step === "pickup_places" && (
         <div className="pk-driver-mobile-step__body">
           <p className="pk-hint">План: {planned} мест</p>
+          <button type="button" disabled={busy} onClick={() => setActual(String(planned))}>Забрано по плану: {planned}</button>
           <Field
             label="Фактически забрано мест"
             type="number"
@@ -300,6 +323,7 @@ export function PickupDriverJobFlow({
         </div>
       )}
 
+      </fieldset>
       {error ? (
         <p className="pk-error" role="alert">
           {error}

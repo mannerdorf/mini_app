@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import { clearPickupForLogout } from "../features/pickup/client";
 import {
   ensureOk,
   readJsonOrText,
@@ -11,7 +12,6 @@ import {
 import { postCompaniesSave } from "../api/client/companies";
 import { postGetCustomers, postPerevozkiList } from "../api/client/perevozkiClient";
 import { recordLegalAcceptanceQuiet } from "../api/client/legal";
-import { persistTwoFaSettingsSilent } from "../api/client/twoFa";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
 import * as dateUtils from "../lib/dateUtils";
@@ -29,17 +29,19 @@ export function useAccountActions() {
   } = useAuth();
   const { setActiveTab } = useAppShell();
 
-  const persistTwoFactorSettings = useCallback(async (account: Account, patch: Partial<Account>) => {
-    const login = account.login;
-    if (!login) return;
-    const enabled = patch.twoFactorEnabled ?? account.twoFactorEnabled ?? false;
-    const method = patch.twoFactorMethod ?? account.twoFactorMethod ?? "google";
-    const telegramLinked = patch.twoFactorTelegramLinked ?? account.twoFactorTelegramLinked ?? false;
-    await persistTwoFaSettingsSilent({ login, enabled, method, telegramLinked });
-  }, []);
-
   const handleRemoveAccount = useCallback(
-    (accountId: string) => {
+    async (accountId: string) => {
+      const removed = accounts.find(acc => acc.id === accountId);
+      if (!removed) return;
+      // Another account entry with the same login still owns this offline work.
+      if (!accounts.some(acc => acc.id !== accountId && acc.login.trim().toLowerCase() === removed.login.trim().toLowerCase())) {
+        try {
+          if (!await clearPickupForLogout([removed.login], () => window.confirm("Есть неотправленные отметки или черновики водителя. Удалить аккаунт вместе с этими данными? Нажмите «Отмена», чтобы сначала отправить их."))) return;
+        } catch {
+          window.alert("Не удалось очистить локальные данные. Удаление аккаунта отменено.");
+          return;
+        }
+      }
       const newAccounts = accounts.filter((acc) => acc.id !== accountId);
       setAccounts(newAccounts);
       setSelectedAccountIds((prev) => {
@@ -87,20 +89,10 @@ export function useAccountActions() {
 
   const handleUpdateAccount = useCallback(
     (accountId: string, patch: Partial<Account>) => {
-      let target: Account | null = null;
-      setAccounts((prev) => {
-        const next = prev.map((acc) => (acc.id === accountId ? { ...acc, ...patch } : acc));
-        target = next.find((acc) => acc.id === accountId) || null;
-        return next;
-      });
-      if (
-        target &&
-        ("twoFactorEnabled" in patch || "twoFactorMethod" in patch || "twoFactorTelegramLinked" in patch)
-      ) {
-        void persistTwoFactorSettings(target, patch);
-      }
+      // Profile updates its local copy only after the server confirms a 2FA change.
+      setAccounts(prev => prev.map(acc => acc.id === accountId ? {...acc,...patch} : acc));
     },
-    [persistTwoFactorSettings, setAccounts],
+    [setAccounts],
   );
 
   const handleAddAccount = useCallback(
@@ -128,7 +120,7 @@ export function useAccountActions() {
         );
         if (customers.length > 0) {
           const existingInns = await getExistingInns(
-            accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean),
+            accounts,
           );
           const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
           if (alreadyAdded) {
@@ -145,7 +137,7 @@ export function useAccountActions() {
           };
           setAccounts((prev) => [...prev, newAccount]);
           setActiveAccountId(accountId);
-          postCompaniesSave({ login: loginKey, customers })
+          postCompaniesSave({ login: loginKey, password, customers })
             .then((data: unknown) => {
               const d = data as { saved?: number; warning?: string };
               if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
@@ -173,7 +165,7 @@ export function useAccountActions() {
       const detectedCustomer = extractCustomerFromPerevozki(payload);
       const detectedInn = extractInnFromPerevozki(payload);
       const existingInns = await getExistingInns(
-        accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean),
+        accounts,
       );
       if (detectedInn && existingInns.has(detectedInn)) {
         throw new Error("Компания уже в списке");
@@ -190,7 +182,7 @@ export function useAccountActions() {
       setActiveAccountId(accountId);
       const companyInn = detectedInn ?? "";
       const companyName = detectedCustomer || login.trim() || "Компания";
-      postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
+      postCompaniesSave({ login: loginKey, password, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
       recordLegalAcceptanceQuiet(loginKey, password);
     },
     [accounts, setAccounts, setActiveAccountId],

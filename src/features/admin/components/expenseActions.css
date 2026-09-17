@@ -1,0 +1,15 @@
+.expense-row-actions .expense-action {
+  min-height: 44px; min-width: 44px; padding: 8px 12px; font-size: .875rem;
+  border-radius: var(--radius-sm, 8px); border: 1px solid var(--color-border);
+  background: var(--color-bg-card); color: var(--color-text-primary); cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.expense-row-actions .expense-action--success { border-color: var(--color-success-status); }
+.expense-row-actions .expense-action--warning { border-color: var(--color-pending-status); }
+.expense-row-actions .expense-action--primary { background: var(--color-primary-blue); color: white; }
+.expense-row-actions .expense-action--danger { color: var(--color-error-text); border-color: var(--color-error-border); }
+.expense-row-actions button:focus-visible, .expense-row-actions summary:focus-visible { outline: 3px solid var(--color-primary-blue); outline-offset: 3px; }
+.expense-row-actions summary { min-height: 44px; padding: 10px; cursor: pointer; }
+.expense-row-actions details[open] { padding: 4px; }
+.expense-row-actions details button { margin: 4px; }
+.expense-row-actions details .expense-action--danger { display: flex; margin-top: 12px; }

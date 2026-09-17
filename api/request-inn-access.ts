@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited("request_inn_access", ip, REQUEST_INN_ACCESS_LIMIT)) {
+  if (await isRateLimited("request_inn_access", ip, REQUEST_INN_ACCESS_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
   }
 

@@ -68,7 +68,7 @@ describe("normalizeZayavkaUploadPayload", () => {
     expect(r.ok).toBe(false);
   });
 
-  it("truncates goods Name and ТМЦ to 49 characters", () => {
+  it("keeps the longer ТМЦ description while fitting the short Name", () => {
     const longName = "А".repeat(60);
     const r = normalizeZayavkaUploadPayload({
       ...SAMPLE,
@@ -83,7 +83,7 @@ describe("normalizeZayavkaUploadPayload", () => {
     if (!r.ok) return;
     const good = r.payload.Посылки[0].Товары[0];
     expect(good.Name).toHaveLength(49);
-    expect(good.ТМЦ).toHaveLength(49);
+    expect(good.ТМЦ).toHaveLength(60);
   });
 });
 

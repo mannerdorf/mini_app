@@ -1,13 +1,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { initRequestContext, logError } from "../../_lib/observability.js";
-import { withErrorLog } from "../../../lib/requestErrorLog.js";
-import { resolvePartnerOrUserApiAuth } from "../../../lib/partnerOrUserApiAuth.js";
-import { assertBodyInnAllowedForApiKey, canonInnForApiKey } from "../../../lib/userApiKeyInnFilter.js";
-import { readPartnerJsonBody } from "../../../lib/partnerV1PostRoute.js";
+import { initRequestContext, logError } from "../../../_lib/observability.js";
+import { withErrorLog } from "../../../../lib/requestErrorLog.js";
+import { resolvePartnerOrUserApiAuth } from "../../../../lib/partnerOrUserApiAuth.js";
+import { assertBodyInnAllowedForApiKey, canonInnForApiKey } from "../../../../lib/userApiKeyInnFilter.js";
+import { readPartnerJsonBody } from "../../../../lib/partnerV1PostRoute.js";
 import {
   normalizeZayavkaUploadPayload,
   uploadZayavkaTo1c,
-} from "../../../lib/post1cZayavkaUpload.js";
+} from "../../../../lib/post1cZayavkaUpload.js";
 
 /**
  * POST /api/partner/v1/orders/create — загрузка заявки в 1С.

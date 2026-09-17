@@ -36,7 +36,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   const ip = getClientIp(req);
-  if (isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
+  if (await isRateLimited("admin_api", ip, ADMIN_API_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов. Подождите минуту.", request_id: ctx.requestId });
   }
 

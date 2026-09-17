@@ -57,7 +57,21 @@ export function useHaulzSession({
     setProcessing,
   } = setters;
 
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobId, setJobIdState] = useState<string | null>(null);
+  const loadSequence = useRef(0);
+  const listSequence = useRef(0);
+  const authRef = useRef(auth);
+  const loadedFor = useRef<typeof auth>(null);
+  if (authRef.current?.login !== auth?.login || authRef.current?.password !== auth?.password) {
+    authRef.current = auth;
+    loadedFor.current = null;
+    ++loadSequence.current; ++listSequence.current;
+  }
+  const setJobId = useCallback<React.Dispatch<React.SetStateAction<string | null>>>((value) => {
+    ++loadSequence.current;
+    setJobIdState(value);
+    setProcessing(false);
+  }, [setProcessing]);
   const [storedFiles, setStoredFiles] = useState<HaulzReturnsFileMeta[]>([]);
   const [jobs, setJobs] = useState<HaulzReturnsJobSummary[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
@@ -66,15 +80,25 @@ export function useHaulzSession({
   const [renaming, setRenaming] = useState(false);
   const autoLoadedSessionRef = useRef(false);
 
+  useEffect(() => {
+    autoLoadedSessionRef.current = false;
+    setJobIdState(null); setStoredFiles([]); setJobs([]); setWorkbook(null);
+    setOtpravkaFile(null); setUlPrio1([]); setUlPrio2([]); setProcessing(false);
+    setRenamingJobId(null); setRenameDraft(""); setRenaming(false); setError(null);
+    return () => { ++loadSequence.current; ++listSequence.current; };
+  }, [auth?.login, auth?.password]);
+
   const refreshJobs = useCallback(async () => {
     if (!auth) return;
+    const seq = ++listSequence.current;
     setLoadingJobs(true);
     try {
-      setJobs(await listHaulzReturnsJobs(auth));
+      const result = await listHaulzReturnsJobs(auth);
+      if (seq === listSequence.current) { loadedFor.current = authRef.current; setJobs(result); }
     } catch (e: unknown) {
-      setError((e as Error)?.message || "Не удалось загрузить список сессий");
+      if (seq === listSequence.current) setError((e as Error)?.message || "Не удалось загрузить список сессий");
     } finally {
-      setLoadingJobs(false);
+      if (seq === listSequence.current) setLoadingJobs(false);
     }
   }, [auth, setError]);
 
@@ -85,20 +109,20 @@ export function useHaulzSession({
   const loadJob = useCallback(
     async (id: string) => {
       if (!auth) return;
+      const seq = ++loadSequence.current;
+      const current = () => seq === loadSequence.current;
       setError(null);
       setProcessing(true);
+      setJobIdState(null); setStoredFiles([]); setWorkbook(null);
       try {
         let data = await getHaulzReturnsJob(auth, id);
-        setJobId(id);
-        setStoredFiles(data.files);
-        setOtpravkaFile(null);
-        setUlPrio1([]);
-        setUlPrio2([]);
+        if (!current()) return;
 
         if (!data.workbook && data.files.length > 0) {
           await processHaulzReturnsJob(auth, id);
+          if (!current()) return;
           data = await getHaulzReturnsJob(auth, id);
-          setStoredFiles(data.files);
+          if (!current()) return;
         }
 
         if (data.workbook) {
@@ -107,24 +131,28 @@ export function useHaulzSession({
             tdPrepared: data.workbook.tdPrepared,
           };
           let wb = await hydrateDeferredItogSheet(data.workbook, id);
+          if (!current()) return;
           wb = normalizeWorkbookColumns(wb);
           wb = applyWorkbookTdMeta(savedTdMeta, wb);
+          if (data.needsUlTdDatePersist) {
+            await saveHaulzReturnsWorkbook(auth, id, wb);
+            if (!current()) return;
+          }
           setActiveTab("itog");
           setWorkbookTableCollapsed(false);
           setWorkbook(wb);
-          if (data.needsUlTdDatePersist) {
-            await saveHaulzReturnsWorkbook(auth, id, wb);
-          }
-          if (wb.tdPrepared) setTdPanelOpen(true);
+          setTdPanelOpen(Boolean(wb.tdPrepared));
         } else {
           setWorkbook(null);
           setWorkbookTableCollapsed(false);
         }
+        setJobIdState(id); setStoredFiles(data.files);
+        setOtpravkaFile(null); setUlPrio1([]); setUlPrio2([]);
         if (data.job.error_message) setError(data.job.error_message);
       } catch (e: unknown) {
-        setError((e as Error)?.message || "Ошибка загрузки сессии");
+        if (current()) setError((e as Error)?.message || "Ошибка загрузки сессии");
       } finally {
-        setProcessing(false);
+        if (current()) setProcessing(false);
       }
     },
     [
@@ -143,7 +171,7 @@ export function useHaulzSession({
   );
 
   useEffect(() => {
-    if (autoLoadedSessionRef.current || loadingJobs || !auth) return;
+    if (autoLoadedSessionRef.current || loadingJobs || !auth || loadedFor.current !== authRef.current) return;
     if (jobId || workbook || otpravkaFile) {
       autoLoadedSessionRef.current = true;
       return;
@@ -159,8 +187,11 @@ export function useHaulzSession({
   const handleDeleteJob = useCallback(
     async (id: string) => {
       if (!auth || !window.confirm("Удалить сессию и все файлы из БД?")) return;
+      const seq = ++loadSequence.current;
+      setProcessing(false);
       try {
         await deleteHaulzReturnsJob(auth, id);
+        if (seq !== loadSequence.current) return;
         if (jobId === id) {
           setJobId(null);
           setWorkbook(null);
@@ -173,7 +204,7 @@ export function useHaulzSession({
         }
         await refreshJobs();
       } catch (e: unknown) {
-        setError((e as Error)?.message || "Ошибка удаления");
+        if (seq === loadSequence.current) setError((e as Error)?.message || "Ошибка удаления");
       }
     },
     [auth, jobId, renamingJobId, refreshJobs, setError, setWorkbook, setWorkbookTableCollapsed],
@@ -201,15 +232,17 @@ export function useHaulzSession({
       return;
     }
     setRenaming(true);
+    const owner = authRef.current;
     try {
       const savedTitle = await renameHaulzReturnsJob(auth, renamingJobId, title);
+      if (owner !== authRef.current) return;
       setJobs((prev) => prev.map((j) => (j.id === renamingJobId ? { ...j, title: savedTitle } : j)));
       cancelRenameJob();
       setError(null);
     } catch (e: unknown) {
-      setError((e as Error)?.message || "Ошибка переименования");
+      if (owner === authRef.current) setError((e as Error)?.message || "Ошибка переименования");
     } finally {
-      setRenaming(false);
+      if (owner === authRef.current) setRenaming(false);
     }
   }, [auth, renamingJobId, renameDraft, cancelRenameJob, setError]);
 

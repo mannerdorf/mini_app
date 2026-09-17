@@ -1,0 +1,24 @@
+import React from 'react';
+import {create,act} from 'react-test-renderer';
+import {afterEach,it,expect,vi} from 'vitest';
+import {PickupBillingTab} from './PickupBillingTab';
+let root:ReturnType<typeof create>;
+afterEach(()=>{act(()=>root?.unmount());vi.unstubAllGlobals();});
+it('sends only selected saved rows, reports partial failure and never claims invoice creation',async()=>{
+  const confirm=vi.fn().mockReturnValue(false);vi.stubGlobal('window',{confirm});
+  const rows=[1,2].map(n=>({jobId:String(n),jobNumber:`ZB-${n}`,date:'2026-09-17',customer:'Заказчик',version:1,amount:100,status:'not_issued',source:{places:1,weight:2,volume:0.1,chargeableWeight:20,transportNumber:`000${n}`,orderNumber:`order${n}`,mode:'auto'}}));
+  const call=vi.fn(async(body:any)=>body.action==='billing_journal'?{rows}:body.id==='1'?{ok:true}:{ok:false,error:'счет уже выставлен'});
+  await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:"moscow",date:"2026-09-17",jobs:[],routes:[],call:call as any}));});
+  const select=root.root.findAllByType('input').find(i=>i.props['aria-label']==='Выбрать доступные строки')!;
+  await act(async()=>select.props.onChange({target:{checked:true}}));
+  const button=root.root.findAllByType('button').find(b=>b.children.join('').includes('Передать стоимость'))!;
+  await act(async()=>button.props.onClick());
+  expect(call.mock.calls.filter(([body])=>body.action==='billing_send')).toHaveLength(0);
+  confirm.mockReturnValue(true);
+  await act(async()=>select.props.onChange({target:{checked:true}}));
+  await act(async()=>button.props.onClick());
+  expect(confirm).toHaveBeenLastCalledWith(expect.stringContaining('счета будут выставлены автоматически'));
+  expect(call.mock.calls.filter(([body])=>body.action==='billing_send').every(([body])=>body.confirmed===true)).toBe(true);
+  expect(call.mock.calls.filter(([body])=>body.action==='billing_send').map(([body])=>body.id)).toEqual(['1','2']);
+  const visible=JSON.stringify(root.toJSON());expect(visible).toContain('Передано в 1С: 1');expect(visible).toContain('ZB-2 / 0002');expect(visible).not.toContain('создано 2');
+});

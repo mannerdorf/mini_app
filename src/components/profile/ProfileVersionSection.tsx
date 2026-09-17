@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { WEB_BUILD_INFO } from "../../constants/appVersion";
+import { checkWebBuild } from "../../lib/webBuildUpdate";
 import { ArrowLeft, Loader2, RefreshCw } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
 import { formatDateTime } from "../../lib/dateUtils";
@@ -62,6 +64,18 @@ export function ProfileVersionSection({ onBack }: Props) {
     setStatusMessage(null);
     setErrorMessage(null);
     try {
+      const current = await getAppVersionSnapshot();
+      if (current.platform.source === "capacitor" && current.platform.platform === "ios") {
+        setStatusMessage("Обновите HAULZ через TestFlight или App Store — в зависимости от источника установки.");
+        return;
+      }
+      if (!current.isNativeAndroid) {
+        const state = await checkWebBuild();
+        if (state === "unavailable") setErrorMessage("Не удалось проверить web-обновление. Повторите позже.");
+        else if (state === "current") setStatusMessage("Установлена актуальная web-сборка");
+        else if (window.confirm("Доступна новая web-сборка. Перезагрузить приложение? Несохранённый ввод будет потерян.")) reloadWebApp();
+        return;
+      }
       const result = await checkAppReleaseUpdate(true);
       setCheckResult(result);
       setSnapshot(result.snapshot);
@@ -120,6 +134,8 @@ export function ProfileVersionSection({ onBack }: Props) {
           <Panel className="cargo-card" style={{ padding: "1rem", marginBottom: "1rem" }}>
             <Typography.Body style={{ fontWeight: 700, marginBottom: "0.35rem" }}>Текущая установка</Typography.Body>
             <InfoRow label="Версия" value={installVersion} />
+            <InfoRow label="Сборка интерфейса" value={WEB_BUILD_INFO.id} />
+            <InfoRow label="Собрана" value={WEB_BUILD_INFO.builtAt ? formatDateTime(WEB_BUILD_INFO.builtAt) : "Режим разработки"} />
             <InfoRow label="Платформа" value={snapshot?.platformLabel || "—"} />
             {snapshot?.install.appId ? <InfoRow label="ID приложения" value={snapshot.install.appId} /> : null}
             <InfoRow label="API" value={snapshot?.apiOrigin || "—"} />

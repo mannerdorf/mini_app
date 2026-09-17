@@ -1,4 +1,4 @@
-/** Shared contract for the isolated pickup dispatch module. No 1C writes. */
+/** Shared contract for the pickup dispatch module. 1C writes are handled server-side. */
 export type City = "moscow" | "kaliningrad";
 export const cities: Record<City, string> = {
   moscow: "Москва",
@@ -153,8 +153,8 @@ export type Route = {
 };
 
 /** Удаление маршрута диспетчером в любом статусе. */
-export function pickupRouteCanDelete(_status: Route["status"]): boolean {
-  return true;
+export function pickupRouteCanDelete(status: Route["status"]): boolean {
+  return status !== "started";
 }
 
 /** Удаление завершённого маршрута супер-администратором в CMS. */
@@ -172,6 +172,8 @@ export type Event = {
   data: Record<string, unknown>;
 };
 export type Snapshot = {
+  syncedAt?: string;
+  driverProfile?: { name: string; city?: City; phone: string; phoneExtra: string; carrier: string } | null;
   locations?: import("./location.js").DriverLocation[];
   locationAvailable?: boolean;
   resources: Resource[];
@@ -439,3 +441,12 @@ export function routeStartAddress(route: Route, depot = route.snapshot.depot): s
     ? route.snapshot.start.address
     : depot?.data.address ?? "";
 }
+
+export const uuid = (v: unknown): string => {
+  requireValue(
+    typeof v === "string" &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+    "Некорректный идентификатор",
+  );
+  return v;
+};

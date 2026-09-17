@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   driverHasWorkShift,
+  driverHasInvalidWorkShift,
   driverShiftEnd,
   driverShiftStart,
 } from "./driverShift";
@@ -16,5 +17,11 @@ describe("driverShift", () => {
     expect(driverHasWorkShift(data)).toBe(true);
     expect(driverShiftStart(data)).toBe("09:00");
     expect(driverShiftEnd(data)).toBe("18:00");
+  });
+  it("separates missing shifts from invalid and overnight shifts", () => {
+    expect(driverHasInvalidWorkShift({})).toBe(false);
+    expect(driverHasInvalidWorkShift({ from: "09:00" })).toBe(true);
+    expect(driverHasInvalidWorkShift({ from: "22:00", to: "06:00" })).toBe(true);
+    expect(driverHasInvalidWorkShift({ from: "09:00", to: "18:00" })).toBe(false);
   });
 });

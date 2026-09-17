@@ -12,7 +12,7 @@ import {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "documents_order_quote");
-  if (isRateLimited("documents_order_quote", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
+  if (await isRateLimited("documents_order_quote", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов расчёта", request_id: ctx.requestId });
   }
   if (req.method !== "POST") {

@@ -22,7 +22,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited("forgot_password", ip, FORGOT_PASSWORD_LIMIT)) {
+  if (await isRateLimited("forgot_password", ip, FORGOT_PASSWORD_LIMIT)) {
     return res.status(429).json({ error: "Слишком много попыток. Подождите минуту.", request_id: ctx.requestId });
   }
 

@@ -1,3 +1,8 @@
+import { truncateGoodsNameFor1c } from "./oneCGoodsName.js";
+export { truncateGoodsNameFor1c, GOODS_NAME_1C_MAX_LENGTH } from "./oneCGoodsName.js";
+import { getPool } from "../api/_db.js";
+import { requestFetch } from "./requestCancellation.js";
+import { submitOnce } from "./oneCSubmission.js";
 /**
  * Загрузка заявки в 1С (DeliveryWebService) — формат PostB/HAULZ.
  * По умолчанию: POST JSON → …/PostZayavka2.
@@ -33,6 +38,7 @@ export type ZayavkaUploadPayload = {
   ДатаЗабораПлан: string;
   ОГ: boolean;
   НомерЗаявкиКлиента: string;
+  НомерПикапа?: string;
   Посылки: ZayavkaParcelRow[];
 };
 
@@ -48,6 +54,7 @@ export type ZayavkaUploadResult =
       ok: true;
       status: number;
       nomerZayavki?: string;
+      reference?: string;
       raw: unknown;
       responseText: string;
       upstreamRequest: ZayavkaUpstreamRequestMeta;
@@ -88,22 +95,13 @@ function normalizeNumber(value: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-export const GOODS_NAME_1C_MAX_LENGTH = 49;
-
-/** Обрезает наименование товара под лимит поля Name в 1С. */
-export function truncateGoodsNameFor1c(value: unknown, fallback = ""): string {
-  const name = normalizeText(value) || fallback;
-  if (!name) return "";
-  return name.length > GOODS_NAME_1C_MAX_LENGTH ? name.slice(0, GOODS_NAME_1C_MAX_LENGTH) : name;
-}
-
 function normalizeGoods(raw: unknown): ZayavkaGoodsRow | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   const idOtpravleniya = normalizeText(o.ИДОтправления ?? o.IdOtpravleniya ?? o.sendingId);
   const id = normalizeText(o.ID ?? o.Id ?? o.id ?? o.sku);
   const name = truncateGoodsNameFor1c(o.Name ?? o.name ?? o.Наименование);
-  const tmc = truncateGoodsNameFor1c(o.ТМЦ ?? o.TMC ?? o.tmc ?? name, name);
+  const tmc = normalizeText(o.ТМЦ ?? o.TMC ?? o.tmc ?? name);
   const qty = normalizeNumber(o.Количество ?? o.Quantity ?? o.quantity, 0);
   const cost = normalizeNumber(
     o.ОбъявленнаяСтоимостьТовара ?? o.DeclaredValue ?? o.declaredValue,
@@ -115,7 +113,7 @@ function normalizeGoods(raw: unknown): ZayavkaGoodsRow | null {
     ID: id,
     Name: name,
     ТМЦ: tmc || name,
-    Количество: qty > 0 ? qty : 1,
+    Количество: qty >= 0 ? qty : 0,
     ОбъявленнаяСтоимостьТовара: cost >= 0 ? cost : 0,
   };
 }
@@ -196,6 +194,7 @@ export function normalizeZayavkaUploadPayload(raw: unknown):
       НомерЗаявкиКлиента: normalizeText(
         body.НомерЗаявкиКлиента ?? body.ClientRequestNumber ?? body.clientRequestNumber,
       ),
+      ...(body.НомерПикапа != null ? { НомерПикапа: normalizeText(body.НомерПикапа) } : {}),
       Посылки: parcels,
     },
   };
@@ -286,7 +285,7 @@ function extractNomerZayavki(raw: unknown): string | undefined {
   if (!raw || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;
   const direct = normalizeText(
-    o.НомерЗаявки ?? o.Number ?? o.number ?? o.nomerZayavki ?? o.OrderNumber,
+    o.Номер ?? o.НомерЗаявки ?? o.Number ?? o.number ?? o.nomerZayavki ?? o.OrderNumber,
   );
   if (direct) return direct;
   const nested = o.result ?? o.Result ?? o.data ?? o.Data ?? o.zayavka ?? o.Zayavka;
@@ -304,8 +303,46 @@ function extract1cError(raw: unknown, fallback: string): string {
   return msg || fallback;
 }
 
+/** Validate the final payload, after locally allocated sending IDs have been filled. */
+export function validateZayavkaForDelivery(payload: ZayavkaUploadPayload): string | null {
+  if (!/^\d{10}(\d{2})?$/.test(payload.ЗаказчикИНН)) return "Некорректный ИНН заказчика";
+  if (!isLikelyPvzRef(payload.ПунктОтправки) || !isLikelyPvzRef(payload.ПунктНазначения)) return "Требуются UUID проверенных ПВЗ";
+  if (!payload.НомерЗаявкиКлиента || payload.НомерЗаявкиКлиента.length>50) return "Номер заявки клиента: от 1 до 50 символов";
+  if ((payload.НомерПикапа?.length ?? 0)>50) return "Номер забора: не более 50 символов";
+  if (!payload.Посылки?.length) return "Добавьте посылки";
+  const barcodes = new Set<string>();
+  for (const parcel of payload.Посылки) {
+    if (!parcel.ШтрихкодЗаказчика || barcodes.has(parcel.ШтрихкодЗаказчика)) return "Штрихкоды посылок должны быть заполнены и уникальны";
+    barcodes.add(parcel.ШтрихкодЗаказчика);
+    if ((parcel.ШтрихкодЗаказчика2?.length??0)>50 || (parcel.Ид?.length??0)>20) return "Превышена длина идентификатора посылки";
+    if (!parcel.Товары?.length) return "Добавьте товары в каждую посылку";
+    for (const good of parcel.Товары) {
+      if (!good.ИДОтправления || good.ИДОтправления.length>25 || good.ID.length>50 || good.Name.length>50 || good.ТМЦ.length>900) return "Проверьте ИДОтправления и длины полей товаров";
+      if (!Number.isFinite(good.Количество) || good.Количество<0 || !Number.isFinite(good.ОбъявленнаяСтоимостьТовара) || good.ОбъявленнаяСтоимостьТовара<0) return "Количество и стоимость должны быть неотрицательными числами";
+    }
+  }
+  return null;
+}
+
 /** POST JSON заявки в 1С. */
 export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<ZayavkaUploadResult> {
+  const upstreamRequest = buildZayavkaUpstreamRequestMeta(payload);
+  const validation = validateZayavkaForDelivery(payload);
+  if (validation) return {ok:false,status:400,error:validation};
+  if (!get1cOrderUploadCredentials()) return { ok: false, error: "Не настроены учётные данные 1С", upstreamRequest };
+  if (!payload.ЗаказчикИНН?.trim() || !payload.НомерЗаявкиКлиента?.trim()) return {ok:false,status:400,error:"Нужны ИНН заказчика и постоянный номер заявки клиента",upstreamRequest};
+  try {
+    const result = await submitOnce(getPool(), JSON.stringify([payload.ЗаказчикИНН.trim(),payload.НомерЗаявкиКлиента.trim()]), payload,
+      key => performZayavkaUpload(payload,key));
+    return result.ok
+      ? {ok:true,status:result.status || 200,nomerZayavki:result.nomerZayavki,reference:result.reference,raw:result.raw ?? {replayed:true},responseText:result.responseText || "",upstreamRequest}
+      : {ok:false,status:result.status || 503,error:result.error || "Ошибка отправки",raw:result.raw,responseText:result.responseText,upstreamRequest};
+  } catch {
+    return {ok:false,status:503,error:"Не удалось подтвердить состояние отправки. Повторная отправка не выполнялась; требуется сверка с 1С.",upstreamRequest};
+  }
+}
+
+async function performZayavkaUpload(payload: ZayavkaUploadPayload, idempotencyKey: string): Promise<ZayavkaUploadResult> {
   const upstreamRequest = buildZayavkaUpstreamRequestMeta(payload);
   const creds = get1cOrderUploadCredentials();
   if (!creds) {
@@ -319,9 +356,10 @@ export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<
 
   const url = upstreamRequest.url;
   try {
-    const upstream = await fetch(url, {
+    const upstream = await requestFetch(url, {
       method: upstreamRequest.method,
-      headers: upstreamRequest.headers,
+      headers: { ...upstreamRequest.headers, "Idempotency-Key": idempotencyKey },
+      signal: AbortSignal.timeout(60000),
       body: JSON.stringify(payload),
     });
     const text = await upstream.text();
@@ -349,8 +387,14 @@ export async function uploadZayavkaTo1c(payload: ZayavkaUploadPayload): Promise<
       };
     }
 
+    const receipt = parsed as Record<string, unknown> | null;
+    if (!receipt || receipt.Success !== true || !extractNomerZayavki(receipt) ||
+        !UUIDish_RE.test(String(receipt.Ссылка ?? ""))) {
+      return { ok: false, status: 502, error: "1С вернула неподтверждённый результат создания заявки. Требуется сверка.", upstreamRequest };
+    }
     return {
       ok: true,
+      reference: String(receipt.Ссылка),
       status: upstream.status,
       nomerZayavki: extractNomerZayavki(parsed),
       raw: parsed,

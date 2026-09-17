@@ -2,8 +2,19 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { viteSingleFile } from "vite-plugin-singlefile";
 import { readFileSync } from "fs";
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+const builtAt = new Date().toISOString();
+let commit = process.env.VERCEL_GIT_COMMIT_SHA || process.env.GITHUB_SHA || "unknown";
+try { commit = execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim(); } catch {}
+const buildInfo = { id: `${commit}-${randomUUID().slice(0, 8)}`, commit, builtAt };
+function buildIdentity() {
+  return { name: "build-identity", generateBundle() {
+    this.emitFile({ type: "asset", fileName: "build-info.json", source: JSON.stringify(buildInfo) });
+  } };
+}
 
 // В dev: /admin и /cms отдают index.html (постоянная ссылка на админку)
 function adminRewrite() {
@@ -51,8 +62,9 @@ function useSingleFilePlugin() {
 export default defineConfig(({ command }) => ({
   define: {
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
+    "import.meta.env.VITE_BUILD_INFO": JSON.stringify(buildInfo),
   },
-  plugins: [react(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
+  plugins: [react(), buildIdentity(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
   server: {
     // Guest/CMS fetch('/api/...') same-origin → local API (api:dev on :3000)
     proxy: {
@@ -65,6 +77,7 @@ export default defineConfig(({ command }) => ({
   build: {
     // В Docker/CI gzip-отчёт по каждому чанку заметно замедляет финальный этап сборки.
     reportCompressedSize: !process.env.CI,
+    manifest: true,
     // Без singlefile — разумный лимит инлайна мелких ассетов
     assetsInlineLimit: useSingleFilePlugin() ? 100000000 : 4096,
     cssCodeSplit: !useSingleFilePlugin(),
@@ -77,6 +90,7 @@ export default defineConfig(({ command }) => ({
         : {
             manualChunks(id) {
               if (!id.includes("node_modules")) return;
+              if (/node_modules\/(react|react-dom|scheduler|react-is|clsx)\//.test(id)) return "react-vendor";
               if (id.includes("firebase") || id.includes("@firebase")) return "firebase";
               if (id.includes("recharts")) return "recharts";
               if (id.includes("lucide-react")) return "lucide";

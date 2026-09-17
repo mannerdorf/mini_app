@@ -1,3 +1,4 @@
+import { fetchCompanies } from "../api/client/companiesList";
 import React, { useState, useEffect } from "react";
 import { Button, Input, Typography } from "@maxhub/max-ui";
 import { ChevronDown, Check } from "lucide-react";
@@ -38,17 +39,9 @@ export function CustomerSwitcher({ accounts, activeAccountId, onSwitchAccount, o
 
   useEffect(() => {
     if (!isOpen || accounts.length === 0) return;
-    const safeLogin = (a: Account) => (a.login != null && typeof a.login === "string" ? a.login.trim().toLowerCase() : "");
-    const logins = [...new Set(accounts.map(safeLogin).filter(Boolean))];
-    const accessAllLogins = [...new Set(accounts.filter((a) => a.accessAllInns).map(safeLogin).filter(Boolean))];
-    const query =
-      logins.map((l) => `login=${encodeURIComponent(l)}`).join("&") +
-      (accessAllLogins.length ? "&" + accessAllLogins.map((l) => `access_all=${encodeURIComponent(l)}`).join("&") : "");
     setLoading(true);
-    fetch(`/api/companies?${query}`)
-      .then((r) => r.json())
-      .then((data) => {
-        const list = Array.isArray(data?.companies) ? data.companies : [];
+    fetchCompanies(accounts)
+      .then((list) => {
         setCompanies(dedupeCompaniesByName(list));
       })
       .catch(() => setCompanies([]))

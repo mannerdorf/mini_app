@@ -244,27 +244,27 @@ export function LoginScreen({
         );
         if (customers.length === 0) return false;
         const existingInns = await getExistingInns(
-          accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean),
+          accounts,
         );
         const alreadyAdded = customers.find((c) => c.inn && existingInns.has(c.inn));
         if (alreadyAdded) {
           setError("Компания уже в списке");
           return true;
         }
-        const twoFaJson = await fetchTwoFaSettings(loginKey);
+        const twoFaJson = await fetchTwoFaSettings(loginKey, password);
         const twoFaSettings = twoFaJson?.settings;
         const twoFaEnabled = !!twoFaSettings?.enabled;
         const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
         const twoFaLinked = !!twoFaSettings?.telegramLinked;
         const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-        if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-          await sendTelegramTwoFaCode(loginKey);
+        if (twoFaEnabled && twoFaMethod === "telegram") {
+          await sendTelegramTwoFaCode(loginKey, password);
           setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "telegram" });
           setTwoFactorPending(true);
           setTwoFactorCode("");
           return true;
         }
-        if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+        if (twoFaEnabled && twoFaMethod === "google") {
           setPendingLogin({ login, password, customer: undefined, loginKey, customers, twoFaMethod: "google" });
           setTwoFactorPending(true);
           setTwoFactorCode("");
@@ -290,7 +290,7 @@ export function LoginScreen({
           setActiveAccountId(accountId);
         }
         setActiveTab((prev) => prev || "cargo");
-        postCompaniesSave({ login: loginKey, customers })
+        postCompaniesSave({ login: loginKey, password, customers })
           .then((data: unknown) => {
             const d = data as { saved?: number; warning?: string };
             if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
@@ -308,20 +308,20 @@ export function LoginScreen({
         const detectedCustomer = extractCustomerFromPerevozki(payload);
         const detectedInn = extractInnFromPerevozki(payload);
         const existingInns = await getExistingInns(
-          accounts.map((a) => (typeof a.login === "string" ? a.login.trim().toLowerCase() : "")).filter(Boolean),
+          accounts,
         );
         if (detectedInn && existingInns.has(detectedInn)) {
           setError("Компания уже в списке");
           return true;
         }
-        const twoFaJson = await fetchTwoFaSettings(loginKey);
+        const twoFaJson = await fetchTwoFaSettings(loginKey, password);
         const twoFaSettings = twoFaJson?.settings;
         const twoFaEnabled = !!twoFaSettings?.enabled;
         const twoFaMethod = twoFaSettings?.method === "telegram" ? "telegram" : "google";
         const twoFaLinked = !!twoFaSettings?.telegramLinked;
         const twoFaGoogleSecretSet = !!twoFaSettings?.googleSecretSet;
-        if (twoFaEnabled && twoFaMethod === "telegram" && twoFaLinked) {
-          await sendTelegramTwoFaCode(loginKey);
+        if (twoFaEnabled && twoFaMethod === "telegram") {
+          await sendTelegramTwoFaCode(loginKey, password);
           setPendingLogin({
             login,
             password,
@@ -334,7 +334,7 @@ export function LoginScreen({
           setTwoFactorCode("");
           return true;
         }
-        if (twoFaEnabled && twoFaMethod === "google" && twoFaGoogleSecretSet) {
+        if (twoFaEnabled && twoFaMethod === "google") {
           setPendingLogin({
             login,
             password,
@@ -371,7 +371,7 @@ export function LoginScreen({
         }
         const companyInn = detectedInn ?? "";
         const companyName = detectedCustomer || login.trim() || "Компания";
-        postCompaniesSave({ login: loginKey, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
+        postCompaniesSave({ login: loginKey, password, customers: [{ name: companyName, inn: companyInn }] }).catch(() => {});
         setActiveTab((prev) => prev || "cargo");
         recordLoginLegalAcceptance(loginKey, password);
         return true;
@@ -407,7 +407,7 @@ export function LoginScreen({
     try {
       setTwoFactorLoading(true);
       const isGoogle = pendingLogin.twoFaMethod === "google";
-      await verifyTwoFactorCode(isGoogle ? "google" : "telegram", pendingLogin.loginKey, twoFactorCode);
+      await verifyTwoFactorCode(isGoogle ? "google" : "telegram", pendingLogin.loginKey, twoFactorCode, pendingLogin.password);
 
       const detectedCustomer = pendingLogin.customer;
       const customers = pendingLogin.customers;
@@ -453,7 +453,7 @@ export function LoginScreen({
       setTwoFactorCode("");
 
       if (customersToSave?.length) {
-        postCompaniesSave({ login: loginKeyToSave, customers: customersToSave })
+        postCompaniesSave({ login: loginKeyToSave, password: pendingLogin.password, customers: customersToSave })
           .then((data: unknown) => {
             const d = data as { saved?: number; warning?: string };
             if (d?.saved !== undefined && d.saved === 0 && d.warning) console.warn("companies-save:", d.warning);
@@ -463,6 +463,7 @@ export function LoginScreen({
         const perevozkiInn = pendingLogin.perevozkiInn ?? "";
         postCompaniesSave({
           login: loginKeyToSave,
+          password: pendingLogin.password,
           customers: [{ name: (detectedCustomer ?? loginDisplay) || "Компания", inn: perevozkiInn }],
         }).catch(() => {});
       }
@@ -559,7 +560,7 @@ export function LoginScreen({
                       try {
                         setTwoFactorError(null);
                         setTwoFactorLoading(true);
-                        await sendTelegramTwoFaCode(pendingLogin.loginKey);
+                        await sendTelegramTwoFaCode(pendingLogin.loginKey, pendingLogin.password);
                       } catch (err: unknown) {
                         setTwoFactorError((err as { message?: string })?.message || "Не удалось отправить код");
                       } finally {
@@ -633,7 +634,6 @@ export function LoginScreen({
                 </Typography.Body>
                 <Switch
                   checked={agreeOffer}
-                  onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
                   onChange={(event) => setAgreeOffer(resolveChecked(event))}
                 />
               </label>
@@ -652,7 +652,6 @@ export function LoginScreen({
                 </Typography.Body>
                 <Switch
                   checked={agreePersonal}
-                  onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
                   onChange={(event) => setAgreePersonal(resolveChecked(event))}
                 />
               </label>

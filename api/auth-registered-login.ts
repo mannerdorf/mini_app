@@ -16,7 +16,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const ip = getClientIp(req);
-  if (isRateLimited("auth_login", ip, AUTH_LOGIN_LIMIT)) {
+  if (await isRateLimited("auth_login", ip, AUTH_LOGIN_LIMIT)) {
     return res.status(429).json({ error: "Слишком много попыток входа. Подождите минуту.", request_id: ctx.requestId });
   }
 

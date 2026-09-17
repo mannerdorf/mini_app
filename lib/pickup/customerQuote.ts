@@ -12,6 +12,7 @@ export type PickupCustomerQuoteInput = {
   latitude: number | null;
   longitude: number | null;
   kmOverride?: number | null;
+  chargeableWeightKg?: number | null;
 };
 
 export type PickupCustomerQuoteResult = {
@@ -42,7 +43,8 @@ export async function buildPickupCustomerQuote(
   const factor = Number(tariffs.settings?.volumetric_factor_kg_m3) || 200;
   const actualWeightKg = Number(input.weightKg) || 0;
   const volumeM3 = Number(input.volumeM3) || 0;
-  const chargeableWeightKg = computeChargeableWeight(actualWeightKg, volumeM3, factor);
+  const chargeableWeightKg = input.chargeableWeightKg ?? computeChargeableWeight(actualWeightKg, volumeM3, factor);
+  if (!Number.isFinite(chargeableWeightKg) || chargeableWeightKg < 0) throw new Error("Некорректный платный вес");
 
   if (chargeableWeightKg <= 0 && volumeM3 <= 0) {
     throw new Error("Укажите вес или объём груза для расчёта забора.");

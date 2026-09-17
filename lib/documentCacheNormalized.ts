@@ -174,6 +174,9 @@ export async function ensureNormalizedCacheTables(pool: Pool): Promise<void> {
   await pool.query(
     `create index if not exists idx_cache_perevozki_rows_doc_number on cache_perevozki_rows (doc_number) where doc_number is not null and doc_number <> ''`,
   );
+  await pool.query(`CREATE INDEX IF NOT EXISTS cache_perevozki_pickup_number ON cache_perevozki_rows ((coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')))`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS cache_perevozki_raw_number ON cache_perevozki_rows ((coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')))`);
+
 
   for (const kind of ["invoices", "acts", "sendings"] as const) {
     const table = ROWS_TABLE[kind];

@@ -1,4 +1,5 @@
 import { getDgisApiKey } from "../haulzCalculator/dgisClient.js";
+import { requestFetch } from "../requestCancellation.js";
 import {
   DgisRouteError,
   dgisErrorMessage,
@@ -41,7 +42,7 @@ async function request(
 ) {
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await requestFetch(url, {
       method: body ? "POST" : "GET",
       headers: body ? { "Content-Type": "application/json" } : undefined,
       body: body ? JSON.stringify(body) : undefined,

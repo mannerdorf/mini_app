@@ -12,6 +12,7 @@ type State = {
 };
 
 export class ErrorBoundary extends Component<Props, State> {
+  private errorId = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null, componentStack: null };
@@ -24,7 +25,7 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.setState({ componentStack: errorInfo.componentStack ?? null });
     if (typeof console !== "undefined" && console.error) {
-      console.error("[ErrorBoundary]", error.message, "\n", error.stack, "\n", errorInfo.componentStack);
+      console.error("[ErrorBoundary]", this.errorId, error.message, "\n", error.stack, "\n", errorInfo.componentStack);
     }
     if (typeof window !== "undefined" && window.__debugLog) {
       window.__debugLog("ErrorBoundary", { error: error.message, stack: error.stack, componentStack: errorInfo.componentStack });
@@ -62,16 +63,11 @@ export class ErrorBoundary extends Component<Props, State> {
             Что-то пошло не так
           </p>
           <p style={{ fontSize: "0.9rem", color: "var(--color-text-secondary, #6b7280)", marginBottom: "0.5rem", textAlign: "center", maxWidth: "20rem" }}>
-            Произошла ошибка. Попробуйте обновить страницу. Если ошибка повторяется — нажмите «Очистить данные и обновить» (придётся войти заново).
+            Не удалось показать экран. Попробуйте открыть его ещё раз. Если ошибка повторяется, передайте поддержке код: {this.errorId}.
           </p>
-          {err?.message && (
-            <p style={{ fontSize: "0.8rem", color: "#b91c1c", background: "#fef2f2", padding: "0.5rem 0.75rem", borderRadius: "0.5rem", maxWidth: "22rem", marginBottom: "1rem", textAlign: "left", wordBreak: "break-word" }}>
-              {err.message}
-            </p>
-          )}
           {(err?.stack || componentStack) && (
-            <details style={{ marginBottom: "1rem", maxWidth: "100%" }} open>
-              <summary style={{ fontSize: "0.8rem", cursor: "pointer", color: "#b91c1c" }}>Подробности (stack trace и компоненты)</summary>
+            <details style={{ marginBottom: "1rem", maxWidth: "100%" }}>
+              <summary style={{ fontSize: "0.8rem", cursor: "pointer" }}>Технические сведения для поддержки</summary>
               {err?.stack && (
                 <pre style={{ fontSize: "0.7rem", color: "#b91c1c", background: "#fef2f2", padding: "0.75rem", borderRadius: "0.5rem", maxWidth: "100%", overflow: "auto", marginTop: "0.5rem", textAlign: "left" }}>
                   {err.stack}
@@ -87,7 +83,7 @@ export class ErrorBoundary extends Component<Props, State> {
           <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", alignItems: "center" }}>
             <button
               type="button"
-              onClick={() => window.location.reload()}
+              onClick={() => this.setState({ hasError: false, error: null, componentStack: null })}
               style={{
                 padding: "0.5rem 1rem",
                 fontSize: "0.9rem",
@@ -99,11 +95,12 @@ export class ErrorBoundary extends Component<Props, State> {
                 cursor: "pointer",
               }}
             >
-              Обновить страницу
+              Попробовать снова
             </button>
             <button
               type="button"
               onClick={() => {
+                if (!window.confirm("Будут удалены сохранённые аккаунты и фильтры. Потребуется войти заново. Неотправленные отметки и фото не отправятся автоматически. Продолжить?")) return;
                 try {
                   const keys = ["haulz.accounts", "haulz.activeAccountId", "haulz.selectedAccountIds", "haulz.auth", "haulz.dateFilterState"];
                   keys.forEach((k) => window.localStorage.removeItem(k));
@@ -123,7 +120,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 cursor: "pointer",
               }}
             >
-              Очистить данные и обновить
+              Сбросить вход и обновить
             </button>
           </div>
         </div>

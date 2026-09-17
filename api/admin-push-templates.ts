@@ -67,9 +67,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
         .filter((row): row is Record<string, unknown> => Boolean(row) && typeof row === "object")
         .map((row) => ({
           eventId: String(row.eventId ?? row.event_id ?? "").trim() as PushNotificationTemplateEventId,
-          titleTemplate: row.titleTemplate ?? row.title_template,
-          bodyTemplate: row.bodyTemplate ?? row.body_template,
-          enabled: row.enabled,
+          titleTemplate: String(row.titleTemplate ?? row.title_template ?? ""),
+          bodyTemplate: String(row.bodyTemplate ?? row.body_template ?? ""),
+          enabled: row.enabled === true,
         }))
         .filter((row) => PUSH_NOTIFICATION_EVENTS.includes(row.eventId));
 

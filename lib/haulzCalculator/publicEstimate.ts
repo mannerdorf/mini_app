@@ -87,7 +87,7 @@ export async function buildPublicEstimate(pool: Pool, input: PublicEstimateInput
       "Ориентировочный расчёт «склад — склад» без забора и последней мили. Точная стоимость — в калькуляторе HAULZ с адресами.",
     calculatorUrl: `https://haulz.space/kalkulyator?direction=${direction}`,
     routePageUrl: route ? `https://haulz.space${route.path}` : "https://haulz.space/",
-    mainlineOptions: quote.mainlineOptions.map((o) => ({
+    mainlineOptions: (quote.mainlineOptions ?? []).map((o) => ({
       mode: o.mode,
       label: o.label,
       pricePerKg: o.pricePerKg,

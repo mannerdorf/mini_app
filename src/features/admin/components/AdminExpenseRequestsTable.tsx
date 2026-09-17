@@ -1,3 +1,4 @@
+import "./expenseActions.css";
 import React from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { Copy } from "lucide-react";
@@ -118,7 +119,7 @@ export function AdminExpenseRequestsTable({
                   <td style={{ padding: "6px 8px", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {r.comment || "—"}
                     {(r as { rejectionReason?: string }).rejectionReason && (
-                      <div style={{ fontSize: "0.68rem", color: "#ef4444" }}>Причина: {(r as { rejectionReason?: string }).rejectionReason}</div>
+                      <div style={{ fontSize: "0.68rem", color: "#b91c1c" }}>Причина: {(r as { rejectionReason?: string }).rejectionReason}</div>
                     )}
                   </td>
                   <td style={{ padding: "6px 8px" }}>{r.vehicleOrEmployee || "—"}</td>
@@ -153,24 +154,25 @@ export function AdminExpenseRequestsTable({
                         : "—"}
                   </td>
                   <td style={{ padding: "6px 8px", whiteSpace: "nowrap" }} onClick={(e) => e.stopPropagation()}>
-                    <Flex gap="0.25rem" wrap="wrap">
+                    <Flex className="expense-row-actions" gap="0.5rem" wrap="wrap">
                       {!checkPnlExpenseCombination(r) && (
-                        <button type="button" onClick={() => openPnlExpenseDirectory(r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #f97316", background: "rgba(249,115,22,0.12)", color: "#c2410c", cursor: "pointer", fontWeight: 600 }}>
+                        <button type="button" onClick={() => openPnlExpenseDirectory(r)} className="expense-action expense-action--warning">
                           Добавить в PnL
                         </button>
                       )}
                       {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
-                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #10b981", background: "transparent", color: "#10b981", cursor: "pointer" }}>Согласовать</button>
+                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "approved", undefined, r)} className="expense-action expense-action--success">Согласовать</button>
                       )}
                       {!isAccounting && r.status !== "approved" && r.status !== "rejected" && r.status !== "paid" && (
-                        <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Отказать</button>
+                        <button type="button" onClick={() => { setExpenseRejectId(r.id); setExpenseRejectComment(""); }} className="expense-action expense-action--danger">Отказать</button>
                       )}
                       {isAccounting && r.status === "approved" && (
-                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #2563eb", background: "transparent", color: "#2563eb", cursor: "pointer" }}>Ожидает оплату</button>
+                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "sent", undefined, r)} className="expense-action expense-action--primary">Ожидает оплату</button>
                       )}
                       {isAccounting && (r.status === "approved" || r.status === "sent") && (
-                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #8b5cf6", background: "transparent", color: "#8b5cf6", cursor: "pointer" }}>Оплачено</button>
+                        <button type="button" onClick={() => updateExpenseStatus(r.id, r.login, "paid", undefined, r)} className="expense-action expense-action--success">Оплачено</button>
                       )}
+                      <details><summary>Ещё</summary>
                       <button
                         type="button"
                         onClick={async () => {
@@ -193,15 +195,16 @@ export function AdminExpenseRequestsTable({
                             onError("Не удалось скопировать заявку");
                           }
                         }}
-                        style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: "0.2rem" }}
+                        className="expense-action "
                         title="Копировать данные заявки"
                         aria-label="Копировать данные заявки"
                       >
                         <Copy size={12} />
                         Копировать
                       </button>
-                      <button type="button" onClick={() => beginExpenseEdit(r)} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "inherit", cursor: "pointer" }}>Изменить</button>
-                      <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) void deleteExpenseRequest(r.id, r.login); }} style={{ fontSize: "0.68rem", padding: "0.2rem 0.45rem", borderRadius: 6, border: "1px solid #ef4444", background: "transparent", color: "#ef4444", cursor: "pointer" }}>Удалить</button>
+                      <button type="button" onClick={() => beginExpenseEdit(r)} className="expense-action ">Изменить</button>
+                      <button type="button" onClick={() => { if (window.confirm("Удалить заявку? Действие нельзя отменить.")) void deleteExpenseRequest(r.id, r.login); }} className="expense-action expense-action--danger">Удалить</button>
+                      </details>
                     </Flex>
                   </td>
                 </tr>

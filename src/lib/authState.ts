@@ -99,3 +99,22 @@ export function getInitialAuthState(): InitialAuthState {
     }
     return EMPTY_AUTH_STATE;
 }
+
+/** Persist the current account selection, including explicit removal of the last account. */
+export function persistAuthState(state: InitialAuthState): void {
+    initialAuthStateCache = state;
+    if (typeof window === "undefined") return;
+    const storage = window.localStorage;
+    if (state.accounts.length === 0) {
+        for (const key of ["haulz.auth", "haulz.accounts", "haulz.activeAccountId", "haulz.selectedAccountIds"]) {
+            storage.removeItem(key);
+        }
+        return;
+    }
+    storage.setItem("haulz.accounts", JSON.stringify(state.accounts));
+    storage.removeItem("haulz.auth");
+    if (state.activeAccountId) storage.setItem("haulz.activeAccountId", state.activeAccountId);
+    else storage.removeItem("haulz.activeAccountId");
+    if (state.selectedAccountIds.length) storage.setItem("haulz.selectedAccountIds", JSON.stringify(state.selectedAccountIds));
+    else storage.removeItem("haulz.selectedAccountIds");
+}

@@ -1,25 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-/**
- * Smoke for public guest shell. Skips cleanly if the local Vite server is down.
- */
-async function guestReachable(request: { get: (url: string) => Promise<{ ok: () => boolean }> }) {
-  try {
-    const res = await request.get("/");
-    return res.ok();
-  } catch {
-    return false;
-  }
-}
-
 test.describe("guest smoke", () => {
-  test.beforeEach(async ({ request }) => {
-    test.skip(
-      !(await guestReachable(request)),
-      "Dev server not reachable — keep `npm run dev` running, use PLAYWRIGHT_BASE_URL=http://localhost:5173",
-    );
-  });
-
   test("home shows HAULZ brand in hero", async ({ page }) => {
     await page.goto("/");
     const heroBrand = page.locator(".guest-home-hero__brand");

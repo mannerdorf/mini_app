@@ -1,0 +1,25 @@
+import React from 'react';
+import { create, act } from 'react-test-renderer';
+import { it, expect, vi, afterEach } from 'vitest';
+import { PickupOutbox } from './PickupOutbox';
+let root: ReturnType<typeof create>;
+afterEach(() => { act(() => root?.unmount()); vi.unstubAllGlobals(); });
+it('requires explicit approval before rebasing and preserves photos and input', async () => {
+  const confirm = vi.fn().mockReturnValue(false);
+  vi.stubGlobal('window',{confirm});
+  const item = {id:'old',title:'Груз забран',status:409,error:'Конфликт',body:{id:'job',version:1,requestId:'old',photos:['data:image/jpeg;base64,abc'],actual_places:3,note:'Готово'}};
+  const save = vi.fn().mockResolvedValue(undefined);
+  const props = {items:[item],jobs:[{id:'job',version:4,status:'arrived',data:{address:'Адрес',customerName:'Заказчик'}}],busy:false,stale:false,onSave:save,onSync:vi.fn(),onRefresh:vi.fn()} as any;
+  act(() => { root=create(React.createElement(PickupOutbox,props)); });
+  const button = root.root.findAllByType('button').find(b => b.children.join('').includes('Подтвердить'))!;
+  await act(async () => button.props.onClick());
+  expect(save).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true);
+  await act(async () => button.props.onClick());
+  const next = save.mock.calls[0][0][0];
+  expect(next.body).toMatchObject({version:4,photos:item.body.photos,actual_places:3,note:'Готово'});
+  expect(next.body.requestId).not.toBe('old');
+  expect(item.body.version).toBe(1);
+  act(() => root.update(React.createElement(PickupOutbox,{...props,stale:true})));
+  expect(root.root.findAllByType('button').some(b => b.children.join('').includes('Подтвердить'))).toBe(false);
+});

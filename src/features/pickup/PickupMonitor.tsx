@@ -48,6 +48,7 @@ export function PickupMonitor({
           <p className="pk-hint">
             Город и дата выбраны выше · обновление каждые 15 секунд
           </p>
+          <p className="pk-hint">Позиция передаётся только при открытом экране маршрута у водителя. При переходе в навигатор или блокировке телефона показана последняя принятая позиция с её возрастом.</p>
         </div>
         <span className="pk-hint">
           В пути: {routes.filter((r) => r.status === "started").length} ·

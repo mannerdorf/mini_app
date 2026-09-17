@@ -75,7 +75,7 @@ function DepartmentRow({ row }: { row: TimesheetFotDepartmentRow }) {
     <div style={{ borderBottom: "1px solid var(--color-border)", paddingBottom: "0.3rem" }}>
       <Flex align="center" justify="space-between" gap="0.5rem">
         <Typography.Body style={{ fontSize: "0.8rem", fontWeight: 600 }}>{row.department}</Typography.Body>
-        <Flex align="center" justify="flex-end" gap="0.35rem" wrap="wrap">
+        <Flex align="center" justify="end" gap="0.35rem" wrap="wrap">
           <MoneyBadge value={row.totalCost} border="1px solid #cbd5e1" background="#f8fafc" color="#0f172a" />
           <MoneyBadge value={row.totalPaid} border="1px solid #86efac" background="#dcfce7" color="#166534" />
           <MoneyBadge value={row.totalOutstanding} border="1px solid #fcd34d" background="#fef3c7" color="#92400e" weight={700} />

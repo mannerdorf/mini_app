@@ -21,6 +21,7 @@ type Props = {
   active: boolean;
   ordersLoading: boolean;
   ordersError: string | null;
+  ordersMetadata?: { fetchedAt: string | null; stale: boolean };
   tableModeEffective: boolean;
   docsMotionEnabled: boolean;
   effectiveServiceMode: boolean;
@@ -44,6 +45,7 @@ export function DocumentsOrdersSection({
   active,
   ordersLoading,
   ordersError,
+  ordersMetadata,
   tableModeEffective,
   docsMotionEnabled,
   effectiveServiceMode,
@@ -74,6 +76,10 @@ export function DocumentsOrdersSection({
         </Typography.Body>
       )}
       {(ordersLoading || !!ordersError) && <DocumentsStateBlocks loading={ordersLoading} error={ordersError} emptyText="" />}
+      {ordersMetadata && <p role="status" style={{ color: ordersMetadata.stale ? "var(--color-warning, #92400e)" : "var(--color-text-secondary)" }}>
+        {ordersMetadata.stale ? "Данные заявок могут быть устаревшими. " : ""}
+        {ordersMetadata.fetchedAt ? `Последнее обновление из 1С: ${new Date(ordersMetadata.fetchedAt).toLocaleString("ru-RU")}` : "Время обновления из 1С неизвестно"}
+      </p>}
       <AnimatePresence mode="wait">
 {!ordersLoading && !ordersError && tableModeEffective && orderRowsSorted.length > 0 ? (
     <motion.div key="docs-orders-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>

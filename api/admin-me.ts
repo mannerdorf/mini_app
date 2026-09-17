@@ -15,6 +15,9 @@ async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
   const payload = getAdminTokenPayload(token);
+  if (!payload) {
+    return res.status(401).json({ error: "Токен администратора недействителен", request_id: ctx.requestId });
+  }
   return res.status(200).json({ isSuperAdmin: payload.superAdmin === true, request_id: ctx.requestId });
 }
 export default withErrorLog(handler);

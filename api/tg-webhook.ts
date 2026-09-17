@@ -1,3 +1,5 @@
+import { createTwoFaSecurity, TwoFaError } from "../lib/twoFaSecurity.js";
+import { twoFaStore } from "../lib/twoFaStore.js";
 import { getRedisValue, setRedisValue, deleteRedisValue } from "./redis.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import OpenAI from "openai";
@@ -250,9 +252,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const loginRaw = String(bound?.login || "").trim();
     const loginLower = loginRaw.toLowerCase();
     if (loginRaw) {
-      tasks.push(deleteRedisValue(`tg:by_login:${loginRaw}`));
+      tasks.push(twoFaStore.compareAndSet({[`tg:by_login:${loginRaw}`]:chatIdStr},[{key:`tg:by_login:${loginRaw}`,value:null}]));
       if (loginLower && loginLower !== loginRaw) {
-        tasks.push(deleteRedisValue(`tg:by_login:${loginLower}`));
+        tasks.push(twoFaStore.compareAndSet({[`tg:by_login:${loginLower}`]:chatIdStr},[{key:`tg:by_login:${loginLower}`,value:null}]));
       }
     }
     if (bound?.customer) {
@@ -356,11 +358,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           source: "telegram_onboarding",
           linkedAt: new Date().toISOString(),
         });
-        await setRedisValue(`tg:bind:${chatIdStr}`, bindPayload, TG_LINK_TTL_SECONDS);
-        const loginKey = String(codePayload.login).trim().toLowerCase();
-        await setRedisValue(`tg:by_login:${loginKey}`, chatIdStr);
-        if (loginKey !== String(codePayload.login).trim()) {
-          await setRedisValue(`tg:by_login:${String(codePayload.login).trim()}`, chatIdStr);
+        try {
+          await createTwoFaSecurity().linkTelegramFromVerifiedEmail(String(codePayload.login), chatIdStr, bindPayload, TG_LINK_TTL_SECONDS);
+        } catch (error) {
+          if (!(error instanceof TwoFaError)) throw error;
+          await sendTgMessageChunked(chatId, error.message);
+          return res.status(200).json({ ok: true });
         }
         if (codePayload.customerName) {
           await setRedisValue(`tg:by_customer:${codePayload.customerName}`, chatIdStr);

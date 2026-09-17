@@ -200,7 +200,7 @@ export function DocumentsClaimsSection({
                               {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : "—"}
                             </td>
                             <td style={{ padding: "0.5rem 0.75rem", textAlign: "right", whiteSpace: "nowrap" }}>
-                              <Flex gap="0.35rem" justify="flex-end" wrap="wrap">
+                              <Flex gap="0.35rem" justify="end" wrap="wrap">
                                 <Button
                                   type="button"
                                   className="filter-button"
@@ -369,7 +369,7 @@ export function DocumentsClaimsSection({
                             {row.requestedAmount != null ? formatCurrency(Number(row.requestedAmount)) : "—"}
                           </Typography.Body>
                         </Flex>
-                        <Flex gap="0.35rem" justify="flex-end" wrap="wrap">
+                        <Flex gap="0.35rem" justify="end" wrap="wrap">
                           <Button
                             type="button"
                             className="filter-button"

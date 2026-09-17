@@ -158,7 +158,7 @@ export function AdminExpenseEditModal(props: AdminExpenseModalSharedProps) {
             <textarea value={expenseEditComment} onChange={(e) => setExpenseEditComment(e.target.value)} className="admin-form-input" style={{ width: "100%", minHeight: 60, resize: "vertical" }} rows={2} />
           </div>
         </div>
-        <Flex gap="0.5rem" justify="flex-end">
+        <Flex gap="0.5rem" justify="end">
           <Button type="button" className="filter-button" onClick={() => setExpenseEditId(null)}>Отмена</Button>
           <Button type="button" className="filter-button" style={{ background: "var(--color-primary-blue)", color: "white" }} onClick={() => saveExpenseEdit(item.id, item.login)} disabled={!expenseEditCategory}>Сохранить</Button>
         </Flex>

@@ -6,6 +6,7 @@ import type { CustomerOption } from "../../types";
 
 export type CompaniesSaveBody = {
     login: string;
+    password: string;
     customers: CustomerOption[];
 };
 

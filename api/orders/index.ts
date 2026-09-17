@@ -1,11 +1,10 @@
+import { resolveCompanyAccess, CompanyAccessError } from "../../lib/companyAccess.js";
+import { resolveOrdersAccessInns } from "../../lib/ordersAccess.js";
 import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../../lib/verifyRegisteredUser.js";
-import {
-  getPerevozkiServiceCredentials,
-  shouldServeFromDocumentCache,
-} from "../../lib/cacheHistoryDays.js";
+
 import { respondCorsPreflight } from "../_lib/cors.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
 import { appendPendingOrdersForUser } from "../../lib/pendingOrderRequests.js";
@@ -20,20 +19,7 @@ import {
  * Прокси для GetZayavki в разделе "Заявки".
  * Использует отдельный кэш cache_orders (обновляется кроном раз в 15 минут).
  */
-const BASE_URL =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetZayavki";
-const GETAPI_URL =
-  "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const CACHE_FRESH_MINUTES = 15;
-
-function normalizeInn(value: unknown): string {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "";
-  const digits = raw.replace(/\D/g, "");
-  return digits || raw;
-}
 
 function getFirstNonEmpty(item: any, keys: string[]): string {
   for (const key of keys) {
@@ -72,17 +58,6 @@ export function ordersItemInn(item: any): string {
   ]));
 }
 
-function extractItems(raw: any): any[] {
-  if (Array.isArray(raw)) return raw;
-  if (!raw || typeof raw !== "object") return [];
-  const list = raw.items ?? raw.Items ?? raw.zayavki ?? raw.Zayavki ?? raw.data ?? raw.Data ?? raw.result ?? raw.Result ?? raw.rows ?? raw.Rows ?? [];
-  if (Array.isArray(list)) return list;
-  for (const value of Object.values(raw)) {
-    if (Array.isArray(value)) return value;
-  }
-  return [];
-}
-
 function normalizeDateOnly(raw: unknown): string {
   const s = String(raw ?? "").trim();
   if (!s) return "";
@@ -112,48 +87,13 @@ export async function filterRegisteredOrdersList(
   list: any[],
   customerName?: unknown,
 ): Promise<any[]> {
-  const requestedInn = normalizeOrderInn(inn);
-  const isService = !!serviceMode;
+  const finalInns = await resolveOrdersAccessInns(pool, verified, login, inn, serviceMode);
   const scopeName = normalizeCompanyName(customerName);
-  if (!isService && (requestedInn || scopeName)) {
-    return list.filter((item) => {
-      if (!orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined })) {
-        return false;
-      }
-      const d = orderDate(item);
-      return !d || (d >= dateFrom && d <= dateTo);
-    });
-  }
-
-  let filterInns: Set<string> | null = null;
-  if (!isService && !verified.accessAllInns) {
-    const acRows = await pool.query<{ inn: string }>(
-      "SELECT inn FROM account_companies WHERE login = $1",
-      [String(login).trim().toLowerCase()],
-    );
-    const allowed = new Set<string>(
-      acRows.rows.map((r: { inn?: unknown }) => normalizeInn(r.inn)).filter(Boolean) as string[]
-    );
-    const verifiedInn = normalizeInn(verified.inn);
-    if (verifiedInn) allowed.add(verifiedInn);
-    filterInns = allowed.size > 0 ? allowed : verifiedInn ? new Set<string>([verifiedInn]) : null;
-  }
-  const finalInns = isService
-    ? null
-    : filterInns === null
-      ? requestedInn
-        ? new Set([requestedInn])
-        : null
-      : requestedInn
-        ? filterInns.has(requestedInn)
-          ? new Set([requestedInn])
-          : new Set<string>()
-        : filterInns;
   return list.filter((item) => {
     if (finalInns !== null) {
-      const itemInnVal = ordersItemInn(item);
-      if (!finalInns.has(itemInnVal)) return false;
+      if (![...finalInns].some(allowedInn => orderMatchesCustomerScope(item, { inn: allowedInn }))) return false;
     }
+    if (scopeName && !orderMatchesCustomerScope(item, { name: scopeName })) return false;
     const d = orderDate(item);
     return !d || (d >= dateFrom && d <= dateTo);
   });
@@ -169,45 +109,46 @@ export async function readRegisteredOrdersFromCache(
   inn: unknown,
   serviceMode: unknown,
   customerName?: unknown,
+  onMetadata?: (metadata: { fetchedAt: string | null; stale: boolean }) => void,
 ): Promise<any[]> {
-  try {
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES],
+  let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+    "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
+    [CACHE_FRESH_MINUTES],
+  );
+  if (cacheRow.rows.length === 0) {
+    cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
+      "SELECT data, fetched_at FROM cache_orders WHERE id = 1",
     );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_orders WHERE id = 1",
-      );
-    }
-    if (cacheRow.rows.length === 0) return [];
-    const data = cacheRow.rows[0].data as any[];
-    const list = Array.isArray(data) ? data : [];
-    const filtered = await filterRegisteredOrdersList(
-      pool,
-      verified,
-      login,
-      dateFrom,
-      dateTo,
-      inn,
-      serviceMode,
-      list,
-      customerName,
-    );
-    return appendPendingOrdersForUser(
-      pool,
-      verified,
-      login,
-      dateFrom,
-      dateTo,
-      inn,
-      serviceMode,
-      filtered,
-      customerName,
-    );
-  } catch {
-    return [];
   }
+  if (cacheRow.rows.length === 0) throw new Error("Orders cache is not initialized");
+  const fetchedAt = new Date(cacheRow.rows[0].fetched_at).getTime();
+  onMetadata?.({ fetchedAt: Number.isFinite(fetchedAt) ? new Date(fetchedAt).toISOString() : null,
+    stale: !Number.isFinite(fetchedAt) || Date.now() - fetchedAt > CACHE_FRESH_MINUTES * 60_000 });
+  const data = cacheRow.rows[0].data as any[];
+  if (!Array.isArray(data)) throw new Error("Invalid orders cache payload");
+  const list = data;
+  const filtered = await filterRegisteredOrdersList(
+    pool,
+    verified,
+    login,
+    dateFrom,
+    dateTo,
+    inn,
+    serviceMode,
+    list,
+    customerName,
+  );
+  return appendPendingOrdersForUser(
+    pool,
+    verified,
+    login,
+    dateFrom,
+    dateTo,
+    inn,
+    serviceMode,
+    filtered,
+    customerName,
+  );
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -243,198 +184,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const dateRe = /^\d{4}-\d{2}-\d{2}$/;
-  if (!dateRe.test(dateFrom) || !dateRe.test(dateTo)) {
+  if (!dateRe.test(dateFrom) || !dateRe.test(dateTo) || dateFrom > dateTo) {
     return res.status(400).json({ error: "Invalid date format (YYYY-MM-DD required)", request_id: ctx.requestId });
   }
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
-  let registeredVerified: VerifiedRegisteredUser | null = null;
-
-  if (isRegisteredUser) {
-    try {
-      const pool = getPool();
-      const verified = await verifyRegisteredUser(pool, login, password);
-      if (!verified) {
-        return res.status(401).json({ error: "Неверный email или пароль", request_id: ctx.requestId });
-      }
-      registeredVerified = verified;
-      if (useDocumentCache) {
-        const filtered = await readRegisteredOrdersFromCache(
-          pool,
-          verified,
-          login,
-          dateFrom,
-          dateTo,
-          inn,
-          serviceMode,
-          customerName,
-        );
-        return res.status(200).json(filtered);
-      }
-    } catch (e) {
-      logError(ctx, "orders_registered_user_failed", e);
-      return res.status(200).json([]);
-    }
-  }
-
-  if (useDocumentCache) try {
-    const pool = getPool();
-    let cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-      "SELECT data, fetched_at FROM cache_orders WHERE id = 1 AND fetched_at > now() - interval '1 minute' * $1",
-      [CACHE_FRESH_MINUTES]
-    );
-    if (cacheRow.rows.length === 0) {
-      cacheRow = await pool.query<{ data: unknown[]; fetched_at: Date }>(
-        "SELECT data, fetched_at FROM cache_orders WHERE id = 1"
-      );
-    }
-    if (cacheRow.rows.length > 0) {
-      const requestedInn = normalizeOrderInn(inn);
-      const isService = !!serviceMode;
-      const scopeName = normalizeCompanyName(customerName);
-      const data = cacheRow.rows[0].data as any[];
-      const list = Array.isArray(data) ? data : [];
-      let legacyAllowedInns: Set<string> | null = null;
-      if (!isService && !requestedInn && !scopeName) {
-        const userInnsRow = await pool.query<{ inn: string }>(
-          "SELECT inn FROM account_companies WHERE login = $1",
-          [String(login).trim().toLowerCase()],
-        );
-        legacyAllowedInns = new Set(userInnsRow.rows.map((r) => normalizeInn(r.inn)).filter(Boolean));
-      }
-      const filtered = list.filter((item) => {
-        if (!isService && (requestedInn || scopeName)) {
-          if (!orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined })) {
-            return false;
-          }
-        } else if (!isService && legacyAllowedInns && legacyAllowedInns.size > 0) {
-          const itemInnVal = ordersItemInn(item);
-          if (!legacyAllowedInns.has(itemInnVal)) return false;
-        }
-        const d = orderDate(item);
-        return !d || (d >= dateFrom && d <= dateTo);
-      });
-      if (filtered.length > 0) {
-        return res.status(200).json(filtered);
-      }
-    }
-  } catch {
-    // БД недоступна/кэш пустой — идем в 1С
-  }
-
-  const buildUpstreamUrls = () => {
-    const direct = new URL(BASE_URL);
-    direct.searchParams.set("DateB", dateFrom);
-    direct.searchParams.set("DateE", dateTo);
-    if (!serviceMode && inn && String(inn).trim()) direct.searchParams.set("INN", String(inn).trim());
-
-    const api = new URL(GETAPI_URL);
-    api.searchParams.set("metod", "GetZayavki");
-    api.searchParams.set("DateB", dateFrom);
-    api.searchParams.set("DateE", dateTo);
-    if (!serviceMode && inn && String(inn).trim()) api.searchParams.set("INN", String(inn).trim());
-
-    return [direct.toString(), api.toString()];
-  };
-
-  let upstreamLogin = String(login);
-  let upstreamPassword = String(password);
-  if (isRegisteredUser && registeredVerified) {
-    const serviceCreds = getPerevozkiServiceCredentials();
-    if (!serviceCreds) {
-      return res.status(503).json({
-        error: "Service credentials are not configured",
-        request_id: ctx.requestId,
-      });
-    }
-    upstreamLogin = serviceCreds.login;
-    upstreamPassword = serviceCreds.password;
-  }
-
-  const fetchFromUpstream = async (url: string) => {
-    const upstream = await fetch(url, {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${upstreamLogin}:${upstreamPassword}`,
-        Authorization: SERVICE_AUTH,
-      },
-    });
-    const text = await upstream.text();
-    return { upstream, text };
-  };
-
   try {
-    let lastError: { status: number; payload: any } | null = null;
-    const urls = buildUpstreamUrls();
-    for (const upstreamUrl of urls) {
-      const { upstream, text } = await fetchFromUpstream(upstreamUrl);
-      if (!upstream.ok) {
-        try {
-          const errJson = JSON.parse(text) as Record<string, unknown>;
-          const message = (errJson?.Error ?? errJson?.error ?? errJson?.message) as string | undefined;
-          const errorText = typeof message === "string" && message.trim() ? message.trim() : text || upstream.statusText;
-          lastError = { status: upstream.status, payload: { error: errorText, request_id: ctx.requestId } };
-        } catch {
-          lastError = { status: upstream.status, payload: text || upstream.statusText };
-        }
-        continue;
-      }
-
-      try {
-        const json = JSON.parse(text);
-        if (json && typeof json === "object" && json.Success === false) {
-          const message = (json.Error ?? json.error ?? json.message) as string | undefined;
-          const errorText = typeof message === "string" && message.trim() ? message.trim() : "Ошибка авторизации";
-          lastError = { status: 401, payload: { error: errorText, request_id: ctx.requestId } };
-          continue;
-        }
-        let list = extractItems(json);
-        const requestedInn = normalizeOrderInn(inn);
-        const scopeName = normalizeCompanyName(customerName);
-        if (!serviceMode && (requestedInn || scopeName)) {
-          list = list.filter((item) =>
-            orderMatchesCustomerScope(item, { inn: requestedInn || undefined, name: scopeName || undefined }),
-          );
-        }
-        if (isRegisteredUser && registeredVerified) {
-          list = await filterRegisteredOrdersList(
-            getPool(),
-            registeredVerified,
-            login,
-            dateFrom,
-            dateTo,
-            inn,
-            serviceMode,
-            list,
-            customerName,
-          );
-          list = await appendPendingOrdersForUser(
-            getPool(),
-            registeredVerified,
-            login,
-            dateFrom,
-            dateTo,
-            inn,
-            serviceMode,
-            list,
-            customerName,
-          );
-        }
-        if (Array.isArray(list) && list.length > 0) {
-          return res.status(200).json(list);
-        }
-      } catch {
-        if (text.trim()) return res.status(200).send(text);
-      }
+    const pool = getPool();
+    // Resolve identity server-side; the client flag is not an authorization boundary.
+    const existing = await pool.query("SELECT login FROM registered_users WHERE lower(trim(login))=$1", [String(login).trim().toLowerCase()]);
+    let metadata: { fetchedAt: string | null; stale: boolean } = { fetchedAt: null, stale: true };
+    let items: any[];
+    if (existing.rows.length || isRegisteredUser) {
+      const verified = await verifyRegisteredUser(pool, login, password);
+      if (!verified) return res.status(401).json({error:"Неверный логин или пароль"});
+      items = await readRegisteredOrdersFromCache(pool,verified,login,dateFrom,dateTo,inn,serviceMode,customerName,value=>{metadata=value;});
+    } else {
+      const access = await resolveCompanyAccess(pool,login,password);
+      const row = (await pool.query("SELECT data,fetched_at FROM cache_orders WHERE id=1")).rows[0];
+      if (!Array.isArray(row?.data)) throw new Error("Orders cache is not initialized");
+      const fetched = new Date(row.fetched_at).getTime();
+      metadata = {fetchedAt:Number.isFinite(fetched)?new Date(fetched).toISOString():null,stale:!Number.isFinite(fetched)||Date.now()-fetched>15*60000};
+      const requestedInn = normalizeOrderInn(inn);
+      const name = normalizeCompanyName(customerName);
+      items = row.data.filter((item:any)=>access.customers.some(customer=>orderMatchesCustomerScope(item,{inn:customer.inn})) &&
+        (!requestedInn || orderMatchesCustomerScope(item,{inn:requestedInn})) &&
+        (!name || orderMatchesCustomerScope(item,{name})) &&
+        (!orderDate(item) || (orderDate(item)>=dateFrom && orderDate(item)<=dateTo)));
     }
-
-    if (lastError) {
-      if (typeof lastError.payload === "string") return res.status(lastError.status).send(lastError.payload);
-      return res.status(lastError.status).json(lastError.payload);
-    }
-    return res.status(200).json([]);
-  } catch (e: any) {
-    logError(ctx, "orders_proxy_failed", e);
-    return res.status(500).json({ error: "Proxy error", details: e?.message || String(e), request_id: ctx.requestId });
+    return res.status(200).json(body.withMetadata === true ? {items,metadata} : items);
+  } catch(error) {
+    if (error instanceof CompanyAccessError) return res.status(error.status).json({error:error.message});
+    logError(ctx,"orders_cache_failed",error);
+    return res.status(503).json({error:"Не удалось загрузить заявки из БД. Попробуйте позже.",code:"ORDERS_UNAVAILABLE",request_id:ctx.requestId});
   }
 }

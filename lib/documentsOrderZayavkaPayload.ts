@@ -1,5 +1,5 @@
 import type { ZayavkaGoodsRow, ZayavkaParcelRow, ZayavkaUploadPayload } from "./post1cZayavkaUpload.js";
-import { truncateGoodsNameFor1c } from "./post1cZayavkaUpload.js";
+import { truncateGoodsNameFor1c } from "./oneCGoodsName.js";
 
 export type DocumentsOrderTableLineItem = {
   name: string;

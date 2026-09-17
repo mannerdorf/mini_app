@@ -9,19 +9,15 @@ npm run test:e2e:guest:install
 
 ## Run
 
-Terminal A:
-
 ```bash
-npm run dev
+npm run test:e2e:guest
 ```
 
-Terminal B:
-
-```bash
-PLAYWRIGHT_BASE_URL=http://localhost:5173 npm run test:e2e:guest
-```
-
-If the dev server is down, or the URL host mismatches (`127.0.0.1` vs `localhost` on macOS), tests **skip** (do not fail the suite).
+Playwright starts Vite automatically. To use an existing server, set `PLAYWRIGHT_BASE_URL`.
+An unavailable server fails the suite; it no longer silently skips tests.
+GitHub Actions runs unit/API contracts, backend type checking, build and mobile guest smoke.
+Require the `Checks / local-contracts` check in repository branch protection before merging (repository setting, not set by this patch).
+Physical Android/iOS download verification and full frontend TypeScript remain separate checks.
 
 ## What it checks
 

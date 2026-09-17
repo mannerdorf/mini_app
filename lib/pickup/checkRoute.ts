@@ -3,6 +3,7 @@ import type { Job, Route, Resource, Event } from "./model.js";
 import { routeWarnings, routeStartAddress } from "./model.js";
 import {
   driverHasWorkShift,
+  driverHasInvalidWorkShift,
   driverShiftEnd,
   driverShiftStart,
 } from "./driverShift.js";
@@ -22,6 +23,8 @@ import {
   type Point,
 } from "./routeAnalysis.js";
 import { DgisRouteError } from "./dgisRouteError.js";
+import { timedAssessment } from "./timedAssessment.js";
+import { compare } from "./routeAnalysis.js";
 import {
   createRouteProvider,
   mapConcurrent,
@@ -90,6 +93,10 @@ async function computeCheckRoute(
     vehicle = resources.vehicle;
   if (!depot?.data.address || !driver || !vehicle)
     return missing("Укажите водителя, автомобиль и адрес склада HAULZ.");
+  if (driverHasInvalidWorkShift(driver.data))
+    return missing("Исправьте смену водителя: ночные смены пока не поддерживаются, начало должно быть раньше окончания.");
+  if (driverHasInvalidWorkShift(vehicle.data))
+    return missing("Исправьте время доступности автомобиля: начало должно быть раньше окончания.");
   if (
     remaining.some(
       (j) =>
@@ -134,6 +141,10 @@ async function computeCheckRoute(
   base.traffic =
     Math.abs(departureEpoch - now) <= 15 * 60000 ? "jam" : "statistics";
   const warnings: string[] = [];
+  if (!driverHasWorkShift(driver.data))
+    warnings.push("Смена водителя не заполнена: ограничение по рабочему времени не проверено.");
+  if (!driverHasWorkShift(vehicle.data))
+    warnings.push("Время доступности автомобиля не заполнено: ограничение по рабочему времени не проверено.");
   if (!settings.windowsConfirmed)
     warnings.push(
       "Подтвердите, что окна забора учитывают часы работы, перерывы и выходные отправителей. Свободный текст графика автоматически не разбирается.",
@@ -280,7 +291,7 @@ async function computeCheckRoute(
       points.map((p) => p.point),
       options,
     );
-    const scores = optimise({
+    const plan = {
       jobs: remaining,
       matrix,
       departure,
@@ -290,7 +301,14 @@ async function computeCheckRoute(
         minutes(driverShiftEnd(driver.data)),
         minutes(driverShiftEnd(vehicle.data)),
       ),
-    });
+    };
+    const scores = optimise(plan);
+    const [current, proposed] = await Promise.all([
+      timedAssessment(plan, scores.current.ids, points.map(p => p.point), provider, options),
+      scores.proposed ? timedAssessment(plan, scores.proposed.ids, points.map(p => p.point), provider, options) : undefined,
+    ]);
+    scores.current = current;
+    scores.proposed = proposed && compare(proposed, current) < 0 ? proposed : undefined;
     const early =
       departure <
       Math.max(

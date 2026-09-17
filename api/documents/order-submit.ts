@@ -1,3 +1,4 @@
+import { prepareDocumentsOrder } from "../../lib/documentsOrderPrepared.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { initRequestContext, logError } from "../_lib/observability.js";
@@ -32,8 +33,8 @@ import {
   loadFivepostRowsByBatchIds,
 } from "../../lib/pendingOrderRequests.js";
 import { PENDING_ORDER_ZAYAVKA_ROW_TYPE } from "../../lib/documentsOrderPending1c.js";
-import { normalizeZayavkaUploadPayload } from "../../lib/post1cZayavkaUpload.js";
-import { finalizeZayavkaPayloadFor1c } from "../../lib/finalizeZayavkaPayloadFor1c.js";
+import { normalizeZayavkaUploadPayload, uploadZayavkaTo1c, isLikelyPvzRef } from "../../lib/post1cZayavkaUpload.js";
+import { finalizeZayavkaPayloadFor1c, patchReceiverInnFromPendingTableRows } from "../../lib/finalizeZayavkaPayloadFor1c.js";
 
 const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
 
@@ -70,7 +71,7 @@ function parseOrderLegAddressKind(raw: string): OrderLegAddressKind {
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "documents_order_submit");
-  if (isRateLimited("documents_order_submit", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
+  if (await isRateLimited("documents_order_submit", getClientIp(req), HAULZ_CALC_QUOTE_LIMIT)) {
     return res.status(429).json({ error: "Слишком много запросов", request_id: ctx.requestId });
   }
   if (req.method !== "POST") {
@@ -122,7 +123,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "",
   ).trim();
 
-  const nomerZayavki = `HAULZ-DOC-${Date.now()}`;
+  if (!nomerZayavkiKlienta || nomerZayavkiKlienta.length > 50) return res.status(400).json({error:"Укажите постоянный номер заявки клиента (до 50 символов). Он защищает от повторного создания."});
+  let nomerZayavki = nomerZayavkiKlienta;
 
   const fromPvzRef = String(body.fromPvzRef ?? body.from_pvz_ref ?? "").trim() || undefined;
   const toPvzRef = String(body.toPvzRef ?? body.to_pvz_ref ?? "").trim() || undefined;
@@ -263,15 +265,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
     ];
 
-    if (zayavkaPayload) {
-      zayavkaPayload = await finalizeZayavkaPayloadFor1c(pool, zayavkaPayload, {
-        nomerZayavki: nomerZayavki || undefined,
-        tableRows: tableRowsCore,
-      });
+    zayavkaPayload.ЗаказчикИНН = access.customerInn;
+    zayavkaPayload.НомерЗаявкиКлиента = nomerZayavkiKlienta;
+    if (!isLikelyPvzRef(zayavkaPayload.ПунктОтправки) || !isLikelyPvzRef(zayavkaPayload.ПунктНазначения)) {
+      return res.status(400).json({error:"Для создания в 1С выберите проверенные ПВЗ отправки и назначения. Новый адрес сначала должен быть подтверждён логистом."});
     }
+    const unprepared = patchReceiverInnFromPendingTableRows(zayavkaPayload, tableRowsCore);
+    zayavkaPayload = await prepareDocumentsOrder(pool,normalizeLogin(access.login),unprepared,
+      () => finalizeZayavkaPayloadFor1c(pool,unprepared,{nomerZayavki,tableRows:tableRowsCore}));
+    const upload = await uploadZayavkaTo1c(zayavkaPayload);
+    if (!upload.ok) return res.status(upload.status && upload.status>=400 ? upload.status : 502).json({error:upload.error});
+    nomerZayavki = upload.nomerZayavki!;
 
     const tableRows = [
       ...tableRowsCore,
+      { type: "one_c_created", number: upload.nomerZayavki, reference: upload.reference },
       { type: PENDING_ORDER_ZAYAVKA_ROW_TYPE, payload: zayavkaPayload },
     ];
 
@@ -294,7 +302,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     await pool.query(
       `INSERT INTO pending_order_requests (login, inn, punkt_otpravki, punkt_naznacheniya, nomer_zayavki, data_zabora, table_rows)
-       VALUES ($1, $2, $3, $4, $5, $6::date, $7::jsonb)`,
+       SELECT $1, $2, $3, $4, $5, $6::date, $7::jsonb WHERE NOT EXISTS (SELECT 1 FROM pending_order_requests WHERE login=$1 AND inn=$2 AND nomer_zayavki=$5)`,
       [login, inn, punktOtpravki, punktNaznacheniya, nomerZayavki, dataZabora, JSON.stringify(tableRows)],
     );
 
@@ -318,7 +326,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
         await upsertHaulzCalcDraft(pool, access.loginKey, {
           title: documentsOrderManagerDraftTitle(from, to),
-          status: "new",
+          status: "submitted",
           nomerZayavki,
           formState,
           quoteResult: quote,
@@ -371,8 +379,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       ok: true,
       message: sendResult.ok
-        ? "Заявка зарегистрирована и отправлена на обработку"
-        : "Заявка зарегистрирована; письмо не отправлено",
+        ? "Заявка создана в 1С"
+        : "Заявка создана в 1С; письмо не отправлено",
       nomerZayavki,
       quote,
       emailSent: sendResult.ok,

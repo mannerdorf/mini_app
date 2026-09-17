@@ -1,3 +1,4 @@
+import { fetchCompanies } from "../api/client/companiesList";
 import { useEffect, useState } from "react";
 import type { Account } from "../types";
 import { dedupeCompaniesByName, dedupeCustomersByInn } from "../utils";
@@ -37,12 +38,9 @@ export function useShowCustomerColumn(
 
     let cancelled = false;
     const login = account.login.trim().toLowerCase();
-    const accessAll = account.accessAllInns ? `&access_all=${encodeURIComponent(login)}` : "";
-    fetch(`/api/companies?login=${encodeURIComponent(login)}${accessAll}`)
-      .then((r) => r.json())
-      .then((data) => {
+    fetchCompanies([account])
+      .then((list) => {
         if (cancelled) return;
-        const list = Array.isArray(data?.companies) ? data.companies : [];
         const forLogin = dedupeCompaniesByName(
           list.filter((c: { login?: string }) => (c.login ?? "").trim().toLowerCase() === login),
         );

@@ -19,6 +19,7 @@ function job(
     resolution: "",
     data: {
       senderName: "S",
+      issueCustomerBill: true,
       customerName: "C",
       cargoNumber: "TR-100",
       zayavkaNumber: "",
@@ -31,13 +32,13 @@ function job(
 }
 
 describe("pickupJobOnBillingTab", () => {
-  it("includes deposited jobs with cargo number", () => {
+  it("includes deposited billable jobs", () => {
     expect(pickupJobOnBillingTab(job({}))).toBe(true);
   });
-  it("excludes other statuses and empty cargo number", () => {
+  it("excludes other statuses and jobs without billing", () => {
     expect(pickupJobOnBillingTab(job({ status: "picked_up" }))).toBe(false);
     expect(
-      pickupJobOnBillingTab(job({}, { cargoNumber: "  " })),
+      pickupJobOnBillingTab(job({}, { issueCustomerBill: false })),
     ).toBe(false);
     expect(pickupJobOnBillingTab(job({ status: "pending" }))).toBe(false);
   });

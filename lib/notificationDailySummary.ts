@@ -277,7 +277,7 @@ export function aggregateDailySummaryCargoCounts(
 
 export function formatDailySummaryPlainText(stats: DailySummaryStats): string {
   const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
-  const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
+  const sumFmt = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum)).replace(/\u00a0/g, " ");
 
   return (
     `В пути: ${inTransit}\n` +
@@ -288,7 +288,7 @@ export function formatDailySummaryPlainText(stats: DailySummaryStats): string {
 
 export function buildDailySummaryTemplateContext(stats: DailySummaryStats): Record<string, string> {
   const { inTransit, readyForPickup } = aggregateDailySummaryCargoCounts(stats.activeStatusCounts);
-  const unpaidSum = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum));
+  const unpaidSum = new Intl.NumberFormat("ru-RU").format(Math.round(stats.unpaidSum)).replace(/\u00a0/g, " ");
   const plainText = formatDailySummaryPlainText(stats);
   return {
     in_transit: String(inTransit),

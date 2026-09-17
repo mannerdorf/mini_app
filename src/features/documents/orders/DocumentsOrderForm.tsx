@@ -391,6 +391,10 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
       setError("Нельзя оформить: заполните адреса, груз и дождитесь расчёта.");
       return;
     }
+    if (!nomerZayavki.trim() || nomerZayavki.trim().length > 50) {
+      setError("Укажите номер заявки клиента (до 50 символов). Сохраните этот номер для проверки результата в 1С.");
+      return;
+    }
     setOrderLoading(true);
     setError(null);
     try {
