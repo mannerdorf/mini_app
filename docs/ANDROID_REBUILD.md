@@ -5,6 +5,10 @@
 
 Скажи агенту: **«дай правило пересборки android»** — он выдаст эти 3 этапа.
 
+**Сборка на Mac:** Android Studio / SDK на **внешнем диске Cursor**, не в `~/Library/Android/sdk`.
+Перед `npm run android:release` всегда задавайте `ANDROID_HOME` и связанные пути из этапа 2.
+Подключите диск **Cursor** (`/Volumes/Cursor/...`).
+
 ---
 
 ## Этап 1 — синхронизация и версия
