@@ -11,6 +11,8 @@ description: >-
 
 Постоянный канал: **https://app.haulz.space** (VPS `200.165.236.49`).
 
+**SDK на диске Cursor:** `/Volumes/Cursor/haulz-build/android-sdk` (+ `gradle-home`, `tmp` на том же диске). Не использовать `~/Library/Android/sdk`, если SDK установлен на Cursor. Диск **Cursor** должен быть подключён.
+
 Перед Mac-сборкой `versionCode` / `versionName` должны быть **закоммичены в `main`**
 (обычно bump делает агент или `./scripts/bump-android-version.sh`).
 
