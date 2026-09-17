@@ -154,7 +154,7 @@ export type Route = {
 
 /** Удаление маршрута диспетчером в любом статусе. */
 export function pickupRouteCanDelete(status: Route["status"]): boolean {
-  return status !== "started";
+  return ["draft", "published", "started", "completed"].includes(status);
 }
 
 /** Удаление завершённого маршрута супер-администратором в CMS. */

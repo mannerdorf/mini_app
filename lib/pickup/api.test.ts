@@ -1276,27 +1276,35 @@ describe("route start location", () => {
     expect(published.snapshot.start.address).toBe("Москва, стоянка");
     expect(published.snapshot.depot.data.address).not.toBe("Москва, стоянка");
   });
-  it("keeps started routes, responsible driver and active pickup available", async () => {
+  it.each(["draft", "published", "started", "completed"])("lets dispatcher delete a %s route with any pickup status, preserving cargo and audit", async (status) => {
     const ids = await setup();
-    let s = await publishAndStart();
-    await ok("driver", {
-      action: "arrive",
-      id: ids.job.id,
-      version: s.jobs[0].version,
-    });
-    s = await snapshot();
-    expect(s.jobs[0].status).toBe("arrived");
-    const deletion = await request("dispatch", {
-      action: "delete_route",
-      id: ids.route.id,
-      version: s.routes[0].version,
-    });
-    expect(deletion.status).toBe(400);
-    const after = await snapshot("driver");
-    expect(after.routes).toHaveLength(1);
-    const job = after.jobs.find((j: any) => j.id === ids.job.id);
-    expect(job?.route_id).toBe(ids.route.id);
-    expect(job?.status).toBe("arrived");
+    await dbSetRouteStatus(status);
+    const statuses=["pending","arrived","picked_up","partial","problem","deposited","resolved","cancelled"];
+    const before=(await state.db.query("SELECT * FROM pickup_jobs WHERE route_id=$1",[ids.route.id])).rows[0];
+    await state.db.query("UPDATE pickup_jobs SET status='arrived' WHERE id=$1",[before.id]);
+    for(const jobStatus of statuses.filter(value=>value!=="arrived")) {
+      await state.db.query("INSERT INTO pickup_jobs(id,city,date,data,route_id,status,job_number) VALUES($1,$2,$3,$4,$5,$6,$7)",
+        [randomUUID(),before.city,before.date,JSON.stringify(before.data),ids.route.id,jobStatus,`TEST-${randomUUID()}`]);
+    }
+    await state.db.query("INSERT INTO pickup_photos(id,job_id,content_type,bytes) VALUES($1,$2,'image/jpeg',$3)",[randomUUID(),before.id,Buffer.from([255,216,255])]);
+    const route=(await snapshot()).routes[0];
+    const command={action:"delete_route",id:route.id,version:route.version,requestId:randomUUID()};
+    expect((await request("driver",command)).status).toBe(403);
+    expect((await request("dispatch",{...command,version:route.version-1})).status).toBe(409);
+    const removed=await ok("dispatch",command);
+    expect(removed.jobsUnassigned).toBe(8);
+    const jobs=(await state.db.query("SELECT status,route_id FROM pickup_jobs")).rows;
+    expect(jobs.map((job:any)=>job.status).sort()).toEqual([...statuses].sort());
+    expect(jobs.every((job:any)=>job.route_id===null)).toBe(true);
+    expect((await state.db.query("SELECT * FROM pickup_routes WHERE id=$1",[route.id])).rows).toHaveLength(0);
+    expect((await state.db.query("SELECT * FROM pickup_photos WHERE job_id=$1",[before.id])).rows).toHaveLength(1);
+    const history=(await state.db.query("SELECT data FROM pickup_events WHERE data->'deletedRoute'->>'id'=$1",[route.id])).rows;
+    expect(history.length).toBeGreaterThan(0);
+    expect(history[0].data.deletedRoute.status).toBe(status);
+    expect(await ok("dispatch",command)).toEqual(removed);
+    async function dbSetRouteStatus(value:string) {
+      await state.db.query("UPDATE pickup_routes SET status=$2 WHERE id=$1",[ids.route.id,value]);
+    }
   });
   it("lets dispatcher delete completed routes", async () => {
     const ids = await setup();

@@ -51,14 +51,14 @@ export async function deletePickupRoute(
     pickupRouteDeleteAllowed(route.status, policy),
     policy === "super_admin_completed"
       ? "Удалить можно только завершённый маршрут"
-      : "Начатый маршрут нельзя удалить. Сначала завершите заборы и сдайте груз на склад: водитель и история рейса должны сохраниться.",
+      : "Некорректный статус маршрута",
   );
 
   const { rows: jobs } = await db.query<{ id: string; status: string }>(
     "SELECT id, status FROM pickup_jobs WHERE route_id=$1 FOR UPDATE",
     [route.id],
   );
-  requireValue(
+  if (policy !== "dispatcher") requireValue(
     jobs.every(job => ["pending", "cancelled", "deposited", "resolved"].includes(job.status)),
     "В маршруте есть незавершённые заборы или несданный груз. Завершите их до удаления маршрута.",
   );
