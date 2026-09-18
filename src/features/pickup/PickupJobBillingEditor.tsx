@@ -4,10 +4,10 @@ import type { PickupCall } from "./client";
 import { PickupCustomerQuoteSection } from "./PickupCustomerQuoteSection";
 
 type Props = {
-  job: Job; busy: boolean; call: PickupCall;
+  job: Job; busy: boolean; call: PickupCall; error?: string;
   act: (body: {action: string; id: string; version: number; data: Job["data"]}, title: string) => Promise<boolean>;
 };
-export function PickupJobBillingEditor({job,busy,call,act}: Props) {
+export function PickupJobBillingEditor({job,busy,call,act,error}: Props) {
   const [data,setData] = useState(job.data);
   const [saving,setSaving] = useState(false);
   const [message,setMessage] = useState("");
@@ -29,6 +29,6 @@ export function PickupJobBillingEditor({job,busy,call,act}: Props) {
         finally {setSaving(false);}
       }}>{saving?"Сохраняем…":"Сохранить расчёты"}</button>
     </fieldset>
-    {message && <p role="status">{message}</p>}
+    {message && <p role={error ? "alert" : "status"}>{error || message}</p>}
   </details>;
 }

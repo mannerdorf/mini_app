@@ -970,7 +970,7 @@ export function PickupPage({
                     act={act}
                   />
 
-                  <PickupJobBillingEditor key={`billing-${j.id}-${j.version}`} job={j} busy={busy} call={call} act={act} />
+                  <PickupJobBillingEditor key={`billing-${j.id}-${j.version}`} job={j} busy={busy} call={call} act={act} error={error} />
                   <PickupJobOrderEditor key={`${j.id}-${j.version}`} job={j} busy={busy} act={act} />
 
                   <div className="pk-actions">

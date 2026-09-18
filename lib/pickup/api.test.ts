@@ -1341,3 +1341,16 @@ it("denies drivers all billing actions", async () => {
     expect((await request("driver",{action,city:"moscow",date:"2026-09-15"})).status).toBe(403);
   }
 });
+
+it("saves manual billing with no amount for deposited cargo and rejects stale versions", async () => {
+  const { job } = await setup();
+  await state.db.query("UPDATE pickup_jobs SET status='deposited' WHERE id=$1", [job.id]);
+  const before = (await snapshot()).jobs.find((j:any)=>j.id===job.id);
+  const body = {action:"set_job_billing",id:job.id,version:before.version,data:{...before.data,issueCustomerBill:true,customerBillMode:"manual",priceRub:null,payment:"Не указано",note:""}};
+  expect((await request("driver",body)).status).toBe(403);
+  await ok("dispatch",body);
+  const after = (await snapshot()).jobs.find((j:any)=>j.id===job.id);
+  expect(after.status).toBe("deposited");
+  expect(after.data).toMatchObject({issueCustomerBill:true,customerBillMode:"manual",priceRub:null});
+  expect((await request("dispatch",body)).status).toBe(409);
+});
