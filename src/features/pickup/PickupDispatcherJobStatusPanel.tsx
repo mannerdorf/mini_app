@@ -22,6 +22,7 @@ export function PickupDispatcherJobStatusPanel({
   const [actualPlaces, setActualPlaces] = useState(
     job.actual_places != null ? String(job.actual_places) : "",
   );
+  const [zayavkaNumber, setZayavkaNumber] = useState(job.data.zayavkaNumber || "");
   const [note, setNote] = useState("");
 
   const needsPlaces = status === "picked_up" || status === "partial";
@@ -48,6 +49,21 @@ export function PickupDispatcherJobStatusPanel({
             ))}
           </select>
         </label>
+        {status === "deposited" && (
+          <label className="pk-field">
+            <span>Номер заявки *</span>
+            <input
+              type="text"
+              maxLength={100}
+              value={zayavkaNumber}
+              placeholder="Как в 1С, включая начальные нули"
+              onChange={(e) => setZayavkaNumber(e.target.value)}
+              disabled={busy}
+              required
+            />
+            <small>Номер сохранится вместе со статусом «Сдан на склад».</small>
+          </label>
+        )}
         {needsPlaces && (
           <label className="pk-field">
             <span>Фактически мест</span>
@@ -69,7 +85,7 @@ export function PickupDispatcherJobStatusPanel({
       <button
         type="button"
         className="pk-primary"
-        disabled={busy || !note.trim() || (needsPlaces && !actualPlaces.trim())}
+        disabled={busy || !note.trim() || (needsPlaces && !actualPlaces.trim()) || (status === "deposited" && !zayavkaNumber.trim())}
         onClick={() =>
           void act(
             {
@@ -78,6 +94,7 @@ export function PickupDispatcherJobStatusPanel({
               version: job.version,
               status,
               note,
+              ...(status === "deposited" ? { zayavkaNumber: zayavkaNumber.trim() } : {}),
               ...(needsPlaces ? { actual_places: Number(actualPlaces) } : {}),
             },
             "Статус забора обновлён",

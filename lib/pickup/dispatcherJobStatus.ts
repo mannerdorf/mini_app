@@ -41,6 +41,7 @@ export function parseDispatcherManualJobStatus(raw: unknown): JobStatus {
 
 export type DispatcherManualJobUpdate = {
   status: JobStatus;
+  zayavkaNumber?: string;
   actual_places: number | null;
   note: string;
   resolution: string | null;
@@ -49,7 +50,7 @@ export type DispatcherManualJobUpdate = {
 export function buildDispatcherManualJobUpdate(
   job: Job,
   target: JobStatus,
-  body: { actual_places?: unknown; note?: unknown },
+  body: { actual_places?: unknown; note?: unknown; zayavkaNumber?: unknown },
 ): DispatcherManualJobUpdate {
   const note = textValue(body.note, 3000);
   requireValue(note, "Укажите причину ручного изменения статуса");
@@ -96,7 +97,13 @@ export function buildDispatcherManualJobUpdate(
   }
 
   if (target === "deposited") {
+    const number = body.zayavkaNumber ?? job.data.zayavkaNumber;
+    requireValue(
+      typeof number === "string" && number.trim().length > 0 && number.trim().length <= 100,
+      "Введите номер заявки: от 1 до 100 символов",
+    );
     return {
+      zayavkaNumber: (number as string).trim(),
       status: "deposited",
       actual_places: job.actual_places,
       note,

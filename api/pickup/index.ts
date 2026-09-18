@@ -1368,8 +1368,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     const update = buildDispatcherManualJobUpdate(job, target, body);
     await db.query(
       `UPDATE pickup_jobs SET status=$2, actual_places=$3, note=$4, resolution=$5,
+       data=CASE WHEN $6::text IS NULL THEN data ELSE jsonb_set(data,'{zayavkaNumber}',to_jsonb($6::text)) END,
+       zayavka_number=CASE WHEN $6::text IS NULL THEN zayavka_number ELSE $6::text END,
        version=version+1, updated_at=now() WHERE id=$1`,
-      [job.id, update.status, update.actual_places, update.note, update.resolution ?? ""],
+      [job.id, update.status, update.actual_places, update.note, update.resolution ?? "", update.zayavkaNumber ?? null],
     );
     await db.query(
       "UPDATE pickup_routes SET version=version+1, updated_at=now() WHERE id=$1",
@@ -1379,6 +1381,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       from: job.status,
       to: update.status,
       requested: target,
+      ...(update.zayavkaNumber ? { zayavkaNumber: update.zayavkaNumber } : {}),
       note: update.note,
       actualPlaces: update.actual_places,
       manual: true,

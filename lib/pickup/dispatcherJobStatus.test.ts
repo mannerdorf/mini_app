@@ -34,3 +34,21 @@ describe("buildDispatcherManualJobUpdate", () => {
     expect(u.status).toBe("partial");
   });
 });
+
+ describe("dispatcher warehouse handoff", () => {
+  it("requires an order number before depositing", () => {
+    expect(() => buildDispatcherManualJobUpdate(job, "deposited", {note:"Принят складом"})).toThrow("Введите номер заявки");
+  });
+  it("preserves leading zeros and trims entered number", () => {
+    const result = buildDispatcherManualJobUpdate(job, "deposited", {note:"Принят складом", zayavkaNumber:" 000018123 "});
+    expect(result.status).toBe("deposited");
+    expect(result.zayavkaNumber).toBe("000018123");
+  });
+  it("uses an existing number when omitted, but rejects explicit blank or invalid input", () => {
+    const existing = {...job, data:{...job.data, zayavkaNumber:"000018123"}};
+    expect(buildDispatcherManualJobUpdate(existing,"deposited",{note:"Принят"}).zayavkaNumber).toBe("000018123");
+    for(const zayavkaNumber of ["", "   ", 123, "1".repeat(101)]) {
+      expect(() => buildDispatcherManualJobUpdate(existing,"deposited",{note:"Принят",zayavkaNumber})).toThrow();
+    }
+  });
+ });
