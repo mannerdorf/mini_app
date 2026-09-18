@@ -151,7 +151,7 @@ export function AdminPage({ adminToken, sandboxSession, onBack, onLogout }: Admi
         </Flex>
         <Flex align="center" gap="0.5rem">
           {onLogout && (
-            <Button type="button" className="filter-button" onClick={onLogout} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
+            <Button type="button" className="filter-button" onClick={() => onLogout()} style={{ padding: "0.5rem 0.75rem" }} aria-label="Выйти из админки">
               <LogOut className="w-4 h-4" style={{ marginRight: "0.35rem" }} />
               Выход
             </Button>

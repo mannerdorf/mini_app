@@ -41,7 +41,7 @@ function AppRoot() {
         auth,
         activeAccount,
     } = useAuth();
-    const { setTheme, desktopExpanded } = useAppShell();
+    const { setTheme, setThemeOverride, desktopExpanded, activeTab } = useAppShell();
 
     useLayoutEffect(() => {
         if (typeof document === "undefined") return;
@@ -53,7 +53,7 @@ function AppRoot() {
             document.documentElement.classList.add("light-mode");
             document.body.classList.remove("guest-mode", "dark-mode");
             document.body.classList.add("light-mode");
-            setTheme("light");
+            setThemeOverride("light");
             return;
         }
         if (!auth) {
@@ -61,9 +61,13 @@ function AppRoot() {
             document.documentElement.classList.remove("dark-mode");
             document.body.classList.add("guest-mode", "light-mode");
             document.body.classList.remove("dark-mode");
-            setTheme("light");
+            setThemeOverride("light");
+        } else {
+            document.documentElement.classList.remove("guest-mode");
+            document.body.classList.remove("guest-mode");
+            setThemeOverride(null);
         }
-    }, [auth, setTheme]);
+    }, [auth, activeTab, setThemeOverride]);
 
     useEffect(() => {
         applyClientPlatformToDocument();

@@ -1,3 +1,4 @@
+import { retainDocumentsOrderDraftAccounts } from "../features/documents/orders/documentsOrderDraft";
 import React, {
   createContext,
   useCallback,
@@ -56,6 +57,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>(() => getInitialAuthState().accounts);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(() => getInitialAuthState().activeAccountId);
   const [selectedAccountIds, setSelectedAccountIds] = useState<string[]>(() => getInitialAuthState().selectedAccountIds);
+
+  useEffect(() => { retainDocumentsOrderDraftAccounts(accounts.map(account => account.login)); }, [accounts]);
 
   const auth = useMemo(() => {
     if (!activeAccountId) return null;

@@ -12,6 +12,7 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npx tsc --noEmit
+      - run: npm run typecheck:frontend
       - run: npm run build
       - run: npm run check:bundle
       - run: npx playwright install --with-deps chromium

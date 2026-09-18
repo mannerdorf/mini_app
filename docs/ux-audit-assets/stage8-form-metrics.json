@@ -1,0 +1,28 @@
+{
+  "light": {
+    "dialogScrollWidth": 390,
+    "dialogWidth": 390,
+    "input": {
+      "background": "rgb(255, 255, 255)",
+      "height": 44,
+      "radius": "12px",
+      "text": "rgb(29, 29, 31)"
+    },
+    "surface": "rgb(255, 255, 255)",
+    "text": "rgb(29, 29, 31)",
+    "textContrast": 16.83
+  },
+  "dark": {
+    "dialogScrollWidth": 390,
+    "dialogWidth": 390,
+    "input": {
+      "background": "rgb(28, 28, 30)",
+      "height": 44,
+      "radius": "12px",
+      "text": "rgb(245, 245, 247)"
+    },
+    "surface": "rgb(28, 28, 30)",
+    "text": "rgb(245, 245, 247)",
+    "textContrast": 15.63
+  }
+}

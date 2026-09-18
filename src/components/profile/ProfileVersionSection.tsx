@@ -24,7 +24,6 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
         {label}
       </Typography.Body>
       <Typography.Body
-        component="div"
         style={{ fontSize: "0.84rem", color: "var(--color-text-primary)", margin: 0, flex: 1, textAlign: "right", wordBreak: "break-word" }}
       >
         {value}

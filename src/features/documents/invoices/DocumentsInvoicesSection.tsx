@@ -1,3 +1,4 @@
+import type { MotionProps as SharedMotionProps } from "motion/react";
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Typography } from "@maxhub/max-ui";
@@ -24,12 +25,7 @@ import {
 } from "../../../pages/cargoMotion";
 import type { AuthData } from "../../../types";
 
-type MotionProps = {
-  initial?: false | object;
-  animate?: object;
-  exit?: object;
-  transition?: object;
-};
+type MotionProps = Pick<SharedMotionProps, "initial" | "animate" | "exit" | "transition">;
 
 type Props = {
   active: boolean;
@@ -153,7 +149,7 @@ export function DocumentsInvoicesSection({
                                                         {showSums && (
                                                             <DocumentsInvoiceFinanceHeadCells
                                                                 withSort
-                                                                sortColumn={innerTableSortColumn}
+                                                                sortColumn={innerTableSortColumn === "sum" || innerTableSortColumn === "paid" || innerTableSortColumn === "balance" ? innerTableSortColumn : undefined}
                                                                 sortOrder={innerTableSortOrder}
                                                                 onSort={handleInnerTableSort}
                                                             />

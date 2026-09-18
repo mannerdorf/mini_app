@@ -84,7 +84,7 @@ export function AdminEmployeeDirectoryRow({ emp, employeeDir, mutations }: Admin
                     </div>
                     <Flex align="center" gap="0.45rem" onClick={(e) => e.stopPropagation()}>
                       <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>{emp.active ? "Вкл" : "Выкл"}</Typography.Body>
-                      <TapSwitch
+                      <TapSwitch aria-label="Активность сотрудника"
                         checked={emp.active}
                         onToggle={() => void mutations.toggleEmployeeActive(emp)}
                       />

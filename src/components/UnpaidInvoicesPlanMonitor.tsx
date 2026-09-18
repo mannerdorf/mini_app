@@ -25,6 +25,8 @@ type Props = {
   loading?: boolean;
   /** Перевозки для плановой даты — подгружаются отдельно, не блокируют список счетов. */
   cargoLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
   showSums?: boolean;
   onOpen?: () => void;
   onOpenInvoice?: (invoice: Record<string, unknown>) => void;
@@ -145,6 +147,8 @@ export function UnpaidInvoicesPlanMonitor({
   cargoItems,
   loading,
   cargoLoading = false,
+  error,
+  onRetry,
   showSums = true,
   onOpen,
   onOpenInvoice,
@@ -180,14 +184,15 @@ export function UnpaidInvoicesPlanMonitor({
   const unbilledSum = unbilledRows.reduce((acc, r) => acc + r.sum, 0);
   const combinedTotal = totalBalance + unbilledSum;
   const listScrollable = (groupedByCustomer ? mergedCustomerGroups.length : rows.length) > UNPAID_MONITOR_SCROLL_AFTER_ROWS;
-  const isEmpty = !loading && rows.length === 0 && unbilledCount === 0;
+  const isEmpty = !error && !loading && !cargoLoading && rows.length === 0 && unbilledCount === 0;
   const HeadIcon = isEmpty ? CheckCircle2 : AlertCircle;
   const headIconColor = isEmpty ? "#10b981" : "var(--color-primary-blue)";
 
   const subtitleText = useMemo(() => {
+    if (error) return "Не удалось проверить задолженность";
     if (loading) return "Загрузка счетов…";
     if (cargoLoading) return "Счета загружены, уточняем плановые даты…";
-    if (isEmpty) return "Задолженностей нет — все счета оплачены";
+    if (isEmpty) return "За последние 3 месяца задолженностей не найдено";
     const parts: string[] = [];
     if (rows.length > 0) {
       parts.push(
@@ -205,6 +210,7 @@ export function UnpaidInvoicesPlanMonitor({
     }
     return parts.join(" · ");
   }, [
+    error,
     loading,
     cargoLoading,
     isEmpty,
@@ -249,7 +255,12 @@ export function UnpaidInvoicesPlanMonitor({
         </div>
       </button>
 
-      {loading ? (
+      {error ? (
+        <div role="alert" className="unpaid-plan-monitor__loading">
+          <p>Не удалось проверить задолженность за последние 3 месяца. Данные могут быть неполными.</p>
+          {onRetry && <button type="button" onClick={onRetry}>Повторить проверку</button>}
+        </div>
+      ) : loading || cargoLoading ? (
         <Flex align="center" gap="0.5rem" className="unpaid-plan-monitor__loading">
           <Loader2 className="w-4 h-4 animate-spin" style={{ color: "var(--color-primary-blue)" }} />
           <Typography.Label style={{ fontSize: "0.78rem", color: "var(--color-text-secondary)" }}>
@@ -258,7 +269,7 @@ export function UnpaidInvoicesPlanMonitor({
         </Flex>
       ) : isEmpty ? (
         <>
-          <Typography.Body className="unpaid-plan-monitor__empty-title">Задолженностей нет</Typography.Body>
+          <Typography.Body className="unpaid-plan-monitor__empty-title">За последние 3 месяца задолженностей не найдено</Typography.Body>
           <Typography.Label className="unpaid-plan-monitor__empty-hint">
             Неоплаченных счетов не найдено. При появлении задолженности счета появятся в этом блоке с плановой датой прибытия.
           </Typography.Label>
@@ -319,7 +330,7 @@ export function UnpaidInvoicesPlanMonitor({
                           {stripOoo(group.customer)}
                         </span>
                         <span className="unpaid-plan-monitor__cell unpaid-plan-monitor__cell--priority">
-                          {priorityBadge(group)}
+                          {priorityBadge({ priority: group.priority, planDate: [...group.items, ...group.unbilledItems].find((item) => item.planDate)?.planDate ?? null })}
                         </span>
                         <span
                           className={`unpaid-plan-monitor__cell unpaid-plan-monitor__cell--unbilled${

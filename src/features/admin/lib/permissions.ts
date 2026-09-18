@@ -38,7 +38,7 @@ export const PERMISSION_ROW1_SUPERADMIN = [
   { key: "doc_sendings", label: "Отправки" as const },
 ] as const;
 
-export const SUPERADMIN_ONLY_PERMISSION_KEYS = new Set(
+export const SUPERADMIN_ONLY_PERMISSION_KEYS = new Set<string>(
   PERMISSION_ROW1_SUPERADMIN.map((item) => item.key)
 );
 

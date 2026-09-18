@@ -44,24 +44,20 @@ export type DocumentsPageToolbarDateFilterProps = {
   sortOrder: "asc" | "desc";
   onToggleSort: () => void;
   dateFilter: DateFilter;
-  setDateFilter: React.Dispatch<React.SetStateAction<DateFilter>>;
+  setDateFilter: (value: DateFilter) => void;
   apiDateRange: { dateFrom: string; dateTo: string };
   customDateFrom: string;
-  setCustomDateFrom: React.Dispatch<React.SetStateAction<string>>;
+  setCustomDateFrom: (value: string) => void;
   customDateTo: string;
-  setCustomDateTo: React.Dispatch<React.SetStateAction<string>>;
+  setCustomDateTo: (value: string) => void;
   selectedMonthForFilter: { year: number; month: number } | null;
-  setSelectedMonthForFilter: React.Dispatch<
-    React.SetStateAction<{ year: number; month: number } | null>
-  >;
+  setSelectedMonthForFilter: (value: { year: number; month: number } | null) => void;
   selectedQuarterForFilter: import("../../lib/dateUtils").QuarterFilterSelection | null;
-  setSelectedQuarterForFilter: React.Dispatch<
-    React.SetStateAction<import("../../lib/dateUtils").QuarterFilterSelection | null>
-  >;
+  setSelectedQuarterForFilter: (value: import("../../lib/dateUtils").QuarterFilterSelection | null) => void;
   selectedYearForFilter: number | null;
-  setSelectedYearForFilter: React.Dispatch<React.SetStateAction<number | null>>;
+  setSelectedYearForFilter: (value: number | null) => void;
   selectedWeekForFilter: string | null;
-  setSelectedWeekForFilter: React.Dispatch<React.SetStateAction<string | null>>;
+  setSelectedWeekForFilter: (value: string | null) => void;
   isDateDropdownOpen: boolean;
   setIsDateDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   dateDropdownMode: "main" | "months" | "quarters" | "years" | "weeks";
@@ -128,11 +124,11 @@ export type DocumentsPageToolbarSummaryProps = {
   invoicesLoading: boolean;
   invoicesError: string | null;
   filteredInvoiceCount: number;
-  invoicesSummary: { sum: number; count: number };
+  invoicesSummary: import("./lib/documentsPipeline").DocsSummaryTotals;
   actsLoading: boolean;
   actsError: string | null;
   filteredActsCount: number;
-  actsSummary: { sum: number; count: number };
+  actsSummary: import("./lib/documentsPipeline").DocsSummaryTotals;
   showSums: boolean;
   documentsServiceSaasUi: boolean;
   tableModeFlatDirect: boolean;

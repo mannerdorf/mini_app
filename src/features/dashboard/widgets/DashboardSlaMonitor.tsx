@@ -169,8 +169,8 @@ export function DashboardSlaMonitor({
                 <Typography.Headline style={{ fontSize: '0.95rem', fontWeight: 600 }}>
                     монитор срока доставки
                 </Typography.Headline>
-                {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} title="Динамика SLA улучшается" />}
-                {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} title="Динамика SLA ухудшается" />}
+                {slaStats.total > 0 && slaTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)' }} role="img" aria-label="Динамика SLA улучшается"><title>Динамика SLA улучшается</title></TrendingUp>}
+                {slaStats.total > 0 && slaTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444' }} role="img" aria-label="Динамика SLA ухудшается"><title>Динамика SLA ухудшается</title></TrendingDown>}
             </Flex>
             <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.6rem' }}>
                 Контроль сроков доставки: % выполнения SLA, средний срок и детали по перевозкам вне норматива.

@@ -68,7 +68,7 @@ function useDebounced<T>(value: T, ms: number): T {
 function inferDirectionFromCities(from?: CityCode | null, to?: CityCode | null): Direction | null {
   if (from === "kaliningrad") return "kgd_mow";
   if (from === "moscow") return "mow_kgd";
-  if (to === "moscow" && to !== from) return "kgd_mow";
+  if (to === "moscow") return "kgd_mow";
   return null;
 }
 
@@ -205,8 +205,8 @@ export function HaulzCalculatorPage({
     return { w, v, volW, ch, factor };
   }, [places, options?.volumetricFactor]);
 
-  const suggestCityFrom = inferredDirection === "kgd_mow" ? "kaliningrad" : "moscow";
-  const suggestCityTo = inferredDirection === "kgd_mow" ? "moscow" : "kaliningrad";
+  const suggestCityFrom: CityCode = inferredDirection === "kgd_mow" ? "kaliningrad" : "moscow";
+  const suggestCityTo: CityCode = inferredDirection === "kgd_mow" ? "moscow" : "kaliningrad";
 
   useEffect(() => {
     if (!guestMode && !auth) return;

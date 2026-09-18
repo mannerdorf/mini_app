@@ -30,6 +30,14 @@ import { getSumColorByPaymentStatus } from "../../../lib/statusUtils";
 import { cargoExpandMotionProps, cargoListContainerVariants, cargoTableGroupRowVariants, documentsListItemVariants } from "../../../pages/cargoMotion";
 import { findInvoiceLinkedToAct, getItemInn, type DocsSummaryTotals, type EdoCargoCardItem } from "../lib/documentsPipeline";
 import { innIsEdoPartner } from "../../../lib/edoCounterpartyStatus";
+const DOCS_SUMMARY_COLLAPSED_KEY = "haulz.documents.summaryCollapsedMobile";
+type SummaryProps = {
+  summary: DocsSummaryTotals;
+  showSums: boolean;
+  useServiceRequest: boolean;
+  saasAnalytics?: boolean;
+  expandedMetrics?: boolean;
+};
 export function DocumentsSummaryCard({
   summary,
   showSums,

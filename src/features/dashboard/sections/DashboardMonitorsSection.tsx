@@ -25,6 +25,8 @@ export function DashboardMonitorsSection({ page }: Props) {
                     cargoItems={page.unpaidPlanMonitorCargo}
                     loading={page.unpaidPlanInvoicesLoading}
                     cargoLoading={page.unpaidPlanCargoLoading}
+                    error={page.unpaidPlanError}
+                    onRetry={page.retryUnpaidPlan}
                     showSums={page.showSums}
                     onOpen={page.onOpenDocumentsInvoices}
                     onOpenInvoice={page.onOpenInvoice}

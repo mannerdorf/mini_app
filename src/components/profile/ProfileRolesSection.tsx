@@ -34,6 +34,7 @@ export function ProfileRolesSection({ activeAccount, activeAccountId, onBack, on
                             <Typography.Body style={{ fontWeight: 600 }}>Заказчик</Typography.Body>
                             <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                 <TapSwitch
+                                    aria-label="Заказчик"
                                     checked={activeAccount.roleCustomer ?? true}
                                     onToggle={() =>
                                         onUpdateAccount(activeAccountId, { roleCustomer: !(activeAccount.roleCustomer ?? true) })
@@ -50,6 +51,7 @@ export function ProfileRolesSection({ activeAccount, activeAccountId, onBack, on
                             <Typography.Body style={{ fontWeight: 600 }}>Отправитель</Typography.Body>
                             <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                 <TapSwitch
+                                    aria-label="Отправитель"
                                     checked={activeAccount.roleSender ?? true}
                                     onToggle={() =>
                                         onUpdateAccount(activeAccountId, { roleSender: !(activeAccount.roleSender ?? true) })
@@ -66,6 +68,7 @@ export function ProfileRolesSection({ activeAccount, activeAccountId, onBack, on
                             <Typography.Body style={{ fontWeight: 600 }}>Получатель</Typography.Body>
                             <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
                                 <TapSwitch
+                                    aria-label="Получатель"
                                     checked={activeAccount.roleReceiver ?? true}
                                     onToggle={() =>
                                         onUpdateAccount(activeAccountId, { roleReceiver: !(activeAccount.roleReceiver ?? true) })

@@ -155,7 +155,7 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
 
       {!loading && error && <p className="invoice-payment-qr-block__error">{error}</p>}
 
-      {!loading && payload && qrSrc && (
+      {!loading && data && payload && qrSrc && (
         <div className="invoice-payment-qr-block__body">
           <div className="invoice-payment-qr-block__qr-wrap">
             <img

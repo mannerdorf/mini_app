@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from "react";
+import React, { useEffect, useId, useRef } from "react";
 import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import type { DocSectionKey } from "./documentsSectionConstants";
 import "./DocumentsSectionTabs.css";
@@ -38,7 +38,7 @@ export function DocumentsSectionTabs({
     return (
         <LayoutGroup id={groupId}>
             <motion.div ref={rowRef} layoutScroll className="doc-sections-row doc-sections-row--smooth">
-                <div className="doc-section-tabs-track" role="group" aria-label="Раздел документов">
+                <div className="doc-section-tabs-track" role="toolbar" aria-label="Раздел документов" aria-orientation="horizontal">
                     {allowedDocSections.map(({ key, label }) => {
                         const isActive = docSection === key;
                         return (
@@ -48,6 +48,23 @@ export function DocumentsSectionTabs({
                                 type="button"
                                 className={isActive ? 'doc-section-tab doc-section-tab--active' : 'doc-section-tab'}
                                 aria-pressed={isActive}
+                                tabIndex={isActive ? 0 : -1}
+                                onKeyDown={event => {
+                                    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+                                    event.preventDefault();
+                                    const buttons = Array.from(rowRef.current?.querySelectorAll<HTMLButtonElement>('button') || []);
+                                    const index = buttons.indexOf(event.currentTarget);
+                                    const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1
+                                        : (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+                                    buttons[next]?.focus();
+                                }}
+                                onFocus={event => {
+                                    const row = rowRef.current;
+                                    if (!row) return;
+                                    const bounds = row.getBoundingClientRect(), target = event.currentTarget.getBoundingClientRect();
+                                    const delta = target.left < bounds.left + 8 ? target.left - bounds.left - 8 : target.right > bounds.right - 8 ? target.right - bounds.right + 8 : 0;
+                                    if (delta) row.scrollBy({left:delta,behavior:reducedMotion?'auto':'smooth'});
+                                }}
                                 onClick={() => onSelectSection(key)}
                             >
                                 {isActive && (

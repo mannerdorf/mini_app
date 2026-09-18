@@ -427,7 +427,7 @@ export function CargoCustomerTable({
                 cursor: "pointer",
                 userSelect: "none",
               }}
-              onClick={() => onTableSort("customer")}
+              onClick={() => onTableSort?.("customer")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               Заказчик{" "}
@@ -454,7 +454,7 @@ export function CargoCustomerTable({
                   cursor: "pointer",
                   userSelect: "none",
                 }}
-                onClick={() => onTableSort("sum")}
+                onClick={() => onTableSort?.("sum")}
                 title="Сортировка: первый клик А–Я, второй Я–А"
               >
                 Сумма{" "}
@@ -481,7 +481,7 @@ export function CargoCustomerTable({
                 cursor: "pointer",
                 userSelect: "none",
               }}
-              onClick={() => onTableSort("mest")}
+              onClick={() => onTableSort?.("mest")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               Мест{" "}
@@ -509,7 +509,7 @@ export function CargoCustomerTable({
                 whiteSpace: "nowrap",
                 minWidth: "4rem",
               }}
-              onClick={() => onTableSort("pw")}
+              onClick={() => onTableSort?.("pw")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               <span className="cargo-customer-table__head-long">Плат. вес</span>
@@ -536,7 +536,7 @@ export function CargoCustomerTable({
                 cursor: "pointer",
                 userSelect: "none",
               }}
-              onClick={() => onTableSort("w")}
+              onClick={() => onTableSort?.("w")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               Вес{" "}
@@ -562,7 +562,7 @@ export function CargoCustomerTable({
                 cursor: "pointer",
                 userSelect: "none",
               }}
-              onClick={() => onTableSort("vol")}
+              onClick={() => onTableSort?.("vol")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               Объём{" "}
@@ -588,7 +588,7 @@ export function CargoCustomerTable({
                 cursor: "pointer",
                 userSelect: "none",
               }}
-              onClick={() => onTableSort("count")}
+              onClick={() => onTableSort?.("count")}
               title="Сортировка: первый клик А–Я, второй Я–А"
             >
               <span className="cargo-customer-table__head-long">Перевозок</span>

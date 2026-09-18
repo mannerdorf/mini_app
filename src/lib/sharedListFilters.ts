@@ -1,3 +1,4 @@
+export type { StatusFilter } from "../types";
 import type { StatusFilter } from "../types";
 import type { BillStatusFilterKey } from "./statusUtils";
 import { cityToCode } from "./formatUtils";

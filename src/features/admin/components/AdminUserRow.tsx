@@ -1,4 +1,5 @@
-import { useState } from "react";
+import "../../../components/shared/tableControls.css";
+import React, { useRef, useState } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { TapSwitch } from "../../../components/TapSwitch";
 import { formatDisplayDate, formatDisplayDateFromDate } from "../../../lib/dateUtils";
@@ -6,7 +7,6 @@ import type { User } from "../types/adminUsers";
 
 export type AdminUserRowProps = {
   user: User;
-  adminToken: string;
   onToggleActive: () => Promise<void>;
   onEditPermissions: (user: User) => void;
   rank?: number;
@@ -19,6 +19,8 @@ export function AdminUserRow({
   rank,
 }: AdminUserRowProps) {
   const [loading, setLoading] = useState(false);
+  const pending = useRef(false);
+  const [error, setError] = useState("");
   const now = Date.now();
   const lastMs = user.last_login_at ? new Date(user.last_login_at).getTime() : 0;
   const diffMs = lastMs ? now - lastMs : Infinity;
@@ -40,24 +42,20 @@ export function AdminUserRow({
       })()
     : "никогда";
   const handleToggle = async () => {
-    setLoading(true);
+    if (pending.current) return;
+    pending.current = true;
+    setLoading(true);setError("");
     try {
       await onToggleActive();
+    } catch {
+      setError("Не удалось изменить активность. Попробуйте ещё раз.");
     } finally {
+      pending.current = false;
       setLoading(false);
     }
   };
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={() => onEditPermissions(user)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onEditPermissions(user);
-        }
-      }}
       style={{
         padding: "0.65rem 0.75rem",
         border: "1px solid var(--color-border)",
@@ -98,7 +96,7 @@ export function AdminUserRow({
                 {rank + 1}
               </span>
             )}
-            {user.login ?? "—"}
+            <button type="button" className="table-control" aria-label={`Права пользователя ${user.login || ''}`} onClick={() => onEditPermissions(user)}>{user.login ?? "—"}</button>
           </Typography.Body>
           <Flex gap="0.35rem" align="center" wrap="wrap" style={{ marginTop: "0.35rem" }}>
             <Typography.Body
@@ -143,10 +141,11 @@ export function AdminUserRow({
             {timeLabel}
           </Typography.Body>
           <span style={{ cursor: loading ? "wait" : "pointer" }}>
-            <TapSwitch checked={user.active} onToggle={handleToggle} />
+            <TapSwitch aria-label={`Активность пользователя ${user.login || ""}`} disabled={loading} checked={user.active} onToggle={handleToggle} />
           </span>
         </Flex>
       </Flex>
+      {error && <p role="alert">{error}</p>}
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { LoadError } from "../components/shared/LoadError";
 import { fetchDownloadDocumentDetailed } from "../lib/downloadDocumentDirect";
 import { saveBlobFile } from "../lib/saveBlobFile";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -1073,11 +1074,11 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
           const parsedHeader: WbSummaryHeader = {
             formedAt: typeof (sh as { formedAt?: unknown }).formedAt === "string" ? (sh as { formedAt: string }).formedAt : null,
             placeCount: Number((sh as { placeCount?: unknown }).placeCount ?? data?.total ?? 0),
-            totalClaimRub: (sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0",
-            totalInboundRub: (sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0",
-            totalNotInInboundClaimRub: (sh as { totalNotInInboundClaimRub?: unknown }).totalNotInInboundClaimRub ?? "0",
+            totalClaimRub: String((sh as { totalClaimRub?: unknown }).totalClaimRub ?? "0"),
+            totalInboundRub: String((sh as { totalInboundRub?: unknown }).totalInboundRub ?? "0"),
+            totalNotInInboundClaimRub: String((sh as { totalNotInInboundClaimRub?: unknown }).totalNotInInboundClaimRub ?? "0"),
             rowCountNotInInbound: Number((sh as { rowCountNotInInbound?: unknown }).rowCountNotInInbound ?? 0),
-            totalInboundRubPostbBlank: (sh as { totalInboundRubPostbBlank?: unknown }).totalInboundRubPostbBlank ?? "0",
+            totalInboundRubPostbBlank: String((sh as { totalInboundRubPostbBlank?: unknown }).totalInboundRubPostbBlank ?? "0"),
             rowCountPostbBlank: Number((sh as { rowCountPostbBlank?: unknown }).rowCountPostbBlank ?? 0),
             inboundByPostbStatus: (() => {
               const raw = (sh as { inboundByPostbStatus?: unknown }).inboundByPostbStatus;
@@ -1089,8 +1090,8 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
                 return {
                   status,
                   rowCount: Number(r.rowCount ?? 0),
-                  totalClaimRub: r.totalClaimRub ?? "0",
-                  totalInboundRub: r.totalInboundRub ?? "0",
+                  totalClaimRub: String(r.totalClaimRub ?? "0"),
+                  totalInboundRub: String(r.totalInboundRub ?? "0"),
                 };
               });
             })(),
@@ -2295,7 +2296,7 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
             ) : null}
           </Flex>
         )}
-        {error && <Typography.Body style={{ color: "var(--color-error)", marginTop: "0.5rem" }}>{error}</Typography.Body>}
+        {error && <LoadError message="Не удалось загрузить данные Wildberries." details={error} onRetry={() => void loadData()} busy={loading} />}
 
         <div className="wb-table-wrap">
           <table className="wb-table">
@@ -2378,7 +2379,9 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
                   >
                     {loading
                       ? "Загрузка..."
-                      : activeTab === "summary"
+                      : error
+                        ? "Данные не загружены"
+                        : activeTab === "summary"
                         ? "Нет данных. Нужна активная ревизия претензий (ШК в файле), «Описи» для сопоставления по ШК и при необходимости «Возвращенный груз». Нажмите «Обновить» — пересчёт сводной."
                         : "Нет данных"}
                   </td>
@@ -2765,7 +2768,7 @@ export function WildberriesPage({ auth, canUpload, saasAnalyticsShell = false }:
 
         <Flex align="center" justify="space-between" style={{ marginTop: "0.75rem" }}>
           <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-            {`Страница ${page} из ${totalPages} • записей: ${
+            {loading ? "Загрузка количества записей…" : error ? "Количество записей неизвестно" : `Страница ${page} из ${totalPages} • записей: ${
               activeTab === "summary" && summaryGroupByPerevozka ? summaryViewItems.length : total
             }`}
             {returnedPageAmountSum !== null

@@ -25,8 +25,8 @@ export function getInitialAuthState(): InitialAuthState {
     try {
         const savedAccounts = window.localStorage.getItem("haulz.accounts");
         if (savedAccounts) {
-            let parsedAccounts = JSON.parse(savedAccounts) as unknown;
-            if (!Array.isArray(parsedAccounts)) parsedAccounts = [];
+            const parsedValue: unknown = JSON.parse(savedAccounts);
+            let parsedAccounts = Array.isArray(parsedValue) ? parsedValue : [];
             parsedAccounts = (parsedAccounts as Account[]).filter(
                 (acc): acc is Account =>
                     acc != null &&

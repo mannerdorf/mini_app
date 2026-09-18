@@ -1,14 +1,14 @@
 import React from "react";
-import { motion, MotionConfig } from "motion/react";
+import { motion, MotionConfig, type Variants } from "motion/react";
 
-export const DASHBOARD_MOTION_CONTAINER = {
+export const DASHBOARD_MOTION_CONTAINER: Variants = {
     hidden: {},
     visible: {
         transition: { staggerChildren: 0.055, delayChildren: 0.05 },
     },
 };
 
-export const DASHBOARD_MOTION_ITEM = {
+export const DASHBOARD_MOTION_ITEM: Variants = {
     hidden: { opacity: 0, y: 14 },
     visible: {
         opacity: 1,
@@ -20,7 +20,7 @@ export const DASHBOARD_MOTION_ITEM = {
 export function DashboardMotionGroup({ enabled, children }: { enabled: boolean; children: React.ReactNode }) {
     if (!enabled) return <>{children}</>;
     return (
-        <MotionConfig reduced="user">
+        <MotionConfig reducedMotion="user">
             <motion.div
                 variants={DASHBOARD_MOTION_CONTAINER}
                 initial="hidden"

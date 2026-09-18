@@ -128,7 +128,7 @@ export async function fetchDownloadDocumentDetailed(
     };
   }
 
-  const serverDebug = data.debug ?? {};
+  const serverDebug: Partial<DocumentDownloadDebug> = data.debug ?? {};
   const debug = baseDebug(
     {
       ...serverDebug,
@@ -168,7 +168,7 @@ export async function fetchDownloadDocumentDetailed(
   return {
     ok: true,
     status: res.status,
-    blob: new Blob([byteArray], { type: mime }),
+    blob: new Blob([new Uint8Array(byteArray)], { type: mime }),
     fileName: transliterateFilename(data.name || `${params.metod}_${params.number}.pdf`),
     isHtml: Boolean(data.isHtml),
     debug,
@@ -176,7 +176,7 @@ export async function fetchDownloadDocumentDetailed(
 }
 
 /** POST /api/download через fetch (как до preview/GET-экспериментов). */
-export async function fetchDownloadDocument(body: Record<string, unknown>): Promise<DownloadDocumentPayload> {
+export async function fetchDownloadDocument(body: Record<string, unknown>): Promise<DownloadDocumentPayload & { data: string; name: string }> {
   const url = downloadUrl();
   const res = await fetch(url, {
     method: "POST",
@@ -208,7 +208,7 @@ export async function fetchDownloadDocument(body: Record<string, unknown>): Prom
   }
   const data = (await res.json()) as DownloadDocumentPayload;
   if (!data?.data || !data.name) throw new Error("Документ не найден");
-  return data;
+  return { ...data, data: data.data, name: data.name };
 }
 
 /** Скачать документ: POST JSON → base64 → Share / «Сохранить». */

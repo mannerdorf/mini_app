@@ -642,7 +642,7 @@ export function DocumentsEdoMonitorGroupedCards({
                 style={{ cursor: "pointer", position: "relative" }}
                 title={isExpanded ? "Свернуть" : "Показать счета"}
               >
-                <Flex className="documents-edo-monitor-card__header" justify="space-between" align="start" style={{ marginBottom: "0.55rem", minWidth: 0, gap: "0.5rem" }}>
+                <Flex className="documents-edo-monitor-card__header" justify="space-between" align="flex-start" style={{ marginBottom: "0.55rem", minWidth: 0, gap: "0.5rem" }}>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <Flex align="center" gap="0.35rem" wrap="wrap" style={{ minWidth: 0 }}>
                       <Typography.Body className="documents-edo-monitor-card__customer" style={{ fontWeight: 600, fontSize: "1rem", minWidth: 0 }} title={customerLabel}>

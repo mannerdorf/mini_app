@@ -1,4 +1,5 @@
 import React from "react";
+import "./statusBadges.css";
 import { badgeLabelLowerFirst, coerceStatusDisplay, normalizeStatus } from "../../lib/statusUtils";
 
 export const StatusBadge = ({ status }: { status: unknown }) => {
@@ -6,7 +7,7 @@ export const StatusBadge = ({ status }: { status: unknown }) => {
     const normalizedStatus = normalizeStatus(coerced || undefined);
     const display = badgeLabelLowerFirst(normalizedStatus);
     const lower = (normalizedStatus || '').toLowerCase();
-    let badgeClass = 'max-badge';
+    let badgeClass = 'max-badge ux-status';
     if (lower.includes('доставлен') || lower.includes('заверш')) badgeClass += ' max-badge-success';
     else if (lower.includes('доставке')) badgeClass += ' max-badge-purple';
     else if (lower.includes('готов')) badgeClass += ' max-badge-ready';
@@ -18,14 +19,14 @@ export const StatusBadge = ({ status }: { status: unknown }) => {
 
 export const StatusBillBadge = ({ status }: { status: string | undefined }) => {
     const lower = (status || '').toLowerCase().trim();
-    let badgeClass = 'max-badge';
+    let badgeClass = 'max-badge ux-status';
     if (lower.includes('не оплачен') || lower.includes('неоплачен') || lower.includes('не оплачён') || lower.includes('неоплачён') ||
         lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') || lower === 'не оплачен' || lower === 'неоплачен') {
         badgeClass += ' max-badge-danger';
     } else if (lower.includes('отменен') || lower.includes('аннулирован') || lower.includes('отменён') || lower.includes('cancelled') || lower.includes('canceled')) {
         badgeClass += ' max-badge-danger';
-    } else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) badgeClass += ' max-badge-success';
-    else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) badgeClass += ' max-badge-warning';
+    } else if (lower.includes('частично') || lower.includes('partial') || lower.includes('частичн')) badgeClass += ' max-badge-warning';
+    else if (lower.includes('оплачен') || lower.includes('paid') || lower.includes('оплачён')) badgeClass += ' max-badge-success';
     else badgeClass += ' max-badge-default';
     return <span className={badgeClass}>{badgeLabelLowerFirst(status) || '-'}</span>;
 };

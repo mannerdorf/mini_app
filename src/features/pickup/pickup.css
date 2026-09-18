@@ -1,8 +1,10 @@
+@import "../../components/shared/uxTokens.css";
+
 .pk-root {
-  --pk-border: var(--color-border, #dfe5ed);
-  --pk-panel: var(--color-bg-card, #fff);
-  --pk-ink: var(--color-text-primary, #162438);
-  --pk-muted: var(--color-text-secondary, #63738a);
+  --pk-border: var(--ux-border, #dfe5ed);
+  --pk-panel: var(--ux-surface, #fff);
+  --pk-ink: var(--ux-text, #162438);
+  --pk-muted: var(--ux-muted, #63738a);
   color: var(--pk-ink);
   max-width: 1500px;
   margin: 0 auto;
@@ -310,58 +312,6 @@
   display: inline-flex;
   align-items: center;
 }
-/* TapSwitch comfortable — как в админке / профиле */
-.pk-root .tap-switch--comfortable {
-  position: relative;
-  flex-shrink: 0;
-  width: 3.25rem;
-  height: 1.875rem;
-  min-height: 1.875rem;
-  padding: 0;
-  border: none;
-  border-radius: 999px;
-  cursor: pointer;
-  touch-action: manipulation;
-  outline: none;
-  transition: background-color 0.28s cubic-bezier(0.22, 1, 0.36, 1);
-  background-color: #cbced4;
-  box-shadow: none;
-}
-.pk-root .tap-switch--comfortable[aria-pressed="true"] {
-  background-color: #2563eb;
-}
-.pk-root .tap-switch--comfortable:hover:not(:disabled) {
-  border: none;
-}
-.pk-root .tap-switch--comfortable[aria-pressed="true"]:hover:not(:disabled) {
-  background-color: #1d4ed8;
-}
-.pk-root .tap-switch--comfortable:focus-visible {
-  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.22);
-}
-.pk-root .tap-switch--comfortable .tap-switch__thumb {
-  position: absolute;
-  top: 0.25rem;
-  left: 0.25rem;
-  width: 1.375rem;
-  height: 1.375rem;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow:
-    0 2px 8px rgba(0, 0, 0, 0.18),
-    0 1px 2px rgba(0, 0, 0, 0.08);
-  transition: left 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-  pointer-events: none;
-}
-.pk-root .tap-switch--comfortable[aria-pressed="true"] .tap-switch__thumb {
-  left: calc(100% - 1.375rem - 0.25rem);
-}
-@media (prefers-reduced-motion: reduce) {
-  .pk-root .tap-switch--comfortable,
-  .pk-root .tap-switch--comfortable .tap-switch__thumb {
-    transition-duration: 0.01ms;
-  }
-}
 .pk-root .pk-customer-quote {
   margin: 16px 0;
 }
@@ -438,14 +388,14 @@
 }
 .pk-root .pk-billing-table th {
   font-weight: 600;
-  background: #f8fafc;
+  background: var(--pk-panel);
   white-space: nowrap;
 }
 .pk-root .pk-billing-table tbody tr:last-child td {
   border-bottom: none;
 }
 .pk-root .pk-billing-table tbody tr:hover td {
-  background: #f4f8ff;
+  background: var(--color-bg-hover);
 }
 .pk-root p {
   margin: 8px 0;
@@ -617,7 +567,7 @@
   padding: 20px;
   border: 1px solid var(--pk-border);
   background: var(--pk-panel);
-  border-radius: 16px;
+  border-radius: var(--ux-radius-panel);
   min-width: 0;
   margin-bottom: 16px;
 }
@@ -666,11 +616,11 @@
 .pk-root textarea {
   width: 100%;
   border: 1px solid var(--pk-border);
-  border-radius: 9px;
+  border-radius: var(--ux-radius-control);
   background: var(--pk-panel);
   color: var(--pk-ink);
   padding: 10px;
-  min-height: 43px;
+  min-height: var(--ux-touch-height);
   min-width: 0;
 }
 .pk-root textarea {
@@ -2579,4 +2529,64 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 }
 @media (max-width: 600px) {
   .pk-day-customer { grid-column: 1 / -1; }
+}
+
+.pk-root { --pk-success-text: #4ade80; --pk-warning-text: #fbbf24; }
+.light-mode .pk-root { --pk-success-text: #166534; --pk-warning-text: #92400e; }
+
+/* Keep one set of financial inputs: each table row becomes a mobile card. */
+@media (max-width: 767px) {
+  .pk-root .pk-billing-table-wrap { overflow: visible; }
+  .pk-root .pk-billing-table { min-width: 0; width: 100%; }
+  .pk-root .pk-billing-table thead { display: none; }
+  .pk-root .pk-billing-table tbody { display: grid; gap: 1rem; }
+  .pk-root .pk-billing-table tbody tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); padding: .75rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--pk-panel); }
+  .pk-root .pk-billing-table tbody td { display: block; min-width: 0; padding: .4rem; border: 0; overflow-wrap: anywhere; }
+  .pk-root .pk-billing-table tbody td::before { content: attr(data-label); display: block; color: var(--color-text-secondary); font-size: .75rem; margin-bottom: .25rem; }
+  .pk-root .pk-billing-table td:nth-child(8) { grid-column: 1 / -1; grid-row: 1; font-size: 1.1rem; }
+  .pk-root .pk-billing-table td:nth-child(3), .pk-root .pk-billing-table td:nth-child(11), .pk-root .pk-billing-table td:nth-child(12), .pk-root .pk-billing-table td:nth-child(13) { grid-column: 1 / -1; }
+  .pk-root .pk-billing-table td:nth-child(11) input { width: 100% !important; min-height: 44px; box-sizing: border-box; }
+  .pk-root .pk-billing-table td:nth-child(13) button { width: 100%; min-height: 44px; margin-bottom: .4rem; }
+  .pk-root .pk-billing .pk-actions > label, .pk-root .pk-billing .pk-actions > button { width: 100%; }
+  .pk-root .pk-billing .pk-actions input { width: 100%; box-sizing: border-box; }
+}
+.pk-batch-progress { padding: .75rem; border: 1px solid var(--color-border); border-radius: 12px; overflow-wrap: anywhere; }
+
+.pk-day-plan > h2 { margin-bottom: .5rem; }
+.pk-day-plan .pk-day-filters { margin-bottom: .4rem; gap: .75rem; }
+.pk-day-plan > .pk-hint { margin: .35rem 0; }
+.pk-assignment-tools { margin: .5rem 0; }
+.pk-assignment-tools > summary { cursor: pointer; padding: .5rem 0; color: var(--color-text-secondary); }
+.pk-assignment-tools .pk-selection-tools { margin-top: .5rem; }
+@media (min-width: 1024px) {
+  .pk-day-plan .pk-day-row { padding-top: .65rem; padding-bottom: .65rem; }
+}
+
+@media (min-width: 1024px) {
+  .pk-dispatch-root .pk-header { margin-bottom: .75rem; }
+  .pk-dispatch-root .pk-header h1 { font-size: 1.5rem; margin: .2rem 0; }
+  .pk-dispatch-root .pk-toolbar { padding: .65rem; margin-bottom: .65rem; }
+  .pk-dispatch-root .pk-stats { margin: .65rem 0; gap: .65rem; }
+  .pk-dispatch-root .pk-stat { display: flex; flex-direction: row; align-items: center; gap: .65rem; min-height: 52px; padding: .6rem .8rem; }
+  .pk-dispatch-root .pk-stats strong { font-size: 1.3rem; }
+  .pk-dispatch-root .pk-tabs-stack { display: flex; flex-direction: row; justify-content: flex-start; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+  .pk-dispatch-root .pk-tabs { margin: 0; }
+}
+
+/* Shared form contract; native validity, disabled state and focus stay visible. */
+.pk-root :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--ux-focus);
+  outline-offset: 2px;
+}
+.pk-root :is(input, select, textarea)[aria-invalid="true"] {
+  border-color: var(--ux-danger);
+}
+.pk-root :is(input, select, textarea):disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+.pk-root .pk-field > :is(input:not([type="checkbox"]), select, textarea),
+.pk-root .pk-day-drawer :is(input:not([type="checkbox"]), select, textarea) {
+  min-height: var(--ux-touch-height);
+  border-radius: var(--ux-radius-control);
 }

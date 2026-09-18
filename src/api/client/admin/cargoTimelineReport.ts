@@ -28,3 +28,5 @@ export async function fetchAdminCargoTimelineReport(
   }
   return data as CargoTimelineReport;
 }
+
+export type { CargoTimelineDelayFilter, CargoTimelineReportRow } from "../../../lib/adminCargoTimelineReport";

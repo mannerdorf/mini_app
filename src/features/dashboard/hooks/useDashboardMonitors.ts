@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInvoices, usePerevozki } from "../../../hooks/useApi";
 import { filterCargoItemsForHeaderCustomer, filterItemsForHeaderCustomer } from "../../../features/documents/lib/documentsPipeline";
-import type { AuthData, CargoItem } from "../types";
+import type { AuthData, CargoItem } from "../../../types";
 
 /** ЭДО — период фильтра дашборда; задолженность — отдельный запрос, окно 3 мес. */
 export const DASHBOARD_INVOICE_MONITORS_ENABLED = true;
@@ -83,6 +83,7 @@ export function useDashboardMonitors({
     const {
         items: debtInvoiceItems,
         loading: debtInvoicesLoading,
+        error: debtInvoicesError,
         mutate: mutateDebtInvoices,
     } = useInvoices({
         auth,
@@ -114,7 +115,7 @@ export function useDashboardMonitors({
         [debtInvoiceItems, filterInvoicesForHeaderCustomer],
     );
 
-    const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading } = usePerevozki({
+    const { items: unpaidPlanCargoItems, loading: unpaidPlanCargoLoading, error: unpaidPlanCargoError, mutate: mutateUnpaidPlanCargo } = usePerevozki({
         auth,
         dateFrom: unpaidMonitorDateFrom,
         dateTo: todayKey,
@@ -139,7 +140,9 @@ export function useDashboardMonitors({
         filterInvoicesForHeaderCustomer,
         monitorInvoicesLoading: edoInvoicesLoading,
         edoMonitorInvoices,
-        unpaidPlanInvoicesLoading: debtInvoicesLoading,
+        unpaidPlanInvoicesLoading: !monitorFetchEnabled || !debtInvoicesEnabled || debtInvoicesLoading,
+        unpaidPlanError: debtInvoicesError || unpaidPlanCargoError,
+        retryUnpaidPlan: () => Promise.all([mutateDebtInvoices(), mutateUnpaidPlanCargo()]).catch(() => undefined),
         unpaidPlanMonitorInvoices,
         unpaidPlanCargoLoading,
         unpaidPlanMonitorCargo,

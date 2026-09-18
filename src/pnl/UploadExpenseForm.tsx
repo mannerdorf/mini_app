@@ -14,6 +14,7 @@ function mainlineTransportLabel(transport: string): string {
 interface ExpenseCat { id: string; name: string; department: string; type: string; logisticsStage: string | null; }
 interface ExpenseRow { id: string; categoryId: string; amount: string; direction: string; transportType: string; }
 interface SavedExpense {
+  createdAt?: string;
   id?: string;
   categoryId: string;
   categoryName: string;

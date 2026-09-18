@@ -14,7 +14,7 @@ export type BuildSendingsForTransportOptionsParams = {
   typeFilterSet: Set<TypeFilterKey>;
   routeFilterSet: Set<RouteFilterKey>;
   effectiveSearchText: string;
-  sortBy: string;
+  sortBy: "date" | null;
   sortOrder: "asc" | "desc";
   normalizeTransportDisplay: (value: string) => string;
   dateFrom: string;
@@ -41,7 +41,7 @@ export function buildSendingsForTransportOptions({
 }: BuildSendingsForTransportOptionsParams): unknown[] {
   let res = buildFilteredOrders({
     items: sendingsItems || [],
-    activeInn: effectiveActiveInn,
+    activeInn: effectiveActiveInn ?? undefined,
     useServiceRequest: true,
     customerFilter,
     typeFilterSet: new Set<TypeFilterKey>(),

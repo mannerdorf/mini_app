@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getClientPlatform } from '../lib/clientPlatform';
 
-const tg = window.Telegram?.WebApp;
+const tg = typeof window === "undefined" ? undefined : window.Telegram?.WebApp;
 
 export function useTelegram() {
   const [isReady, setIsReady] = useState(false);
@@ -19,7 +19,8 @@ export function useTelegram() {
   };
 
   const onToggleButton = () => {
-    if (tg?.MainButton.isVisible) {
+    if (!tg) return;
+    if (tg.MainButton.isVisible) {
       tg.MainButton.hide();
     } else {
       tg.MainButton.show();

@@ -40,7 +40,7 @@ export type AdminUsersListSharedProps = Pick<
   sorted: User[];
   visibleSorted: User[];
   hasMore: boolean;
-  bulkDeactivateModalRef: RefObject<HTMLDivElement | null>;
+  bulkDeactivateModalRef: RefObject<HTMLDivElement>;
 };
 
 export type AdminUsersListPanelProps = Omit<

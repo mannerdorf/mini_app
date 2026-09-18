@@ -322,6 +322,21 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
     const row = snap.jobs.find((j: any) => j.id === job.id);
     expect(row?.job_number).toMatch(/^ZB-\d{6}$/);
   });
+  it("replays offline arrival and completion without duplicate versions or photos", async () => {
+    await setup();
+    const s = await publishAndStart(), j = s.jobs[0];
+    const arrival = { action: "arrive", id: j.id, version: j.version, requestId: randomUUID() };
+    const completion = { action: "complete", id: j.id, version: j.version + 1, actual_places: 2, photos: [photo], requestId: randomUUID() };
+    await ok("driver", arrival);
+    await ok("driver", arrival); // Response lost; replay the persisted request ID.
+    await ok("driver", completion);
+    await ok("driver", completion);
+    const after = await snapshot();
+    expect(after.jobs[0].status).toBe("picked_up");
+    expect(after.jobs[0].version).toBe(j.version + 2);
+    expect((await ok("driver", {action: "photos", id:j.id})).photos).toHaveLength(1);
+  });
+
   it("requires photo and actual count, saves proof and handles repeated delivery once", async () => {
     await setup();
     const s = await publishAndStart(),
@@ -1353,4 +1368,20 @@ it("saves manual billing with no amount for deposited cargo and rejects stale ve
   expect(after.status).toBe("deposited");
   expect(after.data).toMatchObject({issueCustomerBill:true,customerBillMode:"manual",priceRub:null});
   expect((await request("dispatch",body)).status).toBe(409);
+});
+
+it("exposes billing lock state to dispatcher, hides it from driver and rejects locked edits", async () => {
+  const { job } = await setup();
+  await publishAndStart();
+  await state.db.query("INSERT INTO pickup_billing(job_id,transport_number,source,amount,status,updated_by) VALUES($1,'TEST-TRANSPORT','{}',500,'transmitted','dispatch')",[job.id]);
+  const current=(await snapshot()).jobs.find((j:any)=>j.id===job.id);
+  expect(current.billing_status).toBe('transmitted');
+  expect(current.billing_info.transportNumber).toBe('TEST-TRANSPORT');
+  expect(Number(current.billing_info.amount)).toBe(500);
+  const driverView=(await snapshot('driver')).jobs.find((j:any)=>j.id===job.id);
+  expect(driverView).not.toHaveProperty('billing_info');
+  expect(driverView).not.toHaveProperty('number_sync_info');
+  expect((await snapshot('driver')).jobs.find((j:any)=>j.id===job.id)).not.toHaveProperty('billing_status');
+  const response=await request('dispatch',{action:'set_job_billing',id:job.id,version:current.version,data:{...current.data,issueCustomerBill:true,customerBillMode:'manual',priceRub:600}});
+  expect(response.status).toBe(400);
 });

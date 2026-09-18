@@ -5,10 +5,10 @@
 import { adminAuthHeaders } from "./auth";
 
 export type AdminTimesheetData = {
-  entries: Record<string, unknown>;
-  paymentMarks: Record<string, unknown>;
-  shiftRateOverrides: Record<string, unknown>;
-  payoutsByEmployee: Record<string, unknown>;
+  entries: Record<string, string>;
+  paymentMarks: Record<string, boolean>;
+  shiftRateOverrides: Record<string, number>;
+  payoutsByEmployee: Record<string, import("../../../features/admin/lib/adminTimesheetSummaries").TimesheetPayout[]>;
 };
 
 function throwIfUnauthorized(res: Response): void {

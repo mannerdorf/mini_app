@@ -19,6 +19,7 @@ import { isCapacitorNative } from "../../../lib/capacitorPlatform";
 type Props = { page: DashboardPageState };
 
 export function DashboardClientAnalyticsSection({ page }: Props) {
+    const { customerLtv, rfmSegments, customerMargin, clientSeasonality, avgCheckTrend } = page;
     const isMobileLayout = useMobileLayout();
     const hideClientSeasonality = page.useServiceRequest && (isMobileLayout || isCapacitorNative());
 
@@ -27,15 +28,15 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
 {/* ═══════ ГРУППА 5: АНАЛИТИКА КЛИЕНТОВ ═══════ */}
 
             {/* 5.2 Lifetime Value (LTV) */}
-            {page.useServiceRequest && !page.loading && !page.error && page.customerLtv && page.customerLtv.top10.length > 0 && page.showSums && (
+            {page.useServiceRequest && !page.loading && !page.error && customerLtv && customerLtv.top10.length > 0 && page.showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Lifetime Value (LTV)</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Накопленная выручка по клиенту с момента первого заказа. Средний LTV: <span style={{ fontWeight: 600 }}>{Math.round(page.customerLtv.avgLtv).toLocaleString('ru-RU')} ₽</span> ({page.customerLtv.totalCustomers} клиентов)
+                        Накопленная выручка по клиенту с момента первого заказа. Средний LTV: <span style={{ fontWeight: 600 }}>{Math.round(customerLtv.avgLtv).toLocaleString('ru-RU')} ₽</span> ({customerLtv.totalCustomers} клиентов)
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {page.customerLtv.top10.map((c, i) => {
-                            const maxSum = page.customerLtv.top10[0]?.sum || 1;
+                        {customerLtv.top10.map((c, i) => {
+                            const maxSum = customerLtv.top10[0]?.sum || 1;
                             return (
                                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, width: 22, textAlign: 'right', color: i < 3 ? '#f59e0b' : 'var(--color-text-secondary)' }}>#{i + 1}</Typography.Body>
@@ -55,15 +56,15 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
             )}
 
             {/* 5.4 RFM-сегментация */}
-            {page.useServiceRequest && !page.loading && !page.error && page.rfmSegments && page.rfmSegments.segments.length > 0 && (
+            {page.useServiceRequest && !page.loading && !page.error && rfmSegments && rfmSegments.segments.length > 0 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>RFM-сегментация</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
-                        Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {page.rfmSegments.total}. Нажмите на сегмент — список заказчиков.
+                        Recency (давность) × Frequency (частота) × Monetary (сумма). Всего клиентов: {rfmSegments.total}. Нажмите на сегмент — список заказчиков.
                     </Typography.Body>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                        {page.rfmSegments.segments.map((seg, ri) => {
-                            const pct = page.rfmSegments.total > 0 ? Math.round((seg.count / page.rfmSegments.total) * 100) : 0;
+                        {rfmSegments.segments.map((seg, ri) => {
+                            const pct = rfmSegments.total > 0 ? Math.round((seg.count / rfmSegments.total) * 100) : 0;
                             const isExpanded = page.expandedRfmSegment === seg.name;
                             return (
                                 <div key={seg.name}>
@@ -76,11 +77,11 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                         <Typography.Body style={{ fontSize: '0.68rem', color: 'var(--color-text-secondary)', minWidth: 30, textAlign: 'right' }}>{pct}%</Typography.Body>
                                         {page.showSums && <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 70, textAlign: 'right' }}>Ø {Math.round(seg.avgSum).toLocaleString('ru-RU')} ₽</Typography.Body>}
                                     </button>
-                                    {isExpanded && page.rfmSegments.customersBySegment && page.rfmSegments.customersBySegment[seg.name] && (
+                                    {isExpanded && rfmSegments.customersBySegment && rfmSegments.customersBySegment[seg.name] && (
                                         <div style={{ marginTop: '0.35rem', marginBottom: '0.25rem', marginLeft: 8, padding: '0.5rem 0.6rem', background: 'var(--color-bg-hover)', borderRadius: 8, maxHeight: 220, overflowY: 'auto' }}>
-                                            <Typography.Body style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.35rem', color: seg.color }}>Заказчики ({page.rfmSegments.customersBySegment[seg.name].length})</Typography.Body>
+                                            <Typography.Body style={{ fontSize: '0.7rem', fontWeight: 600, marginBottom: '0.35rem', color: seg.color }}>Заказчики ({rfmSegments.customersBySegment[seg.name].length})</Typography.Body>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                                                {page.rfmSegments.customersBySegment[seg.name].map((c, i) => (
+                                                {rfmSegments.customersBySegment[seg.name].map((c, i) => (
                                                     <div key={c.name} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', fontSize: '0.72rem' }}>
                                                         <Typography.Body style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
                                                         {page.showSums && <Typography.Body style={{ flexShrink: 0, fontWeight: 600 }}>{Math.round(c.monetary).toLocaleString('ru-RU')} ₽</Typography.Body>}
@@ -94,7 +95,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                         })}
                     </div>
                     <Flex gap="0.4rem" style={{ marginTop: '0.5rem', flexWrap: 'wrap' }}>
-                        {page.rfmSegments.segments.map(s => (
+                        {rfmSegments.segments.map(s => (
                             <Flex key={s.name} align="center" gap="0.2rem">
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
                                 <Typography.Body style={{ fontSize: '0.62rem', color: 'var(--color-text-secondary)' }}>{s.name}</Typography.Body>
@@ -173,15 +174,15 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
             )}
 
             {/* 5.6 Маржинальность по клиентам */}
-            {page.useServiceRequest && !page.loading && !page.error && page.customerMargin && page.customerMargin.length > 0 && page.showSums && (
+            {page.useServiceRequest && !page.loading && !page.error && customerMargin && customerMargin.length > 0 && page.showSums && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Выручка на кг по клиентам</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Стоимость перевозки на 1 кг платного веса. Чем выше — тем выгоднее клиент.
                     </Typography.Body>
                     <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {page.customerMargin.map((c, i) => {
-                            const maxPerKg = Math.max(...page.customerMargin.map(x => x.perKg), 1);
+                        {customerMargin.map((c, i) => {
+                            const maxPerKg = Math.max(...customerMargin.map(x => x.perKg), 1);
                             return (
                                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
@@ -200,7 +201,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
             )}
 
             {/* 5.7 Сезонность по клиентам — только десктоп в служебном режиме */}
-            {!hideClientSeasonality && page.useServiceRequest && !page.loading && !page.error && page.clientSeasonality && page.clientSeasonality.rows.length > 0 && (
+            {!hideClientSeasonality && page.useServiceRequest && !page.loading && !page.error && clientSeasonality && clientSeasonality.rows.length > 0 && (
                 <Panel className="cargo-card dashboard-seasonality-panel" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Сезонность по клиентам</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
@@ -219,11 +220,11 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {page.clientSeasonality.rows.map(row => (
+                                {clientSeasonality.rows.map(row => (
                                     <tr key={row.name}>
                                         <td style={{ padding: '0.2rem 0.3rem', borderBottom: '1px solid var(--color-border)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={row.name}>{row.name}</td>
                                         {row.months.map((cnt, mi) => {
-                                            const intensity = cnt / page.clientSeasonality.maxVal;
+                                            const intensity = cnt / clientSeasonality.maxVal;
                                             return (
                                                 <td key={mi} style={{
                                                     padding: '0.2rem 0.15rem', textAlign: 'center', borderBottom: '1px solid var(--color-border)',
@@ -242,7 +243,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                     </div>
                     </div>
                     <div className="dashboard-seasonality-cards">
-                        {page.clientSeasonality.rows.slice(0, 8).map((row) => {
+                        {clientSeasonality.rows.slice(0, 8).map((row) => {
                             const peakMonth = row.months.reduce((best, cnt, mi) => (cnt > row.months[best] ? mi : best), 0);
                             const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
                             return (
@@ -255,7 +256,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                         {row.months.map((cnt, mi) => {
                                             const h = row.total > 0 ? Math.max(2, Math.round((cnt / Math.max(...row.months, 1)) * 24)) : 2;
                                             return (
-                                                <div key={mi} title={`${monthNames[mi]}: ${cnt}`} style={{ flex: 1, height: h, borderRadius: 2, background: cnt > 0 ? `rgba(37,99,235,${0.25 + (cnt / page.clientSeasonality.maxVal) * 0.65})` : 'var(--color-border)' }} />
+                                                <div key={mi} title={`${monthNames[mi]}: ${cnt}`} style={{ flex: 1, height: h, borderRadius: 2, background: cnt > 0 ? `rgba(37,99,235,${0.25 + (cnt / clientSeasonality.maxVal) * 0.65})` : 'var(--color-border)' }} />
                                             );
                                         })}
                                     </div>
@@ -267,15 +268,15 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
             )}
 
             {/* 5.9 Средний чек / средний вес */}
-            {page.useServiceRequest && !page.loading && !page.error && page.avgCheckTrend && page.avgCheckTrend.length > 1 && (
+            {page.useServiceRequest && !page.loading && !page.error && avgCheckTrend && avgCheckTrend.length > 1 && (
                 <Panel className="cargo-card" style={{ marginBottom: '1rem', background: 'var(--color-bg-card)', borderRadius: '12px', padding: '1rem 1.25rem' }}>
                     <Typography.Headline style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '0.15rem' }}>Средний чек и вес</Typography.Headline>
                     <Typography.Body style={{ fontSize: '0.72rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>
                         Динамика среднего чека (₽) и среднего платного веса (кг) по месяцам. Показывает тренд стоимости и объёма заказов.
                     </Typography.Body>
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 100, marginBottom: '0.25rem' }}>
-                        {page.avgCheckTrend.map((m, i) => {
-                            const maxAvgPw = Math.max(...page.avgCheckTrend.map(x => x.avgPw), 1);
+                        {avgCheckTrend.map((m, i) => {
+                            const maxAvgPw = Math.max(...avgCheckTrend.map(x => x.avgPw), 1);
                             const h = Math.round((m.avgPw / maxAvgPw) * 90);
                             return (
                                 <div key={m.month} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -286,7 +287,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                         })}
                     </div>
                     <div style={{ display: 'flex', gap: 3 }}>
-                        {page.avgCheckTrend.map(m => (
+                        {avgCheckTrend.map(m => (
                             <div key={m.month} style={{ flex: 1, textAlign: 'center' }}>
                                 <Typography.Body style={{ fontSize: '0.55rem', color: 'var(--color-text-secondary)' }}>{m.month.slice(2)}</Typography.Body>
                             </div>
@@ -294,7 +295,7 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                     </div>
                     {page.showSums && (
                         <div style={{ display: 'flex', gap: 3, marginTop: '0.35rem' }}>
-                            {page.avgCheckTrend.map(m => (
+                            {avgCheckTrend.map(m => (
                                 <div key={m.month} style={{ flex: 1, textAlign: 'center' }}>
                                     <Typography.Body style={{ fontSize: '0.55rem', color: '#f59e0b', fontWeight: 600 }}>{m.avgSum.toLocaleString('ru-RU')} ₽</Typography.Body>
                                 </div>

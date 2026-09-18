@@ -110,7 +110,7 @@ export type CargoDetailsModalProps = {
     isOpen: boolean;
     onClose: () => void;
     auth: AuthData;
-    onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onOpenChat?: (cargoNumber?: string) => void | Promise<void>;
     onCreateClaim?: (cargoNumber: string) => void;
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;
@@ -126,7 +126,7 @@ export type CargoPageProps = {
     /** Один или несколько аккаунтов — перевозки объединяются */
     auths: AuthData[];
     searchText?: string;
-    onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onOpenChat?: (cargoNumber?: string) => void | Promise<void>;
     onOpenClaim?: (cargoNumber: string) => void;
     onCustomerDetected?: (customer: string) => void;
     contextCargoNumber?: string | null;
@@ -202,7 +202,7 @@ export function CargoPage({
     const [receiverFilter, setReceiverFilter] = useState<string>('');
     const sharedFiltersInit = initSharedFilterSets();
     const [statusFilterSet, setStatusFilterSet] = useState<Set<CargoStatusFilterKey>>(() => sharedFiltersInit.statusFilterSet);
-    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<BillStatusFilterKey>>(() => sharedFiltersInit.billStatusFilterSet);
+    const [billStatusFilterSet, setBillStatusFilterSet] = useState<Set<Exclude<BillStatusFilterKey, "all">>>(() => sharedFiltersInit.billStatusFilterSet);
     const [typeFilterSet, setTypeFilterSet] = useState<Set<TypeFilterKey>>(() => sharedFiltersInit.typeFilterSet);
     const [routeFilterSet, setRouteFilterSet] = useState<Set<'MSK-KGD' | 'KGD-MSK'>>(() => sharedFiltersInit.routeFilterSet);
     useEffect(() => {
@@ -704,7 +704,7 @@ export function CargoPage({
                         <>
                             <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                             <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
-                                <TapSwitch checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
+                                <TapSwitch aria-label="Табличный вид перевозок" checked={tableModeByCustomer} onToggle={() => setTableModeByCustomer(v => !v)} />
                             </span>
                         </>
                     ) : null}

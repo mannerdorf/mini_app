@@ -1,0 +1,3 @@
+{
+  "snapshot": "- main:\n  - button \"Права пользователя test@example.invalid\": test@example.invalid\n  - generic: Неактивен\n  - generic: никогда\n  - switch \"Активность пользователя test@example.invalid\" [active]\n  - paragraph: \"Открытий прав: 0. Изменений активности: 1\"\n  - heading \"Расчёты с заказчиком\" [level=3]\n  - text: Выставлять счёт\n  - switch \"Не выставлять счёт заказчику\" [checked]\n  - text: Способ расчёта суммы\n  - combobox \"Способ расчёта суммы\":\n    - option \"Автоматически\"\n    - option \"Вручную\" [selected]\n  - text: Сумма счёта, ₽\n  - spinbutton \"Сумма счёта, ₽\": \"100\"\n  - text: Примечание\n  - textbox \"Примечание\""
+}

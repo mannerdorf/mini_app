@@ -1,4 +1,5 @@
 import React from "react";
+import { GuardedDialog } from "../../../components/GuardedDialog";
 import { CheckCircle2, X } from "lucide-react";
 
 type Props = {
@@ -8,13 +9,7 @@ type Props = {
 
 export function DocumentsOrderSuccessModal({ nomerZayavki, onClose }: Props) {
   return (
-    <div
-      className="haulz-calc-map-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="documents-order-success-title"
-      onClick={onClose}
-    >
+    <GuardedDialog title="Заявка создана в 1С" className="modal-overlay" onClose={onClose}>
       <div
         className="haulz-calc-map-modal documents-order-success-modal"
         onClick={(e) => e.stopPropagation()}
@@ -38,6 +33,6 @@ export function DocumentsOrderSuccessModal({ nomerZayavki, onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </GuardedDialog>
   );
 }

@@ -177,7 +177,6 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <Typography.Body
-                    component="div"
                     style={{
                       fontWeight: 700,
                       margin: 0,
@@ -190,7 +189,6 @@ export function ProfilePushHistorySection({ activeAccount, onBack }: Props) {
                   </Typography.Body>
                   {message ? (
                     <Typography.Body
-                      component="div"
                       style={{
                         margin: "0.25rem 0 0",
                         fontSize: "0.84rem",

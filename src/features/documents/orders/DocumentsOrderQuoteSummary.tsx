@@ -127,7 +127,9 @@ export function DocumentsOrderQuoteSummary({
           <input
             type="text"
             className="haulz-calc-input"
-            placeholder="Необязательно"
+            required
+            maxLength={50}
+            placeholder="Постоянный номер, до 50 символов"
             value={nomerZayavki}
             onChange={(e) => setNomerZayavki(e.target.value)}
           />
@@ -136,7 +138,7 @@ export function DocumentsOrderQuoteSummary({
         {error ? <div className="haulz-calc-alert haulz-calc-alert--error">{error}</div> : null}
 
         <p className="haulz-calc-1c-sandbox__empty" style={{ marginTop: "0.65rem" }}>
-          После «Оформить» заявка попадёт менеджеру на согласование; отправка в 1С — после статуса «Согласовано».
+          После «Оформить» заявка будет создана в 1С без проведения. Укажите постоянный номер заявки заказчика: при повторной попытке используйте тот же номер.
         </p>
 
         <div className="haulz-calc-summary__actions" style={{ marginTop: "1rem" }}>

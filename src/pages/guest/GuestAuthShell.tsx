@@ -216,6 +216,14 @@ export function GuestAuthShell() {
     const other = PUBLIC_ROUTE_CATALOG.find((r) => r.id !== routeLanding.id);
     return (
       <GuestRouteLandingPage
+        footerNavigation={{
+          onAbout: () => navigateScreen("about"),
+          onWarehouses: () => navigateScreen("warehouses"),
+          onFaq: () => navigateScreen("faq"),
+          onApp: () => navigateScreen("app"),
+          onCalculator: () => navigateScreen("calculator"),
+          onLogin: () => openLogin(),
+        }}
         route={routeLanding}
         onBack={() => navigateScreen("home")}
         onCalculator={(direction) => navigateScreen("calculator", direction)}

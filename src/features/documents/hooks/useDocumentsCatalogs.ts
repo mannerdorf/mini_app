@@ -29,7 +29,7 @@ import type { DateFilterState } from "../../../lib/dateUtils";
 export type UseDocumentsCatalogsParams = {
     docSection: DocSectionKey;
     setDocSection: (section: DocSectionKey) => void;
-    allowedDocSections: DocSectionKey[];
+    allowedDocSections: { key: DocSectionKey; label: string }[];
     auth: AuthData;
     items: CargoItem[];
     actsItems: CargoItem[];
@@ -73,13 +73,14 @@ export type UseDocumentsCatalogsParams = {
         | "dateFilter"
         | "customDateFrom"
         | "customDateTo"
+        | "selectedQuarterForFilter"
         | "selectedMonthForFilter"
         | "selectedYearForFilter"
         | "selectedWeekForFilter"
     >;
     tableModeGroupedByCustomer: boolean;
     expandedTableCustomer: string | null;
-    setExpandedTableCustomer: (value: string | null) => void;
+    setExpandedTableCustomer: React.Dispatch<React.SetStateAction<string | null>>;
 };
 
 /** Подключает каталоги разделов «Документы» (счета, УПД, ЭДО, заявки и т.д.). */
@@ -95,7 +96,7 @@ export function useDocumentsCatalogs({
     activeCustomerName,
     onOrdersMutate,
     effectiveServiceMode,
-    effectiveSearchText,
+    effectiveSearchText = "",
     apiDateRange,
     cargo,
     filters,
@@ -136,6 +137,7 @@ export function useDocumentsCatalogs({
         dateFilter,
         customDateFrom,
         customDateTo,
+        selectedQuarterForFilter,
         selectedMonthForFilter,
         selectedYearForFilter,
         selectedWeekForFilter,
@@ -170,9 +172,9 @@ export function useDocumentsCatalogs({
         perevozkiItems,
         effectiveActiveInn,
         effectiveServiceMode,
-        customerFilter,
+        customerFilter: customerFilter ?? "",
         effectiveSearchText,
-        sortBy,
+        sortBy: sortBy ?? "date",
         sortOrder,
         tableModeGroupedByCustomer,
         tableSortColumn,
@@ -196,9 +198,9 @@ export function useDocumentsCatalogs({
         perevozkiItems,
         effectiveActiveInn,
         effectiveServiceMode,
-        customerFilter,
+        customerFilter: customerFilter ?? "",
         effectiveSearchText,
-        sortBy,
+        sortBy: sortBy ?? "date",
         sortOrder,
         tableSortColumn,
         tableSortOrder,
@@ -219,7 +221,7 @@ export function useDocumentsCatalogs({
         perevozkiItems,
         effectiveActiveInn,
         effectiveServiceMode,
-        actCustomerFilter,
+        actCustomerFilter: actCustomerFilter ?? "",
         effectiveSearchText,
         edoStatusFilterSet,
         transportFilter,
@@ -241,9 +243,9 @@ export function useDocumentsCatalogs({
         effectiveActiveInn,
         activeCustomerName,
         effectiveServiceMode,
-        customerFilter,
+        customerFilter: customerFilter ?? "",
         effectiveSearchText,
-        sortBy,
+        sortBy: sortBy ?? "date",
         sortOrder,
         onOrdersMutate,
     });
@@ -279,6 +281,7 @@ export function useDocumentsCatalogs({
         dateFilter,
         customDateFrom,
         customDateTo,
+        selectedQuarterForFilter,
         selectedMonthForFilter,
         selectedYearForFilter,
         selectedWeekForFilter,
@@ -300,6 +303,7 @@ export function useDocumentsCatalogs({
         dateFilter,
         customDateFrom,
         customDateTo,
+        selectedQuarterForFilter,
         selectedMonthForFilter,
         selectedYearForFilter,
         selectedWeekForFilter,

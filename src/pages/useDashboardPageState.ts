@@ -345,7 +345,6 @@ export function useDashboardPageState({
         onOpenDocumentsEdo,
         onOpenDocumentsInvoices,
         mutatePerevozki,
-        mutateCalendarInvoices,
         prevPeriodLoading,
         showCustomerColumn,
         getLastStatusDateKey,

@@ -99,9 +99,9 @@ export function CompaniesListPage({
                   cursor: "pointer",
                   borderLeft: isActive ? "3px solid var(--color-primary)" : undefined,
                 }}
-                onClick={() => handleSelectCompany(c)}
               >
                 <Flex align="center" justify="space-between">
+                  <button type="button" className="company-select-button" onClick={() => handleSelectCompany(c)} aria-current={isActive ? "true" : undefined}>
                   <Typography.Body
                     style={{
                       fontSize: "0.9rem",
@@ -112,6 +112,7 @@ export function CompaniesListPage({
                   >
                     {stripOoo(c.name)}
                   </Typography.Body>
+                  </button>
                   <Flex align="center" style={{ gap: "0.5rem", flexShrink: 0 }}>
                     {isActive && <span className="status-value success">Активна</span>}
                     {accounts.length > 1 && (

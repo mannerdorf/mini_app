@@ -1,3 +1,4 @@
+import type { MotionProps as SharedMotionProps } from "motion/react";
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
@@ -15,12 +16,7 @@ import { shareDocumentLines } from "./useDocFavorites";
 import type { SverkiRow } from "./useDocumentsSverki";
 import { SverkiOrderModal } from "./SverkiOrderModal";
 
-type MotionProps = {
-  initial?: false | object;
-  animate?: object;
-  exit?: object;
-  transition?: object;
-};
+type MotionProps = Pick<SharedMotionProps, "initial" | "animate" | "exit" | "transition">;
 
 type Props = {
   active: boolean;
@@ -177,7 +173,7 @@ export function DocumentsSverkiSection({
                       ].filter(Boolean);
                       return (
                         <Panel key={req.id} className="cargo-card" style={{ marginBottom: "0.6rem" }}>
-                          <Flex justify="space-between" align="start" style={{ marginBottom: "0.4rem" }}>
+                          <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.4rem" }}>
                             <Typography.Body style={{ fontWeight: 600, fontSize: "0.95rem" }}>
                               Договор: {req.contract || "—"}
                             </Typography.Body>
@@ -346,7 +342,7 @@ export function DocumentsSverkiSection({
                     ].filter(Boolean);
                     return (
                       <Panel key={row.id} className="cargo-card" style={{ marginBottom: "0.75rem" }}>
-                        <Flex justify="space-between" align="start" style={{ marginBottom: "0.45rem" }}>
+                        <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.45rem" }}>
                           <Typography.Body style={{ fontWeight: 600, fontSize: "1rem" }}>{row.docNumber || "—"}</Typography.Body>
                           <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                             <DocumentsEdoCardBadge info={edoInfo} />

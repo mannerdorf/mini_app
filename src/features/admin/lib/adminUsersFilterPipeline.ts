@@ -28,7 +28,7 @@ export function matchesAdminUserSearch(u: User, q: string): boolean {
 export function adminUserMatchesPreset(u: User, preset: PermissionPreset): boolean {
   const perms = u.permissions ?? {};
   for (const { key } of PERMISSION_KEYS) {
-    if (key === "__financial__" || key === "service_mode") continue;
+    if (key === "service_mode") continue;
     if (!!perms[key] !== !!preset.permissions[key]) return false;
   }
   if (!!u.financial_access !== !!preset.financial) return false;

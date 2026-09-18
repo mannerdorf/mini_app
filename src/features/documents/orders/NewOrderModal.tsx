@@ -370,7 +370,7 @@ export function NewOrderModal({ isOpen, onClose, onSubmit, auth, activeInn }: Ne
         </div>
         <div style={{ padding: "1rem", flexShrink: 0, borderTop: "1px solid var(--color-border)" }}>
           <Flex gap="0.5rem" justify="end">
-            <Button variant="secondary" onClick={close}>
+            <Button mode="secondary" onClick={close}>
               Отмена
             </Button>
             <Button

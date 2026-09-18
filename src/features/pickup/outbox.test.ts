@@ -24,3 +24,20 @@ describe('offline commands', () => {
     expect(call).toHaveBeenCalledTimes(1);
   });
 });
+
+it('persists the in-flight receipt but stops the batch when its session ends', async () => {
+  let active = true;
+  const call = vi.fn(async () => { active = false; return {}; });
+  const save = vi.fn().mockResolvedValue(undefined);
+  const pending = await sendOutbox([item('1','a'), item('2','b')], call, save, () => active);
+  expect(call).toHaveBeenCalledTimes(1);
+  expect(pending.map(p => p.id)).toEqual(['2']);
+  expect(save).toHaveBeenCalledWith([item('2','b')]);
+});
+it('does not send anything after the owner session has ended', async () => {
+  const call = vi.fn(), save = vi.fn();
+  const items = [item('1','a')];
+  expect(await sendOutbox(items, call, save, () => false)).toEqual(items);
+  expect(call).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+});

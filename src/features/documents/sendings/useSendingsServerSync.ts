@@ -36,10 +36,12 @@ export function useSendingsServerSync({
       setEorStatusMap({});
       return;
     }
+    const login = auth.login;
+    const password = auth.password;
     let cancelled = false;
     (async () => {
       try {
-        const map = await fetchSendingsEorMap({ login: auth.login, password: auth.password });
+        const map = await fetchSendingsEorMap({ login, password });
         if (!cancelled && map) setEorStatusMap(map as Record<string, EorStatus[]>);
       } catch {
         // ignore DB sync errors in UI

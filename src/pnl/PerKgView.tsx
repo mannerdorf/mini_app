@@ -30,7 +30,7 @@ export function PerKgView() {
     setLoading(true);
     const params = filtersToParams(filters);
     Promise.all([
-      pnlGet('/api/unit-economics', params),
+      pnlGet<{ error?: string } & Record<string, unknown>>('/api/unit-economics', params),
       pnlGet<any[]>('/api/charts/monthly-margin', params),
     ])
       .then(([ue, margin]) => {

@@ -27,7 +27,7 @@ export function UnitEconomicsView() {
   useEffect(() => {
     setError(null);
     setLoading(true);
-    pnlGet('/api/unit-economics', filtersToParams(filters))
+    pnlGet<{ error?: string } & Record<string, unknown>>('/api/unit-economics', filtersToParams(filters))
       .then((d) => { setData(d?.error ? null : d); if (d?.error) setError(d.error); })
       .catch((err) => { setData(null); setError(err?.message ?? 'Ошибка загрузки данных'); })
       .finally(() => setLoading(false));

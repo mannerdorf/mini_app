@@ -38,7 +38,7 @@ export function useFocusTrap(
       }
       if (e.key !== "Tab" || focusables.length === 0) return;
       const current = document.activeElement as HTMLElement | null;
-      if (!container.contains(current)) return;
+      if (!current || !container.contains(current)) return;
       e.preventDefault();
       const idx = focusables.indexOf(current);
       if (e.shiftKey) {

@@ -16,7 +16,7 @@ const SWR_OPTIONS = {
     dedupingInterval: 60 * 1000,
     keepPreviousData: true,
     errorRetryCount: 1,
-    shouldRetryOnError: (error) => {
+    shouldRetryOnError: (error: unknown) => {
         const msg = String((error as Error)?.message ?? error ?? "").toLowerCase();
         if (msg.includes("504") || msg.includes("502") || msg.includes("503")) return false;
         if (msg.includes("сервер") || msg.includes("время ожидания") || msg.includes("ожидания") || msg.includes("gateway")) return false;
@@ -82,7 +82,7 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         body: JSON.stringify(body),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
-    return list.map((item: Record<string, unknown>) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
+    return list.filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item)).map((item) => mapCargoItem(item, useServiceRequest ? "Customer" : undefined));
 }
 
 export function usePerevozki(params: PerevozkiParams) {
@@ -150,7 +150,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
             body: JSON.stringify({ ...basePayload, mode }),
         });
         const list = Array.isArray(data) ? data : (data && typeof data === "object" && "items" in data ? (data as { items: unknown[] }).items : []);
-        allMapped.push(...list.map((item: Record<string, unknown>) => mapCargoItem(item, mode)));
+        allMapped.push(...list.filter((item): item is Record<string, unknown> => !!item && typeof item === "object" && !Array.isArray(item)).map((item) => mapCargoItem(item, mode)));
     }
 
     const parseDateValue = (value: unknown): number => {
@@ -321,7 +321,7 @@ type InvoicesParams = {
     unpaidOnly?: boolean;
 };
 
-async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
+async function fetcherInvoices(params: InvoicesParams): Promise<CargoItem[]> {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest, monitor, unpaidOnly } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[]; Invoices?: unknown[]; invoices?: unknown[] } | unknown[]>(PROXY_API_INVOICES_URL, {
@@ -340,7 +340,7 @@ async function fetcherInvoices(params: InvoicesParams): Promise<unknown[]> {
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Invoices ?? (data as Record<string, unknown>).invoices ?? [] : []);
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.filter((item): item is CargoItem => !!item && typeof item === "object" && !Array.isArray(item)) : [];
 }
 
 export function useInvoices(params: InvoicesParams) {
@@ -348,7 +348,7 @@ export function useInvoices(params: InvoicesParams) {
     const key = enabled && auth?.login && auth?.password
         ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, monitor ?? "", !!unpaidOnly]
         : null;
-    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherInvoices(params),
         SWR_OPTIONS
@@ -372,7 +372,7 @@ type OrdersParams = {
     enabled?: boolean;
 };
 
-type OrdersResult = { items: unknown[]; metadata?: { fetchedAt: string | null; stale: boolean } };
+type OrdersResult = { items: CargoItem[]; metadata?: { fetchedAt: string | null; stale: boolean } };
 async function fetcherOrders(params: OrdersParams): Promise<OrdersResult> {
     const { auth, dateFrom, dateTo, activeInn, activeCustomerName, useServiceRequest, mode } = params;
     if (!auth?.login || !auth?.password) return { items: [] };
@@ -393,7 +393,7 @@ async function fetcherOrders(params: OrdersParams): Promise<OrdersResult> {
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? [] : []);
-    return { items: Array.isArray(list) ? list : [], metadata: Array.isArray(data) ? undefined : data.metadata };
+    return { items: Array.isArray(list) ? list.filter((item): item is CargoItem => !!item && typeof item === "object" && !Array.isArray(item)) : [], metadata: Array.isArray(data) ? undefined : data.metadata };
 }
 
 export function useOrders(params: OrdersParams) {
@@ -424,7 +424,7 @@ type SendingsParams = {
     enabled?: boolean;
 };
 
-async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
+async function fetcherSendings(params: SendingsParams): Promise<CargoItem[]> {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_SENDINGS_URL, {
@@ -441,7 +441,7 @@ async function fetcherSendings(params: SendingsParams): Promise<unknown[]> {
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? [] : []);
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.filter((item): item is CargoItem => !!item && typeof item === "object" && !Array.isArray(item)) : [];
 }
 
 export function useSendings(params: SendingsParams) {
@@ -449,7 +449,7 @@ export function useSendings(params: SendingsParams) {
     const key = enabled && auth?.login && auth?.password
         ? ["sendings", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
-    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherSendings(params),
         SWR_OPTIONS
@@ -515,7 +515,7 @@ type ActsParams = {
     enabled?: boolean;
 };
 
-async function fetcherActs(params: ActsParams): Promise<unknown[]> {
+async function fetcherActs(params: ActsParams): Promise<CargoItem[]> {
     const { auth, dateFrom, dateTo, activeInn, useServiceRequest } = params;
     if (!auth?.login || !auth?.password) return [];
     const data = await apiFetchJson<{ items?: unknown[]; Acts?: unknown[]; acts?: unknown[] } | unknown[]>(PROXY_API_ACTS_URL, {
@@ -532,7 +532,7 @@ async function fetcherActs(params: ActsParams): Promise<unknown[]> {
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Acts ?? (data as Record<string, unknown>).acts ?? [] : []);
-    return Array.isArray(list) ? list : [];
+    return Array.isArray(list) ? list.filter((item): item is CargoItem => !!item && typeof item === "object" && !Array.isArray(item)) : [];
 }
 
 export function useActs(params: ActsParams) {
@@ -540,7 +540,7 @@ export function useActs(params: ActsParams) {
     const key = enabled && auth?.login && auth?.password
         ? ["acts", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest]
         : null;
-    const { data, error, isLoading, mutate } = useSWR<unknown[]>(
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherActs(params),
         SWR_OPTIONS
@@ -564,7 +564,7 @@ async function fetcherCustomers(params: CustomersParams): Promise<{ name: string
         body: JSON.stringify({ login: auth.login, password: auth.password }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).customers ?? (data as Record<string, unknown>).items ?? [] : []);
-    return (list || []).map((c: Record<string, unknown>) => ({
+    return (Array.isArray(list) ? list : []).filter((c): c is Record<string, unknown> => !!c && typeof c === "object" && !Array.isArray(c)).map((c) => ({
         name: String(c.name ?? c.Name ?? c.наименование ?? ""),
         inn: String(c.inn ?? c.INN ?? c.ИНН ?? ""),
     }));

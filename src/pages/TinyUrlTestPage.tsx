@@ -330,7 +330,7 @@ export function TinyUrlTestPage({ onBack }: { onBack: () => void }) {
                     <Typography.Headline style={{ fontSize: "1rem", marginBottom: "0.5rem", color: "#ffcc00" }}>
                         🛠 MAX Debug (Profile Section)
                     </Typography.Headline>
-                    <Flex vertical gap="0.75rem">
+                    <Flex direction="column" gap="0.75rem">
                         <Button
                             onClick={testMaxMessage}
                             className="filter-button"

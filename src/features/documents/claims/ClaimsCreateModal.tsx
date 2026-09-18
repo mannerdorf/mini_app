@@ -701,7 +701,7 @@ export function ClaimsCreateModal({
                     return (
                       <Flex key={sign.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                         <Typography.Body style={{ fontSize: "0.82rem" }}>{sign.label}</Typography.Body>
-                        <TapSwitch
+                        <TapSwitch aria-label={sign.label}
                           checked={checked}
                           onToggle={() => {
                             setManipulationSignIds((prev) =>
@@ -795,7 +795,7 @@ export function ClaimsCreateModal({
                     return (
                       <Flex key={pack.id} align="center" justify="space-between" style={{ gap: "0.5rem" }}>
                         <Typography.Body style={{ fontSize: "0.82rem" }}>{pack.label}</Typography.Body>
-                        <TapSwitch
+                        <TapSwitch aria-label={pack.label}
                           checked={checked}
                           onToggle={() => {
                             setPackagingTypeIds((prev) =>

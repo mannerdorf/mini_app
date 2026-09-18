@@ -1,0 +1,752 @@
+[
+  {
+    "screen": "dispatch",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 2,
+    "viewport": 390
+  },
+  {
+    "screen": "driver",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "billing",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "documents",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 13,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "cargo",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 1,
+    "viewport": 390
+  },
+  {
+    "screen": "profile",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "admin",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 1,
+    "viewport": 390
+  },
+  {
+    "screen": "dashboard",
+    "theme": "light-mode",
+    "width": 390,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 6,
+    "viewport": 390
+  },
+  {
+    "screen": "dispatch",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 2,
+    "viewport": 390
+  },
+  {
+    "screen": "driver",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "billing",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "documents",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 13,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "cargo",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 1,
+    "viewport": 390
+  },
+  {
+    "screen": "profile",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 0,
+    "viewport": 390
+  },
+  {
+    "screen": "admin",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 1,
+    "viewport": 390
+  },
+  {
+    "screen": "dashboard",
+    "theme": "dark-mode",
+    "width": 390,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "smallTargets": 6,
+    "viewport": 390
+  },
+  {
+    "screen": "dispatch",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 2,
+    "viewport": 768
+  },
+  {
+    "screen": "driver",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "billing",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "documents",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 13,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "cargo",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 1,
+    "viewport": 768
+  },
+  {
+    "screen": "profile",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "admin",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 1,
+    "viewport": 768
+  },
+  {
+    "screen": "dashboard",
+    "theme": "light-mode",
+    "width": 768,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 6,
+    "viewport": 768
+  },
+  {
+    "screen": "dispatch",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 2,
+    "viewport": 768
+  },
+  {
+    "screen": "driver",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "billing",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "documents",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 13,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "cargo",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 1,
+    "viewport": 768
+  },
+  {
+    "screen": "profile",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 0,
+    "viewport": 768
+  },
+  {
+    "screen": "admin",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 1,
+    "viewport": 768
+  },
+  {
+    "screen": "dashboard",
+    "theme": "dark-mode",
+    "width": 768,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "smallTargets": 6,
+    "viewport": 768
+  },
+  {
+    "screen": "dispatch",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 2,
+    "viewport": 1440
+  },
+  {
+    "screen": "driver",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "billing",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "documents",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "cargo",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "profile",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "admin",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "dashboard",
+    "theme": "light-mode",
+    "width": 1440,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 6,
+    "viewport": 1440
+  },
+  {
+    "screen": "dispatch",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 23,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 2,
+    "viewport": 1440
+  },
+  {
+    "screen": "driver",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 11,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "billing",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 6,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "documents",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "cargo",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 14,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "profile",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 0,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 0,
+    "viewport": 1440
+  },
+  {
+    "screen": "admin",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 19,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 1,
+    "viewport": 1440
+  },
+  {
+    "screen": "dashboard",
+    "theme": "dark-mode",
+    "width": 1440,
+    "buttonCount": 33,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "smallTargets": 6,
+    "viewport": 1440
+  },
+  {
+    "screen": "login",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "light-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "returns",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "light-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "expenses",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "light-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "wb",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "light-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "calculator",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Расчёт доставки\nЧерновик\nНаправление\nОтправитьКурьером\nУкажите адрес\nВручитьКурьером\nУкажите адрес\nГруз\n\nЦена зависит от веса и объёма\n\nМесто 1\nРазмер XL · 50 кг · 0.5 м³ · платный вес 100 кг\n\nМОЖЕТ ПРИГОДИТЬСЯ\n\nОбъявленная стоимость, ₽\nДата забора\nИтого\n—\nОформить",
+    "theme": "light-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "login",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "dark-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "returns",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "dark-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "expenses",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "dark-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "wb",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "dark-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "calculator",
+    "width": 390,
+    "fixtureError": false,
+    "scrollWidth": 390,
+    "text": "Расчёт доставки\nЧерновик\nНаправление\nОтправитьКурьером\nУкажите адрес\nВручитьКурьером\nУкажите адрес\nГруз\n\nЦена зависит от веса и объёма\n\nМесто 1\nРазмер XL · 50 кг · 0.5 м³ · платный вес 100 кг\n\nМОЖЕТ ПРИГОДИТЬСЯ\n\nОбъявленная стоимость, ₽\nДата забора\nИтого\n—\nОформить",
+    "theme": "dark-mode",
+    "viewport": 390
+  },
+  {
+    "screen": "login",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "light-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "returns",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "light-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "expenses",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "light-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "wb",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "light-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "calculator",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Расчёт доставки\nЧерновик\nНаправление\nОтправитьКурьером\nУкажите адрес\nВручитьКурьером\nУкажите адрес\nГруз\n\nЦена зависит от веса и объёма\n\nМесто 1\nРазмер XL · 50 кг · 0.5 м³ · платный вес 100 кг\n\nМОЖЕТ ПРИГОДИТЬСЯ\n\nОбъявленная стоимость, ₽\nДата забора\nИтого\n—\nОформить",
+    "theme": "light-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "login",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "dark-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "returns",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "dark-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "expenses",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "dark-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "wb",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "dark-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "calculator",
+    "width": 768,
+    "fixtureError": false,
+    "scrollWidth": 768,
+    "text": "Расчёт доставки\nЧерновик\nНаправление\nОтправитьКурьером\nУкажите адрес\nВручитьКурьером\nУкажите адрес\nГруз\n\nЦена зависит от веса и объёма\n\nМесто 1\nРазмер XL · 50 кг · 0.5 м³ · платный вес 100 кг\n\nМОЖЕТ ПРИГОДИТЬСЯ\n\nОбъявленная стоимость, ₽\nДата забора\nИтого\n—\nОформить",
+    "theme": "dark-mode",
+    "viewport": 768
+  },
+  {
+    "screen": "login",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "light-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "returns",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "light-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "expenses",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "light-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "wb",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "light-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "calculator",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Расчёт доставки\nСохранить черновик\nМаршрут\nМСК → КГД\nКГД → МСК\nОтправить\nКурьером\nСо Склада\nАдрес Москва Калининград\nТелефон\nФИО контактного лица\nВручить\nКурьером\nна Складе\nАдрес Москва Калининград\nТелефон\nФИО контактного лица\nГруз\nМесто 1\nXS\nS\nM\nL\nXL\nДлина, см\nШирина, см\nВысота, см\nВес, кг\nОбъём, м³\nТребуется коробка\nДобавить место\n\nВес 50 кг · об",
+    "theme": "light-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "login",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "H\nA\nU\nL\nZ\nДоставка грузов в Калининград и обратно\nСогласие с публичной офертой\nСогласие на обработку данных\nПодтвердить\nЗабыли пароль?",
+    "theme": "dark-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "returns",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Возврат из КГД\nСохранённые сессииПока нет сохранённых обработок\nДокумент отправка\nОдин файл .xlsx\nУЛ — приоритет 1\nМожно несколько файлов\nУЛ — приоритет 2\nМожно несколько файлов",
+    "theme": "dark-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "expenses",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Подразделение: Моё подразделение. Укажите статью расхода, сумму, комментарий и при необходимости приложите счёт или выберите транспорт.\nНовая заявка\nРазвернуть\nМои заявки\nДата (период)\nПодразделение\nВсе\nСтатья\nВсе\nТС\nВсе\nСотрудник\nВсе\nПоставщик услуг\nВсе\nДействия\nВсе\nЧерновик\nНа согласовании\nСогласовано\nОтклонено\nОтправлено\nОплачено\nИтого по фильтр",
+    "theme": "dark-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "wb",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Описи\nПретензии\nСводная\nОбновить\nCSV\nXLSX\n\t\nНомер ведомости\n\t\nДата ведомости\n▼\n\t\nКол-во коробов\n\t\nОбщая стоимость, RUB\n\nНет данных\nСтраница 1 из 1 • записей: 0\nНазад\nДалее\n20\n50\n100",
+    "theme": "dark-mode",
+    "viewport": 1440
+  },
+  {
+    "screen": "calculator",
+    "width": 1440,
+    "fixtureError": false,
+    "scrollWidth": 1440,
+    "text": "Расчёт доставки\nСохранить черновик\nМаршрут\nМСК → КГД\nКГД → МСК\nОтправить\nКурьером\nСо Склада\nАдрес Москва Калининград\nТелефон\nФИО контактного лица\nВручить\nКурьером\nна Складе\nАдрес Москва Калининград\nТелефон\nФИО контактного лица\nГруз\nМесто 1\nXS\nS\nM\nL\nXL\nДлина, см\nШирина, см\nВысота, см\nВес, кг\nОбъём, м³\nТребуется коробка\nДобавить место\n\nВес 50 кг · об",
+    "theme": "dark-mode",
+    "viewport": 1440
+  }
+]

@@ -1,3 +1,4 @@
+import { pickupEventLabel } from "./pickupEventLabel";
 import { PickupJobBillingEditor } from "./PickupJobBillingEditor";
 import { PickupJobOrderEditor } from "./PickupJobOrderEditor";
 import { usePickupOutbox } from "./usePickupOutbox";
@@ -85,6 +86,7 @@ import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
 import { PickupDriverMobileRoute } from "./PickupDriverMobileRoute";
 import { PickupJobNumber } from "./PickupJobNumber";
 import { sendOutbox } from "./outbox";
+import { prepareDependentCommand } from "./offlineProgress";
 import { readDriverCity, saveDriverCity } from "./driverCity";
 
 const empty: Snapshot = {
@@ -194,6 +196,13 @@ export function PickupPage({
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
   const outboxKey = `outbox:${account.login.toLowerCase()}`;
   const { items: outbox, ready: outboxReady, save: saveOutbox } = usePickupOutbox(outboxKey, setError);
+  const syncOwner = useRef(outboxKey);
+  syncOwner.current = outboxKey;
+  const syncGeneration = useRef(0);
+  useEffect(() => {
+    ++syncGeneration.current;
+    return () => { ++syncGeneration.current; };
+  }, [outboxKey, call, allowed]);
   const dispatch = mode === "dispatch" && snapshot.dispatcher;
   const [driverTab, setDriverTab] = useState<DriverTab>("home");
   const [driverDraftDirty, setDriverDraftDirty] = useState(false);
@@ -287,11 +296,15 @@ export function PickupPage({
     if (lock.current || !allowed || !outboxReady) return;
     lock.current = true;
     setBusy(true);
+    const generation = syncGeneration.current;
+    const isCurrentSession = () => syncOwner.current === outboxKey && syncGeneration.current === generation;
     try {
-      const remaining = await sendOutbox(outbox, call, saveOutbox);
+      const remaining = await sendOutbox(outbox, call, saveOutbox, isCurrentSession);
+      if (!isCurrentSession()) return;
       setNotice(remaining.length ? `Требуют проверки: ${remaining.length}. Независимые отметки отправлены.` : "Все отметки отправлены");
       await refresh();
     } catch (e) {
+      if (!isCurrentSession()) return;
       setError(
         `${(e as Error).message} Отметки сохранены. При конфликте сначала обновите данные.`,
       );
@@ -310,7 +323,7 @@ export function PickupPage({
     title: string,
     queueable = false,
   ) => {
-    if (lock.current) return false;
+    if (lock.current || (queueable && !outboxReady)) return false;
     lock.current = true;
     setBusy(true);
     setError("");
@@ -321,13 +334,25 @@ export function PickupPage({
         requestId,
         ...(serviceBrowse ? { serviceBrowse: true } : {}),
       };
+    let dependency: Record<string, unknown> | null = null;
+    let preparingDependency = true;
     try {
+      dependency = queueable ? prepareDependentCommand(command, snapshot.jobs.find(j => j.id === body.id), outbox) : null;
+      preparingDependency = false;
+      if (dependency) {
+        await saveOutbox([...outbox, {
+          id: requestId, body: dependency, title,
+          context: { address: snapshot.jobs.find(j => j.id === body.id)?.data.address || "", date, city },
+        }]);
+        setNotice("Отметка сохранена на устройстве. Она будет отправлена после подтверждения прибытия.");
+        return true;
+      }
       await call(command);
       setNotice(title);
       await refresh();
       return true;
     } catch (e) {
-      if (queueable && (!(e instanceof ApiError) || e.status >= 500)) {
+      if (queueable && !preparingDependency && !dependency && (!(e instanceof ApiError) || e.status >= 500)) {
         try {
           await saveOutbox([
             ...outbox,
@@ -404,7 +429,7 @@ export function PickupPage({
     );
   return (
     <div
-      className={`pk-root ${mode === "driver" ? "pk-driver-root" : ""}${driverMobileUx ? " pk-driver--mobile" : ""}`}
+      className={`pk-root ${mode === "driver" ? "pk-driver-root" : "pk-dispatch-root"}${driverMobileUx ? " pk-driver--mobile" : ""}`}
     >
       {driverMobileUx && <DriverBottomNav tab={driverTab} onChange={setDriverTab} />}
       <header className="pk-header">
@@ -825,7 +850,7 @@ export function PickupPage({
           )}
         </section>
       ) : dispatch && tab === "jobs" ? (
-        <section className="pk-panel">
+        <section className="pk-panel pk-day-plan">
           <h2>
             План дня ·{" "}
             {new Intl.DateTimeFormat("ru-RU", {
@@ -877,7 +902,7 @@ export function PickupPage({
               Сбросить фильтры
             </button>
           )}
-          <div className="pk-actions pk-selection-tools">
+          <details className="pk-assignment-tools"><summary>Назначение заборов · выбрано {checkedJobs.length}</summary><div className="pk-actions pk-selection-tools">
             <button
               onClick={() =>
                 setCheckedJobs(
@@ -898,7 +923,7 @@ export function PickupPage({
             <span className="pk-hint">
               Для назначения отметьте заборы слева.
             </span>
-          </div>
+          </div></details>
           {!!snapshot.jobs.filter(
             (j) =>
               checkedJobs.includes(j.id) &&
@@ -970,8 +995,8 @@ export function PickupPage({
                     act={act}
                   />
 
-                  <PickupJobBillingEditor key={`billing-${j.id}-${j.version}`} job={j} busy={busy} call={call} act={act} error={error} />
-                  <PickupJobOrderEditor key={`${j.id}-${j.version}`} job={j} busy={busy} act={act} />
+                  <PickupJobBillingEditor key={`billing-${j.id}`} job={j} busy={busy} call={call} act={act} error={error} />
+                  <PickupJobOrderEditor key={j.id} job={j} busy={busy} act={act} />
 
                   <div className="pk-actions">
                     <button
@@ -1187,6 +1212,9 @@ export function PickupPage({
                 outboxCount={outbox.filter(p => p.body.id === route.id || routeJobs.some(j => j.id === p.body.id)).length}
                 outboxReady={outboxReady}
                 routePending={routePending}
+                routeCommandPending={outbox.some(item => item.body.id === route.id)}
+                pendingJobIds={outbox.map(item => String(item.body.id))}
+                pendingCommands={outbox}
                 driverCanOperate={driverCanOperate}
                 call={call}
                 locationAvailable={snapshot.locationAvailable === true}
@@ -1363,7 +1391,7 @@ export function PickupPage({
                           .slice(0, 3)
                           .map((e) => (
                             <p key={e.id} className="pk-hint">
-                              {e.action} ·{" "}
+                              {pickupEventLabel(e.action)} ·{" "}
                               {new Date(e.created_at).toLocaleTimeString(
                                 "ru-RU",
                                 {
@@ -1567,14 +1595,14 @@ export function PickupPage({
                               driverCanOperate &&
                               mode === "driver" &&
                               route.status === "started" &&
-                              !routePending &&
+                              !outbox.some(item => item.body.id === route.id || item.body.id === j.id) &&
                               outboxReady &&
                               route.acknowledged_version === route.version
                             }
                             canCancel={
                               !dispatch &&
                               pickupJobCanCancel(j.status) &&
-                              !routePending &&
+                              !outbox.some(item => item.body.id === route.id || item.body.id === j.id) &&
                               outboxReady &&
                               driverCanOperate &&
                               mode === "driver" &&
@@ -1674,7 +1702,7 @@ export function PickupPage({
                               </>
                             )}
                             {pickupJobCanCancel(j.status) &&
-                              !routePending &&
+                              !outbox.some(item => item.body.id === route.id || item.body.id === j.id) &&
                               outboxReady && (
                                 <PickupCancelJobSection
                                   job={j}
@@ -1760,8 +1788,8 @@ export function PickupPage({
                   {snapshot.events
                     .filter((e) => e.route_id === route.id)
                     .map((e) => (
-                      <p key={e.id}>
-                        <strong>{e.action}</strong> ·{" "}
+                      <div key={e.id}>
+                        <strong>{pickupEventLabel(e.action)}</strong> ·{" "}
                         {new Date(e.created_at).toLocaleString("ru-RU", {
                           timeZone:
                             city === "moscow"
@@ -1770,7 +1798,8 @@ export function PickupPage({
                         })}{" "}
                         · {e.actor}
                         {e.data.note ? ` — ${e.data.note}` : ""}
-                      </p>
+                        <details><summary>Технические сведения</summary><code>{e.action}</code></details>
+                      </div>
                     ))}
                 </details>
                 </div>

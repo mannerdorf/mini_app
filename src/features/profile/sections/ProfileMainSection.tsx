@@ -15,7 +15,7 @@ import {
     Users,
     Smartphone,
 } from "lucide-react";
-import { Flex, Panel, Typography } from "@maxhub/max-ui";
+import { Flex, Typography } from "@maxhub/max-ui";
 import type { Account, ProfileView } from "../../../types";
 import { formatDateTime } from "../../../lib/dateUtils";
 import { isNativePushEnvironment } from "../../../lib/androidPushNotifications";
@@ -179,7 +179,7 @@ export function ProfileMainSection({
                             initial={shellMotion ? "hidden" : false}
                             animate={shellMotion ? "visible" : undefined}
                         >
-                            <Panel
+                            <button type="button"
                                 className="cargo-card profile-saas-row-card"
                                 onClick={item.onClick}
                                 style={{
@@ -193,7 +193,7 @@ export function ProfileMainSection({
                                     <div className="profile-saas-row-icon">{item.icon}</div>
                                     <Typography.Body className="profile-saas-body" style={{ fontSize: "0.9rem" }}>{item.label}</Typography.Body>
                                 </Flex>
-                            </Panel>
+                            </button>
                         </motion.div>
                     ))}
                 </motion.div>
@@ -219,7 +219,7 @@ export function ProfileMainSection({
                             initial={shellMotion ? "hidden" : false}
                             animate={shellMotion ? "visible" : undefined}
                         >
-                            <Panel
+                            <button type="button"
                                 className="cargo-card profile-saas-row-card"
                                 onClick={() => onNavigate("2fa")}
                                 style={{ display: "flex", alignItems: "center", padding: "1rem", cursor: "pointer" }}
@@ -230,7 +230,7 @@ export function ProfileMainSection({
                                     </div>
                                     <Typography.Body className="profile-saas-body" style={{ fontSize: "0.9rem" }}>Двухфакторная аутентификация (2FA)</Typography.Body>
                                 </Flex>
-                            </Panel>
+                            </button>
                         </motion.div>
                     )}
                     {activeAccountId && activeAccount?.isRegisteredUser && activeAccount && (
@@ -280,7 +280,7 @@ export function ProfileMainSection({
                                 initial={shellMotion ? "hidden" : false}
                                 animate={shellMotion ? "visible" : undefined}
                             >
-                                <Panel
+                                <button type="button"
                                     className={`cargo-card profile-saas-row-card${item.id === "offer" || item.id === "consent" ? " profile-saas-row-card--legal" : ""}`}
                                     onClick={item.onClick}
                                     style={{
@@ -297,7 +297,6 @@ export function ProfileMainSection({
                                         <div className="profile-saas-row-icon">{item.icon}</div>
                                         <div className="profile-saas-row-text">
                                             <Typography.Body
-                                                component="div"
                                                 className="profile-saas-body profile-saas-row-title"
                                                 style={{ fontSize: "0.9rem" }}
                                             >
@@ -305,7 +304,6 @@ export function ProfileMainSection({
                                             </Typography.Body>
                                             {(item.id === "offer" || item.id === "consent") && (
                                                 <Typography.Body
-                                                    component="div"
                                                     className="profile-saas-caption profile-saas-legal-accepted"
                                                 >
                                                     {acceptedAt && accepted?.version_label
@@ -315,7 +313,7 @@ export function ProfileMainSection({
                                             )}
                                         </div>
                                     </Flex>
-                                </Panel>
+                                </button>
                             </motion.div>
                         );
                     })}

@@ -1,4 +1,6 @@
 import React from "react";
+import type { Pending } from "./outbox";
+import { localArrivalView, queuedArrival } from "./offlineProgress";
 import { PickupStopOrder } from "./PickupStopOrder";
 import { routeStartAddress, statusLabels } from "../../../lib/pickup/model";
 import { cities, type City, type Job, type Route } from "../../../lib/pickup/model";
@@ -26,6 +28,9 @@ type Props = {
   outboxCount: number;
   outboxReady: boolean;
   routePending: boolean;
+  pendingJobIds?: string[];
+  pendingCommands?: Pending[];
+  routeCommandPending?: boolean;
   driverCanOperate: boolean;
   call: PickupCall;
   locationAvailable: boolean;
@@ -53,6 +58,9 @@ export function PickupDriverMobileRoute({
   outboxCount,
   outboxReady,
   routePending,
+  pendingJobIds = [],
+  pendingCommands = [],
+  routeCommandPending = routePending,
   driverCanOperate,
   call,
   locationAvailable,
@@ -61,13 +69,15 @@ export function PickupDriverMobileRoute({
   onAckRoute,
   act,
 }: Props) {
-  const phase = driverMobilePhase(route, routeJobs, { outboxCount });
+  const availableJobs = routeJobs.filter(job => !pendingJobIds.includes(job.id) || queuedArrival(job, pendingCommands)).map(job => localArrivalView(job, pendingCommands));
+  const availableCurrent = currentDriverJob(availableJobs);
+  const phase = driverMobilePhase(route, availableJobs, { outboxCount: routeCommandPending || !availableCurrent ? outboxCount : 0 });
   const { closed, total } = driverStopProgress(routeJobs);
-  const current = currentDriverJob(routeJobs);
+  const current = availableCurrent;
   const currentIndex = current ? routeJobs.findIndex((j) => j.id === current.id) : -1;
   const blocked =
     busy ||
-    routePending ||
+    routeCommandPending ||
     !outboxReady ||
     !driverCanOperate ||
     (route.status === "started" && route.acknowledged_version !== route.version);
@@ -96,6 +106,7 @@ export function PickupDriverMobileRoute({
       </header>
 
       <p className="pk-hint" role="status">{syncedAt ? `Последняя синхронизация: ${new Date(syncedAt).toLocaleString("ru-RU")}` : "Время синхронизации неизвестно"} · Ожидают отправки: {outboxCount}</p>
+      {pendingJobIds.length > 0 && phase === "on_stop" && <p className="pk-warning">Предыдущие отметки сохранены на устройстве. Можно продолжить забор после локальной отметки прибытия или работать с другой точкой; сохранённые действия ещё не подтверждены сервером.</p>}
       {error && <p className="pk-warning" role="alert">{error}</p>}
       <details className="pk-driver-itinerary">
         <summary>Все остановки · {total}</summary>
@@ -109,8 +120,7 @@ export function PickupDriverMobileRoute({
         <section className="pk-driver-mobile-step">
           <h2 className="pk-driver-mobile-step__title">Отправьте сохранённые отметки</h2>
           <p className="pk-hint">
-            На устройстве {outboxCount} отметок. Сначала синхронизация — затем следующий шаг
-            маршрута.
+            На устройстве {outboxCount} отметок. Действия, зависящие от их результата, станут доступны после синхронизации.
           </p>
           <button
             type="button"

@@ -1,0 +1,41 @@
+/* Pilot aliases: preserve existing light/dark palette without redefining global tokens. */
+:root {
+  --ux-surface: var(--color-bg-card);
+  --ux-border: var(--color-border);
+  --ux-text: var(--color-text-primary);
+  --ux-muted: var(--color-text-secondary);
+  --ux-danger: var(--color-error, #b91c1c);
+  --ux-focus: var(--color-primary-blue, #2563eb);
+  --ux-radius-control: 12px;
+  --ux-radius-panel: 16px;
+  --ux-touch-height: 44px;
+}
+
+:root, .light-mode {
+  --ux-switch-on: #2563eb;
+  --ux-switch-off: #64748b;
+  --ux-status-success-bg: #dcfce7;
+  --ux-status-success-text: #166534;
+  --ux-status-warning-bg: #fef3c7;
+  --ux-status-warning-text: #92400e;
+  --ux-status-danger-bg: #fee2e2;
+  --ux-status-danger-text: #991b1b;
+  --ux-status-purple-bg: #ede9fe;
+  --ux-status-purple-text: #5b21b6;
+  --ux-status-neutral-bg: #f1f5f9;
+  --ux-status-neutral-text: #334155;
+}
+.dark-mode {
+  --ux-switch-on: #2563eb;
+  --ux-switch-off: #64748b;
+  --ux-status-success-bg: #143824;
+  --ux-status-success-text: #86efac;
+  --ux-status-warning-bg: #422e0e;
+  --ux-status-warning-text: #fde68a;
+  --ux-status-danger-bg: #451a1a;
+  --ux-status-danger-text: #fca5a5;
+  --ux-status-purple-bg: #30204c;
+  --ux-status-purple-text: #c4b5fd;
+  --ux-status-neutral-bg: #273244;
+  --ux-status-neutral-text: #e2e8f0;
+}

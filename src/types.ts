@@ -11,6 +11,7 @@ export type PerevozkiRole = "Customer" | "Sender" | "Receiver";
 
 /** Права доступа для зарегистрированных пользователей */
 export type AccountPermissions = {
+    accounting?: boolean;
     dispatcher?: boolean;
     driver?: boolean;
     cms_access?: boolean;
@@ -40,6 +41,7 @@ export type AccountPermissions = {
 };
 
 export type Account = {
+    inn?: string;
     login: string;
     password: string;
     id: string;
@@ -77,6 +79,7 @@ export type StatusFilter = "all" | "in_transit" | "ready" | "delivering" | "deli
 export type HomePeriodFilter = "today" | "week" | "month" | "year" | "custom";
 
 export type CargoItem = {
+    AK?: boolean | string | number;
     Number?: string;
     DatePrih?: string;
     DateVr?: string;

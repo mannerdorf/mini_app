@@ -11,8 +11,8 @@ export type CombinedLogisticsBucketKey =
 export function cargoFlowSelectionEqual(a: CargoFlowTableSelection | null, b: CargoFlowTableSelection | null): boolean {
     if (!a || !b) return false;
     if (a.kind !== b.kind) return false;
-    if (a.kind === 'tile') return a.dateKey === b.dateKey;
-    return a.badge === b.badge;
+    if (a.kind === 'tile' && b.kind === 'tile') return a.dateKey === b.dateKey;
+    return a.kind === 'badge' && b.kind === 'badge' && a.badge === b.badge;
 }
 
 export type DashboardChartPoint = { date: string; value: number; dateKey?: string };

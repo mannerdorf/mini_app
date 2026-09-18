@@ -1,0 +1,40 @@
+@import "../../components/shared/uxTokens.css";
+
+/* Shared legacy entry points: native controls and MAX UI wrappers, never nested input boxes. */
+:is(input, select, textarea).admin-form-input,
+:is(input, select, textarea).login-input,
+.admin-form-input:not(input):not(select):not(textarea),
+.login-input:not(input):not(select):not(textarea) {
+  border-radius: var(--ux-radius-control);
+  min-height: var(--ux-touch-height);
+}
+:is(.admin-form-input, .login-input):focus-visible,
+:is(.admin-form-input, .login-input):has(input:focus-visible) {
+  outline: 2px solid var(--ux-focus) !important;
+  outline-offset: 2px;
+}
+:is(.admin-form-input, .login-input)[aria-invalid="true"],
+:is(.admin-form-input, .login-input):has(input[aria-invalid="true"]) {
+  border-color: var(--ux-danger) !important;
+}
+:is(input, select, textarea).admin-form-input:disabled,
+:is(input, select, textarea).login-input:disabled {
+  cursor: not-allowed;
+  opacity: .65;
+}
+.light-mode :is(.admin-form-input, .login-input)::placeholder,
+.light-mode :is(.admin-form-input, .login-input) input::placeholder {
+  color: #64748b !important;
+  opacity: 1;
+}
+.dark-mode :is(.admin-form-input, .login-input)::placeholder,
+.dark-mode :is(.admin-form-input, .login-input) input::placeholder {
+  color: #a8b4c5;
+  opacity: 1;
+}
+/* Keep mobile text input readable without iOS focus zoom. */
+@media (max-width: 600px) {
+  :is(input, select, textarea).admin-form-input,
+  :is(input, select, textarea).login-input,
+  :is(.admin-form-input, .login-input) input { font-size: 16px; }
+}

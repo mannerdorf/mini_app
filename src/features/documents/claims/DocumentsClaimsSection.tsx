@@ -1,3 +1,4 @@
+import type { MotionProps as SharedMotionProps } from "motion/react";
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
@@ -18,12 +19,7 @@ import {
 import type { ClaimListRow } from "./useDocumentsClaims";
 import type { AuthData } from "../../../types";
 
-type MotionProps = {
-  initial?: false | object;
-  animate?: object;
-  exit?: object;
-  transition?: object;
-};
+type MotionProps = Pick<SharedMotionProps, "initial" | "animate" | "exit" | "transition">;
 
 type Props = {
   active: boolean;
@@ -287,7 +283,7 @@ export function DocumentsClaimsSection({
                     ].filter(Boolean);
                     return (
                       <Panel key={row.id} className="cargo-card" style={{ marginBottom: "0.75rem" }}>
-                        <Flex justify="space-between" align="start" style={{ marginBottom: "0.45rem" }}>
+                        <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.45rem" }}>
                           <Typography.Body style={{ fontWeight: 600, fontSize: "1rem" }}>
                             {row.claimNumber || `#${row.id}`}
                           </Typography.Body>
@@ -469,7 +465,7 @@ export function DocumentsClaimsSection({
         onSaved={reloadClaims}
         onBusyChange={setClaimsModalBusy}
         auth={auth}
-        effectiveActiveInn={effectiveActiveInn}
+        effectiveActiveInn={effectiveActiveInn ?? null}
         claimCargoOptions={claimCargoOptions}
         perevozkiItems={perevozkiItems}
         normCargoKey={normCargoKey}

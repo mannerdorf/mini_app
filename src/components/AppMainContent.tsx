@@ -1,3 +1,4 @@
+import { LoadError } from "./shared/LoadError";
 import React, { Suspense } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Package } from "lucide-react";
@@ -108,9 +109,7 @@ function SectionBoundary({ section, children }: { section: string; children: Rea
             <p style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
               Вышло обновление приложения. Страница перезагрузится автоматически…
             </p>
-          ) : err.message ? (
-            <p style={{ fontSize: "0.85rem", color: "#b91c1c", marginBottom: "0.75rem", wordBreak: "break-word" }}>{err.message}</p>
-          ) : null}
+          ) : <LoadError message="Не удалось показать раздел. Попробуйте обновить страницу. Если ошибка повторится, передайте технические сведения поддержке." details={err.message} />}
           <button
             type="button"
             onClick={() => {

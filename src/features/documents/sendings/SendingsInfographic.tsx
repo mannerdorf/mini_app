@@ -2,7 +2,7 @@ import React from "react";
 import { Ship, Truck } from "lucide-react";
 import { PlaneIcon } from "../../../components/icons/PlaneIcon";
 import { AppBadge } from "../../../components/shared/AppBadge";
-import type { StatusFilter } from "../../../types";
+import type { CargoStatusFilterKey as StatusFilter } from "../../../lib/sharedListFilters";
 
 export type SendingsInfographicData = {
   ferry: number;

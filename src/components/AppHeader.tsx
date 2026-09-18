@@ -78,7 +78,7 @@ export function AppHeader({
                     Служ.
                   </Typography.Label>
                   <span className="roles-switch-wrap" onClick={(e) => e.stopPropagation()}>
-                    <TapSwitch checked={useServiceRequest} onToggle={() => setUseServiceRequest((v) => !v)} />
+                    <TapSwitch aria-label="Служебный режим" checked={useServiceRequest} onToggle={() => setUseServiceRequest((v) => !v)} />
                   </span>
                 </>
               )}

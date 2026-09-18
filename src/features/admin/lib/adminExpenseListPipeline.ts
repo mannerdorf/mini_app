@@ -44,7 +44,7 @@ export function buildAdminExpenseListView({
   const depOptions = [...new Set(baseFiltered.map((r) => r.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
   const catOptions = [...new Set(baseFiltered.map((r) => r.categoryName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
   const vehicleOptions = [...new Set(baseFiltered.map((r) => r.vehicleOrEmployee).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
-  const employeeOptions = [...new Set(baseFiltered.map((r) => (r as { employeeName?: string }).employeeName).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
+  const employeeOptions = [...new Set(baseFiltered.map((r) => (r as { employeeName?: string }).employeeName).filter((name): name is string => !!name))].sort((a, b) => a.localeCompare(b, "ru"));
   const supplierOptions = [...new Set(baseFiltered.map((r) => getSupplierLabel(r)).filter(Boolean))].sort((a, b) => a.localeCompare(b, "ru"));
   const statusOptions = [...new Set(baseFiltered.map((r) => r.status))].sort();
 

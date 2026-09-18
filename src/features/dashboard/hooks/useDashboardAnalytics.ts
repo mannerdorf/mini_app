@@ -17,7 +17,7 @@ export type UseDashboardAnalyticsParams = {
     deliveryFactItems: CargoItem[];
     apiDateRange: { dateFrom: string; dateTo: string };
     heatmapMonth: { year: number; month: number };
-    chartData: DashboardChartPoint[];
+    chartData: { date: string; sum: number; pw: number; w: number; mest: number; vol: number }[];
     maChartType: "money" | "paidWeight" | "weight" | "volume" | "pieces";
     weekdayDistributionMode: "received" | "issued";
     loading: boolean;

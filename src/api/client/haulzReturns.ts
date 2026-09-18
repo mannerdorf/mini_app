@@ -182,7 +182,11 @@ export async function getHaulzReturnsJob(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res, data)}`);
-  const rawWb = (data as { workbook?: HaulzWorkbook | null }).workbook;
+  type WorkbookWire = Omit<HaulzWorkbook, "itogControlKeys" | "excludedUlNumbers"> & {
+    itogControlKeys?: string[] | { keys?: string[]; excludedUl?: string[] };
+    excludedUlNumbers?: string[];
+  };
+  const rawWb = (data as { workbook?: WorkbookWire | null }).workbook;
   const needsUlTdDatePersist = rawWb ? workbookNeedsUlTdDateBackfill(rawWb) : false;
   const workbook = rawWb
     ? normalizeWorkbookUlTdDates({

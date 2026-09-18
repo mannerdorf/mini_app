@@ -26,7 +26,7 @@ export type CargoDetailsModalProps = {
     isOpen: boolean;
     onClose: () => void;
     auth: AuthData;
-    onOpenChat: (cargoNumber?: string) => void | Promise<void>;
+    onOpenChat?: (cargoNumber?: string) => void | Promise<void>;
     onCreateClaim?: (cargoNumber: string) => void;
     isFavorite: (cargoNumber: string | undefined) => boolean;
     onToggleFavorite: (cargoNumber: string | undefined) => void;

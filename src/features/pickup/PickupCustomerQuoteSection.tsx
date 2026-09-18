@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useId } from "react";
 import type { City, JobData } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
 import { Textarea } from "./Forms";
@@ -21,9 +21,9 @@ type Props = {
   num: (v: string) => number | null;
 };
 
-function legacyIssueBill(data: JobData): boolean {
-  if (data.issueCustomerBill) return true;
-  return data.priceRub != null;
+function shouldIssueBill(data: JobData): boolean {
+  // Match the journal: a price alone is not consent to issue a customer bill.
+  return data.issueCustomerBill === true;
 }
 
 function legacyBillMode(data: JobData): BillMode {
@@ -38,10 +38,11 @@ export function PickupCustomerQuoteSection({
   onPatch,
   num,
 }: Props) {
-  const [issueBill, setIssueBill] = useState(() => legacyIssueBill(data));
+  const fieldId = useId();
+  const [issueBill, setIssueBill] = useState(() => shouldIssueBill(data));
   const [billMode, setBillMode] = useState<BillMode>(() => legacyBillMode(data));
   useEffect(() => {
-    setIssueBill(legacyIssueBill(data));
+    setIssueBill(shouldIssueBill(data));
     setBillMode(legacyBillMode(data));
   }, [data.issueCustomerBill, data.customerBillMode, data.priceRub]);
 
@@ -82,17 +83,15 @@ export function PickupCustomerQuoteSection({
           variant="comfortable"
           checked={issueBill}
           onToggle={() => setIssue(!issueBill)}
-          aria-label={
-            issueBill ? "Не выставлять счёт заказчику" : "Выставлять счёт заказчику"
-          }
+          aria-label="Выставлять счёт заказчику"
         />
       </div>
 
       {issueBill ? (
         <div className="pk-grid pk-customer-quote__fields">
           <div className="pk-field pk-customer-quote__price-mode">
-            <span>Способ расчёта суммы</span>
-            <select
+            <label htmlFor={`${fieldId}-mode`}>Способ расчёта суммы</label>
+            <select id={`${fieldId}-mode`}
               className="pk-customer-quote__select"
               value={billMode}
               onChange={(e) => setMode(e.target.value as BillMode)}
@@ -102,7 +101,7 @@ export function PickupCustomerQuoteSection({
             </select>
 
             {billMode === "manual" && (
-              <input
+              <label className="pk-field"><span>Сумма счёта, ₽</span><input
                 type="number"
                 min="0"
                 step="0.01"
@@ -115,7 +114,7 @@ export function PickupCustomerQuoteSection({
                     customerBillMode: "manual",
                   })
                 }
-              />
+              /></label>
             )}
           </div>
         </div>

@@ -7,7 +7,7 @@ import { adminAuthHeaders } from "./auth";
 export type AdminCustomerSearchRow = {
   inn: string;
   customer_name: string;
-  email?: string;
+  email: string;
 };
 
 export async function searchAdminCustomers(
@@ -22,7 +22,7 @@ export async function searchAdminCustomers(
   });
   const data = (await res.json().catch(() => ({}))) as { customers?: AdminCustomerSearchRow[]; error?: string };
   if (!res.ok) throw new Error(data.error || "Ошибка запроса");
-  return data.customers || [];
+  return (data.customers || []).map((row) => ({ ...row, email: row.email ?? "" }));
 }
 
 export type AdminCustomersCacheRefreshResult = {

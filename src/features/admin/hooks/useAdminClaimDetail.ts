@@ -221,7 +221,7 @@ export function useAdminClaimDetail({
         setAdminClaimDocError("");
         setAdminClaimDocDownloading("");
         if (claim?.id && String(claim?.status || "") === "new") {
-          setAdminClaimDetail((prev) => ({ ...prev, claim: { ...(prev?.claim as object), status: "in_progress" } }));
+          setAdminClaimDetail((prev) => prev ? ({ ...prev, claim: { ...prev.claim, status: "in_progress" } }) : prev);
           void updateAdminClaimStatus(
             Number(claim.id),
             "in_progress",

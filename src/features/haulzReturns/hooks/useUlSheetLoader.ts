@@ -85,7 +85,7 @@ export function useUlSheetLoader({
       if (!workbook || !jobId) return;
       void (async () => {
         const applyLoaded = await ensureUlSheetLoaded(tabId, workbook, jobId, storedFiles);
-        if (applyLoaded) setWorkbook(applyLoaded);
+        if (applyLoaded) setWorkbook((latest) => latest ? applyLoaded(latest) : latest);
       })();
     },
     [workbook, jobId, storedFiles, ensureUlSheetLoaded, setActiveTab, setWorkbook],

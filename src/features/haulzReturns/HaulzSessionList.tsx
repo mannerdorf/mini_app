@@ -1,3 +1,5 @@
+import React from "react";
+import { LoadError } from "../../components/shared/LoadError";
 import { FolderOpen, Pencil, Trash2 } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import type { HaulzReturnsJobSummary } from "../../api/client/haulzReturns";
@@ -6,6 +8,8 @@ import { formatJobDate, haulzJobDisplayTitle } from "./haulzReturnsPageUtils";
 type Props = {
   jobs: HaulzReturnsJobSummary[];
   loadingJobs: boolean;
+  jobsError?: string | null;
+  onRetry?: () => void;
   jobId: string | null;
   renamingJobId: string | null;
   renameDraft: string;
@@ -21,6 +25,8 @@ type Props = {
 export function HaulzSessionList({
   jobs,
   loadingJobs,
+  jobsError,
+  onRetry,
   jobId,
   renamingJobId,
   renameDraft,
@@ -38,9 +44,10 @@ export function HaulzSessionList({
         <FolderOpen className="w-4 h-4" style={{ display: "inline", verticalAlign: "middle", marginRight: "0.35rem" }} />
         Сохранённые сессии
       </Typography.Body>
+      {jobsError && <LoadError message="Не удалось загрузить сохранённые сессии." details={jobsError} onRetry={onRetry} stale={jobs.length > 0} />}
       {loadingJobs ? (
         <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Загрузка…</Typography.Body>
-      ) : jobs.length === 0 ? (
+      ) : jobsError && jobs.length === 0 ? null : jobs.length === 0 ? (
         <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Пока нет сохранённых обработок</Typography.Body>
       ) : (
         <ul className="hr-sessions-list">

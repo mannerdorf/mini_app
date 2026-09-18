@@ -95,9 +95,9 @@ export function CargoTransportTypeIcon({
     return <PlaneIcon className={iconClass} width={size} height={size} style={iconStyle} title="Авиа" />;
   }
   if (type === "ferry") {
-    return <Ship className={iconClass} width={size} height={size} style={iconStyle} title="Паром" />;
+    return <Ship className={iconClass} width={size} height={size} style={iconStyle} role="img" aria-label="Паром"><title>Паром</title></Ship>;
   }
-  return <Truck className={iconClass} width={size} height={size} style={iconStyle} title="Авто" />;
+  return <Truck className={iconClass} width={size} height={size} style={iconStyle} role="img" aria-label="Авто"><title>Авто</title></Truck>;
 }
 
 /** Заборная логистика (пикап / terminal-to). */

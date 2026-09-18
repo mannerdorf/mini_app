@@ -126,6 +126,8 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
     sendingsSortOrder,
     sendingsSummarySortColumn,
     sendingsSummarySortOrder,
+    setSendingsSummarySortColumn,
+    setSendingsSummarySortOrder,
     handleSendingsSort,
     handleSendingsSummarySort,
   } = useSendingsSortState();
@@ -582,6 +584,8 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
     setSendingsSummaryGroupBy,
     sendingsSummarySortColumn,
     sendingsSummarySortOrder,
+    setSendingsSummarySortColumn,
+    setSendingsSummarySortOrder,
     handleSendingsSummarySort,
     cargoStateByNumber,
     cargoPlanDateByNumber,

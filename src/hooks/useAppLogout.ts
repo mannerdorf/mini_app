@@ -1,3 +1,4 @@
+import { hasDocumentsOrderDrafts } from "../features/documents/orders/documentsOrderDraft";
 import { useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useAppShell } from "../contexts/AppShellContext";
@@ -8,6 +9,7 @@ export function useAppLogout(setSearchText: (value: string) => void) {
   const { setActiveTab } = useAppShell();
 
   return useCallback(async () => {
+    if (hasDocumentsOrderDrafts() && !window.confirm("Есть незавершённые заявки. Выйти и удалить их черновики и выбранные файлы?")) return;
     try {
       const cleared = await clearPickupForLogout(accounts.map(a=>a.login), () => window.confirm("На устройстве есть неотправленные отметки или черновики с фото. Нажмите «Отмена», чтобы остаться и отправить их. Продолжить выход и удалить эти данные?"));
       if (!cleared) return;

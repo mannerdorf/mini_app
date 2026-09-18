@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { plannedPlaces, type Job, type Route } from "../../../lib/pickup/model";
 import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
+import { PickupEditGuardProvider, usePickupEditGuard } from "./PickupEditGuard";
 import { PickupJobNumber } from "./PickupJobNumber";
 export function PickupDayRow({
   job,
@@ -17,13 +18,18 @@ export function PickupDayRow({
   onCheck: (value: boolean) => void;
   children: React.ReactNode;
 }) {
+  const { states, canClose, notice, confirmClose, cancelClose } = usePickupEditGuard();
+  const close = () => { if (canClose()) dialog.current?.close(); };
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (open) dialog.current?.showModal();
   }, [open]);
   useEffect(() => {
-    if (closeWhen) dialog.current?.close();
+    if (confirmClose) dialog.current?.querySelector<HTMLButtonElement>("[data-continue-edit]")?.focus();
+  }, [confirmClose]);
+  useEffect(() => {
+    if (closeWhen) close();
   }, [closeWhen]);
   return (
     <>
@@ -78,8 +84,9 @@ export function PickupDayRow({
           className="pk-day-drawer"
           aria-label={`Забор: ${job.data.senderName}`}
           onClose={() => setOpen(false)}
+          onCancel={event => { event.preventDefault(); close(); }}
           onClick={(e) => {
-            if (e.target === e.currentTarget) dialog.current?.close();
+            if (e.target === e.currentTarget) close();
           }}
         >
           <div className="pk-day-drawer-body">
@@ -91,12 +98,20 @@ export function PickupDayRow({
               <button
                 type="button"
                 autoFocus
-                onClick={() => dialog.current?.close()}
+                onClick={close}
               >
                 Закрыть
               </button>
             </header>
-            {children}
+            {confirmClose && <div className="pk-panel" role="alert">
+              <p>Номер заявки или расчёты изменены, но ещё не сохранены.</p>
+              <div className="pk-actions">
+                <button type="button" data-continue-edit onClick={cancelClose}>Продолжить редактирование</button>
+                <button type="button" onClick={() => { if (canClose(true)) dialog.current?.close(); }}>Закрыть без сохранения</button>
+              </div>
+            </div>}
+            {notice && <p role="status">{notice}</p>}
+            <PickupEditGuardProvider value={states}>{children}</PickupEditGuardProvider>
           </div>
         </dialog>
       )}

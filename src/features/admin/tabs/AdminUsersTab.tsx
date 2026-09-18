@@ -111,6 +111,7 @@ export function AdminUsersTab({
 
       <Panel className="cargo-card" style={{ padding: "var(--pad-card, 1rem)" }}>
         <AdminUsersToolbar
+          usersFilterCounts={usersState.usersFilterCounts}
           isSuperAdmin={isSuperAdmin}
           permissionPresets={permissionPresets}
           openAddUserForm={openAddUserForm}
@@ -131,7 +132,6 @@ export function AdminUsersTab({
           setUsersSortBy={usersState.setUsersSortBy}
           usersSortOrder={usersState.usersSortOrder}
           setUsersSortOrder={usersState.setUsersSortOrder}
-          usersFilterCounts={usersState.usersFilterCounts}
           matchesUserSearch={usersState.matchesUserSearch}
           userMatchesPreset={usersState.userMatchesPreset}
           now={usersState.now}
@@ -180,7 +180,6 @@ export function AdminUsersTab({
           customerDirectoryMap={usersState.customerDirectoryMap}
           matchesUserSearch={usersState.matchesUserSearch}
           userMatchesPreset={usersState.userMatchesPreset}
-          usersFilterCounts={usersState.usersFilterCounts}
           now={usersState.now}
           ms7d={usersState.ms7d}
           ms30d={usersState.ms30d}

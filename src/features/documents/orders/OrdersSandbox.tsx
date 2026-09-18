@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { AuthData } from '../../../types';
 import { apiFetchJson } from '../../../utils';
 import { PROXY_API_ORDERS_URL } from '../../../constants/config';
@@ -10,19 +10,28 @@ type Props = {auth:AuthData; inn?:string; customerName?:string; serviceMode:bool
 const stages:Record<string,string>={start:'Запуск cron',configuration:'Настройка cron',request_1c:'Ожидание GetZayavki',response_1c:'Чтение и проверка ответа 1С',write_database:'Запись в БД',database_saved:'БД обновлена',complete:'Загрузка завершена'};
 const time=(v:unknown)=>v?new Date(String(v)).toLocaleString('ru-RU'):'нет данных';
 export function OrdersSandbox(props:Props) {
+  const context = JSON.stringify([props.auth.login, props.auth.isRegisteredUser, props.inn, props.customerName, props.serviceMode, props.dateFrom, props.dateTo]);
+  return <OrdersSandboxSession key={context} {...props} />;
+}
+function OrdersSandboxSession(props:Props) {
+  const active = useRef(true);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  const [application,setApplication]=useState({received:0,visible:0,listError:null as string|null});
   const [report,setReport]=useState<Report|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[copy,setCopy]=useState('');
   async function check() {
     setBusy(true);setError('');setReport(null);setCopy('');
+    const snapshot={received:props.received,visible:props.visible,listError:props.listError};
     try {
       const result=await apiFetchJson<Report>(PROXY_API_ORDERS_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         login:props.auth.login,password:props.auth.password,isRegisteredUser:props.auth.isRegisteredUser,
         inn:props.inn,customerName:props.customerName,serviceMode:props.serviceMode,dateFrom:props.dateFrom,dateTo:props.dateTo,diagnostics:true,
       })});
+      if(!active.current) return;
       if(result?.version!=='orders-diagnostics-v1') throw new Error('Бэкенд ещё не поддерживает песочницу. Обновите API и перезапустите его.');
-      setReport(result);
+      setApplication(snapshot);setReport(result);
       await props.refresh();
-    } catch(e) {setError(e instanceof Error?e.message:'Проверка недоступна');}
-    finally {setBusy(false);}
+    } catch(e) {if(active.current) setError(e instanceof Error?e.message:'Проверка недоступна');}
+    finally {if(active.current) setBusy(false);}
   }
   const cron=report?.cron;
   const stalled=cron?.status==='running' && Date.now()-new Date(String(cron.updatedAt)).getTime()>120000;
@@ -48,13 +57,13 @@ export function OrdersSandbox(props:Props) {
           {report.counts.authorized>report.counts.afterName && <p>Часть заявок исключена по названию компании. Проверьте соответствие названию в 1С.</p>}
           {report.counts.afterName>report.counts.afterDates && <p>Часть заявок находится за пределами выбранного периода.</p>}
         </>:'Не проверены: нет доступного снимка БД.'}</li>
-        <li><strong>Приложение.</strong> Получено журналом: {props.received}; после поиска, отправителя, получателя и маршрута: {props.visible}.
-          {props.listError && <p role="alert">{props.listError}</p>}
-          <p>Количество в приложении может включать локальные заявки, ожидающие обновления из 1С.</p>
+        <li><strong>Приложение.</strong> Получено журналом: {application.received}; после поиска, отправителя, получателя и маршрута: {application.visible}.
+          {application.listError && <p role="alert">{application.listError}</p>}
+          <p>Снимок журнала на момент запуска проверки. Количество может включать локальные заявки, ожидающие обновления из 1С.</p>
         </li>
       </ol>
       <p>Проверено: {time(report.checkedAt)} · ID API: {report.requestId} · ID cron: {cron?.requestId || 'нет'}</p>
-      <button type="button" onClick={async()=>{try {await navigator.clipboard.writeText(JSON.stringify({...report,application:{received:props.received,visible:props.visible}},null,2));setCopy('Диагностика скопирована');}catch{setCopy('Не удалось скопировать. Можно прислать скриншот панели.');}}}>Скопировать диагностику</button>
+      <button type="button" onClick={async()=>{try {await navigator.clipboard.writeText(JSON.stringify({...report,application,context:{customerName:props.customerName,inn:props.inn,serviceMode:props.serviceMode,dateFrom:props.dateFrom,dateTo:props.dateTo}},null,2));setCopy('Диагностика скопирована');}catch{setCopy('Не удалось скопировать. Можно прислать скриншот панели.');}}}>Скопировать диагностику</button>
       {copy && <p role="status">{copy}</p>}
     </div>}
   </details>;

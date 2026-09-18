@@ -75,6 +75,7 @@ export function useHaulzSession({
   const [storedFiles, setStoredFiles] = useState<HaulzReturnsFileMeta[]>([]);
   const [jobs, setJobs] = useState<HaulzReturnsJobSummary[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
+  const [jobsError, setJobsError] = useState<string | null>(null);
   const [renamingJobId, setRenamingJobId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -84,19 +85,19 @@ export function useHaulzSession({
     autoLoadedSessionRef.current = false;
     setJobIdState(null); setStoredFiles([]); setJobs([]); setWorkbook(null);
     setOtpravkaFile(null); setUlPrio1([]); setUlPrio2([]); setProcessing(false);
-    setRenamingJobId(null); setRenameDraft(""); setRenaming(false); setError(null);
+    setJobsError(null); setRenamingJobId(null); setRenameDraft(""); setRenaming(false); setError(null);
     return () => { ++loadSequence.current; ++listSequence.current; };
   }, [auth?.login, auth?.password]);
 
   const refreshJobs = useCallback(async () => {
     if (!auth) return;
     const seq = ++listSequence.current;
-    setLoadingJobs(true);
+    setLoadingJobs(true);setJobsError(null);
     try {
       const result = await listHaulzReturnsJobs(auth);
       if (seq === listSequence.current) { loadedFor.current = authRef.current; setJobs(result); }
     } catch (e: unknown) {
-      if (seq === listSequence.current) setError((e as Error)?.message || "Не удалось загрузить список сессий");
+      if (seq === listSequence.current) setJobsError((e as Error)?.message || "Не удалось загрузить список сессий");
     } finally {
       if (seq === listSequence.current) setLoadingJobs(false);
     }
@@ -253,6 +254,7 @@ export function useHaulzSession({
     setStoredFiles,
     jobs,
     loadingJobs,
+    jobsError,
     renamingJobId,
     renameDraft,
     setRenameDraft,

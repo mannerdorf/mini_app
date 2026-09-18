@@ -264,6 +264,9 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
   const jobs: Job[] = (
     await db.query(
       `SELECT j.*,to_char(j.date,'YYYY-MM-DD') AS date,
+    (SELECT b.status FROM pickup_billing b WHERE b.job_id=j.id) AS billing_status,
+    (SELECT jsonb_build_object('transportNumber',b.transport_number,'amount',b.amount,'error',b.last_error,'updatedAt',b.updated_at) FROM pickup_billing b WHERE b.job_id=j.id) AS billing_info,
+    (SELECT jsonb_build_object('state',s.state,'error',s.last_error,'updatedAt',s.updated_at) FROM pickup_number_sync s WHERE s.job_id=j.id) AS number_sync_info,
     (SELECT count(*)::int FROM pickup_photos p WHERE p.job_id=j.id) AS photo_count FROM pickup_jobs j WHERE j.city=$1 AND j.date=$2
     AND ($3::boolean OR j.route_id=ANY($4::uuid[])) ORDER BY j.position,j.created_at`,
       [body.city, body.date, seeAllRoutes, routeIds],

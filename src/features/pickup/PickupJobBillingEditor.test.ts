@@ -14,3 +14,9 @@ it('saves billing settings of deposited cargo without changing status or sending
     expect(call).not.toHaveBeenCalled();
   } finally {await act(async()=>root!.unmount());}
 });
+it('shows why editing transmitted billing is disabled',async()=>{
+  let root:ReturnType<typeof create>;
+  await act(async()=>{root=create(React.createElement(PickupJobBillingEditor,{job:{id:'j1',version:2,city:'moscow',billing_status:'transmitted',data:{issueCustomerBill:true}} as any,busy:false,call:vi.fn(),act:vi.fn()}));});
+  try { expect(root!.root.findByType('fieldset').props.disabled).toBe(true);expect(JSON.stringify(root!.toJSON())).toContain('требует сверки'); }
+  finally {await act(async()=>root!.unmount());}
+});

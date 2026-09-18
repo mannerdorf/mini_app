@@ -1,3 +1,4 @@
+import type { MotionProps as SharedMotionProps } from "motion/react";
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
@@ -14,12 +15,7 @@ import {
 import { shareDocumentLines } from "./useDocFavorites";
 import type { TariffsSortColumn } from "./useDocumentsTariffs";
 
-type MotionProps = {
-  initial?: false | object;
-  animate?: object;
-  exit?: object;
-  transition?: object;
-};
+type MotionProps = Pick<SharedMotionProps, "initial" | "animate" | "exit" | "transition">;
 
 type Props = {
   active: boolean;
@@ -194,7 +190,7 @@ export function DocumentsTariffsSection({
                   ].filter(Boolean);
                   return (
                     <Panel key={t.id} className="cargo-card" style={{ marginBottom: "0.75rem" }}>
-                      <Flex justify="space-between" align="start" style={{ marginBottom: "0.45rem" }}>
+                      <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.45rem" }}>
                         <Typography.Body style={{ fontWeight: 600, fontSize: "1rem" }}>{t.docNumber || "—"}</Typography.Body>
                         <Flex align="center" gap="0.5rem" style={{ flexShrink: 0 }}>
                           <Button

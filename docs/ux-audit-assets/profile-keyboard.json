@@ -1,0 +1,29 @@
+{
+  "cards": [
+    {
+      "role": null,
+      "tabIndex": -1,
+      "tag": "DIV",
+      "text": "Мои компании"
+    },
+    {
+      "role": null,
+      "tabIndex": -1,
+      "tag": "DIV",
+      "text": "Роли"
+    },
+    {
+      "role": null,
+      "tabIndex": -1,
+      "tag": "DIV",
+      "text": "Сканер посылки"
+    },
+    {
+      "role": null,
+      "tabIndex": -1,
+      "tag": "DIV",
+      "text": "HAULZ"
+    }
+  ],
+  "focusable": []
+}

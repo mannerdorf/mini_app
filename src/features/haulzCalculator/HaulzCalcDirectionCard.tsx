@@ -4,7 +4,7 @@ import type { Direction } from "../../../lib/haulzCalculator/types";
 type Props = {
   direction: Direction;
   onDirectionChange: (direction: Direction) => void;
-  cardRef?: Ref<HTMLDivElement | null>;
+  cardRef?: Ref<HTMLDivElement>;
 };
 
 export function HaulzCalcDirectionCard({ direction, onDirectionChange, cardRef }: Props) {

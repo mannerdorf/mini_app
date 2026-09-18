@@ -1,0 +1,58 @@
+@import "./shared/uxTokens.css";
+
+button.tap-switch[role="switch"] {
+  --switch-width: 44px;
+  --switch-track: 24px;
+  --switch-thumb: 20px;
+  position: relative;
+  display: inline-block;
+  width: var(--switch-width);
+  height: var(--ux-touch-height);
+  min-height: var(--ux-touch-height);
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ux-radius-control);
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  vertical-align: middle;
+}
+button.tap-switch--comfortable[role="switch"] {
+  --switch-width: 52px;
+  --switch-track: 30px;
+  --switch-thumb: 24px;
+}
+button.tap-switch[role="switch"]::before {
+  content: "";
+  position: absolute;
+  inset: 50% 0 auto;
+  height: var(--switch-track);
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: var(--ux-switch-off);
+  transition: background-color .2s;
+}
+button.tap-switch[aria-checked="true"]::before { background: var(--ux-switch-on); }
+button.tap-switch .tap-switch__thumb {
+  position: absolute;
+  top: 50%;
+  left: calc((var(--switch-track) - var(--switch-thumb)) / 2);
+  width: var(--switch-thumb);
+  height: var(--switch-thumb);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px #0003;
+  transform: translateY(-50%);
+  transition: left .2s;
+  pointer-events: none;
+}
+button.tap-switch[aria-checked="true"] .tap-switch__thumb {
+  left: calc(100% - (var(--switch-track) + var(--switch-thumb)) / 2);
+}
+button.tap-switch[role="switch"]:focus-visible { outline: 3px solid var(--ux-focus); outline-offset: 2px; }
+button.tap-switch[role="switch"]:disabled { cursor: not-allowed; opacity: .6; }
+@media (prefers-reduced-motion: reduce) {
+  button.tap-switch::before, button.tap-switch .tap-switch__thumb { transition: none; }
+}

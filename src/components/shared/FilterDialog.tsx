@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useId } from "react";
 import { Button, Flex, Input, Typography } from "@maxhub/max-ui";
+import { GuardedDialog } from "../GuardedDialog";
 import { X } from "lucide-react";
 import { getTodayDate } from "../../lib/dateUtils";
 
@@ -15,20 +16,21 @@ type FilterDialogProps = {
 };
 
 export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply, title = "Произвольный диапазон", onReset, resetLabel = "По умолчанию" }: FilterDialogProps) {
+    const fieldId = useId();
     const [tempFrom, setTempFrom] = useState(dateFrom);
     const [tempTo, setTempTo] = useState(dateTo);
     useEffect(() => { if (isOpen) { setTempFrom(dateFrom); setTempTo(dateTo); } }, [isOpen, dateFrom, dateTo]);
     if (!isOpen) return null;
     return (
-        <div className="modal-overlay" onClick={onClose}>
+        <GuardedDialog className="modal-overlay" title={title} onClose={onClose}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                     <Typography.Headline>{title}</Typography.Headline>
                     <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
                 </div>
-                <form onSubmit={e => { e.preventDefault(); onApply(tempFrom, tempTo); onClose(); }}>
-                    <div style={{ marginBottom: '1rem' }}><Typography.Label className="detail-item-label">Дата начала:</Typography.Label><Input type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
-                    <div style={{ marginBottom: '1rem' }}><Typography.Label className="detail-item-label">Дата окончания:</Typography.Label><Input type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
+                <form onSubmit={e => { e.preventDefault(); if (!tempFrom || !tempTo || tempFrom > tempTo) return; onApply(tempFrom, tempTo); onClose(); }}>
+                    <div style={{ marginBottom: '1rem' }}><label className="detail-item-label" htmlFor={`${fieldId}-from`}>Дата начала:</label><Input id={`${fieldId}-from`} aria-label="Дата начала" max={tempTo || undefined} type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
+                    <div style={{ marginBottom: '1rem' }}><label className="detail-item-label" htmlFor={`${fieldId}-to`}>Дата окончания:</label><Input id={`${fieldId}-to`} aria-label="Дата окончания" min={tempFrom || undefined} type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
                     <div className="calendar-quick-today-mobile-only" style={{ marginBottom: '1rem' }}>
                         <Button
                             type="button"
@@ -53,6 +55,6 @@ export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply, title
                     </Flex>
                 </form>
             </div>
-        </div>
+        </GuardedDialog>
     );
 }

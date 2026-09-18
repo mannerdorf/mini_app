@@ -26,7 +26,7 @@ export function SendingsSection(props: SendingsSectionProps) {
       const key = normCargoKey(cargoNumber);
       const fromList = key ? cargoByNormKey.get(key) : undefined;
       if (fromList) {
-        onOpenCargo(cargoNumber, fromList);
+        onOpenCargo?.(cargoNumber, fromList);
         return;
       }
       const stub = {
@@ -35,10 +35,10 @@ export function SendingsSection(props: SendingsSectionProps) {
         ...partial,
       } as CargoItem;
       if (hasPerevozkaCargoFields(stub as Record<string, unknown>)) {
-        onOpenCargo(cargoNumber, stub);
+        onOpenCargo?.(cargoNumber, stub);
         return;
       }
-      onOpenCargo(cargoNumber);
+      onOpenCargo?.(cargoNumber);
     },
     [cargoByNormKey, onOpenCargo],
   );

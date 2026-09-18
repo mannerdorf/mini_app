@@ -437,7 +437,7 @@ export function DashboardOperationsEarlySection({ page }: Props) {
                                                                             {sortedItems.map((item, itemIndex) => {
                                                                                 const cargoNum = item.Number ? String(item.Number) : '';
                                                                                 const leafOpen = cargoNum && page.onOpenCargo
-                                                                                    ? leafRowClickProps(() => page.onOpenCargo(cargoNum, item), 'Открыть карточку перевозки')
+                                                                                    ? leafRowClickProps(() => page.onOpenCargo?.(cargoNum, item), 'Открыть карточку перевозки')
                                                                                     : null;
                                                                                 return (
                                                                                 <tr key={`${item.Number ?? itemIndex}-${itemIndex}`} className="dashboard-scroll-table__data-row" style={{ borderBottom: '1px solid var(--color-border)', ...(leafOpen?.style ?? {}) }} onClick={leafOpen?.onClick} title={leafOpen?.title}>

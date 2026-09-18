@@ -1,0 +1,19 @@
+@import "./uxTokens.css";
+/* Scope the palette to shared components; unrelated legacy badges keep their styles. */
+.max-badge.ux-status {
+  background: var(--status-bg, var(--ux-status-neutral-bg));
+  color: var(--status-text, var(--ux-status-neutral-text));
+  border: 1px solid currentColor;
+}
+.ux-status.max-badge-success, .ux-status.max-badge-ready {
+  --status-bg: var(--ux-status-success-bg); --status-text: var(--ux-status-success-text);
+}
+.ux-status.max-badge-warning {
+  --status-bg: var(--ux-status-warning-bg); --status-text: var(--ux-status-warning-text);
+}
+.ux-status.max-badge-danger {
+  --status-bg: var(--ux-status-danger-bg); --status-text: var(--ux-status-danger-text);
+}
+.ux-status.max-badge-purple {
+  --status-bg: var(--ux-status-purple-bg); --status-text: var(--ux-status-purple-text);
+}

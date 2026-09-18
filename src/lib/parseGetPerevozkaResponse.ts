@@ -15,6 +15,9 @@ function pickCargoRecord(data: unknown): Record<string, unknown> | null {
   return null;
 }
 
+const metric = (value: unknown): string | number | undefined => typeof value === "string" || typeof value === "number" ? value : undefined;
+const label = (value: unknown): string | undefined => typeof value === "string" ? value : undefined;
+
 export function buildCargoItemFromGetPerevozkaResponse(data: unknown, displayNumber: string): CargoItem | null {
   const raw = pickCargoRecord(data);
   if (!raw) return null;
@@ -29,14 +32,14 @@ export function buildCargoItemFromGetPerevozkaResponse(data: unknown, displayNum
     DatePrih: (raw.DatePrih ?? raw.datePrih) as CargoItem["DatePrih"],
     DateVr: (raw.DateVr ?? raw.dateVr) as CargoItem["DateVr"],
     State: String(raw.State ?? raw.state ?? stateFromStatuses ?? ""),
-    Mest: raw.Mest ?? raw.mest,
-    PW: raw.PW ?? raw.pw,
-    W: raw.W ?? raw.w,
-    Value: raw.Value ?? raw.value,
-    Sum: raw.Sum ?? raw.sum,
-    StateBill: raw.StateBill ?? raw.stateBill,
-    Sender: raw.Sender ?? raw.sender,
-    Customer: raw.Customer ?? raw.customer,
+    Mest: metric(raw.Mest ?? raw.mest),
+    PW: metric(raw.PW ?? raw.pw),
+    W: metric(raw.W ?? raw.w),
+    Value: metric(raw.Value ?? raw.value),
+    Sum: metric(raw.Sum ?? raw.sum),
+    StateBill: label(raw.StateBill ?? raw.stateBill),
+    Sender: label(raw.Sender ?? raw.sender),
+    Customer: label(raw.Customer ?? raw.customer),
     Receiver: raw.Receiver ?? raw.receiver,
     _role: ((raw._role as PerevozkiRole | undefined) ?? "Customer") as PerevozkiRole,
   };

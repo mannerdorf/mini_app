@@ -86,6 +86,7 @@ export function AdminUsersListPanel(props: AdminUsersListPanelProps) {
     ...rest,
     users,
     permissionPresets,
+    usersVisibleCount,
     sorted: listData.sorted,
     visibleSorted: listData.visibleSorted,
     hasMore: listData.hasMore,

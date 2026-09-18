@@ -134,6 +134,9 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     const [syncError, setSyncError] = useState("");
     const [list, setList] = useState<ExpenseRequestItem[]>([]);
     const [listLoading, setListLoading] = useState(false);
+    const [listError, setListError] = useState<string | null>(null);
+    const listGeneration = useRef(0);
+    const listOwner = useRef("");
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -172,9 +175,13 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
     // --- Загрузка заявок из БД (единственный источник данных) ---
     const fetchExpenseRequests = useCallback(async () => {
         if (!auth?.login || !auth?.password) return;
+        const ticket = ++listGeneration.current;
+        if (listOwner.current !== auth.login) { setList([]); listOwner.current = auth.login; }
+        setListError(null);
         setListLoading(true);
         try {
             const data = await fetchMyExpenseRequests({ login: auth.login, password: auth.password });
+            if (ticket !== listGeneration.current) return;
             const apiItems = Array.isArray(data?.items) ? data.items : [];
             const mapped: ExpenseRequestItem[] = apiItems.map((api) => ({
                 id: api.id,
@@ -198,13 +205,16 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 rejectionReason: api.rejectionReason,
             }));
             setList(mapped.sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || "")));
-        } catch { /* ignore */ } finally {
-            setListLoading(false);
+        } catch {
+            if (ticket === listGeneration.current) setListError("Не удалось загрузить заявки на расходы. Повторите загрузку.");
+        } finally {
+            if (ticket === listGeneration.current) setListLoading(false);
         }
     }, [auth?.login, auth?.password]);
 
     useEffect(() => {
         fetchExpenseRequests();
+        return () => { listGeneration.current++; };
     }, [fetchExpenseRequests]);
 
     usePullRefreshListener(fetchExpenseRequests);
@@ -218,8 +228,8 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
         postMyDepartmentTimesheetForExpense({ login: auth.login, password: auth.password }, month)
             .then((data: any) => {
                 const departmentsFromProfile = parseDepartmentList(data?.department);
-                const departmentsFromEmployees = Array.isArray(data?.employees)
-                    ? [...new Set(
+                const departmentsFromEmployees: string[] = Array.isArray(data?.employees)
+                    ? [...new Set<string>(
                         data.employees
                             .flatMap((e: any) => parseDepartmentList(e?.department))
                             .filter(Boolean)
@@ -1227,14 +1237,15 @@ export function ExpenseRequestsPage({ auth, departmentName: fallbackDepartment =
                 </div>
             </Flex>
             <div style={{ marginBottom: "0.75rem", padding: "0.45rem 0.65rem", background: "var(--color-bg-hover)", borderRadius: 8, fontSize: "0.84rem", fontWeight: 600 }}>
-                Итого по фильтрам: {filteredTotalAmount.toLocaleString("ru-RU")} ₽
+                {listError ? "Итог недоступен: данные не обновлены" : listLoading ? "Проверяем итог…" : `Итого по фильтрам: ${filteredTotalAmount.toLocaleString("ru-RU")} ₽`}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                {listError && <div role="alert"><p>{listError}</p><Button onClick={() => void fetchExpenseRequests()} disabled={listLoading}>Повторить</Button>{list.length > 0 && <p>Ниже показаны ранее загруженные данные.</p>}</div>}
                 {listLoading ? (
                     <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--color-text-secondary)", fontSize: "0.8rem" }}>
                         <Loader2 className="w-4 h-4 animate-spin" /> Загрузка…
                     </div>
-                ) : filteredRequests.length === 0 ? (
+                ) : filteredRequests.length === 0 && listError ? null : filteredRequests.length === 0 ? (
                     <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>Пока нет заявок</Typography.Body>
                 ) : (
                     filteredRequests.map((r) => (

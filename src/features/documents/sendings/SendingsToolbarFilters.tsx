@@ -18,8 +18,8 @@ type Props = {
   setTypeFilterSet: React.Dispatch<React.SetStateAction<Set<TypeFilterKey>>>;
   routeFilterSet: Set<RouteFilterKey>;
   setRouteFilterSet: React.Dispatch<React.SetStateAction<Set<RouteFilterKey>>>;
-  deliveryStatusFilterSet: Set<StatusFilter>;
-  setDeliveryStatusFilterSet: React.Dispatch<React.SetStateAction<Set<StatusFilter>>>;
+  deliveryStatusFilterSet: Set<Exclude<StatusFilter, "all" | "favorites">>;
+  setDeliveryStatusFilterSet: React.Dispatch<React.SetStateAction<Set<Exclude<StatusFilter, "all" | "favorites">>>>;
   isTypeDropdownOpen: boolean;
   setIsTypeDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
   isRouteCargoDropdownOpen: boolean;

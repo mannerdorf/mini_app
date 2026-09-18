@@ -37,7 +37,7 @@ export function useDashboardStripMetrics({
     }: UseDashboardStripMetricsParams) {
     // Подготовка данных для графиков (группировка по датам)
     const chartData = useMemo(() => {
-    const dataMap = new Map<string, { date: string; sum: number; pw: number; w: number; mest: number; vol: number }>();
+    const dataMap = new Map<string, { date: string; dateKey: string; sum: number; pw: number; w: number; mest: number; vol: number }>();
     
     dashboardTotalItems.forEach(item => {
         if (!item.DatePrih) return;
@@ -369,7 +369,7 @@ const periodToPeriodTrend = useMemo(() => {
 }, [useServiceRequest, dashboardTotalItems, dashboardTotalPrevPeriodItems, chartType]);
 
 /** Тренд по выбранной метрике: первая половина периода vs вторая половина */
-const stripTrend = useMemo(() => {
+const stripTrend = useMemo<"up" | "down" | null>(() => {
     if (chartData.length < 4) return null;
     const mid = Math.floor(chartData.length / 2);
     const firstHalf = chartData.slice(0, mid);

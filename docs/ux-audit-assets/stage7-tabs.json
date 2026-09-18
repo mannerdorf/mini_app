@@ -1,0 +1,7 @@
+{
+  "checks": [
+    "End focuses Тарифы without selection",
+    "Home focuses ЭДО"
+  ],
+  "snapshot": "ЭДО\nСчета\nУПД\nЗаявки\nПретензии\nДоговоры\nАкты сверок\nТарифы"
+}

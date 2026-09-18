@@ -20,6 +20,7 @@ export type AppTheme = "light" | "dark";
 
 export type AppShellContextValue = {
   theme: AppTheme;
+  setThemeOverride: React.Dispatch<React.SetStateAction<AppTheme | null>>;
   setTheme: React.Dispatch<React.SetStateAction<AppTheme>>;
   desktopExpanded: boolean;
   setDesktopExpanded: React.Dispatch<React.SetStateAction<boolean>>;
@@ -59,7 +60,7 @@ function initialActiveTab(): Tab {
 }
 
 export function AppShellProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setTheme] = useState<AppTheme>(() => {
+  const [preferredTheme, setTheme] = useState<AppTheme>(() => {
     if (typeof window === "undefined") return "light";
     try {
       return window.localStorage.getItem("haulz.theme") === "dark" ? "dark" : "light";
@@ -67,6 +68,8 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
       return "light";
     }
   });
+  const [themeOverride, setThemeOverride] = useState<AppTheme | null>(null);
+  const theme = themeOverride ?? preferredTheme;
   const [desktopExpanded, setDesktopExpanded] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem("haulz.desktop.expanded") === "true";
@@ -88,17 +91,17 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    try { window.localStorage.setItem("haulz.theme", preferredTheme); } catch { /* Storage unavailable. */ }
+  }, [preferredTheme]);
+
+  useEffect(() => {
     if (typeof document === "undefined") return;
     const cls = `${theme}-mode`;
     document.documentElement.classList.remove("light-mode", "dark-mode");
     document.documentElement.classList.add(cls);
     document.body.classList.remove("light-mode", "dark-mode");
     document.body.classList.add(cls);
-    try {
-      window.localStorage.setItem("haulz.theme", theme);
-    } catch {
-      // ignore
-    }
+
     const metaTheme = document.querySelector('meta[name="theme-color"]');
     if (metaTheme) {
       metaTheme.setAttribute("content", HAULZ_SPLASH_BACKGROUND);
@@ -156,6 +159,7 @@ export function AppShellProvider({ children }: { children: React.ReactNode }) {
     () => ({
       theme,
       setTheme,
+      setThemeOverride,
       desktopExpanded,
       setDesktopExpanded,
       activeTab,

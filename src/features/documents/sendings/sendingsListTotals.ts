@@ -11,7 +11,7 @@ export function buildSendingsTableTotals(
   sendingRowsSorted: unknown[],
   cargoSumByNumber: Map<string, number>,
 ): SendingsTableTotals {
-  return sendingRowsSorted.reduce(
+  return sendingRowsSorted.reduce<SendingsTableTotals>(
     (acc, row) => {
       const metrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
       acc.sendingsCount += 1;

@@ -14,7 +14,7 @@ type UseDocumentsOrdersInput = {
   effectiveServiceMode: boolean;
   customerFilter: string;
   effectiveSearchText: string;
-  sortBy: string;
+  sortBy: "date" | null;
   sortOrder: "asc" | "desc";
   onOrdersMutate?: () => void;
 };

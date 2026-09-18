@@ -56,7 +56,7 @@ type Props = {
   openMapOnMount?: boolean;
   /** ИНН и наименование — в блоке «Заказчик» */
   showIdentityFields?: boolean;
-  cardRef?: Ref<HTMLDivElement | null>;
+  cardRef?: Ref<HTMLDivElement>;
 };
 
 export function HaulzCalcAddressField({

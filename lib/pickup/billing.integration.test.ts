@@ -27,6 +27,34 @@ beforeAll(async()=>{
 afterAll(()=>db.close());
 beforeEach(async()=>{await db.exec('TRUNCATE pickup_jobs,cache_perevozki,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
 describe('pickup billing and durable outbox',()=>{
+  it('restores a ten-row batch after database restart without retrying transmitted or uncertain writes', async()=>{
+    const transports=[];
+    for(let n=1;n<=10;n++) {
+      const pickup=`ZB-BATCH-${n}`, number=String(n).padStart(6,'0');
+      await db.query("INSERT INTO pickup_jobs(id,job_number,city,date,status,data) VALUES($1,$2,'moscow','2026-09-17','deposited',$3)",[
+        randomUUID(),pickup,JSON.stringify({customerInn:'7701234567',customerName:'Заказчик',issueCustomerBill:true,customerBillMode:'auto',zayavkaNumber:number,mkadKm:0,cargoNumber:''})]);
+      transports.push({...cargo(),Number:number,НомерПикапа:pickup});
+    }
+    await db.query('INSERT INTO cache_perevozki VALUES(1,$1)',[JSON.stringify(transports)]);
+    vi.mocked(deliverySetter).mockImplementation(async(_method,payload:any)=>payload.Номер==='000010'
+      ? {ok:false,uncertain:true,error:'Response lost'}
+      : payload.Номер==='000009' ? {ok:false,error:'Rejected'} : {ok:true});
+    const rows=(await journal()).rows;
+    expect(rows).toHaveLength(10);
+    for(const row of rows) await billingSend(pool,'dispatcher',{confirmed:true,id:row.jobId,version:row.version});
+    expect(deliverySetter).toHaveBeenCalledTimes(10);
+    const dump=await db.dumpDataDir();
+    await db.close();
+    db=new PGlite({loadDataDir:dump});
+    const restored=(await journal()).rows;
+    expect(restored.filter(r=>r.status==='transmitted')).toHaveLength(8);
+    expect(restored.filter(r=>r.status==='manual')).toHaveLength(1);
+    expect(restored.filter(r=>r.status==='uncertain')).toHaveLength(1);
+    for(const row of restored.filter(r=>r.status!=='manual')) {
+      await expect(billingSend(pool,'dispatcher',{confirmed:true,id:row.jobId,version:row.version})).rejects.toThrow();
+    }
+    expect(deliverySetter).toHaveBeenCalledTimes(10);
+  },30000);
   it('uses transportation PW and metrics, manual rows start empty',async()=>{
     await seed();const row=(await journal()).rows[0];
     expect(row.amount).toBe(540);expect(row.source).toMatchObject({places:2,weight:37,chargeableWeight:54});

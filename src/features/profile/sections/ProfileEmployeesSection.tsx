@@ -123,7 +123,7 @@ function EmployeeDirectoryList({ activeAccount, employees }: Props) {
                                 ))}
                             </select>
                             <Typography.Body style={{ fontSize: "0.85rem" }}>{emp.active ? "Вкл" : "Выкл"}</Typography.Body>
-                            <TapSwitch checked={emp.active} onToggle={() => void toggleEmployeeActive(emp.id, emp.active)} />
+                            <TapSwitch aria-label="Активность сотрудника" checked={emp.active} onToggle={() => void toggleEmployeeActive(emp.id, emp.active)} />
                             <Button
                                 type="button"
                                 className="filter-button"

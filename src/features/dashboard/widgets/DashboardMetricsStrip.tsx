@@ -114,7 +114,6 @@ function StripDiagramRows({
                         <StripDynamicsBadge dynamics={row.dynamics} formatDelta={formatStripDelta} />
                     )}
                     <Typography.Body
-                        component="span"
                         style={{ flexShrink: 0, fontWeight: 600, minWidth: nameMaxWidth != null ? 36 : undefined, cursor: showSums ? 'pointer' : 'default', userSelect: 'none' }}
                         onClick={(e) => { e.stopPropagation(); if (!showSums) return; setStripShowAsPercent(p => !p); }}
                         title={showSums ? (stripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах') : 'Финансовые значения скрыты'}
@@ -247,7 +246,7 @@ export function DashboardMetricsStrip({
     stripLineChartData,
     chartBarFillEnabled,
 }: DashboardMetricsStripProps) {
-    const stripTabs = (useServiceRequest ? ['type', 'sender', 'receiver', 'customer'] : ['type', 'sender', 'receiver']) as const;
+    const stripTabs: ('type' | 'sender' | 'receiver' | 'customer')[] = useServiceRequest ? ['type', 'sender', 'receiver', 'customer'] : ['type', 'sender', 'receiver'];
 
     return (
         <div
@@ -371,9 +370,9 @@ export function DashboardMetricsStrip({
                     )}
                     {!useServiceRequest && (
                         <>
-                            {stripTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)', flexShrink: 0 }} title="Тренд вверх (вторая половина периода больше первой)" />}
-                            {stripTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444', flexShrink: 0 }} title="Тренд вниз (вторая половина периода меньше первой)" />}
-                            {stripTrend === null && chartDataLength >= 2 && <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} title="Без выраженного тренда" />}
+                            {stripTrend === 'up' && <TrendingUp className="w-5 h-5" style={{ color: 'var(--color-success-status)', flexShrink: 0 }} role="img" aria-label="Тренд вверх (вторая половина периода больше первой)"><title>Тренд вверх (вторая половина периода больше первой)</title></TrendingUp>}
+                            {stripTrend === 'down' && <TrendingDown className="w-5 h-5" style={{ color: '#ef4444', flexShrink: 0 }} role="img" aria-label="Тренд вниз (вторая половина периода меньше первой)"><title>Тренд вниз (вторая половина периода меньше первой)</title></TrendingDown>}
+                            {stripTrend === null && chartDataLength >= 2 && <Minus className="w-5 h-5" style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} role="img" aria-label="Без выраженного тренда"><title>Без выраженного тренда</title></Minus>}
                         </>
                     )}
                 </Flex>

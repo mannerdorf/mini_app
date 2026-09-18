@@ -1,3 +1,4 @@
+import { clearDocumentsOrderDraft, documentsOrderDraftKey, readDocumentsOrderDraft, saveDocumentsOrderDraft } from "./documentsOrderDraft";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import type { AuthData } from "../../../types";
@@ -145,7 +146,13 @@ function defaultPvzState(city: CityCode): PvzSelectionState {
   };
 }
 
-export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack, onSuccess }: Props) {
+export function DocumentsOrderForm(props: Props) {
+  const key = documentsOrderDraftKey(props.auth.login, props.activeInn || props.auth.inn, props.activeCustomerName);
+  return <DocumentsOrderFormContent key={key} {...props} />;
+}
+function DocumentsOrderFormContent({ auth, activeInn, activeCustomerName, onBack, onSuccess }: Props) {
+  const draftKey = documentsOrderDraftKey(auth.login, activeInn || auth.inn, activeCustomerName);
+  const [restored] = useState(() => readDocumentsOrderDraft(draftKey));
   const authScope: DocumentsAuthScope = useMemo(
     () => ({
       login: auth.login,
@@ -163,29 +170,40 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
 
   const { pvzList, pvzLoading, pvzError } = useDocumentsOrderPvzList(authScope, true);
 
-  const [direction, setDirection] = useState<Direction>("mow_kgd");
-  const [fromState, setFromState] = useState<PvzSelectionState>(() => defaultPvzState("moscow"));
-  const [toState, setToState] = useState<PvzSelectionState>(() => defaultPvzState("kaliningrad"));
-  const [cargo, setCargo] = useState<DocumentsOrderCargoState>(createDefaultCargoState);
-  const [mainlineMode, setMainlineMode] = useState<MainlineMode>("ferry");
-  const [extraCodes, setExtraCodes] = useState<string[]>([]);
+  const [direction, setDirection] = useState<Direction>(restored?.direction ?? "mow_kgd");
+  const [fromState, setFromState] = useState<PvzSelectionState>(() => restored?.fromState ?? defaultPvzState("moscow"));
+  const [toState, setToState] = useState<PvzSelectionState>(() => restored?.toState ?? defaultPvzState("kaliningrad"));
+  const [cargo, setCargo] = useState<DocumentsOrderCargoState>(() => restored?.cargo ?? createDefaultCargoState());
+  const [mainlineMode, setMainlineMode] = useState<MainlineMode>(restored?.mainlineMode ?? "ferry");
+  const [extraCodes, setExtraCodes] = useState<string[]>(restored?.extraCodes ?? []);
   const [options, setOptions] = useState<CalculatorOptions | null>(null);
   const [quote, setQuote] = useState<QuoteResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [orderLoading, setOrderLoading] = useState(false);
   const [submittedNomerZayavki, setSubmittedNomerZayavki] = useState<string | null>(null);
-  const [nomerZayavki, setNomerZayavki] = useState("");
+  const [nomerZayavki, setNomerZayavki] = useState(restored?.nomerZayavki ?? "");
   const [dataZabora, setDataZabora] = useState(() => {
+    if (restored) return restored.dataZabora;
     const d = new Date();
     d.setDate(d.getDate() + 1);
     return d.toISOString().slice(0, 10);
   });
 
-  const [sender, setSender] = useState<DocumentsOrderSenderState>(() => ({
+  const [sender, setSender] = useState<DocumentsOrderSenderState>(() => restored?.sender ?? ({
     inn: "",
     companyName: "",
   }));
+
+  const snapshot = useMemo(() => ({ direction, fromState, toState, cargo, mainlineMode, extraCodes, nomerZayavki, dataZabora, sender }),
+    [direction, fromState, toState, cargo, mainlineMode, extraCodes, nomerZayavki, dataZabora, sender]);
+  const initialSnapshot = useRef(snapshot);
+  const dirty = Boolean(restored) || JSON.stringify(snapshot) !== JSON.stringify(initialSnapshot.current)
+    || cargo.fileUpd !== initialSnapshot.current.cargo.fileUpd || cargo.fileZayavki !== initialSnapshot.current.cargo.fileZayavki;
+  useEffect(() => {
+    if (submittedNomerZayavki || !dirty) clearDocumentsOrderDraft(draftKey);
+    else saveDocumentsOrderDraft(draftKey, auth.login, snapshot);
+  }, [draftKey, auth.login, snapshot, dirty, submittedNomerZayavki]);
 
   const formRef = useRef<HTMLDivElement>(null);
   const routeRef = useRef<HTMLDivElement>(null);
@@ -475,6 +493,7 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
         zayavkaPayload,
       });
 
+      clearDocumentsOrderDraft(draftKey);
       setSubmittedNomerZayavki(result.nomerZayavki.trim());
     } catch (e) {
       setError((e as Error)?.message || "Ошибка оформления");
@@ -521,8 +540,9 @@ export function DocumentsOrderForm({ auth, activeInn, activeCustomerName, onBack
   return (
     <div ref={formRef} className="haulz-calc-page--cdek haulz-calc-summary-layout-sync documents-order-form">
       <div className="haulz-calc-shell-bg">
-        <header className="haulz-calc-header">
-          <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад к заявкам">
+        {dirty && !submittedNomerZayavki && <p role="status" className="haulz-calc-hint">Черновик сохранён в открытом приложении для этой компании, включая выбранные файлы. Можно вернуться к нему из журнала. При перезагрузке или выходе из аккаунта черновик будет удалён. <button type="button" disabled={orderLoading} onClick={() => { if (window.confirm("Удалить черновик этой заявки и выбранные файлы?")) { clearDocumentsOrderDraft(draftKey); onBack(); } }}>Удалить черновик</button></p>}
+      <header className="haulz-calc-header">
+          <button type="button" className="haulz-calc-header__back" disabled={orderLoading} onClick={onBack} aria-label="Назад к заявкам">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="haulz-calc-header__title">Новая заявка</h1>

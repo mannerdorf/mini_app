@@ -182,7 +182,7 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
                                             />
                                         </div>
                                     )}
-                                    <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
+                                    <Flex justify="space-between" align="flex-start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                                         <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
                                             {number ? formatInvoiceNumber(number) : '—'}
                                         </Typography.Body>

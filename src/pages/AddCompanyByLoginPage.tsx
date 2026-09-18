@@ -145,8 +145,7 @@ export function AddCompanyByLoginPage({ onBack, onAddAccount, onSuccess }: AddCo
             </Typography.Body>
             <Switch
               checked={agreeOffer}
-              onCheckedChange={(value) => setAgreeOffer(resolveChecked(value))}
-              onChange={(event) => setAgreeOffer(resolveChecked(event))}
+              onChange={(event) => setAgreeOffer(event.target.checked)}
             />
           </label>
           <label className="checkbox-row switch-wrapper" style={{ marginBottom: "1rem", fontSize: "0.85rem" }}>
@@ -158,8 +157,7 @@ export function AddCompanyByLoginPage({ onBack, onAddAccount, onSuccess }: AddCo
             </Typography.Body>
             <Switch
               checked={agreePersonal}
-              onCheckedChange={(value) => setAgreePersonal(resolveChecked(value))}
-              onChange={(event) => setAgreePersonal(resolveChecked(event))}
+              onChange={(event) => setAgreePersonal(event.target.checked)}
             />
           </label>
           {error && (

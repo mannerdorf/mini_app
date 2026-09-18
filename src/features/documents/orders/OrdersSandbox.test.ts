@@ -1,0 +1,30 @@
+import React from 'react';
+import { act, create } from 'react-test-renderer';
+import { afterEach, expect, it, vi } from 'vitest';
+vi.mock('../../../utils',()=>({apiFetchJson:vi.fn()}));
+import { apiFetchJson } from '../../../utils';
+import { OrdersSandbox } from './OrdersSandbox';
+let root: ReturnType<typeof create>;
+const props={auth:{login:'test',password:'fixture'},inn:'1',customerName:'A',serviceMode:false,dateFrom:'2026-09-01',dateTo:'2026-09-18',received:8,visible:2,listError:null,refresh:vi.fn(async()=>{})} as any;
+const report={version:'orders-diagnostics-v1',requestId:'A-report',checkedAt:'2026-09-18',database:{state:'ready'},cron:{available:false},counts:null};
+const button=(name:string)=>root.root.findAllByType('button').find(b=>b.children.join('')===name)!;
+afterEach(()=>{act(()=>root?.unmount());vi.clearAllMocks();vi.unstubAllGlobals();});
+it('ignores a late response after changing company and does not refresh its old journal',async()=>{
+ let resolve!:(value:any)=>void;vi.mocked(apiFetchJson).mockImplementationOnce(()=>new Promise(r=>{resolve=r;}));
+ await act(async()=>{root=create(React.createElement(OrdersSandbox,props));});
+ act(()=>button('Проверить путь запросов').props.onClick());
+ await act(async()=>root.update(React.createElement(OrdersSandbox,{...props,inn:'2',customerName:'B'})));
+ await act(async()=>resolve(report));
+ expect(JSON.stringify(root.toJSON())).not.toContain('A-report');expect(props.refresh).not.toHaveBeenCalled();
+ expect(button('Проверить путь запросов').props.disabled).toBe(false);
+});
+it('copies a fixed journal snapshot rather than counts from a later filter change',async()=>{
+ vi.mocked(apiFetchJson).mockResolvedValue(report as any);const writeText=vi.fn(async(_text:string)=>{});vi.stubGlobal('navigator',{clipboard:{writeText}});
+ await act(async()=>{root=create(React.createElement(OrdersSandbox,props));});
+ await act(async()=>button('Проверить путь запросов').props.onClick());
+ await act(async()=>root.update(React.createElement(OrdersSandbox,{...props,received:99,visible:77})));
+ await act(async()=>button('Скопировать диагностику').props.onClick());
+ const copied=JSON.parse(writeText.mock.calls[0][0]);expect(copied.application).toMatchObject({received:8,visible:2});expect(copied.context.inn).toBe('1');expect(copied).not.toHaveProperty('auth');
+ await act(async()=>root.update(React.createElement(OrdersSandbox,{...props,dateTo:'2026-09-19'})));
+ expect(JSON.stringify(root.toJSON())).not.toContain('A-report');
+});

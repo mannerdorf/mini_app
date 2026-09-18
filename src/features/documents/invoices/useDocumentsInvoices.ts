@@ -34,7 +34,7 @@ type UseDocumentsInvoicesInput = {
   effectiveServiceMode: boolean;
   customerFilter: string;
   effectiveSearchText: string;
-  sortBy: string;
+  sortBy: "date" | null;
   sortOrder: "asc" | "desc";
   tableModeGroupedByCustomer: boolean;
   tableSortColumn: "customer" | "sum" | "count";
@@ -42,7 +42,7 @@ type UseDocumentsInvoicesInput = {
   innerTableSortColumn: "number" | "date" | "status" | "sum" | "paid" | "balance" | "deliveryStatus" | "route";
   innerTableSortOrder: "asc" | "desc";
   invoiceFilterInputs: InvoiceFilterInputs;
-  transportLinkedCargoNumbers: Set<string>;
+  transportLinkedCargoNumbers: Set<string> | undefined;
   cargoStateByNumber: Map<string, string>;
   cargoRouteByNumber: Map<string, string>;
   cargoTransportByNumber: Map<string, string>;

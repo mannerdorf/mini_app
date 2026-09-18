@@ -1,0 +1,25 @@
+{
+  "date": "2026-09-19",
+  "tests": {
+    "files": 190,
+    "passed": 908,
+    "failed": 0
+  },
+  "frontendTypecheck": "passed; 296 baseline diagnostics resolved",
+  "backendTypecheck": "passed",
+  "build": "passed",
+  "initialBundle": {
+    "raw": 667554,
+    "gzip": 204726,
+    "rawBudget": 750000,
+    "gzipBudget": 225000
+  },
+  "scope": "local mirror without .env, synthetic browser fixtures; no production writes",
+  "externalAcceptance": [
+    "physical devices/camera/offline OS restart",
+    "dispatcher usability acceptance",
+    "test 1C batch and backend restart",
+    "populated production visual/a11y coverage"
+  ],
+  "guestPlaywrightSuite": "not run locally; configured in CI"
+}

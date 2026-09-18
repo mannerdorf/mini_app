@@ -64,8 +64,8 @@ export function badgeLabelLowerFirst(label: string | undefined | null): string {
     return s.charAt(0).toLocaleLowerCase("ru-RU") + s.slice(1);
 }
 
-export const getPaymentFilterKey = (stateBill: string | undefined): 'unpaid' | 'cancelled' | 'paid' | 'partial' | 'unknown' => {
-    if (!stateBill) return "unknown";
+export const getPaymentFilterKey = (stateBill: unknown): 'unpaid' | 'cancelled' | 'paid' | 'partial' | 'unknown' => {
+    if (typeof stateBill !== "string" || !stateBill) return "unknown";
     const lower = stateBill.toLowerCase().trim();
     if (lower.includes('не оплачен') || lower.includes('неоплачен') || lower.includes('не оплачён') || lower.includes('неоплачён') ||
         lower.includes('unpaid') || lower.includes('ожидает') || lower.includes('pending') || lower === 'не оплачен' || lower === 'неоплачен') {
@@ -99,15 +99,15 @@ export const BILL_STATUS_MAP: Record<BillStatusFilterKey, string> = {
     all: 'Все', paid: 'Оплачен', unpaid: 'Не оплачен', partial: 'Частично', cancelled: 'Отменён', unknown: 'Не указан',
 };
 
-export const isReceivedInfoStatus = (s: string | undefined): boolean => {
+export const isReceivedInfoStatus = (s: unknown): boolean => {
     if (!s) return false;
-    const l = normalizeStatus(s).toLowerCase();
+    const l = normalizeStatus(typeof s === "string" ? s : "").toLowerCase();
     return /получена\s*информация|полученаинформация/.test(l) || (l.includes('получена') && l.includes('информация'));
 };
 
-export const getFilterKeyByStatus = (s: string | undefined): StatusFilter => {
+export const getFilterKeyByStatus = (s: unknown): StatusFilter => {
     if (!s) return 'all';
-    const normalized = normalizeStatus(s);
+    const normalized = normalizeStatus(typeof s === "string" ? s : "");
     const l = normalized.toLowerCase();
     if (l.includes('доставлен') || l.includes('заверш')) return 'delivered';
     if (l.includes('пути') || l.includes('отправлен')) return 'in_transit';

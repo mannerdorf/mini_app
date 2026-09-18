@@ -606,7 +606,9 @@ export function HaulzDispatchSummary({
                                                     { col: "pw" as const, label: "Плат. вес", align: "right" as const },
                                                     { col: "sum" as const, label: "Сумма", align: "right" as const },
                                                 ] as const
-                                            ).map(({ col, label, align, title: thTitle, className: thClassName }) => {
+                                            ).map((column) => {
+                                                const { col, label, align } = column;
+                                                const thTitle = "title" in column ? column.title : undefined;
                                                 const active = col != null && dispatchTableSort.column === col;
                                                 const SortIcon = dispatchTableSort.order === "asc" ? ArrowUp : ArrowDown;
                                                 return (
@@ -625,7 +627,7 @@ export function HaulzDispatchSummary({
                                                                 : undefined
                                                         }
                                                         title={col ? "Сортировка по столбцу" : thTitle}
-                                                        className={`haulz-dispatch-table__th${thClassName ? ` ${thClassName}` : ""}`}
+                                                        className="haulz-dispatch-table__th"
                                                         style={{
                                                             textAlign: align,
                                                             cursor: col ? "pointer" : "default",

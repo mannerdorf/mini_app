@@ -6,6 +6,7 @@ import { publicRouteCalculatorUrl } from "../../../lib/haulzCalculator/publicRou
 import { GuestFooter } from "./GuestFooter";
 
 type Props = {
+  footerNavigation: React.ComponentProps<typeof GuestFooter>;
   route: PublicRouteInfo;
   onBack: () => void;
   onCalculator: (direction: PublicRouteInfo["direction"]) => void;
@@ -16,6 +17,7 @@ type Props = {
 
 export function GuestRouteLandingPage({
   route,
+  footerNavigation,
   onBack,
   onCalculator,
   onOtherRoute,
@@ -108,7 +110,7 @@ export function GuestRouteLandingPage({
         </p>
       </main>
 
-      <GuestFooter />
+      <GuestFooter {...footerNavigation} />
     </div>
   );
 }

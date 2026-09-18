@@ -169,7 +169,7 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
                         <span style={{ marginLeft: "0.35rem", fontSize: "0.75rem", color: "#16a34a" }}>текущая</span>
                       )}
                     </td>
-                    <td style={{ padding: "0.35rem" }}>{formatDateTime(v.published_at)}</td>
+                    <td style={{ padding: "0.35rem" }}>{formatDateTime(v.published_at ?? undefined)}</td>
                     <td style={{ padding: "0.35rem" }}>{v.body_length}</td>
                     <td style={{ padding: "0.35rem" }} />
                   </tr>
@@ -246,9 +246,9 @@ export function AdminLegalSection({ adminToken }: { adminToken: string }) {
                     <td style={{ padding: "0.35rem" }}>{row.login}</td>
                     <td style={{ padding: "0.35rem" }}>{row.company_name || "—"}</td>
                     <td style={{ padding: "0.35rem" }}>{row.offer_version_label || "—"}</td>
-                    <td style={{ padding: "0.35rem" }}>{formatDateTime(row.offer_accepted_at)}</td>
+                    <td style={{ padding: "0.35rem" }}>{formatDateTime(row.offer_accepted_at ?? undefined)}</td>
                     <td style={{ padding: "0.35rem" }}>{row.consent_version_label || "—"}</td>
-                    <td style={{ padding: "0.35rem" }}>{formatDateTime(row.consent_accepted_at)}</td>
+                    <td style={{ padding: "0.35rem" }}>{formatDateTime(row.consent_accepted_at ?? undefined)}</td>
                   </tr>
                 ))}
                 {summary.length === 0 && (

@@ -32,7 +32,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
                         <Flex align="center" gap="0.5rem" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                             <Typography.Body style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>Таблица</Typography.Body>
                             <span className="roles-switch-wrap" style={{ display: 'inline-flex' }} aria-label={page.tableModeByCustomer ? 'Показать карточки' : 'Показать таблицу'}>
-                                <TapSwitch checked={page.tableModeByCustomer} onToggle={() => page.setTableModeByCustomer(v => !v)} />
+                                <TapSwitch aria-label="Табличный вид документов" checked={page.tableModeByCustomer} onToggle={() => page.setTableModeByCustomer(v => !v)} />
                             </span>
                         </Flex>
                     ) : null}

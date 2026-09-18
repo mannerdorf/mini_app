@@ -346,7 +346,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                             )}
                         </button>
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => setNewToken(null)} style={{ marginTop: "0.5rem" }}>
+                    <Button size="small" mode="secondary" onClick={() => setNewToken(null)} style={{ marginTop: "0.5rem" }}>
                         Скрыть
                     </Button>
                 </Panel>
@@ -581,7 +581,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                                             ) : null}
                                             <Flex style={{ gap: "0.5rem" }}>
                                                 <Button
-                                                    size="sm"
+                                                    size="small"
                                                     onClick={() => void handleSaveKeyEdit(k.id)}
                                                     disabled={savingKeyId === k.id}
                                                 >
@@ -591,7 +591,7 @@ export function ProfileApiKeysSection({ activeAccount, onBack }: Props) {
                                                         "Сохранить"
                                                     )}
                                                 </Button>
-                                                <Button size="sm" variant="secondary" onClick={() => setEditingKeyId(null)}>
+                                                <Button size="small" mode="secondary" onClick={() => setEditingKeyId(null)}>
                                                     Отмена
                                                 </Button>
                                             </Flex>

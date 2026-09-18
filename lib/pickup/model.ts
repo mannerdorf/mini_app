@@ -129,6 +129,10 @@ export type Job = {
   version: number;
   resolution: string;
   photo_count?: number;
+  /** Dispatcher-only billing state; null means no billing record yet. */
+  billing_status?: string | null;
+  billing_info?: { transportNumber: string | null; amount: number | string | null; error: string | null; updatedAt: string } | null;
+  number_sync_info?: { state: string; error: string | null; updatedAt: string } | null;
 };
 
 /** Request number is required when handing collected cargo over to the depot. */
@@ -401,7 +405,8 @@ export function pickupJobSearchColumns(data: JobData): {
 }
 export function driverJob(job: Job): Job {
   const { priceRub, payment, mkadKm, ...data } = job.data;
-  return { ...job, data: data as JobData };
+  const { billing_status: _billingStatus, billing_info: _billingInfo, number_sync_info: _numberSyncInfo, ...visibleJob } = job;
+  return { ...visibleJob, data: data as JobData };
 }
 export function routeWarnings(jobs: Job[], vehicle?: Resource): string[] {
   const warnings: string[] = [];

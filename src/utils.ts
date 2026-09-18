@@ -299,13 +299,13 @@ export async function downloadBase64File(payload: {
         const html2pdf = (await import("html2pdf.js")).default;
         await html2pdf()
             .set({ filename: pdfName, margin: 8, image: { type: "jpeg", quality: 0.95 } })
-            .from(htmlStr, "string")
+            .from(htmlStr)
             .save();
         return;
     }
 
     const mime = isHtmlFile ? "text/html;charset=utf-8" : "application/pdf";
-    const blob = new Blob([bytes], { type: mime });
+    const blob = new Blob([new Uint8Array(bytes)], { type: mime });
     const { saveBlobFile } = await import("./lib/saveBlobFile");
     await saveBlobFile(blob, String(name));
 }

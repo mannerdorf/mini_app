@@ -1,0 +1,108 @@
+{
+  "light": {
+    "badges": [
+      {
+        "bg": "rgb(220, 252, 231)",
+        "label": "оплачен",
+        "text": "rgb(22, 101, 52)",
+        "contrast": 6.49
+      },
+      {
+        "bg": "rgb(254, 243, 199)",
+        "label": "частично оплачен",
+        "text": "rgb(146, 64, 14)",
+        "contrast": 6.37
+      },
+      {
+        "bg": "rgb(254, 226, 226)",
+        "label": "не оплачен",
+        "text": "rgb(153, 27, 27)",
+        "contrast": 6.8
+      },
+      {
+        "bg": "rgb(241, 245, 249)",
+        "label": "неизвестно",
+        "text": "rgb(51, 65, 85)",
+        "contrast": 9.45
+      }
+    ],
+    "scrollWidth": 390,
+    "switches": [
+      {
+        "checked": "true",
+        "focus": "rgb(37, 99, 235)",
+        "height": 44,
+        "name": "default",
+        "width": 44
+      },
+      {
+        "checked": "true",
+        "focus": "rgb(0, 0, 0)",
+        "height": 44,
+        "name": "comfortable",
+        "width": 52
+      },
+      {
+        "checked": "true",
+        "focus": "rgba(16, 16, 16, 0.3)",
+        "height": 44,
+        "name": "Недоступный",
+        "width": 44
+      }
+    ],
+    "width": 390
+  },
+  "dark": {
+    "badges": [
+      {
+        "bg": "rgb(20, 56, 36)",
+        "label": "оплачен",
+        "text": "rgb(134, 239, 172)",
+        "contrast": 9.23
+      },
+      {
+        "bg": "rgb(66, 46, 14)",
+        "label": "частично оплачен",
+        "text": "rgb(253, 230, 138)",
+        "contrast": 10.35
+      },
+      {
+        "bg": "rgb(69, 26, 26)",
+        "label": "не оплачен",
+        "text": "rgb(252, 165, 165)",
+        "contrast": 7.82
+      },
+      {
+        "bg": "rgb(39, 50, 68)",
+        "label": "неизвестно",
+        "text": "rgb(226, 232, 240)",
+        "contrast": 10.48
+      }
+    ],
+    "scrollWidth": 390,
+    "switches": [
+      {
+        "checked": "false",
+        "focus": "rgb(0, 0, 0)",
+        "height": 44,
+        "name": "default",
+        "width": 44
+      },
+      {
+        "checked": "false",
+        "focus": "rgb(37, 99, 235)",
+        "height": 44,
+        "name": "comfortable",
+        "width": 52
+      },
+      {
+        "checked": "true",
+        "focus": "rgba(16, 16, 16, 0.3)",
+        "height": 44,
+        "name": "Недоступный",
+        "width": 44
+      }
+    ],
+    "width": 390
+  }
+}

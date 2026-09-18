@@ -355,6 +355,7 @@ export function useAdminEmployeeDirectoryMutations({
     toggleEmployeeActive,
     removeEmployee,
     saveEmployeeEdit,
+    beginRateHistoryEdit,
     saveRateHistoryEntry,
     removeRateHistoryEntry,
     openEmployeeEditor,

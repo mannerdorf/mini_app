@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 
 type Props = {
   label: React.ReactNode;
-  column: string;
+  column: Parameters<Props["onSort"]>[0];
   sortColumn: string;
   sortOrder: "asc" | "desc";
   onSort: (column: "index" | "cargo" | "status" | "count" | "volume" | "weight" | "paidWeight" | "cost" | "customer" | "density") => void;

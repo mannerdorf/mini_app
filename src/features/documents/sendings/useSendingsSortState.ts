@@ -60,6 +60,8 @@ export function useSendingsSortState() {
     sendingsSortOrder,
     sendingsSummarySortColumn,
     sendingsSummarySortOrder,
+    setSendingsSummarySortColumn,
+    setSendingsSummarySortOrder,
     handleSendingsSort,
     handleSendingsSummarySort,
   };

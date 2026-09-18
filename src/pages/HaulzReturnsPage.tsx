@@ -152,6 +152,8 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
       <HaulzSessionList
         jobs={session.jobs}
         loadingJobs={session.loadingJobs}
+        jobsError={session.jobsError}
+        onRetry={() => void session.refreshJobs()}
         jobId={session.jobId}
         renamingJobId={session.renamingJobId}
         renameDraft={session.renameDraft}

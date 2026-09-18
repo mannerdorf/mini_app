@@ -31,7 +31,7 @@ type UseDocumentsEdoInput = {
   effectiveServiceMode: boolean;
   customerFilter: string;
   effectiveSearchText: string;
-  sortBy: string;
+  sortBy: "date" | null;
   sortOrder: "asc" | "desc";
   tableSortColumn: "customer" | "sum" | "count";
   tableSortOrder: "asc" | "desc";

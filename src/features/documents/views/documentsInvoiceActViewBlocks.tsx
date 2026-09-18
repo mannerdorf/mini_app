@@ -97,7 +97,7 @@ export function DocumentsInvoiceCard({
         position: "relative",
       }}
     >
-      <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
+      <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
         <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
           <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: badgeStyle.color }}>
             {formatInvoiceNumber(num)}
@@ -180,7 +180,7 @@ export function DocumentsInvoiceCard({
           className="documents-invoice-card__edo-badges"
           gap="0.25rem"
           wrap="wrap"
-          justify="flex-start"
+          justify="start"
           style={{ width: "100%", marginTop: "0.4rem", pointerEvents: "none" }}
         >
           {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
@@ -254,7 +254,7 @@ export function DocumentsActCard({
       style={{ cursor: "pointer", marginBottom: "0.75rem", position: "relative" }}
       title="Открыть УПД"
     >
-      <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
+      <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
         <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
           <Typography.Body style={{ fontWeight: 600, fontSize: "1rem", color: "var(--color-text-primary)" }}>
             {formatInvoiceNumber(String(num))}
@@ -318,7 +318,7 @@ export function DocumentsActCard({
           className="documents-invoice-card__edo-badges"
           gap="0.25rem"
           wrap="wrap"
-          justify="flex-start"
+          justify="start"
           style={{ width: "100%", marginTop: "0.1rem", pointerEvents: "none" }}
         >
           {INVOICE_EDO_MERGED_COLUMNS.map((k) => (
@@ -411,7 +411,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
   const rawStatus = invoice.Status ?? invoice.State ?? invoice.state ?? invoice.Статус ?? "";
   const st = (normalizeInvoiceStatus(rawStatus) || rawStatus) as string;
   const badgeStyle = invoicePaymentBadgeStyle(st);
-  const transportSource = (cargo ?? { AK: invoice.AK }) as { AK?: unknown };
+  const transportSource = (cargo ?? { AK: invoice.AK }) as Pick<import("../../../types").CargoItem, "AK">;
   const routeFromCargo = [cityToCode(cargo?.CitySender), cityToCode(cargo?.CityReceiver)].filter(Boolean).join(" – ");
   const routeFromInvoice = [cityToCode(invoice.CitySender), cityToCode(invoice.CityReceiver)].filter(Boolean).join(" – ");
   const route = routeFromCargo || routeFromInvoice;
@@ -448,7 +448,7 @@ export function DocumentsEdoCargoCard({ item, onOpen, onOpenCargo, isFavorite, o
       style={{ cursor: "pointer", marginBottom: "0.75rem", position: "relative" }}
       title="Открыть счёт"
     >
-      <Flex justify="space-between" align="start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
+      <Flex justify="space-between" align="flex-start" style={{ marginBottom: "0.5rem", minWidth: 0, overflow: "visible" }}>
         <Flex align="center" gap="0.5rem" style={{ flexWrap: "wrap", flex: "0 1 auto", minWidth: 0, maxWidth: "60%" }}>
           <ClickableCargoNumber
             number={cargoNumber}

@@ -118,7 +118,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                             checked={allVisibleSendingsSelected}
                                             onChange={(e) => {
                                                 const checked = e.target.checked;
-                                                setSelectedSendingRowKeys(() => (checked ? new Set(visibleSendingMeta.map((row) => row.rowKey)) : new Set()));
+                                                setSelectedSendingRowKeys(() => (checked ? new Set(visibleSendingMeta.map((row: { rowKey: string }) => row.rowKey)) : new Set()));
                                             }}
                                             aria-label="Выбрать все отправки"
                                         />

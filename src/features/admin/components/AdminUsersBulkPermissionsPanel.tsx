@@ -28,7 +28,7 @@ export type AdminUsersBulkPermissionsPanelProps = {
   bulkLoading: boolean;
   bulkDeactivateConfirmOpen: boolean;
   setBulkDeactivateConfirmOpen: Dispatch<SetStateAction<boolean>>;
-  bulkDeactivateModalRef: RefObject<HTMLDivElement | null>;
+  bulkDeactivateModalRef: RefObject<HTMLDivElement>;
   handleBulkApplyPermissions: () => void | Promise<void>;
   handleBulkDeactivate: () => void | Promise<void>;
   clearSelection: () => void;

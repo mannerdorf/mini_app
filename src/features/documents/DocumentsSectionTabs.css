@@ -1,11 +1,12 @@
+@import "../../components/shared/uxTokens.css";
 .doc-sections-row--smooth .doc-section-tabs-track {
     display: flex;
     align-items: stretch;
     gap: 2px;
     width: max-content;
     padding: 4px;
-    border: 1px solid var(--color-border);
-    border-radius: 16px;
+    border: 1px solid var(--ux-border);
+    border-radius: var(--ux-radius-panel);
     background: var(--color-bg-input);
     isolation: isolate;
 }
@@ -13,25 +14,25 @@
 .doc-sections-row--smooth .doc-section-tab {
     position: relative;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--ux-radius-control);
     background: transparent;
-    color: var(--color-text-secondary);
+    color: var(--ux-muted);
     box-shadow: none;
     white-space: nowrap;
     transition: color 160ms ease;
 }
 
 .doc-sections-row--smooth .doc-section-tab--active {
-    color: var(--color-text-primary);
+    color: var(--ux-text);
 }
 
 .light-mode .doc-sections-row--smooth .doc-section-tab--active {
-    color: var(--color-primary-blue);
+    color: var(--ux-focus);
 }
 
 .doc-sections-row--smooth .doc-section-tab:hover:not(.doc-section-tab--active) {
     background: transparent;
-    color: var(--color-text-primary);
+    color: var(--ux-text);
 }
 
 .doc-sections-row--smooth .doc-section-tab:active {
@@ -39,7 +40,7 @@
 }
 
 .doc-sections-row--smooth .doc-section-tab:focus-visible {
-    outline: 2px solid var(--color-primary-blue);
+    outline: 2px solid var(--ux-focus);
     outline-offset: -2px;
 }
 
@@ -47,7 +48,7 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background: var(--color-bg-card);
+    background: var(--ux-surface);
     box-shadow: var(--shadow-sm);
     pointer-events: none;
 }
@@ -59,7 +60,7 @@
 
 @media (pointer: coarse) {
     .doc-sections-row--smooth .doc-section-tab {
-        min-height: 44px;
+        min-height: var(--ux-touch-height);
     }
 }
 

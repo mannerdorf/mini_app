@@ -2,12 +2,19 @@
 
 import { apiErrorMessage, fetchJson, loginPasswordHeaders, type LoginPasswordAuth } from "./_base";
 
-export async function fetchMyExpenseRequests(auth: LoginPasswordAuth): Promise<{ items?: unknown[] }> {
-  const { ok, data } = await fetchJson<{ items?: unknown[]; error?: string }>("/api/my-expense-requests", {
+export type ExpenseRequestApiRow = {
+  id: string; createdAt?: string; department?: string; docNumber?: string; docDate?: string;
+  period?: string; categoryId?: string; categoryName?: string; amount?: number | string;
+  vatRate?: string; comment?: string; vehicleOrEmployee?: string; transportType?: string;
+  employeeName?: string; supplierName?: string; supplierInn?: string; status?: string; rejectionReason?: string;
+};
+
+export async function fetchMyExpenseRequests(auth: LoginPasswordAuth): Promise<{ items?: ExpenseRequestApiRow[] }> {
+  const { ok, data } = await fetchJson<{ items?: ExpenseRequestApiRow[]; error?: string }>("/api/my-expense-requests", {
     method: "GET",
     headers: loginPasswordHeaders(auth),
   });
-  if (!ok) return { items: [] };
+  if (!ok) throw new Error(apiErrorMessage(data, "Не удалось загрузить заявки на расходы"));
   return { items: data.items ?? [] };
 }
 

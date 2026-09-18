@@ -85,7 +85,7 @@ export function DashboardStripSection({ page }: Props) {
                                         <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
-                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }} title={page.deliveryStripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}>
+                                <Typography.Body style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }} title={page.deliveryStripShowAsPercent ? 'Показать в рублях' : 'Показать в процентах'}>
                                     {page.deliveryStripShowAsPercent ? `${row.percent}%` : (page.chartType === 'money' ? formatCurrency(row.value, true) : page.chartType === 'paidWeight' || page.chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : page.chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                 </Typography.Body>
                             </div>
@@ -99,7 +99,7 @@ export function DashboardStripSection({ page }: Props) {
                                         <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
-                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }}>
+                                <Typography.Body style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }}>
                                     {page.deliveryStripShowAsPercent ? `${row.percent}%` : (page.chartType === 'money' ? formatCurrency(row.value, true) : page.chartType === 'paidWeight' || page.chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : page.chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                 </Typography.Body>
                             </div>
@@ -113,7 +113,7 @@ export function DashboardStripSection({ page }: Props) {
                                         <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={row.percent} delay={i * 0.045} style={{ background: row.color, borderRadius: 4 }} />
                                     </div>
                                 </div>
-                                <Typography.Body component="span" style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }}>
+                                <Typography.Body style={{ flexShrink: 0, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); page.setDeliveryStripShowAsPercent(p => !p); }}>
                                     {page.deliveryStripShowAsPercent ? `${row.percent}%` : (page.chartType === 'money' ? formatCurrency(row.value, true) : page.chartType === 'paidWeight' || page.chartType === 'weight' ? `${Math.round(row.value).toLocaleString('ru-RU')} кг` : page.chartType === 'pieces' ? `${Math.round(row.value).toLocaleString('ru-RU')} шт` : `${Math.round(row.value).toLocaleString('ru-RU')} м³`)}
                                 </Typography.Body>
                             </div>

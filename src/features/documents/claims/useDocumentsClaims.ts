@@ -44,9 +44,10 @@ type UseDocumentsClaimsInput = {
   dateFilter: DateFilter;
   customDateFrom: string;
   customDateTo: string;
-  selectedMonthForFilter: number;
-  selectedYearForFilter: number;
-  selectedWeekForFilter: string;
+  selectedQuarterForFilter: import("../../../lib/dateUtils").QuarterFilterSelection | null;
+  selectedMonthForFilter: {year: number; month: number} | null;
+  selectedYearForFilter: number | null;
+  selectedWeekForFilter: string | null;
   allowedDocSections: AllowedSection[];
   onNavigateToClaims?: () => void;
   items: any[];
@@ -62,6 +63,7 @@ export function useDocumentsClaims({
   dateFilter,
   customDateFrom,
   customDateTo,
+  selectedQuarterForFilter,
   selectedMonthForFilter,
   selectedYearForFilter,
   selectedWeekForFilter,
@@ -106,7 +108,8 @@ export function useDocumentsClaims({
       dateFilter,
       customDateFrom,
       customDateTo,
-      selectedMonthForFilter,
+      selectedQuarterForFilter,
+  selectedMonthForFilter,
       selectedYearForFilter,
       selectedWeekForFilter,
     });
@@ -143,7 +146,8 @@ export function useDocumentsClaims({
     dateFilter,
     customDateFrom,
     customDateTo,
-    selectedMonthForFilter,
+    selectedQuarterForFilter,
+  selectedMonthForFilter,
     selectedYearForFilter,
     selectedWeekForFilter,
   ]);

@@ -73,7 +73,7 @@ export function useAdminExpenseRequests({
   const reloadAllExpenseRequests = useCallback(async () => {
     if (adminToken && isSuperAdmin) {
       try {
-        setAdminExpenseRequests(await fetchAdminExpenseRequests(adminToken));
+        setAdminExpenseRequests((await fetchAdminExpenseRequests(adminToken)).map(row => ({ ...row, login: row.login ?? "" })));
         return;
       } catch (e: unknown) {
         onError((e as Error)?.message || "Ошибка загрузки заявок на расходы");

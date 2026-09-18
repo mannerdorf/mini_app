@@ -39,12 +39,13 @@ type Params = {
   docsMotionEnabled: boolean;
   onOpenCargo?: (cargoNumber: string, prefetchedItem?: CargoItem) => void;
   onOpenAisWithMmsi?: (mmsi: string) => void;
-  dateFilter: Filters["dateFilter"];
+  dateFilter: import("../types").DateFilter;
   customDateFrom: string;
   customDateTo: string;
-  selectedMonthForFilter: string;
-  selectedYearForFilter: string;
-  selectedWeekForFilter: string;
+  selectedMonthForFilter: {year: number; month: number} | null;
+  selectedQuarterForFilter: import("../lib/dateUtils").QuarterFilterSelection | null;
+  selectedYearForFilter: number | null;
+  selectedWeekForFilter: string | null;
 };
 
 export function useDocumentsSendingsWiring({

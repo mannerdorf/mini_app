@@ -21,7 +21,7 @@ export const DASH_PLAN_FACT_TYPO = {
         minHeight: "var(--control-height-badge)",
         display: "inline-flex",
         alignItems: "center",
-        boxSizing: "border-box",
+        boxSizing: "border-box" as const,
         lineHeight: 1,
     } as const,
     subhead: { fontSize: "var(--dash-subhead-size)", fontWeight: 600, marginBottom: "0.35rem" } as const,
@@ -45,7 +45,7 @@ export const DASH_PLAN_FACT_TYPO = {
         minHeight: "var(--control-height-badge)",
         display: "inline-flex",
         alignItems: "center",
-        boxSizing: "border-box",
+        boxSizing: "border-box" as const,
         lineHeight: 1,
     },
 };

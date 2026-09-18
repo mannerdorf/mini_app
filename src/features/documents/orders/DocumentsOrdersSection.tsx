@@ -1,7 +1,8 @@
 import React from "react";
+import { SortableHeader, RowDisclosure } from "../../../components/shared/TableControls";
 import { AnimatePresence, motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
-import { ArrowDown, ArrowUp, Loader2, Trash2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { formatInvoiceNumber, stripOoo } from "../../../lib/formatUtils";
 import { ClickableCargoNumber } from "../../../components/ui/EntityLinks";
@@ -87,17 +88,17 @@ export function DocumentsOrdersSection({
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
             <thead>
                 <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('date')} title="Сортировка">Дата {ordersSortColumn === 'date' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('pickupDate')} title="Сортировка">Дата забора план {ordersSortColumn === 'pickupDate' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('number')} title="Сортировка">Номер заявки {ordersSortColumn === 'number' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('clientNumber')} title="Сортировка">Номер заявки заказчика {ordersSortColumn === 'clientNumber' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('customer')} title="Сортировка">Заказчик {ordersSortColumn === 'customer' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('sender')} title="Сортировка">Отправитель {ordersSortColumn === 'sender' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('receiver')} title="Сортировка">Получатель {ordersSortColumn === 'receiver' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                    <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('route')} title="Сортировка">Маршрут {ordersSortColumn === 'route' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                    <SortableHeader label="Дата" direction={ordersSortColumn === 'date' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('date')} />
+                    <SortableHeader label="Дата забора план" direction={ordersSortColumn === 'pickupDate' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('pickupDate')} />
+                    <SortableHeader label="Номер заявки" direction={ordersSortColumn === 'number' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('number')} />
+                    <SortableHeader label="Номер заявки заказчика" direction={ordersSortColumn === 'clientNumber' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('clientNumber')} />
+                    {effectiveServiceMode && <SortableHeader label="Заказчик" direction={ordersSortColumn === 'customer' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('customer')} />}
+                    <SortableHeader label="Отправитель" direction={ordersSortColumn === 'sender' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('sender')} />
+                    <SortableHeader label="Получатель" direction={ordersSortColumn === 'receiver' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('receiver')} />
+                    <SortableHeader label="Маршрут" direction={ordersSortColumn === 'route' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('route')} />
                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус</th>
                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'center', fontWeight: 600, width: 48 }} aria-label="Действия" />
-                    {effectiveServiceMode && <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleOrdersSort('comment')} title="Сортировка">Комментарий {ordersSortColumn === 'comment' && (ordersSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>}
+                    {effectiveServiceMode && <SortableHeader label="Комментарий" direction={ordersSortColumn === 'comment' ? ordersSortOrder : undefined} onSort={() => handleOrdersSort('comment')} />}
                 </tr>
             </thead>
             <tbody>
@@ -174,7 +175,7 @@ export function DocumentsOrdersSection({
                             >
                                 <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={rawDate ? String(rawDate) : undefined} /></td>
                                 <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><DateText value={pickupDate || undefined} /></td>
-                                <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</td>
+                                <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}><RowDisclosure label={`Заявка ${requestNumber || 'без номера'}`} expanded={expanded} onToggle={() => setExpandedOrderRow(prev => prev === rowKey ? null : rowKey)}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</RowDisclosure></td>
                                 <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>{customerRequestNumber || '—'}</td>
                                 {effectiveServiceMode && (
                                     <td
@@ -292,12 +293,12 @@ export function DocumentsOrdersSection({
                                                 <table className="doc-inner-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                                                     <thead>
                                                         <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('parcel'); }} title="Сортировка">Посылка {ordersParcelsSortColumn === 'parcel' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cargo'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'cargo' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('tmc'); }} title="Сортировка">Номенклатура {ordersParcelsSortColumn === 'tmc' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('consolidation'); }} title="Сортировка">Консолидация {ordersParcelsSortColumn === 'consolidation' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('count'); }} title="Сортировка">Кол-во {ordersParcelsSortColumn === 'count' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
-                                                            <th style={{ padding: '0.35rem 0.3rem', textAlign: 'right', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={(e) => { e.stopPropagation(); handleOrdersParcelsSort('cost'); }} title="Сортировка">Стоимость {ordersParcelsSortColumn === 'cost' && (ordersParcelsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                                            <SortableHeader label="Посылка" direction={ordersParcelsSortColumn === 'parcel' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('parcel')} />
+                                                            <SortableHeader label="Консолидация" direction={ordersParcelsSortColumn === 'cargo' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('cargo')} />
+                                                            <SortableHeader label="Номенклатура" direction={ordersParcelsSortColumn === 'tmc' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('tmc')} />
+                                                            <SortableHeader label="Консолидация" direction={ordersParcelsSortColumn === 'consolidation' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('consolidation')} />
+                                                            <SortableHeader label="Кол-во" direction={ordersParcelsSortColumn === 'count' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('count')} />
+                                                            <SortableHeader label="Стоимость" direction={ordersParcelsSortColumn === 'cost' ? ordersParcelsSortOrder : undefined} onSort={() => handleOrdersParcelsSort('cost')} />
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -393,10 +394,10 @@ export function DocumentsOrdersSection({
                     style={{ cursor: 'pointer', marginBottom: '0.75rem', position: 'relative' }}
                     title={expanded ? 'Свернуть детали заявки' : 'Показать детали заявки'}
                 >
-                    <Flex justify="space-between" align="start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
+                    <Flex justify="space-between" align="flex-start" style={{ marginBottom: '0.5rem', minWidth: 0, overflow: 'visible' }}>
                         <Flex align="center" gap="0.5rem" style={{ flexWrap: 'wrap', flex: '0 1 auto', minWidth: 0, maxWidth: '65%' }}>
                             <Typography.Body style={{ fontWeight: 600, fontSize: '1rem', color: 'var(--color-text-primary)' }}>
-                                {requestNumber ? formatInvoiceNumber(requestNumber) : '—'}
+                                <RowDisclosure label={`Заявка ${requestNumber || 'без номера'}`} expanded={expanded} onToggle={() => setExpandedOrderRow(prev => prev === rowKey ? null : rowKey)}>{requestNumber ? formatInvoiceNumber(requestNumber) : '—'}</RowDisclosure>
                             </Typography.Body>
                             {customerRequestNumber && (
                                 <AppBadge tone="purple">

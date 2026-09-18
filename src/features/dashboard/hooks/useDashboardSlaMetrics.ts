@@ -78,7 +78,7 @@ export function useDashboardSlaMetrics({
         };
     }, [slaMonitorFilteredItems, workScheduleByInn]);
 
-    const slaTrend = useMemo(() => {
+    const slaTrend = useMemo<"up" | "down" | null>(() => {
         const withSla = slaMonitorFilteredItems
             .map((i) => ({ item: i, sla: getSlaInfo(i, workScheduleByInn) }))
             .filter(

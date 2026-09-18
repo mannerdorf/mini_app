@@ -120,6 +120,7 @@ export function AdminCargoTimelineSection({
     dateFilter: dateFilterControls.dateFilter,
     customDateFrom: dateFilterControls.customDateFrom,
     customDateTo: dateFilterControls.customDateTo,
+    selectedQuarterForFilter: dateFilterControls.selectedQuarterForFilter,
     selectedMonthForFilter: dateFilterControls.selectedMonthForFilter,
     selectedYearForFilter: dateFilterControls.selectedYearForFilter,
     selectedWeekForFilter: dateFilterControls.selectedWeekForFilter,

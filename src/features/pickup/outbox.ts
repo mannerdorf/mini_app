@@ -1,10 +1,12 @@
 export type Pending = { id: string; body: Record<string, unknown>; title: string; error?: string; status?: number; context?: { address: string; date: string; city: string } };
 
 /** Preserve command IDs and payloads after ambiguous failures; block only dependent commands. */
-export async function sendOutbox(items: Pending[], call: (body: Record<string, unknown>) => Promise<unknown>, save: (items: Pending[]) => Promise<void>) {
+export async function sendOutbox(items: Pending[], call: (body: Record<string, unknown>) => Promise<unknown>, save: (items: Pending[]) => Promise<void>, shouldContinue: () => boolean = () => true) {
   let remaining = [...items];
   const blocked = new Set<unknown>();
   for (const item of items) {
+    // The in-flight result is persisted, but a new session must not send the next command.
+    if (!shouldContinue()) break;
     if (blocked.has(item.body.id)) continue;
     try {
       await call(item.body);

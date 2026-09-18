@@ -31,8 +31,8 @@ function getParcelTnvedRaw(parcel: unknown, goods: Record<string, unknown>): unk
 }
 
 /** Parcels attached to a sending row (alias for pipeline helper). */
-export function getRequestParcels(row: unknown): unknown[] {
-  return getSendingParcelsFromRow(row);
+export function getRequestParcels(row: unknown): Record<string, unknown>[] {
+  return getSendingParcelsFromRow(row).filter((item): item is Record<string, unknown> => item !== null && typeof item === "object" && !Array.isArray(item));
 }
 
 export function getParcelTnvedCode(parcel: unknown): string {

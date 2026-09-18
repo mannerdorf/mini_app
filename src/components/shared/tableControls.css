@@ -1,0 +1,4 @@
+@import "./uxTokens.css";
+.table-control { background: transparent; color: inherit; font: inherit; text-align: inherit; border: 0; border-radius: 4px; padding: .5rem .4rem; cursor: pointer; }
+.table-control:hover { background: var(--color-bg-hover); }
+.table-control:focus-visible { outline: 2px solid var(--color-primary, #2563eb); outline-offset: 2px; }

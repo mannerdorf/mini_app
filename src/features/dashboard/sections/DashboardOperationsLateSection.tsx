@@ -130,9 +130,9 @@ export function DashboardOperationsLateSection({ page }: Props) {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {(page.statusFunnelCustomersTable[page.selectedFunnelStatusKey] ?? []).map((row, idx) => {
+                                        {(page.statusFunnelCustomersTable[page.selectedFunnelStatusKey ?? ""] ?? []).map((row, idx) => {
                                             const isExpanded = page.expandedFunnelCustomer === row.customer;
-                                            const items = (page.statusFunnelItemsByCustomer[page.selectedFunnelStatusKey] ?? {})[row.customer] ?? [];
+                                            const items = (page.statusFunnelItemsByCustomer[page.selectedFunnelStatusKey ?? ""] ?? {})[row.customer] ?? [];
                                             const sortedItems = [...items].sort((a, b) => {
                                                 const da = dateUtils.parseDateOnly(String(a?.DatePrih ?? a?.DateOtpr ?? ''))?.getTime() ?? 0;
                                                 const db = dateUtils.parseDateOnly(String(b?.DatePrih ?? b?.DateOtpr ?? ''))?.getTime() ?? 0;
