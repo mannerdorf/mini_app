@@ -40,14 +40,14 @@ export function PickupInstructionChecklistField({ state, onChange }: Props) {
   return (
     <div className="pk-instruction-checklist">
       <p className="pk-instruction-checklist__title">
-        Въезд, пропуск, доверенность, предварительный звонок
+        Пропуск, доверенность, предварительный звонок
       </p>
       <p className="pk-hint">
         Включите нужное переключателями. Порядок строк — перетаскиванием (важно для
         водителя).
       </p>
       <ul className="pk-instruction-checklist__list">
-        {state.order.map((id) => {
+        {state.order.filter((id) => id !== "entry").map((id) => {
           const item = byId.get(id);
           if (!item) return null;
           return (

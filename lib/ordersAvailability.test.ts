@@ -65,3 +65,22 @@ describe("orders availability", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: "ORDERS_UNAVAILABLE" }));
   });
 });
+
+it('does not allow sandbox diagnostics without verified credentials', async () => {
+  vi.mocked(getPool).mockReturnValue({query:vi.fn().mockResolvedValue({rows:[{login:'user'}]})} as unknown as Pool);
+  vi.mocked(verifyRegisteredUser).mockResolvedValue(null);
+  const res=response();
+  await handler({method:'POST',headers:{},body:{login:'user',password:'bad',diagnostics:true}} as never,res as never);
+  expect(res.status).toHaveBeenLastCalledWith(401);
+});
+it('sandbox cannot expand the user scope with a foreign INN or a forged service flag', async () => {
+  const query=vi.fn(async(sql:string)=>({rows:sql.includes('registered_users')?[{login:'user',permissions:{}}]:
+    sql.includes('account_companies')?[{inn:'111'}]:sql.includes('cache_orders')?[{data:[{ЗаказчикИНН:'222',ЗаказчикНаименование:'PRIVATE',Дата:'2026-09-01'}],fetched_at:new Date()}]:[]}));
+  vi.mocked(getPool).mockReturnValue({query} as unknown as Pool);
+  vi.mocked(verifyRegisteredUser).mockResolvedValue(profile);
+  const res=response();
+  await handler({method:'POST',headers:{},body:{login:'user',password:'test',diagnostics:true,inn:'222',serviceMode:true,dateFrom:'2026-09-01',dateTo:'2026-09-30'}} as never,res as never);
+  expect(res.status).toHaveBeenLastCalledWith(200);
+  expect(res.json.mock.calls[0][0].counts.authorized).toBe(0);
+  expect(JSON.stringify(res.json.mock.calls)).not.toContain('PRIVATE');
+});

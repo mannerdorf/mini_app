@@ -142,7 +142,7 @@ export function mergeChunkIntoCache(
   return Array.from(merged.values());
 }
 
-export async function fetchServiceJson(login: string, password: string, url: string) {
+export async function fetchServiceJson(login: string, password: string, url: string, onResponse?: (status: number) => Promise<void>) {
   const response = await fetch(url, {
     method: "GET",
     signal: AbortSignal.timeout(45000),
@@ -151,6 +151,7 @@ export async function fetchServiceJson(login: string, password: string, url: str
       Authorization: SERVICE_AUTH,
     },
   });
+  await onResponse?.(response.status);
   const text = await response.text();
   if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
   let json: any;
@@ -223,15 +224,17 @@ export async function refreshDatedKindForWindow(
   dateFrom: string,
   dateTo: string,
   mode: RefreshWindowResult["mode"],
-  options?: { webPush?: boolean },
+  options?: { webPush?: boolean; trace?: (patch: Record<string, unknown>) => Promise<void> },
 ): Promise<RefreshWindowResult> {
   const { url, table, jsonKeys } = kindEndpoint(kind, dateFrom, dateTo);
-  const json = await fetchServiceJson(login, password, url);
+  await options?.trace?.({stage:"request_1c",status:"running",dateFrom,dateTo});
+  const json = await fetchServiceJson(login, password, url, async status => { await options?.trace?.({stage:"response_1c",httpStatus:status}); });
   // A malformed HTTP 200 must never erase the previous window of orders.
   if (kind === "orders" && (!Array.isArray(json) || json.some(row => !row || typeof row !== "object" || !row.Номер || !row.ЗаказчикИНН || !row.Ссылка))) {
     throw new Error("GetZayavki: неверный формат ответа, предыдущие данные сохранены");
   }
   const chunkRows = extractKnownArray(json, ...jsonKeys);
+  await options?.trace?.({stage:"write_database",receivedRows:chunkRows.length});
 
   const normalizedKind = kind as NormalizedDocumentKind;
   const skipBlobRefresh =
@@ -246,6 +249,7 @@ export async function refreshDatedKindForWindow(
     const currentRows = await readCacheRow(pool, table);
     const mergedRows = mergeChunkIntoCache(kind, currentRows, chunkRows, dateFrom, dateTo);
     await updateCacheRow(pool, table, mergedRows);
+    await options?.trace?.({stage:"database_saved",savedRows:mergedRows.length});
     cacheCount = mergedRows.length;
     try {
       await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);

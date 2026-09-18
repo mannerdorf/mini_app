@@ -74,6 +74,7 @@ export function PickupJobDefaultPlaceSection({
       )}
       <DocumentsOrderPvzSection
         title="Место по умолчанию"
+        courierLabel="Другая точка"
         side="to"
         auth={auth}
         authScope={authScope}

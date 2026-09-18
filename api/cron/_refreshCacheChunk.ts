@@ -1,3 +1,4 @@
+import { writeOrdersSyncTrace, safeOrdersSyncError } from "../../lib/ordersSyncDiagnostics.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
@@ -213,6 +214,7 @@ export async function handleRefreshOrdersCacheChunk(req: VercelRequest, res: Ver
   if (!auth.ok) return;
   const credentials = getServiceCredentials();
   if (!credentials) {
+    await writeOrdersSyncTrace(getPool(), auth.ctx.requestId, {status:"error",stage:"configuration",error:"Не настроены PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD на cron-сервере"}, true);
     return res.status(503).json({
       error: "PEREVOZKI_SERVICE_LOGIN/PEREVOZKI_SERVICE_PASSWORD are not configured",
       request_id: auth.ctx.requestId,
@@ -234,13 +236,18 @@ export async function handleRefreshOrdersCacheChunk(req: VercelRequest, res: Ver
           !Number.isFinite(Date.parse(dateFrom)) || !Number.isFinite(Date.parse(dateTo)) || Date.parse(dateTo)-Date.parse(dateFrom)>90*86400000) {
         return res.status(400).json({error:"Укажите период YYYY-MM-DD не более 90 дней"});
       }
-      const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", dateFrom, dateTo, "chunk", { webPush: false });
+      await writeOrdersSyncTrace(pool, auth.ctx.requestId, {status:"running",stage:"start",dateFrom,dateTo}, true);
+      const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", dateFrom, dateTo, "chunk", {
+        webPush: false, trace: patch => writeOrdersSyncTrace(pool, auth.ctx.requestId, patch),
+      });
+      await writeOrdersSyncTrace(pool, auth.ctx.requestId, {status:"success",stage:"complete",receivedRows:result.chunkCountRows,savedRows:result.cacheCount});
       logInfo(auth.ctx, "refresh_orders_cache_done", result);
       return res.status(200).json({ ok: true, mode: "orders", historyDays: CACHE_DEEP_DAYS, result, request_id: auth.ctx.requestId });
     } finally {
       try { if (locked) await guard.query("SELECT pg_advisory_unlock(114,2)"); } finally { guard.release(); }
     }
   } catch (e: any) {
+    await writeOrdersSyncTrace(getPool(), auth.ctx.requestId, {status:"error",error:safeOrdersSyncError(e)});
     logError(auth.ctx, "refresh_orders_cache_failed", e);
     return res.status(500).json({ error: "Ошибка обновления chunk-кэша заявок", details: e?.message || String(e), request_id: auth.ctx.requestId });
   }

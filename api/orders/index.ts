@@ -1,3 +1,4 @@
+import { diagnoseOrders } from "../../lib/ordersDiagnostics.js";
 import { resolveCompanyAccess, CompanyAccessError } from "../../lib/companyAccess.js";
 import { resolveOrdersAccessInns } from "../../lib/ordersAccess.js";
 import type { Pool } from "pg";
@@ -197,9 +198,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (existing.rows.length || isRegisteredUser) {
       const verified = await verifyRegisteredUser(pool, login, password);
       if (!verified) return res.status(401).json({error:"Неверный логин или пароль"});
+      if (body.diagnostics === true) {
+        const scope = await resolveOrdersAccessInns(pool,verified,login,inn,serviceMode);
+        return res.status(200).json(await diagnoseOrders(pool, {
+          matchesScope: row => scope === null || [...scope].some(allowed => orderMatchesCustomerScope(row,{inn:allowed})),
+          dateOf:orderDate,dateFrom,dateTo,customerName,requestId:ctx.requestId,
+        }));
+      }
       items = await readRegisteredOrdersFromCache(pool,verified,login,dateFrom,dateTo,inn,serviceMode,customerName,value=>{metadata=value;});
     } else {
       const access = await resolveCompanyAccess(pool,login,password);
+      if (body.diagnostics === true) {
+        const requested = normalizeOrderInn(inn);
+        return res.status(200).json(await diagnoseOrders(pool, {
+          matchesScope: row => access.customers.some(customer=>orderMatchesCustomerScope(row,{inn:customer.inn})) &&
+            (!requested || orderMatchesCustomerScope(row,{inn:requested})),
+          dateOf:orderDate,dateFrom,dateTo,customerName,requestId:ctx.requestId,
+        }));
+      }
       const row = (await pool.query("SELECT data,fetched_at FROM cache_orders WHERE id=1")).rows[0];
       if (!Array.isArray(row?.data)) throw new Error("Orders cache is not initialized");
       const fetched = new Date(row.fetched_at).getTime();

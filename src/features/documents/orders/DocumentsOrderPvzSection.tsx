@@ -53,6 +53,7 @@ type Props = {
   defaultCity: CityCode;
   /** Забор: только адрес курьером, без «Со склада / на складе». */
   courierOnly?: boolean;
+  courierLabel?: string;
 };
 
 function pvzLabel(p: PvzItem): string {
@@ -93,6 +94,7 @@ export function DocumentsOrderPvzSection({
   onChange,
   defaultCity,
   courierOnly = false,
+  courierLabel = "Курьером",
 }: Props) {
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
@@ -200,7 +202,7 @@ export function DocumentsOrderPvzSection({
             className={`haulz-calc-segment__btn${state.deliveryMode === "courier" ? " haulz-calc-segment__btn--active" : ""}`}
             onClick={() => setDeliveryMode("courier")}
           >
-            Курьером
+            {courierLabel}
           </button>
           <button
             type="button"

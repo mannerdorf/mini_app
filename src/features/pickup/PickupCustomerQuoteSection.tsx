@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
 import type { City, JobData } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
 import { Textarea } from "./Forms";
@@ -35,60 +34,20 @@ function legacyBillMode(data: JobData): BillMode {
 }
 
 export function PickupCustomerQuoteSection({
-  city,
   data,
-  call,
   onPatch,
   num,
 }: Props) {
   const [issueBill, setIssueBill] = useState(() => legacyIssueBill(data));
   const [billMode, setBillMode] = useState<BillMode>(() => legacyBillMode(data));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [lastQuote, setLastQuote] = useState<PickupCustomerQuoteView | null>(
-    null,
-  );
-
   useEffect(() => {
     setIssueBill(legacyIssueBill(data));
     setBillMode(legacyBillMode(data));
   }, [data.issueCustomerBill, data.customerBillMode, data.priceRub]);
 
-  const ringLabel = city === "moscow" ? "МКАД" : "КАД";
-
-  const runQuote = async () => {
-    setBusy(true);
-    setError("");
-    try {
-      const r = await call({
-        action: "customer_quote",
-        city,
-        weight_kg: data.weightKg,
-        volume_m3: data.volumeM3,
-        latitude: data.latitude,
-        longitude: data.longitude,
-        km_override: null,
-      });
-      const q = r.quote as PickupCustomerQuoteView;
-      setLastQuote(q);
-      onPatch({
-        priceRub: q.totalRub,
-        mkadKm: q.km,
-        issueCustomerBill: true,
-        customerBillMode: "auto",
-      });
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const setIssue = (on: boolean) => {
     setIssueBill(on);
-    setError("");
     if (!on) {
-      setLastQuote(null);
       onPatch({
         issueCustomerBill: false,
         customerBillMode: "",
@@ -107,8 +66,6 @@ export function PickupCustomerQuoteSection({
 
   const setMode = (mode: BillMode) => {
     setBillMode(mode);
-    setError("");
-    if (mode === "auto") setLastQuote(null);
     onPatch({
       issueCustomerBill: true,
       customerBillMode: mode,
@@ -144,42 +101,7 @@ export function PickupCustomerQuoteSection({
               <option value="manual">Вручную</option>
             </select>
 
-            {billMode === "auto" ? (
-              <div className="pk-customer-quote__auto">
-                <p className="pk-hint">
-                  По матрице забора HAULZ, расстояние от {ringLabel} считается
-                  автоматически.
-                </p>
-                <button
-                  type="button"
-                  className="pk-primary pk-customer-quote__btn"
-                  disabled={busy}
-                  onClick={() => void runQuote()}
-                >
-                  {busy ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" aria-hidden />{" "}
-                      Рассчитываем…
-                    </>
-                  ) : (
-                    "Рассчитать"
-                  )}
-                </button>
-                {error && (
-                  <p className="pk-hint haulz-calc-hint--error" role="alert">
-                    {error}
-                  </p>
-                )}
-                {(lastQuote || data.priceRub != null) && (
-                  <p className="pk-customer-quote__summary" role="status">
-                    {lastQuote?.summary ??
-                      (data.priceRub != null
-                        ? `Стоимость: ${data.priceRub.toLocaleString("ru-RU")} ₽`
-                        : "")}
-                  </p>
-                )}
-              </div>
-            ) : (
+            {billMode === "manual" && (
               <input
                 type="number"
                 min="0"

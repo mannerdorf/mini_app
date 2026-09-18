@@ -1,3 +1,4 @@
+import { OrdersSandbox } from "../features/documents/orders/OrdersSandbox";
 import React from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { TapSwitch } from "../components/TapSwitch";
@@ -162,6 +163,13 @@ export function DocumentsPage(props: DocumentsPageProps) {
                     onNavigateToInvoices={() => page.setDocSection('Счета')}
                     onOpenCargo={page.onOpenCargo}
                 />
+            )}
+            {page.docSection === 'Заявки' && !page.documentsOrderFormOpen && (
+                <OrdersSandbox key={`${page.auth.login}:${page.effectiveActiveInn}:${page.activeCustomerName}:${page.effectiveServiceMode}:${page.apiDateRange.dateFrom}:${page.apiDateRange.dateTo}`}
+                    auth={page.auth} inn={page.effectiveActiveInn} customerName={page.activeCustomerName}
+                    serviceMode={page.effectiveServiceMode} dateFrom={page.apiDateRange.dateFrom} dateTo={page.apiDateRange.dateTo}
+                    received={page.ordersReceivedCount} visible={page.ordersCatalog.orderRowsSorted.length} listError={page.ordersError}
+                    refresh={() => page.mutateOrders(undefined, {revalidate:true})} />
             )}
             {page.docSection === 'Заявки' && (
                 <>

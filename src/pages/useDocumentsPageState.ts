@@ -241,6 +241,7 @@ export function useDocumentsPageState({
         ordersLoading: dataLoad.ordersLoading,
         ordersError: dataLoad.ordersError,
         ordersMetadata: dataLoad.ordersMetadata,
+        ordersReceivedCount: dataLoad.ordersItems.length,
         mutateInvoices: dataLoad.mutateInvoices,
         mutatePerevozki: dataLoad.mutatePerevozki,
         mutateActs: dataLoad.mutateActs,
