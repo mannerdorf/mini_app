@@ -1,0 +1,70 @@
+.doc-sections-row--smooth .doc-section-tabs-track {
+    display: flex;
+    align-items: stretch;
+    gap: 2px;
+    width: max-content;
+    padding: 4px;
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
+    background: var(--color-bg-input);
+    isolation: isolate;
+}
+
+.doc-sections-row--smooth .doc-section-tab {
+    position: relative;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--color-text-secondary);
+    box-shadow: none;
+    white-space: nowrap;
+    transition: color 160ms ease;
+}
+
+.doc-sections-row--smooth .doc-section-tab--active {
+    color: var(--color-text-primary);
+}
+
+.light-mode .doc-sections-row--smooth .doc-section-tab--active {
+    color: var(--color-primary-blue);
+}
+
+.doc-sections-row--smooth .doc-section-tab:hover:not(.doc-section-tab--active) {
+    background: transparent;
+    color: var(--color-text-primary);
+}
+
+.doc-sections-row--smooth .doc-section-tab:active {
+    transform: none;
+}
+
+.doc-sections-row--smooth .doc-section-tab:focus-visible {
+    outline: 2px solid var(--color-primary-blue);
+    outline-offset: -2px;
+}
+
+.doc-section-tab-indicator {
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: var(--color-bg-card);
+    box-shadow: var(--shadow-sm);
+    pointer-events: none;
+}
+
+.doc-section-tab-label {
+    position: relative;
+    z-index: 1;
+}
+
+@media (pointer: coarse) {
+    .doc-sections-row--smooth .doc-section-tab {
+        min-height: 44px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .doc-sections-row--smooth .doc-section-tab {
+        transition: none;
+    }
+}
