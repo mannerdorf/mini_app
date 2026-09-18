@@ -15,17 +15,21 @@ export function transportMetrics(row: any) {
   return { places: number(row.Mest), weight: number(row.W), volume: number(row.Value), chargeableWeight: number(row.PW) };
 }
 export function transportNumber(row: any) { return text(row.rawNumber ?? row.Number ?? row.НомерПеревозки); }
+export function transportOrderNumber(row: any) { return text(row.ZayavkaNumber); }
 export function matchBillingTransport(job: Job, rows: any[]) {
   const inn = text(job.data.customerInn);
   if (!inn) throw new Error('У забора не указан ИНН заказчика');
   const matches = rows.filter(row => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn &&
     (text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number) ||
-     (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber))));
-  if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер забора/перевозки и загрузку из 1С');
+     (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber)) ||
+     (text(job.data.zayavkaNumber) !== '' && transportOrderNumber(row) === text(job.data.zayavkaNumber))));
+  if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер заявки, забора или перевозки и загрузку из 1С');
   const row = matches[0];
   const pickup = text(row.НомерПикапа ?? row.PickupNumber);
   if (pickup && pickup !== text(job.job_number)) throw new Error('Перевозка связана с другим забором');
   if (job.data.cargoNumber && transportNumber(row) !== text(job.data.cargoNumber)) throw new Error('Номер перевозки в заборе не совпадает с данными 1С');
+  const order = transportOrderNumber(row);
+  if (order && text(job.data.zayavkaNumber) && order !== text(job.data.zayavkaNumber)) throw new Error('Номер заявки в заборе не совпадает с данными перевозки');
   const number = transportNumber(row);
   // SetPickupCost has no INN/UUID parameter: reject a globally ambiguous number.
   if (!number || rows.filter(r => transportNumber(r) === number).length !== 1) throw new Error('Номер перевозки неоднозначен для SetPickupCost');
@@ -34,13 +38,15 @@ export function matchBillingTransport(job: Job, rows: any[]) {
 async function transports(pool: Pool, jobs: Pick<Job,'job_number'|'data'>[]): Promise<any[]> {
   if (await isNormalizedCacheReady(pool, 'perevozki')) {
     const pickupNumbers=jobs.map(j=>j.job_number).filter(Boolean), cargoNumbers=jobs.map(j=>j.data.cargoNumber).filter(Boolean);
+    const orderNumbers=jobs.map(j=>text(j.data.zayavkaNumber)).filter(Boolean);
     // Keep the untouched payload and expand candidate document numbers across
     // customers, because SetPickupCost cannot disambiguate them using INN.
     return (await pool.query(`WITH candidates AS (
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=ANY($1::text[])
-      OR coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')=ANY($2::text[]))
+      OR coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')=ANY($2::text[])
+      OR btrim(payload->>'ZayavkaNumber')=ANY($3::text[]))
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') IN
-      (SELECT coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') FROM candidates)`,[pickupNumbers,cargoNumbers])).rows.map(row => row.payload);
+      (SELECT coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') FROM candidates)`,[pickupNumbers,cargoNumbers,orderNumbers])).rows.map(row => row.payload);
   }
   const raw = (await pool.query('SELECT data FROM cache_perevozki WHERE id=1')).rows[0]?.data;
   if (!Array.isArray(raw)) throw new PickupError('Перевозки ещё не загружены в БД', 503);
@@ -91,7 +97,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
     }
     const sync = (await pool.query('SELECT state,last_error FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows[0];
     return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,
-      ...record, source: source ?? record?.source, amount:record?.amount == null ? null : Number(record.amount), error, numberSync:sync };
+      ...record, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount:record?.amount == null ? null : Number(record.amount), error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));

@@ -99,3 +99,11 @@ it('restores persisted outcomes for a ten-row batch without reselecting transmit
  expect(select(1).props.disabled).toBe(true);expect(select(10).props.disabled).toBe(true);expect(button('Передать стоимость').props.disabled).toBe(true);
  expect(JSON.stringify(root.toJSON())).toContain('Передача в 1С не подтверждена');expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(10);
 });
+it('shows and searches the pickup order number without a matched transport',async()=>{
+  const call=vi.fn(async()=>({rows:[{jobId:'missing',jobNumber:'ZB-MISSING',customer:'Клиент',date:'2026-09-19',orderNumber:'000018171',amount:null,error:'Перевозка не найдена'}]}));
+  await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:'2026-09-19',call:call as any,jobs:[],routes:[]}));});
+  expect(root.root.findByProps({'data-label':'№ заявки'}).children).toContain('000018171');
+  const search=root.root.findByProps({placeholder:'Заказчик, забор, перевозка, заявка'});
+  await act(async()=>search.props.onChange({target:{value:'000018171'}}));
+  expect(root.root.findByProps({'data-label':'№ заявки'}).children).toContain('000018171');
+});

@@ -4,7 +4,7 @@ import { cities } from '../../../lib/pickup/model';
 import type { PickupCall } from './client';
 import { billingAmountText, billingDraftConflicts, editBillingAmount, reconcileBillingSelection, type BillingDrafts } from './billingDrafts';
 
-type Row = {jobId:string;jobNumber:string;date:string;customer:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
+type Row = {orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
   source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Передано в 1С',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставлен',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
@@ -55,7 +55,7 @@ export function PickupBillingTab({city,date,call}: {city:keyof typeof cities;dat
     setSelected(new Set());
     setMessage(`Передано в 1С: ${success}. ${failures.length ? `Требуют внимания (при неизвестном результате сначала сверьте данные в 1С): ${failures.join('; ')}` : ''}`);
   };
-  const filtered=rows.filter(r=>`${r.jobNumber} ${r.customer} ${r.source?.transportNumber} ${r.source?.orderNumber}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered=rows.filter(r=>`${r.jobNumber} ${r.customer} ${r.source?.transportNumber} ${r.orderNumber || r.source?.orderNumber || ""}`.toLowerCase().includes(search.toLowerCase()));
   return <section className="pk-panel pk-billing" aria-busy={busy}>
     <h2>Выставление счетов · {date} · {cities[city]}</h2>
     <p className="pk-hint">Данные груза — из перевозки в БД. Диспетчер проверяет сумму и подтверждает передачу стоимости. После успешной передачи счета выставляются автоматически в 1С.</p>
@@ -76,7 +76,7 @@ export function PickupBillingTab({city,date,call}: {city:keyof typeof cities;dat
       <td data-label="Выбрать"><input type="checkbox" aria-label={`Выбрать ${row.jobNumber}`} checked={selected.has(row.jobId)} disabled={busy||row.status!=='not_issued'||row.amount==null||Boolean(row.error)} onChange={e=>setSelected(old=>{const next=new Set(old);if(e.target.checked)next.add(row.jobId);else next.delete(row.jobId);return next;})}/></td>
       <td data-label="Дата">{row.date}</td><td data-label="Заказчик">{row.customer}</td><td data-label="Места">{row.source?.places??'—'}</td><td data-label="Вес, кг">{row.source?.weight??'—'}</td><td data-label="Объём, м³">{row.source?.volume??'—'}</td><td data-label="Платный вес, кг">{row.source?.chargeableWeight??'—'}</td>
       <td data-label="№ забора"><strong>{row.jobNumber}</strong>{row.numberSync?.state==='error'&&<small title={row.numberSync.last_error}> · номер не передан в 1С</small>}</td>
-      <td data-label="№ перевозки">{row.source?.transportNumber||'—'}</td><td data-label="№ заявки">{row.source?.orderNumber||'—'}</td>
+      <td data-label="№ перевозки">{row.source?.transportNumber||'—'}</td><td data-label="№ заявки">{row.orderNumber||row.source?.orderNumber||'—'}</td>
       <td data-label="Сумма, ₽"><input aria-label={`Сумма ${row.jobNumber}`} inputMode="decimal" style={{width:110}} value={drafts[row.jobId]?.value??billingAmountText(row)} placeholder={row.source?.mode==='manual'?'Ввести сумму':'Нет расчёта'} disabled={busy||!['not_issued','manual'].includes(row.status||'')} onChange={e=>setDrafts(old=>editBillingAmount(old,row,e.target.value))}/>
         {billingDraftConflicts(row,drafts[row.jobId])&&<div role="alert">Данные изменились. В БД: {row.amount??'—'} ₽. Ваш ввод сохранён.
           <button disabled={busy} onClick={()=>setDrafts(previous=>{const next={...previous};delete next[row.jobId];return next;})}>Принять сумму из БД</button>

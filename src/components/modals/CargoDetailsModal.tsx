@@ -200,6 +200,7 @@ export function CargoDetailsModal({
     const roleLabel = getCargoDisplayRoleLabel(item);
     const selfPickup = cargoLastMileIsSelfPickup(item);
     const FIELD_LABELS: Record<string, string> = {
+        ZayavkaNumber: 'Номер заявки',
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
         Order: 'Номер заявки заказчика',

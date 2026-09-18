@@ -20,12 +20,12 @@ const journal=()=>billingJournal(pool,'moscow','2026-09-17','dispatcher');
 beforeAll(async()=>{
   db=new PGlite();
   await db.exec(`CREATE TABLE pickup_jobs(id uuid PRIMARY KEY,job_number text,city text,date date,status text,data jsonb);
-    CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
+    CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
   const migration=readFileSync(new URL('../../migrations/114_pickup_1c_integration.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);
 },30000);
 afterAll(()=>db.close());
-beforeEach(async()=>{await db.exec('TRUNCATE pickup_jobs,cache_perevozki,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
+beforeEach(async()=>{await db.exec('TRUNCATE pickup_jobs,cache_perevozki,cache_perevozki_rows,document_cache_normalized_state,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
 describe('pickup billing and durable outbox',()=>{
   it('restores a ten-row batch after database restart without retrying transmitted or uncertain writes', async()=>{
     const transports=[];
@@ -145,4 +145,45 @@ it('allows manual issuance confirmation following a rejected transfer',async()=>
   const failed=(await journal()).rows[0];
   await billingEdit(pool,'dispatcher',{id,version:failed.version,action:'billing_mark_issued'});
   expect((await journal()).rows[0].status).toBe('issued');
+});
+
+
+describe('billing transport joined by order number',()=>{
+  it.each([false,true])('loads metrics by ZayavkaNumber before pickup sync (normalized=%s)',async(normalized)=>{
+    await seed();
+    const row={...cargo(),НомерПикапа:'',ZayavkaNumber:'000123'};
+    if(normalized){
+      await db.query("INSERT INTO document_cache_normalized_state VALUES('perevozki',1)");
+      await db.query('INSERT INTO cache_perevozki_rows VALUES($1)',[JSON.stringify(row)]);
+      await db.query('DELETE FROM cache_perevozki');
+    } else await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([row])]);
+    const bill=(await journal()).rows[0];
+    expect(bill.error).toBeNull();
+    expect(bill).toMatchObject({orderNumber:'000123',amount:540,source:{transportNumber:'000001',orderNumber:'000123',places:2,weight:37,volume:0.27,chargeableWeight:54}});
+    expect(deliverySetter).not.toHaveBeenCalled();
+    await billingEdit(pool,'dispatcher',{id,version:bill.version,amount:600,action:'billing_save'});
+    const saved=(await journal()).rows[0];
+    await billingSend(pool,'dispatcher',{confirmed:true,id,version:saved.version});
+    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:600});
+  });
+  it('shows the job order number even when no transportation is found',async()=>{
+    await seed();await db.query("UPDATE cache_perevozki SET data='[]'");
+    expect((await journal()).rows[0]).toMatchObject({orderNumber:'000123',error:expect.stringContaining('не найдена')});
+  });
+  it('rejects foreign customers, multiple transports and conflicting identifiers',()=>{
+    const job:any={job_number:'ZB-001',data:{customerInn:'7701234567',zayavkaNumber:'000123',cargoNumber:''}};
+    const row={...cargo(),НомерПикапа:'',ZayavkaNumber:'000123'};
+    expect(()=>matchBillingTransport(job,[{...row,INN:'other'}])).toThrow('не найдена');
+    expect(()=>matchBillingTransport(job,[row,{...row,Number:'000002'}])).toThrow('несколько');
+    expect(()=>matchBillingTransport(job,[{...row,НомерПикапа:'ZB-OTHER'}])).toThrow('другим забором');
+    expect(()=>matchBillingTransport(job,[{...row,НомерПикапа:'ZB-001',ZayavkaNumber:'other'}])).toThrow('Номер заявки');
+    expect(()=>matchBillingTransport({...job,data:{...job.data,zayavkaNumber:'123'}},[row])).toThrow('не найдена');
+  });
+  it('expands normalized candidates across customers to reject globally ambiguous transport numbers',async()=>{
+    await seed();await db.query("INSERT INTO document_cache_normalized_state VALUES('perevozki',2)");
+    for(const row of [{...cargo(),НомерПикапа:'',ZayavkaNumber:'000123'},{...cargo(),INN:'other',НомерПикапа:'',ZayavkaNumber:'different'}])
+      await db.query('INSERT INTO cache_perevozki_rows VALUES($1)',[JSON.stringify(row)]);
+    expect((await journal()).rows[0].error).toContain('неоднозначен');
+    expect(deliverySetter).not.toHaveBeenCalled();
+  });
 });
