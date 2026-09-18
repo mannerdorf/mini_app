@@ -9,7 +9,6 @@ import type {
   JobData,
   Route,
 } from "../../../lib/pickup/model";
-import { truckFields } from "../../../lib/pickup/routeAnalysis";
 import { cities } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
 import { PickupJobNumber } from "./PickupJobNumber";
@@ -425,9 +424,9 @@ export function ResourceForm({
       return { from: "08:00", to: "18:00", address: "" };
     }
     if (kind === "vehicle") {
-      return { type: "own", lift: "Нет", from: "08:00", to: "18:00" };
+      return { type: "own", lift: "Нет" };
     }
-    return { type: "own", from: "08:00", to: "18:00" };
+    return { type: "own" };
   };
   const [data, setData] = useState<Record<string, string>>(
     resource?.data ?? defaultData(),
@@ -474,12 +473,6 @@ export function ResourceForm({
               { id: "hired", name: "Наёмный" },
             ]}
           />
-        )}
-        {kind !== "depot" && (
-          <>
-            <Field label={kind === "driver" ? "Начало смены" : "Доступен с"} type="time" value={data.from ?? ""} onChange={(v) => update("from", v)} required />
-            <Field label={kind === "driver" ? "Окончание смены" : "Доступен до"} type="time" value={data.to ?? ""} onChange={(v) => update("to", v)} required />
-          </>
         )}
         {kind === "depot" && (
           <>
@@ -546,45 +539,6 @@ export function ResourceForm({
             />
           </div>
           <PickupVehicleResourceFields data={data} update={update} />
-          <details className="pk-panel">
-            <summary>Параметры для грузовой маршрутизации</summary>
-            <p className="pk-hint">
-              Внешние габариты всего ТС, а не размеры кузова. Масса с грузом —
-              максимальная для этого рейса; перед проверкой уточните её.
-              Пропуски указываются числовыми идентификаторами 2ГИС.
-            </p>
-            <div className="pk-grid">
-              {truckFields.map(([field, label]) => (
-                <Field
-                  key={field}
-                  label={label}
-                  type="number"
-                  value={data[field] || ""}
-                  onChange={(v) => update(field, v)}
-                />
-              ))}
-              {[
-                ["truckDangerous", "Опасный груз"],
-                ["truckExplosive", "Взрывоопасный груз"],
-              ].map(([field, label]) => (
-                <Select
-                  key={field}
-                  label={label}
-                  value={data[field] || ""}
-                  onChange={(v) => update(field, v)}
-                  options={[
-                    { id: "no", name: "Нет" },
-                    { id: "yes", name: "Да" },
-                  ]}
-                />
-              ))}
-              <Field
-                label="Идентификаторы пропусков 2ГИС"
-                value={data.truckPassIds || ""}
-                onChange={(v) => update("truckPassIds", v)}
-              />
-            </div>
-          </details>
           <div className="pk-grid">
             <Select
               label="Гидроборт"

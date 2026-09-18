@@ -1,7 +1,8 @@
+import { PickupJobBillingEditor } from "./PickupJobBillingEditor";
+import { PickupJobOrderEditor } from "./PickupJobOrderEditor";
 import { usePickupOutbox } from "./usePickupOutbox";
 import { PickupOutbox } from "./PickupOutbox";
 import { DriverBottomNav, DriverHome, DriverProfile, type DriverTab } from "./PickupDriverNavigation";
-import { PickupRouteCheck } from "./PickupRouteCheck";
 import React, {
   useCallback,
   useEffect,
@@ -924,8 +925,10 @@ export function PickupPage({
             />
           )}
           <div className="pk-day-columns" aria-hidden="true">
+            <span>Номер забора</span>
             <span>Окно забора</span>
             <span>Отправитель / адрес</span>
+            <span>Заказчик</span>
             <span>Груз</span>
             <span>Водитель / маршрут</span>
             <span>Статус</span>
@@ -966,6 +969,9 @@ export function PickupPage({
                     busy={busy}
                     act={act}
                   />
+
+                  <PickupJobBillingEditor key={`billing-${j.id}-${j.version}`} job={j} busy={busy} call={call} act={act} />
+                  <PickupJobOrderEditor key={`${j.id}-${j.version}`} job={j} busy={busy} act={act} />
 
                   <div className="pk-actions">
                     <button
@@ -1242,32 +1248,6 @@ export function PickupPage({
                     </p>
                   </div>
                 </div>
-                {dispatch &&
-                  route.status !== "completed" &&
-                  route.status !== "draft" && (
-                  <PickupRouteCheck
-                    key={route.id}
-                    route={route}
-                    jobs={routeJobs}
-                    snapshot={snapshot}
-                    call={call}
-                    busy={busy}
-                    stale={stale}
-                    onApply={(result) =>
-                      act(
-                        {
-                          action: "reorder",
-                          id: route.id,
-                          version: result.routeVersion,
-                          ids: result.ids,
-                          analysisSignature: result.signature,
-                          checkedAt: result.checkedAt,
-                        },
-                        "Предложенный порядок применён",
-                      )
-                    }
-                  />
-                )}
                 {mode === "driver" && (
                   <PickupDriverGuide
                     route={route}
@@ -1484,14 +1464,6 @@ export function PickupPage({
                       }
                     />
                   </div>
-                )}
-                {dispatch ? (
-                  <details className="pk-route-map-fold">
-                    <summary>Карта</summary>
-                    <RouteMap jobs={routeJobs} />
-                  </details>
-                ) : (
-                  <RouteMap jobs={routeJobs} />
                 )}
                 </div>
                 <div className="pk-route-detail__stops-scroll">
@@ -2359,39 +2331,6 @@ function JobDetails({
     </article>
   );
 }
-function RouteMap({ jobs }: { jobs: Job[] }) {
-  const [open, setOpen] = useState(false);
-  const points = jobs.filter(
-    (j) => j.data.latitude !== null && j.data.longitude !== null,
-  );
-  const params = new URLSearchParams({
-    pt: points
-      .map((j, i) => `${j.data.longitude},${j.data.latitude},pm2blm${i + 1}`)
-      .join("~"),
-    z: "10",
-  });
-  return (
-    <details onToggle={(e) => setOpen(e.currentTarget.open)}>
-      <summary>
-        Карта точек ({points.length} из {jobs.length} с координатами)
-      </summary>
-      <p className="pk-muted">
-        Нумерация на карте относится к точкам с координатами. Для адресов без
-        координат используйте кнопку «Навигация».
-      </p>
-      {open && points.length > 0 && (
-        <iframe
-          className="pk-map"
-          title="Карта точек забора"
-          src={`https://yandex.ru/map-widget/v1/?${params}`}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-        />
-      )}
-    </details>
-  );
-}
-
 function DeleteJobButton({
   job,
   busy,

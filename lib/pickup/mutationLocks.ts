@@ -1,7 +1,7 @@
 import type { PoolClient } from "pg";
 import { uuid } from "./model.js";
 
-const jobActions = new Set(["arrive", "complete", "problem", "resolve", "set_job_status"]);
+const jobActions = new Set(["arrive", "complete", "problem", "resolve", "set_job_status", "set_job_order", "set_job_billing"]);
 const routeActions = new Set(["start", "acknowledge", "deposit", "reorder", "location_unreliable"]);
 
 /** Structural assignments use the exclusive gate; independent route work shares it. */

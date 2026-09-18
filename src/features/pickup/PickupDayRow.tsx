@@ -45,17 +45,18 @@ export function PickupDayRow({
           onClick={() => setOpen(true)}
           aria-label={`Открыть забор: ${job.data.senderName}, ${job.data.address}`}
         >
+          <span className="pk-day-number" aria-label={`Номер забора: ${job.job_number || "не присвоен"}`}>{job.job_number || "—"}</span>
           <span className="pk-day-time">
             {job.data.windowFrom}–{job.data.windowTo}
           </span>
           <span className="pk-day-address">
             <strong>{job.data.senderName}</strong>
             <span>{job.data.address}</span>
-            <small>
-              {job.job_number ? `${job.job_number} · ` : ""}
-              {job.data.customerName}
-              {job.data.zayavkaNumber ? ` · заявка ${job.data.zayavkaNumber}` : ""}
-            </small>
+            {job.data.zayavkaNumber && <small>Заявка {job.data.zayavkaNumber}</small>}
+          </span>
+          <span className="pk-day-customer">
+            <small className="pk-day-customer-label">Заказчик</small>
+            {job.data.customerName || "—"}
           </span>
           <span className="pk-day-cargo">
             {plannedPlaces(job.data)} мест

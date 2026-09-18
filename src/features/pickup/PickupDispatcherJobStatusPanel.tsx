@@ -26,6 +26,11 @@ export function PickupDispatcherJobStatusPanel({
   const [note, setNote] = useState("");
 
   const needsPlaces = status === "picked_up" || status === "partial";
+  const missingFields = [
+    !note.trim() ? "причину / комментарий" : "",
+    needsPlaces && !actualPlaces.trim() ? "фактическое количество мест" : "",
+    status === "deposited" && !zayavkaNumber.trim() ? "номер заявки" : "",
+  ].filter(Boolean);
 
   return (
     <details
@@ -78,14 +83,20 @@ export function PickupDispatcherJobStatusPanel({
         )}
       </div>
       <Textarea
-        label="Причина / комментарий"
+        label="Причина / комментарий *"
         value={note}
         onChange={setNote}
       />
+      {missingFields.length > 0 && (
+        <p className="pk-hint" id={`manual-status-hint-${job.id}`} role="status">
+          Чтобы применить статус, заполните: {missingFields.join(", ")}.
+        </p>
+      )}
       <button
         type="button"
+        aria-describedby={missingFields.length ? `manual-status-hint-${job.id}` : undefined}
         className="pk-primary"
-        disabled={busy || !note.trim() || (needsPlaces && !actualPlaces.trim()) || (status === "deposited" && !zayavkaNumber.trim())}
+        disabled={busy || missingFields.length > 0}
         onClick={() =>
           void act(
             {

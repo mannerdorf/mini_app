@@ -1349,6 +1349,49 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     }
     return { ok: true };
   }
+  if (action === "set_job_billing") {
+    dispatcherOnly(actor);
+    const { rows } = await db.query("SELECT * FROM pickup_jobs WHERE id=$1 FOR UPDATE", [uuid(body.id)]);
+    const job: Job = rows[0];
+    requireValue(job, "Забор не найден");
+    checkVersion(job, body.version);
+    const billing = (await db.query("SELECT status FROM pickup_billing WHERE job_id=$1 FOR UPDATE", [job.id])).rows[0];
+    requireValue(!billing || billing.status === "not_issued", "Стоимость уже передавалась в 1С. Проверьте результат в журнале счетов перед изменением расчётов");
+    requireValue(typeof body.data?.issueCustomerBill === "boolean", "Укажите необходимость выставления счёта");
+    const enabled = body.data.issueCustomerBill;
+    requireValue(!enabled || ["auto", "manual"].includes(body.data.customerBillMode), "Выберите способ расчёта");
+    const patch = {
+      issueCustomerBill: enabled,
+      customerBillMode: enabled ? body.data.customerBillMode : "",
+      priceRub: enabled ? numberValue(body.data.priceRub, "стоимость", 100000000) : null,
+      payment: textValue(body.data.payment, 100),
+      note: textValue(body.data.note, 3000),
+    };
+    await db.query("UPDATE pickup_jobs SET data=data || $2::jsonb,version=version+1,updated_at=now() WHERE id=$1", [job.id, JSON.stringify(patch)]);
+    await event(db, actor, "Расчёты изменены диспетчером", job.route_id, job.id, patch);
+    return { ok: true };
+  }
+  if (action === "set_job_order") {
+    dispatcherOnly(actor);
+    const { rows } = await db.query("SELECT * FROM pickup_jobs WHERE id=$1 FOR UPDATE", [uuid(body.id)]);
+    const job: Job = rows[0];
+    requireValue(job, "Забор не найден");
+    checkVersion(job, body.version);
+    requireValue(
+      typeof body.zayavkaNumber === "string" && body.zayavkaNumber.trim().length > 0 && body.zayavkaNumber.trim().length <= 100,
+      "Введите номер заявки: от 1 до 100 символов",
+    );
+    const number = body.zayavkaNumber.trim();
+    await db.query(
+      `UPDATE pickup_jobs SET data=jsonb_set(data,'{zayavkaNumber}',to_jsonb($2::text)),
+       zayavka_number=$2,version=version+1,updated_at=now() WHERE id=$1`,
+      [job.id, number],
+    );
+    await event(db, actor, "Заявка указана диспетчером", job.route_id, job.id, {
+      previous: job.data.zayavkaNumber || "", zayavkaNumber: number,
+    });
+    return { ok: true };
+  }
   if (action === "set_job_status") {
     dispatcherOnly(actor);
     const { rows } = await db.query(
