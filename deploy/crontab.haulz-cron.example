@@ -1,33 +1,26 @@
-# Crontab для ВЫДЕЛЕННОГО cron-VPS (localhost:3000 / haulz-cron.service).
-#
-# НЕ ставить на api.haulz.ru (72.56.36.185) — там только watchdog TLS.
-# См. deploy/README-vps-cron.md
-#
-# 1. sudo cp /opt/haulz/app/deploy/cron-call.sh /opt/haulz/cron-call.sh
-# 2. CRON_SECRET в /opt/haulz/.env
-# 3. CACHE_REFRESH_SKIP_BLOB=1 в .env (рекомендуется)
-# 4. sudo crontab deploy/crontab.haulz-cron.example   # или crontab /root/crontab-haulz-cron.txt
-
+# Только cron-VPS. Часовой пояс ОС должен быть Europe/Moscow.
+# TZ задаёт окружение команд, но не гарантирует часовой пояс самого cron.
+# Перед включением применить migrations/116_cron_load_control.sql.
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 TZ=Europe/Moscow
 HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 
-# refresh-cache: раз в 10 минут, сдвиг по минутам
-1,11,21,31,41,51 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
-0 2,8,14,20 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
-*/10 * * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
-# Заявки: ограниченный таймаут; при ошибке сохраняется последняя успешная загрузка.
-*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
-*/15 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-suppliers-cache
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/process-claim-push-queue
+# Проверка каждые 5 минут; БД допускает работу раз в 25 минут.
+*/5 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache
+0 2 * * * /opt/haulz/cron-call.sh /api/cron/refresh-cache-deep
+30 3 * * * /opt/haulz/cron-call.sh /api/cron/backfill-sendings-metrics
+0 * * * * /opt/haulz/cron-call.sh /api/cron/refresh-orders-cache
+30 1 * * * /opt/haulz/cron-call.sh '/api/cron/refresh-orders-cache?mode=backfill'
+0 3 * * * /opt/haulz/cron-call.sh /api/cron/refresh-suppliers-cache
+7 * * * * /opt/haulz/cron-call.sh /api/cron/process-claim-push-queue
 0 * * * * /opt/haulz/cron-call.sh /api/notification-poll
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-tariffs-cache
+0 4 * * * /opt/haulz/cron-call.sh /api/cron/refresh-tariffs-cache
 0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-sverki-cache
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-dogovors-cache
-0 0 * * * /opt/haulz/cron-call.sh /api/cron/refresh-pvz-cache
-0 10 * * * /opt/haulz/cron-call.sh /api/notification-daily-summary
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/weekly-partner-summary
-
-# Передача номеров заборов из локальной очереди в 1С
-*/5 * * * * /opt/haulz/cron-call.sh /api/cron/sync-pickup-numbers
+0 5 * * * /opt/haulz/cron-call.sh /api/cron/refresh-dogovors-cache
+0 6 * * * /opt/haulz/cron-call.sh /api/cron/refresh-pvz-cache
+17 13 * * * /opt/haulz/cron-call.sh /api/notification-daily-summary
+0 7 * * * /opt/haulz/cron-call.sh /api/cron/weekly-partner-summary
+# Продолжает только уже начатую рассылку; не создаёт новую.
+5,10,15,20,25,30,35,40,45,50,55 7 * * * /opt/haulz/cron-call.sh '/api/cron/weekly-partner-summary?continue=1'
+20 * * * * /opt/haulz/cron-call.sh /api/cron/sync-pickup-numbers

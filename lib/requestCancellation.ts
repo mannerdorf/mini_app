@@ -3,6 +3,7 @@ const requestSignals = new AsyncLocalStorage<AbortSignal>();
 export function withRequestSignal<T>(signal: AbortSignal, run: () => Promise<T>): Promise<T> {
   return requestSignals.run(signal, run);
 }
+export function getRequestSignal() { return requestSignals.getStore(); }
 /** Propagate the HTTP deadline without replacing a provider's shorter timeout. */
 export function requestFetch(input: Parameters<typeof fetch>[0], init?: RequestInit): ReturnType<typeof fetch> {
   const parent = requestSignals.getStore();

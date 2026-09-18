@@ -1,23 +1,19 @@
+import { runCronWork, cronDateWindow } from "../../lib/cronWorkState.js";
+import { addDaysIso } from "../../lib/documentCacheRefreshCore.js";
 import { writeOrdersSyncTrace, safeOrdersSyncError } from "../../lib/ordersSyncDiagnostics.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { requireCronAuth } from "../_lib/cronAuth.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
-import { CACHE_HISTORY_DAYS } from "../../lib/cacheHistoryDays.js";
 import {
-  CACHE_DEEP_DAYS,
-  CACHE_RECENT_DAYS,
   ensureDocumentCacheTables,
   fetchServiceJson,
-  getFixedWindowRange,
-  getRotatingDocumentKind,
   refreshDatedKindForWindow,
   ROTATING_DOCUMENT_KINDS,
   type DatedDocumentCacheKind,
   type DocumentCacheKind,
 } from "../../lib/documentCacheRefreshCore.js";
 
-const CRON_INTERVAL_MS = 5 * 60 * 1000;
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 
 function getStringQuery(req: VercelRequest, key: string): string {
@@ -91,15 +87,7 @@ function getServiceCredentials(): { login: string; password: string } | null {
   return login && password ? { login, password } : null;
 }
 
-function resolveKind(req: VercelRequest, reference = new Date(), intervalMs = CRON_INTERVAL_MS): DocumentCacheKind {
-  const rawKind = getStringQuery(req, "kind") as DocumentCacheKind;
-  if (rawKind && (["perevozki", "sendings", "invoices", "acts", "customers"] as string[]).includes(rawKind)) {
-    return rawKind;
-  }
-  return getRotatingDocumentKind(reference, intervalMs);
-}
-
-/** Крон каждые 5 мин: последние 30 дней, по одному типу документов за запуск. */
+/** Работа раз в 25 минут, окно 3 дня, тип хранится в БД. */
 export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
@@ -118,8 +106,11 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
   try {
     const pool = getPool();
     await ensureDocumentCacheTables(pool);
-    const kind = resolveKind(req);
-    const { dateFrom, dateTo } = getFixedWindowRange(CACHE_RECENT_DAYS);
+    return res.status(200).json(await runCronWork(pool,"documents_recent",25,async cursor => {
+    const kinds: DocumentCacheKind[] = [...ROTATING_DOCUMENT_KINDS,"customers"];
+    const position = Number.isInteger(cursor.position) ? cursor.position % kinds.length : 0;
+    const kind = kinds[position];
+    const { dateFrom, dateTo } = cronDateWindow(3);
 
     const result =
       kind === "customers"
@@ -141,22 +132,15 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
             "recent",
           );
 
-    logInfo(auth.ctx, "refresh_cache_recent_done", result);
-    return res.status(200).json({
-      ok: true,
-      mode: "recent",
-      windowDays: CACHE_RECENT_DAYS,
-      historyDays: CACHE_HISTORY_DAYS,
-      result,
-      request_id: auth.ctx.requestId,
-    });
+    return {result:{ok:true,mode:"recent",windowDays:3,result,request_id:auth.ctx.requestId},cursor:{position:(position+1)%kinds.length}};
+    }));
   } catch (e: any) {
     logError(auth.ctx, "refresh_cache_recent_failed", e);
     return res.status(500).json({ error: "Ошибка обновления кэша (recent)", details: e?.message || String(e), request_id: auth.ctx.requestId });
   }
 }
 
-/** Крон 4×/сутки: последние 90 дней, по одному типу за запуск. */
+/** Ежедневно: последние 10 дней, четыре типа последовательно. */
 export async function handleRefreshCacheDeep(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "GET" && req.method !== "POST") {
     res.setHeader("Allow", "GET, POST");
@@ -175,25 +159,17 @@ export async function handleRefreshCacheDeep(req: VercelRequest, res: VercelResp
   try {
     const pool = getPool();
     await ensureDocumentCacheTables(pool);
-    const deepIntervalMs = 6 * 60 * 60 * 1000;
-    const rawKind = getStringQuery(req, "kind") as DocumentCacheKind;
-    const kind: DatedDocumentCacheKind =
-      rawKind && (ROTATING_DOCUMENT_KINDS as string[]).includes(rawKind)
-        ? (rawKind as Exclude<DocumentCacheKind, "customers">)
-        : ROTATING_DOCUMENT_KINDS[Math.floor(Date.now() / deepIntervalMs) % ROTATING_DOCUMENT_KINDS.length] ?? "perevozki";
-    const { dateFrom, dateTo } = getFixedWindowRange(CACHE_DEEP_DAYS);
-
-    const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, kind, dateFrom, dateTo, "deep");
-
-    logInfo(auth.ctx, "refresh_cache_deep_done", result);
-    return res.status(200).json({
-      ok: true,
-      mode: "deep",
-      windowDays: CACHE_DEEP_DAYS,
-      historyDays: CACHE_HISTORY_DAYS,
-      result,
-      request_id: auth.ctx.requestId,
-    });
+    return res.status(200).json(await runCronWork(pool,"documents_deep",0,async cursor => {
+      const {dateFrom,dateTo}=cronDateWindow(10);
+      const results=[];
+      const start = cursor.day===dateTo ? Number(cursor.position || 0) : 0;
+      for(let i=start;i<ROTATING_DOCUMENT_KINDS.length;i++) {
+        const result=await refreshDatedKindForWindow(pool,credentials.login,credentials.password,ROTATING_DOCUMENT_KINDS[i],dateFrom,dateTo,"deep");
+        results.push(result);
+        await pool.query("UPDATE cron_work_state SET cursor=$2 WHERE name=$1",["documents_deep",JSON.stringify({day:dateTo,position:i+1})]);
+      }
+      return {result:{ok:true,mode:"deep",windowDays:10,results,request_id:auth.ctx.requestId},cursor:{day:dateTo,position:ROTATING_DOCUMENT_KINDS.length}};
+    }));
   } catch (e: any) {
     logError(auth.ctx, "refresh_cache_deep_failed", e);
     return res.status(500).json({ error: "Ошибка обновления кэша (deep)", details: e?.message || String(e), request_id: auth.ctx.requestId });
@@ -229,20 +205,42 @@ export async function handleRefreshOrdersCacheChunk(req: VercelRequest, res: Ver
     try {
       locked = (await guard.query("SELECT pg_try_advisory_lock(114,2) AS locked")).rows[0]?.locked === true;
       if (!locked) return res.status(200).json({ok:true,skipped:true,reason:"refresh_in_progress"});
-      const defaults = getFixedWindowRange(CACHE_DEEP_DAYS);
+      const backfill=getStringQuery(req,"mode")==="backfill";
+      const explicit=Boolean(getStringQuery(req,"dateFrom") || getStringQuery(req,"dateTo"));
+      const task=backfill?"orders_history":"orders_recent";
+      const execute=async (cursor:any):Promise<{result:Record<string,unknown>;cursor:any}> => {
+      const defaults = cronDateWindow(3);
+      const historyEnd=cursor.endDay || addDaysIso(defaults.dateFrom,-1);
+      if(backfill) {
+        defaults.dateFrom=cursor.nextDay || process.env.ORDERS_BACKFILL_FROM || `${defaults.dateTo.slice(0,4)}-01-01`;
+        defaults.dateTo=defaults.dateFrom;
+        if(defaults.dateFrom>historyEnd) return {result:{ok:true,done:true},cursor};
+      }
       const dateFrom = getStringQuery(req,"dateFrom") || defaults.dateFrom;
       const dateTo = getStringQuery(req,"dateTo") || defaults.dateTo;
       if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFrom) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo) || dateFrom>dateTo ||
           !Number.isFinite(Date.parse(dateFrom)) || !Number.isFinite(Date.parse(dateTo)) || Date.parse(dateTo)-Date.parse(dateFrom)>90*86400000) {
-        return res.status(400).json({error:"Укажите период YYYY-MM-DD не более 90 дней"});
+        throw new Error("Укажите период YYYY-MM-DD не более 90 дней");
       }
       await writeOrdersSyncTrace(pool, auth.ctx.requestId, {status:"running",stage:"start",dateFrom,dateTo}, true);
-      const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", dateFrom, dateTo, "chunk", {
-        webPush: false, trace: patch => writeOrdersSyncTrace(pool, auth.ctx.requestId, patch),
-      });
-      await writeOrdersSyncTrace(pool, auth.ctx.requestId, {status:"success",stage:"complete",receivedRows:result.chunkCountRows,savedRows:result.cacheCount});
-      logInfo(auth.ctx, "refresh_orders_cache_done", result);
-      return res.status(200).json({ ok: true, mode: "orders", historyDays: CACHE_DEEP_DAYS, result, request_id: auth.ctx.requestId });
+      const results=[];
+      // Each day is committed independently. A failure preserves the previous successful days.
+      for(let day=dateFrom;day<=dateTo;day=addDaysIso(day,1)) {
+        const result = await refreshDatedKindForWindow(pool, credentials.login, credentials.password, "orders", day, day, "chunk", {
+          webPush:false,trace:patch=>writeOrdersSyncTrace(pool,auth.ctx.requestId,{...patch,currentDay:day}),
+        });
+        results.push(result);
+      }
+      await writeOrdersSyncTrace(pool,auth.ctx.requestId,{status:"success",stage:"complete",dateFrom,dateTo,receivedRows:results.reduce((sum,r)=>sum+r.chunkCountRows,0),savedRows:results.at(-1)?.cacheCount});
+      return {result:{ok:true,mode:backfill?"orders_backfill":"orders",windowDays:3,results,request_id:auth.ctx.requestId},cursor:backfill?{nextDay:addDaysIso(dateTo,1),endDay:historyEnd}:{}};
+      };
+      if(explicit) {
+        // Manual diagnostics is limited to three days per call to stay within server runtime.
+        const from=getStringQuery(req,"dateFrom"),to=getStringQuery(req,"dateTo");
+        if(!from || !to || !/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || !Number.isFinite(Date.parse(from)) || !Number.isFinite(Date.parse(to)) || from>to || Date.parse(to)-Date.parse(from)>2*86400000) return res.status(400).json({error:"Для ручной загрузки укажите от 1 до 3 дней"});
+        return res.status(200).json((await execute({})).result);
+      }
+      return res.status(200).json(await runCronWork(pool,task,backfill?0:55,execute));
     } finally {
       try { if (locked) await guard.query("SELECT pg_advisory_unlock(114,2)"); } finally { guard.release(); }
     }

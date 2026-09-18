@@ -18,7 +18,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   try {
     const pool = getPool();
-    const result = await runPartnerSummaryCron(pool, { force: false });
+    const result = await runPartnerSummaryCron(pool, { force: false, continueOnly: req.query.continue === "1", maxRunMs: 50000 });
     logInfo(ctx, "weekly_partner_summary_done", {
       skipped: !!result.skipped,
       sent: result.sent,

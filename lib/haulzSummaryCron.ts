@@ -481,8 +481,7 @@ export async function buildSummaryCronRecipients(
 }
 
 export function isSummaryCronSpreadWindow(config: SummaryCronConfig, now = new Date()): boolean {
-  if (now.getUTCDay() !== 1) return false;
-  const startHour = 6;
+  const startHour = 4; // 07:00 Europe/Moscow; also allow monthly runs outside Mondays.
   const endHour = startHour + config.spreadWindowHours;
   const h = now.getUTCHours();
   return h >= startHour && h < endHour;
@@ -1060,7 +1059,7 @@ export async function runPartnerSummaryCron(
     return {
       ok: true,
       skipped: true,
-      reason: "Вне окна рассылки (понедельник, утро по UTC)",
+      reason: "Вне окна рассылки (с 07:00 по Москве)",
       period,
       sent: 0,
       failed: 0,

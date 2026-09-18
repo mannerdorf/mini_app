@@ -8,7 +8,7 @@ const PEREVOZKI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPe
 const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 const HTTP_TIMEOUT_MS = 110_000;
 const RUNTIME_BUDGET_MS = 260_000;
-const DEFAULT_CHUNK_DAYS = 7;
+const DEFAULT_CHUNK_DAYS = 1;
 const DEFAULT_MAX_CHUNKS = 1;
 const DEFAULT_CARGO_BATCH_SIZE = 100;
 

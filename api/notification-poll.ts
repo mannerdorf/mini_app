@@ -1,3 +1,4 @@
+import { loadNotificationCacheItems } from "../lib/notificationCacheItems.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { getRedisValue } from "./redis.js";
@@ -11,7 +12,6 @@ import {
   CARGO_STAGE_EVENT_IDS,
   getCargoStageEventsOnStateChange,
   getPaymentKey,
-  fetchPerevozkiByInn,
   hasBillSignal,
   hasBillNumberForPush,
   isCargoStageNotificationEnabled,
@@ -37,12 +37,9 @@ import {
 } from "../lib/notificationCargoPayloadEnrich.js";
 import { syncCargoPushSnapshots } from "../lib/cargoPushSnapshot.js";
 import { loadPushNotificationTemplates, formatPushNotificationMessage, shouldDeferLastMilePush } from "../lib/pushNotificationTemplates.js";
-import { getPerevozkiServiceCredentials } from "../lib/cacheHistoryDays.js";
 
 const CRON_SECRET = process.env.CRON_SECRET || process.env.VERCEL_CRON_SECRET;
 const TG_BOT_TOKEN = process.env.HAULZ_TELEGRAM_BOT_TOKEN || process.env.TG_BOT_TOKEN;
-const POLL_SERVICE_LOGIN = process.env.POLL_SERVICE_LOGIN;
-const POLL_SERVICE_PASSWORD = process.env.POLL_SERVICE_PASSWORD;
 
 const NOTIFICATION_EVENTS: CargoEvent[] = [...CARGO_STAGE_EVENT_IDS, "bill_created", "bill_paid"];
 
@@ -96,13 +93,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     pool = getPool();
   } catch {
     return res.status(503).json({ error: "Database not configured", request_id: ctx.requestId });
-  }
-
-  if (!POLL_SERVICE_LOGIN || !POLL_SERVICE_PASSWORD) {
-    return res.status(503).json({
-      error: "POLL_SERVICE_LOGIN and POLL_SERVICE_PASSWORD required for notification poll",
-      request_id: ctx.requestId,
-    });
   }
 
   const runResult = await pool.query<{ id: string }>(
@@ -258,12 +248,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       innsPolled += 1;
       let items: any[];
       try {
-        const { items: list } = await fetchPerevozkiByInn(
-          inn,
-          POLL_SERVICE_LOGIN,
-          POLL_SERVICE_PASSWORD
-        );
-        items = list || [];
+        items = await loadNotificationCacheItems(pool, inn);
       } catch (e: any) {
         logError(ctx, "notification_poll_fetch_perevozki_failed", e, { inn });
         status = "partial";
@@ -294,7 +279,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const subscribers = subscribersByInn.get(inn) || [];
       const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
       const invoiceByCargoNumber = await loadInvoicePayloadsByCargoNumbers(pool, inn, cargoNumbers);
-      const perevozkaCreds = getPerevozkiServiceCredentials();
 
       const snapshotEntries = items
         .map((item) => {
@@ -315,8 +299,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         entries: snapshotEntries,
         payloadByNumber,
         invoiceByCargoNumber,
-        serviceLogin: perevozkaCreds?.login ?? POLL_SERVICE_LOGIN,
-        servicePassword: perevozkaCreds?.password ?? POLL_SERVICE_PASSWORD,
+
+
       });
 
       for (const item of items) {
@@ -355,8 +339,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             payloadByNumber,
             invoiceByCargoNumber,
             customerInn: cargoInn,
-            serviceLogin: perevozkaCreds?.login ?? POLL_SERVICE_LOGIN,
-            servicePassword: perevozkaCreds?.password ?? POLL_SERVICE_PASSWORD,
+
+
             snapshotByKey,
           });
           if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {

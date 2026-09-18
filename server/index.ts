@@ -1,3 +1,5 @@
+import { installOneCRequestGate, withOneCPriority } from "../lib/oneCRequestGate.js";
+import { getPool } from "../api/_db.js";
 import http from "node:http";
 import { withRequestSignal } from "../lib/requestCancellation.js";
 import fs from "node:fs";
@@ -14,6 +16,8 @@ if (fs.existsSync(ENV_PATH)) {
 } else {
   loadEnv();
 }
+
+installOneCRequestGate(getPool);
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -139,7 +143,7 @@ const server = http.createServer(async (req, res) => {
     }
 
     const vercelRes = toVercelResponse(res);
-    await withRequestSignal(requestAbort.signal, () => handler(vercelReq, vercelRes));
+    await withRequestSignal(requestAbort.signal, () => withOneCPriority(pathname.startsWith("/api/cron/") || pathname.startsWith("/api/notification-"), () => handler(vercelReq, vercelRes)));
   } catch (err) {
     if (err instanceof RequestBodyError) {
       if (!res.headersSent) {

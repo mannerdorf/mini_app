@@ -45,7 +45,7 @@ mkdir -p "$(dirname "$LOG_FILE")" 2>/dev/null || true
 ts="$(date -Is 2>/dev/null || date)"
 tmp="$(mktemp)"
 set +e
-http_code="$(curl -sS -o "$tmp" -w "%{http_code}" -H "Authorization: Bearer ${secret}" "${API_BASE}${path}")"
+http_code="$(curl -sS --connect-timeout 10 --max-time 280 -o "$tmp" -w "%{http_code}" -H "Authorization: Bearer ${secret}" "${API_BASE}${path}")"
 code=$?
 set -e
 body="$(head -c 2000 "$tmp" | tr '\n' ' ')"
