@@ -16,20 +16,37 @@ export function transportMetrics(row: any) {
 }
 export function transportNumber(row: any) { return text(row.rawNumber ?? row.Number ?? row.НомерПеревозки); }
 export function transportOrderNumber(row: any) { return text(row.ZayavkaNumber); }
+
+function sameDocumentNumber(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const bare = (value: string) => (/^\d+$/.test(value) ? value.replace(/^0+/, '') || '0' : value);
+  return bare(left) === bare(right);
+}
+
+function requestLookupKeys(value: string): string[] {
+  const raw = text(value);
+  if (!raw) return [];
+  const bare = /^\d+$/.test(raw) ? raw.replace(/^0+/, '') || '0' : raw;
+  return bare === raw ? [raw] : [raw, bare];
+}
+
 export function matchBillingTransport(job: Job, rows: any[]) {
   const inn = text(job.data.customerInn);
   if (!inn) throw new Error('У забора не указан ИНН заказчика');
-  const matches = rows.filter(row => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn &&
+  const sameInn = (row: any) => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn;
+  const request = text(job.data.zayavkaNumber);
+  const matches = rows.filter(row => sameInn(row) &&
     (text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number) ||
      (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber)) ||
-     (text(job.data.zayavkaNumber) !== '' && transportOrderNumber(row) === text(job.data.zayavkaNumber))));
+     (request !== '' && sameDocumentNumber(transportOrderNumber(row), request))));
   if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер заявки, забора или перевозки и загрузку из 1С');
   const row = matches[0];
   const pickup = text(row.НомерПикапа ?? row.PickupNumber);
   if (pickup && pickup !== text(job.job_number)) throw new Error('Перевозка связана с другим забором');
   if (job.data.cargoNumber && transportNumber(row) !== text(job.data.cargoNumber)) throw new Error('Номер перевозки в заборе не совпадает с данными 1С');
   const order = transportOrderNumber(row);
-  if (order && text(job.data.zayavkaNumber) && order !== text(job.data.zayavkaNumber)) throw new Error('Номер заявки в заборе не совпадает с данными перевозки');
+  if (order && request && !sameDocumentNumber(order, request)) throw new Error('Номер заявки в заборе не совпадает с данными перевозки');
   const number = transportNumber(row);
   // SetPickupCost has no INN/UUID parameter: reject a globally ambiguous number.
   if (!number || rows.filter(r => transportNumber(r) === number).length !== 1) throw new Error('Номер перевозки неоднозначен для SetPickupCost');
@@ -38,13 +55,14 @@ export function matchBillingTransport(job: Job, rows: any[]) {
 async function transports(pool: Pool, jobs: Pick<Job,'job_number'|'data'>[]): Promise<any[]> {
   if (await isNormalizedCacheReady(pool, 'perevozki')) {
     const pickupNumbers=jobs.map(j=>j.job_number).filter(Boolean), cargoNumbers=jobs.map(j=>j.data.cargoNumber).filter(Boolean);
-    const orderNumbers=jobs.map(j=>text(j.data.zayavkaNumber)).filter(Boolean);
+    const orderNumbers=[...new Set(jobs.flatMap(j=>requestLookupKeys(j.data.zayavkaNumber)))];
     // Keep the untouched payload and expand candidate document numbers across
     // customers, because SetPickupCost cannot disambiguate them using INN.
     return (await pool.query(`WITH candidates AS (
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=ANY($1::text[])
       OR coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')=ANY($2::text[])
-      OR btrim(payload->>'ZayavkaNumber')=ANY($3::text[]))
+      OR btrim(coalesce(payload->>'ZayavkaNumber',''))=ANY($3::text[])
+      OR ltrim(btrim(coalesce(payload->>'ZayavkaNumber','')),'0')=ANY($3::text[]))
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') IN
       (SELECT coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') FROM candidates)`,[pickupNumbers,cargoNumbers,orderNumbers])).rows.map(row => row.payload);
   }

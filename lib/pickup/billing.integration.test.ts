@@ -5,7 +5,7 @@ import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
-import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics} from './billing.js';
+import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
 const pool:any={query:(s:string,p?:any[])=>db.query(s,p),connect:async()=>({query:(s:string,p?:any[])=>db.query(s,p),release:()=>{}})};
@@ -177,7 +177,8 @@ describe('billing transport joined by order number',()=>{
     expect(()=>matchBillingTransport(job,[row,{...row,Number:'000002'}])).toThrow('несколько');
     expect(()=>matchBillingTransport(job,[{...row,НомерПикапа:'ZB-OTHER'}])).toThrow('другим забором');
     expect(()=>matchBillingTransport(job,[{...row,НомерПикапа:'ZB-001',ZayavkaNumber:'other'}])).toThrow('Номер заявки');
-    expect(()=>matchBillingTransport({...job,data:{...job.data,zayavkaNumber:'123'}},[row])).toThrow('не найдена');
+    expect(transportNumber(matchBillingTransport({...job,data:{...job.data,zayavkaNumber:'123'}},[row]))).toBe('000001');
+    expect(transportNumber(matchBillingTransport({...job,data:{...job.data,zayavkaNumber:'00017957'}},[{...row,Number:'000142499',ZayavkaNumber:'000017957'}]))).toBe('000142499');
   });
   it('expands normalized candidates across customers to reject globally ambiguous transport numbers',async()=>{
     await seed();await db.query("INSERT INTO document_cache_normalized_state VALUES('perevozki',2)");
