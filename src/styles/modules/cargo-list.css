@@ -235,49 +235,50 @@
     padding: var(--control-padding-badge-y, 4px) var(--control-padding-badge-x, 10px) !important;
     font-size: var(--text-sm, 0.8125rem) !important;
     font-weight: 600;
-    border-radius: 999px;
+    border-radius: 8px;
+    gap: 6px;
     white-space: nowrap;
 }
 
 .app-badge--default {
-    background: var(--color-bg-hover);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border);
+    background: var(--ux-status-neutral-bg);
+    color: var(--ux-status-neutral-text);
+    border: 0;
 }
 .app-badge--info {
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--color-primary-blue);
-    border: 1px solid rgba(59, 130, 246, 0.4);
+    background: var(--ux-status-info-bg);
+    color: var(--ux-status-info-text);
+    border: 0;
 }
 .app-badge--success {
-    background: rgba(52, 211, 153, 0.2);
-    color: var(--color-success-status);
-    border: 1px solid rgba(52, 211, 153, 0.35);
+    background: var(--ux-status-success-bg);
+    color: var(--ux-status-success-text);
+    border: 0;
 }
 .app-badge--warning {
-    background: rgba(250, 204, 21, 0.2);
-    color: var(--color-transit-status);
-    border: 1px solid rgba(250, 204, 21, 0.45);
+    background: var(--ux-status-warning-bg);
+    color: var(--ux-status-warning-text);
+    border: 0;
 }
 .app-badge--danger {
-    background: rgba(239, 68, 68, 0.16);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.35);
+    background: var(--ux-status-danger-bg);
+    color: var(--ux-status-danger-text);
+    border: 0;
 }
 .app-badge--purple {
-    background: rgba(139, 92, 246, 0.2);
-    color: #6d28d9;
-    border: 1px solid rgba(139, 92, 246, 0.45);
+    background: var(--ux-status-purple-bg);
+    color: var(--ux-status-purple-text);
+    border: 0;
 }
 .app-badge--role {
-    background: var(--color-panel-secondary, var(--color-bg-hover));
-    color: var(--color-text-secondary);
-    border: 1px solid var(--color-border);
+    background: var(--ux-status-neutral-bg);
+    color: var(--ux-status-neutral-text);
+    border: 0;
 }
 .app-badge--neutral {
-    background: var(--color-bg-hover);
-    color: var(--color-text-secondary);
-    border: 1px solid var(--color-border);
+    background: var(--ux-status-neutral-bg);
+    color: var(--ux-status-neutral-text);
+    border: 0;
 }
 
 /* Документы: внутренние таблицы счетов — на мобильной без горизонтального скролла (см. .cargo-inner-table) */

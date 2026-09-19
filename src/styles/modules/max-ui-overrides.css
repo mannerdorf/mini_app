@@ -39,99 +39,33 @@
     }
 }
 
-/* --- MAX UI BADGE --- */
+/* Soft semantic badges shared with pickup and document roles. */
 .max-badge {
     display: inline-flex;
     align-items: center;
-    padding: 0.25rem 0.75rem;
-    border-radius: 1rem;
-    font-size: 0.75rem;
-    font-weight: 600;
+    gap: 6px;
+    min-height: 28px;
+    padding: 4px 9px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 20px;
     white-space: nowrap;
+    border: 0;
+    background: var(--ux-status-neutral-bg);
+    color: var(--ux-status-neutral-text);
 }
-.max-badge-success {
-    background-color: rgba(52, 211, 153, 0.2);
-    color: var(--color-success-status);
-    border: 1px solid rgba(52, 211, 153, 0.5);
-}
-.max-badge-warning {
-    background-color: rgba(250, 204, 21, 0.2);
-    color: var(--color-pending-status);
-    border: 1px solid rgba(250, 204, 21, 0.5);
-}
-.max-badge-ready {
-    background-color: rgba(16, 185, 129, 0.2);
-    color: #059669;
-    border: 1px solid rgba(16, 185, 129, 0.45);
-}
-.max-badge-danger {
-    background-color: rgba(239, 68, 68, 0.2);
-    color: #ef4444;
-    border: 1px solid rgba(239, 68, 68, 0.5);
-}
-.max-badge-purple {
-    background-color: rgba(139, 92, 246, 0.2);
-    color: #6d28d9;
-    border: 1px solid rgba(139, 92, 246, 0.45);
-}
-.max-badge-default {
-    background-color: var(--color-bg-hover);
-    color: var(--color-text-primary);
-    border: 1px solid var(--color-border);
-}
-
-/* Последняя миля: те же padding / font-size / radius, что у статуса (.max-badge) */
-.max-badge.cargo-last-mile-self {
-    background-color: rgba(13, 148, 136, 0.18);
-    color: #0f766e;
-    border: 1px solid rgba(13, 148, 136, 0.45);
-}
-.max-badge.cargo-last-mile-delivery {
-    background-color: rgba(37, 99, 235, 0.12);
-    color: #1d4ed8;
-    border: 1px solid rgba(37, 99, 235, 0.32);
-}
-.max-badge.cargo-pickup-pickup {
-    background-color: rgba(245, 158, 11, 0.14);
-    color: #b45309;
-    border: 1px solid rgba(245, 158, 11, 0.4);
-}
-.max-badge.cargo-pickup-terminal-to {
-    background-color: rgba(124, 58, 237, 0.13);
-    color: #6d28d9;
-    border: 1px solid rgba(124, 58, 237, 0.36);
-}
-/* Улучшаем видимость границ бейджей в темном режиме */
-.dark-mode .max-badge-success {
-    border: 1px solid rgba(52, 211, 153, 0.6);
-}
-.dark-mode .max-badge-warning {
-    border: 1px solid rgba(250, 204, 21, 0.6);
-}
-.dark-mode .max-badge-ready {
-    border: 1px solid rgba(16, 185, 129, 0.6);
-}
-.dark-mode .max-badge-danger {
-    border: 1px solid rgba(239, 68, 68, 0.6);
-}
-.dark-mode .max-badge-purple {
-    border: 1px solid rgba(139, 92, 246, 0.6);
-}
-.dark-mode .max-badge-default {
-    border: 1px solid var(--color-border);
-}
-.dark-mode .max-badge.cargo-last-mile-self {
-    border: 1px solid rgba(13, 148, 136, 0.55);
-}
-.dark-mode .max-badge.cargo-last-mile-delivery {
-    border: 1px solid rgba(37, 99, 235, 0.45);
-}
-.dark-mode .max-badge.cargo-pickup-pickup {
-    border: 1px solid rgba(245, 158, 11, 0.5);
-}
-.dark-mode .max-badge.cargo-pickup-terminal-to {
-    border: 1px solid rgba(124, 58, 237, 0.48);
-}
+.max-badge.max-badge-success { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); border: 0; }
+.max-badge.max-badge-ready { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); border: 0; }
+.max-badge.max-badge-warning { background: var(--ux-status-warning-bg); color: var(--ux-status-warning-text); border: 0; }
+.max-badge.max-badge-danger { background: var(--ux-status-danger-bg); color: var(--ux-status-danger-text); border: 0; }
+.max-badge.max-badge-purple { background: var(--ux-status-purple-bg); color: var(--ux-status-purple-text); border: 0; }
+.max-badge.max-badge-info { background: var(--ux-status-info-bg); color: var(--ux-status-info-text); border: 0; }
+.max-badge.max-badge-default { background: var(--ux-status-neutral-bg); color: var(--ux-status-neutral-text); border: 0; }
+.max-badge.cargo-last-mile-self { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); border: 0; }
+.max-badge.cargo-last-mile-delivery { background: var(--ux-status-info-bg); color: var(--ux-status-info-text); border: 0; }
+.max-badge.cargo-pickup-pickup { background: var(--ux-status-warning-bg); color: var(--ux-status-warning-text); border: 0; }
+.max-badge.cargo-pickup-terminal-to { background: var(--ux-status-purple-bg); color: var(--ux-status-purple-text); border: 0; }
 
 /* Вертикальный таймлайн статусов перевозки (объёмный, в стиле бейджей) */
 .perevozka-timeline-wrap {

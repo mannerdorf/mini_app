@@ -4,21 +4,21 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "../../lib/cn";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border-0 text-sm font-semibold shadow-none transition-colors focus-visible:outline-none focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl border-0 text-sm font-medium shadow-none transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        default: "bg-[hsl(var(--guest-primary))] text-[hsl(var(--guest-primary-foreground))] hover:opacity-95",
+        default: "haulz-action-primary",
         secondary: "bg-[hsl(var(--guest-secondary))] text-[hsl(var(--guest-secondary-foreground))] hover:bg-[hsl(var(--guest-muted))]",
-        outline: "bg-[#fff] text-[#1f2937] hover:bg-[#f9fafb]",
+        outline: "bg-[var(--action-surface)] text-[var(--action-text)] border border-solid border-[var(--action-border)] hover:bg-[var(--action-soft)]",
         ghost: "hover:bg-[hsl(var(--guest-muted))] text-[hsl(var(--guest-foreground))]",
         dark: "bg-[hsl(var(--guest-foreground))] text-[hsl(var(--guest-card))] hover:opacity-90",
       },
       size: {
-        default: "h-10 px-5 py-2",
-        sm: "h-9 px-4 text-xs",
+        default: "h-11 px-5 py-2",
+        sm: "h-11 px-4 text-xs",
         lg: "h-11 px-8",
-        icon: "h-10 w-10",
+        icon: "h-11 w-11",
       },
     },
     defaultVariants: {

@@ -1,0 +1,79 @@
+/* Approved HAULZ action palette. Only action classes, never switches or tabs. */
+:root, .light-mode {
+  --action-primary: #2457df;
+  --action-primary-hover: #1948c7;
+  --action-surface: #fff;
+  --action-soft: #f2f5f9;
+  --action-text: #17233a;
+  --action-border: #dce2ec;
+  --action-danger: #c9313d;
+  --action-danger-bg: #fff0f1;
+}
+.dark-mode {
+  --action-primary: #3367ed;
+  --action-primary-hover: #285bde;
+  --action-surface: #172031;
+  --action-soft: #222e43;
+  --action-text: #f1f5fc;
+  --action-border: #354158;
+  --action-danger: #ff8f97;
+  --action-danger-bg: #3e2631;
+}
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn) {
+  min-height: 44px;
+  border-radius: 12px;
+  font-weight: 500;
+  transition: background-color .16s, box-shadow .16s, transform .12s;
+}
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .pk-root .pk-primary) {
+  background: var(--action-primary);
+  color: #fff;
+  border: 1px solid transparent;
+  box-shadow: 0 3px 8px #2457df28, inset 0 1px 0 #ffffff20;
+}
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .pk-root .pk-primary):hover:not(:disabled) {
+  background: var(--action-primary-hover);
+  border-color: transparent;
+  box-shadow: 0 5px 12px #2457df35;
+}
+:root :is(.filter-button, .pk-root .pk-btn-secondary, .pk-root .pk-icon-btn) {
+  background: var(--action-surface);
+  color: var(--action-text);
+  border: 1px solid var(--action-border);
+  box-shadow: none;
+}
+:root :is(.filter-button, .pk-root .pk-btn-secondary, .pk-root .pk-icon-btn):hover:not(:disabled) {
+  background: var(--action-soft);
+  border-color: var(--action-border);
+  color: var(--action-text);
+}
+:root :is(.pk-root .pk-btn-danger, .filters-reset-button) {
+  background: transparent;
+  color: var(--action-danger);
+  border: 1px solid var(--action-border);
+  box-shadow: none;
+}
+:root :is(.pk-root .pk-btn-danger, .filters-reset-button):hover:not(:disabled) {
+  background: var(--action-danger-bg);
+  color: var(--action-danger);
+  border-color: var(--action-danger);
+}
+:root .filter-button:is([aria-pressed="true"], .active) {
+  background: var(--ux-status-info-bg);
+  color: var(--ux-status-info-text);
+  border-color: var(--ux-status-info-text);
+}
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn):focus-visible {
+  outline: 3px solid #7da3ff;
+  outline-offset: 3px;
+}
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn):active:not(:disabled) { transform: scale(.98); }
+:root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn):disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn) { transition: none; transform: none; }
+  :root :is(.button-primary, .haulz-action-primary, .primary-button, .filter-button, .pk-root .pk-primary, .pk-root .pk-btn-secondary, .pk-root .pk-btn-danger, .pk-root .pk-icon-btn):active { transform: none; }
+}

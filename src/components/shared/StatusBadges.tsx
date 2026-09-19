@@ -9,10 +9,10 @@ export const StatusBadge = ({ status }: { status: unknown }) => {
     const lower = (normalizedStatus || '').toLowerCase();
     let badgeClass = 'max-badge ux-status';
     if (lower.includes('доставлен') || lower.includes('заверш')) badgeClass += ' max-badge-success';
-    else if (lower.includes('доставке')) badgeClass += ' max-badge-purple';
+    else if (lower.includes('доставке')) badgeClass += ' max-badge-info';
     else if (lower.includes('готов')) badgeClass += ' max-badge-ready';
-    else if (lower.includes('пути') || lower.includes('отправлен')) badgeClass += ' max-badge-warning';
-    else if (lower.includes('отменен') || lower.includes('аннулирован')) badgeClass += ' max-badge-danger';
+    else if (lower.includes('пути') || lower.includes('отправлен')) badgeClass += ' max-badge-info';
+    else if (lower.includes('отменен') || lower.includes('отменён') || lower.includes('аннулирован')) badgeClass += ' max-badge-default';
     else badgeClass += ' max-badge-default';
     return <span className={badgeClass}>{display || '-'}</span>;
 };

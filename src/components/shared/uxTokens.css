@@ -12,30 +12,34 @@
 }
 
 :root, .light-mode {
+  --ux-status-info-bg: #eaf0ff;
+  --ux-status-info-text: #234db8;
   --ux-switch-on: #2563eb;
   --ux-switch-off: #64748b;
-  --ux-status-success-bg: #dcfce7;
-  --ux-status-success-text: #166534;
-  --ux-status-warning-bg: #fef3c7;
-  --ux-status-warning-text: #92400e;
-  --ux-status-danger-bg: #fee2e2;
-  --ux-status-danger-text: #991b1b;
+  --ux-status-success-bg: #dff5ee;
+  --ux-status-success-text: #08664f;
+  --ux-status-warning-bg: #fff2d9;
+  --ux-status-warning-text: #8b5300;
+  --ux-status-danger-bg: #ffebec;
+  --ux-status-danger-text: #ad293c;
   --ux-status-purple-bg: #ede9fe;
   --ux-status-purple-text: #5b21b6;
-  --ux-status-neutral-bg: #f1f5f9;
-  --ux-status-neutral-text: #334155;
+  --ux-status-neutral-bg: #f2f5f9;
+  --ux-status-neutral-text: #5e6c83;
 }
 .dark-mode {
+  --ux-status-info-bg: #253b63;
+  --ux-status-info-text: #b0caff;
   --ux-switch-on: #2563eb;
   --ux-switch-off: #64748b;
-  --ux-status-success-bg: #143824;
-  --ux-status-success-text: #86efac;
-  --ux-status-warning-bg: #422e0e;
-  --ux-status-warning-text: #fde68a;
-  --ux-status-danger-bg: #451a1a;
-  --ux-status-danger-text: #fca5a5;
+  --ux-status-success-bg: #1d403c;
+  --ux-status-success-text: #8be0c5;
+  --ux-status-warning-bg: #49391e;
+  --ux-status-warning-text: #f5ca7a;
+  --ux-status-danger-bg: #4b2935;
+  --ux-status-danger-text: #ffb1bd;
   --ux-status-purple-bg: #30204c;
   --ux-status-purple-text: #c4b5fd;
-  --ux-status-neutral-bg: #273244;
-  --ux-status-neutral-text: #e2e8f0;
+  --ux-status-neutral-bg: #263246;
+  --ux-status-neutral-text: #a9b7cd;
 }

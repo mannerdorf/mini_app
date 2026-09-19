@@ -1279,86 +1279,29 @@
 .pk-root .pk-badge {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1.2;
-  padding: 5px 11px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  border: 1px solid transparent;
+  gap: 6px;
+  min-height: 28px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 20px;
+  padding: 4px 9px;
+  font-weight: 500;
+  border: 0;
   white-space: nowrap;
 }
-/* Забор — каждый статус свой оттенок (не пересекается с маршрутами) */
-.pk-root .pk-badge--pending {
-  background: #e2e8f0;
-  color: #334155;
-  border-color: #64748b;
-}
-.pk-root .pk-badge--arrived {
-  background: #bae6fd;
-  color: #075985;
-  border-color: #0284c7;
-}
-.pk-root .pk-badge--picked_up {
-  background: #bbf7d0;
-  color: #166534;
-  border-color: #22c55e;
-}
-.pk-root .pk-badge--partial {
-  background: #fde047;
-  color: #713f12;
-  border-color: #ca8a04;
-}
-.pk-root .pk-badge--problem {
-  background: #fecaca;
-  color: #7f1d1d;
-  border-color: #ef4444;
-}
-.pk-root .pk-badge--deposited {
-  background: #5eead4;
-  color: #134e4a;
-  border-color: #14b8a6;
-}
-.pk-root .pk-badge--resolved {
-  background: #e9d5ff;
-  color: #581c87;
-  border-color: #a855f7;
-}
-.pk-root .pk-badge--cancelled {
-  background: #ffe4e6;
-  color: #9f1239;
-  border-color: #f43f5e;
-  text-decoration: line-through;
-  text-decoration-color: rgba(159, 18, 57, 0.45);
-}
-/* Маршрут — палитра отдельно от статусов заборов */
-.pk-root .pk-badge--route-draft {
-  background: #fef3c7;
-  color: #78350f;
-  border-color: #d97706;
-  border-style: dashed;
-}
-.pk-root .pk-badge--route-published {
-  background: #c7d2fe;
-  color: #312e81;
-  border-color: #4f46e5;
-}
-.pk-root .pk-badge--route-started {
-  background: #fed7aa;
-  color: #9a3412;
-  border-color: #f97316;
-}
-.pk-root .pk-badge--route-completed {
-  background: #a7f3d0;
-  color: #064e3b;
-  border-color: #047857;
-}
-.pk-root .pk-badge--progress {
-  background: #f3e8ff;
-  color: #6b21a8;
-  border-color: #9333ea;
-  font-variant-numeric: tabular-nums;
-}
+.pk-root .pk-badge--pending { background: var(--ux-status-neutral-bg); color: var(--ux-status-neutral-text); }
+.pk-root .pk-badge--arrived { background: var(--ux-status-warning-bg); color: var(--ux-status-warning-text); }
+.pk-root .pk-badge--picked_up { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); }
+.pk-root .pk-badge--partial { background: var(--ux-status-warning-bg); color: var(--ux-status-warning-text); }
+.pk-root .pk-badge--problem { background: var(--ux-status-danger-bg); color: var(--ux-status-danger-text); }
+.pk-root .pk-badge--deposited { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); }
+.pk-root .pk-badge--resolved { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); }
+.pk-root .pk-badge--cancelled { background: var(--ux-status-neutral-bg); color: var(--ux-status-neutral-text); }
+.pk-root .pk-badge--route-draft { background: var(--ux-status-neutral-bg); color: var(--ux-status-neutral-text); }
+.pk-root .pk-badge--route-published { background: var(--ux-status-info-bg); color: var(--ux-status-info-text); }
+.pk-root .pk-badge--route-started { background: var(--ux-status-warning-bg); color: var(--ux-status-warning-text); }
+.pk-root .pk-badge--route-completed { background: var(--ux-status-success-bg); color: var(--ux-status-success-text); }
+.pk-root .pk-badge--progress { background: var(--ux-status-neutral-bg); color: var(--ux-status-neutral-text); }
 .pk-card__head {
   margin-bottom: 8px;
 }
@@ -2590,3 +2533,5 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   min-height: var(--ux-touch-height);
   border-radius: var(--ux-radius-control);
 }
+
+.pk-root .pk-badge svg { flex-shrink: 0; }

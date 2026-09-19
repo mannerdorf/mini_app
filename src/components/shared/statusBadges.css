@@ -3,7 +3,7 @@
 .max-badge.ux-status {
   background: var(--status-bg, var(--ux-status-neutral-bg));
   color: var(--status-text, var(--ux-status-neutral-text));
-  border: 1px solid currentColor;
+  border: 0;
 }
 .ux-status.max-badge-success, .ux-status.max-badge-ready {
   --status-bg: var(--ux-status-success-bg); --status-text: var(--ux-status-success-text);
@@ -17,3 +17,5 @@
 .ux-status.max-badge-purple {
   --status-bg: var(--ux-status-purple-bg); --status-text: var(--ux-status-purple-text);
 }
+
+.ux-status.max-badge-info { --status-bg: var(--ux-status-info-bg); --status-text: var(--ux-status-info-text); }
