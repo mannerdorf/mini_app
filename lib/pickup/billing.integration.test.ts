@@ -5,7 +5,7 @@ import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
-import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics} from './billing.js';
+import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
 const pool:any={query:(s:string,p?:any[])=>db.query(s,p),connect:async()=>({query:(s:string,p?:any[])=>db.query(s,p),release:()=>{}})};
@@ -77,6 +77,12 @@ describe('pickup billing and durable outbox',()=>{
     expect(()=>matchBillingTransport(job,[{...cargo(),INN:'other'}])).toThrow('не найдена');
     expect(()=>matchBillingTransport(job,[cargo(),{...cargo(),INN:'other'}])).toThrow('неоднозначен');
     expect(transportMetrics({W:'37,5',Value:'',PW:NaN})).toMatchObject({weight:37.5,volume:null,chargeableWeight:null});
+  });
+  it('finds the transport by the pickup request number and copies weight, volume and chargeable weight',()=>{
+    const job:any={job_number:'ZB-000171',data:{customerInn:'7701234567',zayavkaNumber:'000017957',cargoNumber:''}};
+    const row=matchBillingTransport(job,[{Number:'142499',Order:'17957',INN:'7701234567',Mest:5,W:69.5,Value:0.73,PW:145.4}]);
+    expect(transportNumber(row)).toBe('142499');
+    expect(transportMetrics(row)).toEqual({places:5,weight:69.5,volume:0.73,chargeableWeight:145.4});
   });
   it('resolves order/client number only within customer scope and rejects OR collisions',()=>{
     const order={Номер:'000123',НомерЗаявкиКлиента:'CLIENT-1',ЗаказчикИНН:'7701234567'};

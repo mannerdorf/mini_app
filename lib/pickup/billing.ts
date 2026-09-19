@@ -15,13 +15,39 @@ export function transportMetrics(row: any) {
   return { places: number(row.Mest), weight: number(row.W), volume: number(row.Value), chargeableWeight: number(row.PW) };
 }
 export function transportNumber(row: any) { return text(row.rawNumber ?? row.Number ?? row.НомерПеревозки); }
+
+/** Номер заявки в перевозке (карточка груза: Order / НомерЗаявки). */
+export function transportRequestNumbers(row: any): string[] {
+  return ['Order', 'НомерЗаявки', 'НомерЗаявкиКлиента', 'RequestNumber', 'ClientRequestNumber']
+    .map((key) => text(row?.[key]))
+    .filter(Boolean);
+}
+
+function sameDocumentNumber(left: string, right: string): boolean {
+  if (!left || !right) return false;
+  if (left === right) return true;
+  const bare = (value: string) => (/^\d+$/.test(value) ? value.replace(/^0+/, '') || '0' : value);
+  return bare(left) === bare(right);
+}
+
 export function matchBillingTransport(job: Job, rows: any[]) {
   const inn = text(job.data.customerInn);
   if (!inn) throw new Error('У забора не указан ИНН заказчика');
-  const matches = rows.filter(row => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn &&
-    (text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number) ||
-     (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber))));
-  if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер забора/перевозки и загрузку из 1С');
+  const sameInn = (row: any) => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn;
+  const request = text(job.data.zayavkaNumber);
+  let matches: any[] = [];
+  if (request) {
+    matches = rows.filter((row) => sameInn(row) && transportRequestNumbers(row).some((number) => sameDocumentNumber(number, request)));
+  }
+  if (!matches.length) {
+    matches = rows.filter((row) => sameInn(row) &&
+      (text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number) ||
+       (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber))));
+  }
+  if (matches.length !== 1) {
+    if (request && matches.length === 0) throw new Error('Перевозка не найдена по номеру заявки из карточки забора: проверьте номер и загрузку перевозок из 1С');
+    throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер забора/перевозки и загрузку из 1С');
+  }
   const row = matches[0];
   const pickup = text(row.НомерПикапа ?? row.PickupNumber);
   if (pickup && pickup !== text(job.job_number)) throw new Error('Перевозка связана с другим забором');
@@ -34,13 +60,25 @@ export function matchBillingTransport(job: Job, rows: any[]) {
 async function transports(pool: Pool, jobs: Pick<Job,'job_number'|'data'>[]): Promise<any[]> {
   if (await isNormalizedCacheReady(pool, 'perevozki')) {
     const pickupNumbers=jobs.map(j=>j.job_number).filter(Boolean), cargoNumbers=jobs.map(j=>j.data.cargoNumber).filter(Boolean);
+    const requestNumbers=[...new Set(jobs.flatMap(j=>{
+      const number=text(j.data.zayavkaNumber);
+      if(!number) return [];
+      const bare=/^\d+$/.test(number)?number.replace(/^0+/,'')||'0':number;
+      return bare===number?[number]:[number,bare];
+    }))];
     // Keep the untouched payload and expand candidate document numbers across
     // customers, because SetPickupCost cannot disambiguate them using INN.
     return (await pool.query(`WITH candidates AS (
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=ANY($1::text[])
-      OR coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')=ANY($2::text[]))
+      OR coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки')=ANY($2::text[])
+      OR coalesce(payload->>'Order','')=ANY($3::text[])
+      OR ltrim(coalesce(payload->>'Order',''),'0')=ANY($3::text[])
+      OR coalesce(payload->>'НомерЗаявки','')=ANY($3::text[])
+      OR ltrim(coalesce(payload->>'НомерЗаявки',''),'0')=ANY($3::text[])
+      OR coalesce(payload->>'НомерЗаявкиКлиента','')=ANY($3::text[])
+      OR ltrim(coalesce(payload->>'НомерЗаявкиКлиента',''),'0')=ANY($3::text[]))
       SELECT payload FROM cache_perevozki_rows WHERE coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') IN
-      (SELECT coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') FROM candidates)`,[pickupNumbers,cargoNumbers])).rows.map(row => row.payload);
+      (SELECT coalesce(payload->>'rawNumber',payload->>'Number',payload->>'НомерПеревозки') FROM candidates)`,[pickupNumbers,cargoNumbers,requestNumbers])).rows.map(row => row.payload);
   }
   const raw = (await pool.query('SELECT data FROM cache_perevozki WHERE id=1')).rows[0]?.data;
   if (!Array.isArray(raw)) throw new PickupError('Перевозки ещё не загружены в БД', 503);
@@ -90,7 +128,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
     }
     const sync = (await pool.query('SELECT state,last_error FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows[0];
-    return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,
+    return { jobId:job.id,jobNumber:job.job_number,orderNumber:text(job.data.zayavkaNumber),date,customer:job.data.customerName,
       ...record, source: source ?? record?.source, amount:record?.amount == null ? null : Number(record.amount), error, numberSync:sync };
   }
   const result=[];

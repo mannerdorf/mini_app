@@ -3,7 +3,7 @@ import type { Job, Route } from '../../../lib/pickup/model';
 import { cities } from '../../../lib/pickup/model';
 import type { PickupCall } from './client';
 
-type Row = {jobId:string;jobNumber:string;date:string;customer:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
+type Row = {jobId:string;jobNumber:string;orderNumber?:string;date:string;customer:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
   source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Передано в 1С',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставлен',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
@@ -38,10 +38,10 @@ export function PickupBillingTab({city,date,call}: {city:keyof typeof cities;dat
     }
     setMessage(`Передано в 1С: ${success}. ${failures.length ? `Не передано в 1С — требуется ручное выставление (при неизвестном результате сначала сверьте данные в 1С): ${failures.join('; ')}` : ''}`);
   };
-  const filtered=rows.filter(r=>`${r.jobNumber} ${r.customer} ${r.source?.transportNumber} ${r.source?.orderNumber}`.toLowerCase().includes(search.toLowerCase()));
+  const filtered=rows.filter(r=>`${r.jobNumber} ${r.orderNumber} ${r.customer} ${r.source?.transportNumber} ${r.source?.orderNumber}`.toLowerCase().includes(search.toLowerCase()));
   return <section className="pk-panel pk-billing" aria-busy={busy}>
     <h2>Выставление счетов · {date} · {cities[city]}</h2>
-    <p className="pk-hint">Данные груза — из перевозки в БД. Диспетчер проверяет сумму и подтверждает передачу стоимости. После успешной передачи счета выставляются автоматически в 1С.</p>
+    <p className="pk-hint">Номер забора и номер заявки — из карточки забора. По номеру заявки ищется перевозка в БД: из неё подставляются номер перевозки, места, вес, объём и платный вес. Диспетчер проверяет сумму и подтверждает передачу стоимости в 1С.</p>
     <div className="pk-actions">
       <label>Поиск <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Заказчик, забор, перевозка, заявка" /></label>
       <button disabled={busy} onClick={()=>void run(async()=>{})}>Обновить</button>
@@ -56,7 +56,7 @@ export function PickupBillingTab({city,date,call}: {city:keyof typeof cities;dat
       <td><input type="checkbox" aria-label={`Выбрать ${row.jobNumber}`} checked={selected.has(row.jobId)} disabled={busy||row.status!=='not_issued'||row.amount==null||Boolean(row.error)} onChange={e=>setSelected(old=>{const next=new Set(old);if(e.target.checked)next.add(row.jobId);else next.delete(row.jobId);return next;})}/></td>
       <td>{row.date}</td><td>{row.customer}</td><td>{row.source?.places??'—'}</td><td>{row.source?.weight??'—'}</td><td>{row.source?.volume??'—'}</td><td>{row.source?.chargeableWeight??'—'}</td>
       <td><strong>{row.jobNumber}</strong>{row.numberSync?.state==='error'&&<small title={row.numberSync.last_error}> · номер не передан в 1С</small>}</td>
-      <td>{row.source?.transportNumber||'—'}</td><td>{row.source?.orderNumber||'—'}</td>
+      <td>{row.source?.transportNumber||'—'}</td><td>{row.source?.orderNumber||row.orderNumber||'—'}</td>
       <td><input aria-label={`Сумма ${row.jobNumber}`} inputMode="decimal" style={{width:110}} value={amounts[row.jobId]??''} placeholder={row.source?.mode==='manual'?'Ввести сумму':'Нет расчёта'} disabled={busy||!['not_issued','manual'].includes(row.status||'')} onChange={e=>setAmounts(old=>({...old,[row.jobId]:e.target.value}))}/></td>
       <td><strong style={{color:['issued','transmitted'].includes(row.status||'')?'var(--success, #15803d)':['manual','uncertain'].includes(row.status||'')?'var(--warning, #92400e)':'inherit'}}>{labels[row.status||'']||'Нет данных'}</strong>{(row.error||row.last_error)&&<small style={{display:'block'}}>{row.error||row.last_error}</small>}</td>
       <td>{['not_issued','manual'].includes(row.status||'')&&<button disabled={busy} onClick={()=>void run(()=>save(row))}>Сохранить сумму</button>}
