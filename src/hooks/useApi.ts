@@ -348,17 +348,15 @@ export function useInvoices(params: InvoicesParams) {
     const key = enabled && auth?.login && auth?.password
         ? ["invoices", auth.login, dateFrom, dateTo, activeInn ?? "", !!useServiceRequest, monitor ?? "", !!unpaidOnly]
         : null;
-    const { data, error, isLoading, isValidating, mutate } = useSWR<CargoItem[]>(
+    const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherInvoices(params),
         SWR_OPTIONS
     );
-    const hasRows = (data?.length ?? 0) > 0;
     return {
         items: data ?? [],
         error: error?.message ?? null,
-        /** Полноэкранный спиннер только при первой загрузке; при смене периода keepPreviousData держит таблицу. */
-        loading: isLoading || (isValidating && !hasRows),
+        loading: isLoading,
         mutate,
     };
 }

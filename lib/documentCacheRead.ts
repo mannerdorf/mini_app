@@ -23,8 +23,6 @@ export type DocumentCacheReadOptions = {
   inns?: Set<string> | null;
   innColumn?: InnFilterColumn;
   partyNameNorms?: Set<string> | null;
-  /** Не читать legacy blob (гигантский JSON) — только normalized rows. */
-  normalizedOnly?: boolean;
 };
 
 /** Загрузка legacy blob (fallback). */
@@ -74,10 +72,6 @@ export async function readDocumentsFromCacheByPeriod(
     }
   } catch {
     // fallback
-  }
-
-  if (options.normalizedOnly) {
-    return { items: [], fromNormalized: false };
   }
 
   const list = await loadCacheBlob(pool, kind);

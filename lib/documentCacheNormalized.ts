@@ -436,7 +436,7 @@ export async function readNormalizedByDateRange(
       where = `${column} >= $1::date and ${column} <= $2::date`;
     }
   } else {
-    where = `doc_date >= $1::date and doc_date <= $2::date`;
+    where = `(doc_date is null or (doc_date >= $1::date and doc_date <= $2::date))`;
   }
 
   if (options.inns && options.inns.size > 0) {
