@@ -254,11 +254,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
-  if (serviceMode) {
-    dateFrom = clampDateFromToMaxSpan(dateFrom, dateTo, MAX_SERVICE_INVOICE_RANGE_DAYS);
-  }
+  const requestedDateFrom = dateFrom;
+  const requestedDateTo = dateTo;
+  /** Ограничение 62 дня — только для live GetIinvoices; кэш Postgres отдаёт полный выбранный период (год и т.д.). */
+  const upstreamDateFrom = serviceMode
+    ? clampDateFromToMaxSpan(requestedDateFrom, requestedDateTo, MAX_SERVICE_INVOICE_RANGE_DAYS)
+    : requestedDateFrom;
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
+  const useDocumentCache = shouldServeFromDocumentCache(requestedDateFrom, requestedDateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {
@@ -272,7 +275,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       if (!useDocumentCache) {
         // Период старше окна кэша — ниже прямой запрос в 1С через сервисный аккаунт.
       } else {
-        const filtered = await readRegisteredInvoicesFromCache(pool, verified, login, dateFrom, dateTo, inn);
+        const filtered = await readRegisteredInvoicesFromCache(
+          pool,
+          verified,
+          login,
+          requestedDateFrom,
+          requestedDateTo,
+          inn,
+        );
         return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
       }
     } catch (e) {
@@ -285,10 +295,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (useDocumentCache) try {
     const pool = getPool();
     if (serviceMode) {
-      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo);
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", requestedDateFrom, requestedDateTo);
       const filtered = items.filter((item) => {
         const d = invoiceDate(item);
-        return d >= dateFrom && d <= dateTo;
+        return d >= requestedDateFrom && d <= requestedDateTo;
       });
       return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
     }
@@ -306,16 +316,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         : new Set<string>()
       : allowedInns;
     if (filterInns.size > 0) {
-      const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo, {
-        inns: filterInns,
-      });
+      const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(
+        pool,
+        "invoices",
+        requestedDateFrom,
+        requestedDateTo,
+        {
+          inns: filterInns,
+        },
+      );
       const filtered = fromNormalized
         ? items
         : items.filter((item) => {
             const itemInnVal = invoiceInn(item);
             if (!filterInns.has(itemInnVal)) return false;
             const d = invoiceDate(item);
-            return d >= dateFrom && d <= dateTo;
+            return d >= requestedDateFrom && d <= requestedDateTo;
           });
       return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
     }
@@ -331,8 +347,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const url = new URL(BASE_URL);
-  url.searchParams.set("DateB", dateFrom);
-  url.searchParams.set("DateE", dateTo);
+  url.searchParams.set("DateB", upstreamDateFrom);
+  url.searchParams.set("DateE", requestedDateTo);
   if (!serviceMode && inn && String(inn).trim()) {
     url.searchParams.set("INN", String(inn).trim());
   }
@@ -405,8 +421,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             registeredVerified,
             login,
             inn,
-            dateFrom,
-            dateTo,
+            requestedDateFrom,
+            requestedDateTo,
             list,
           );
           return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
