@@ -291,23 +291,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  // Быстрый путь: cache_invoices (последние CACHE_HISTORY_DAYS дн.; старше — 1С ниже).
-  if (useDocumentCache) try {
+  const readNonServiceInvoicesFromCache = async (): Promise<unknown[] | null> => {
     const pool = getPool();
-    if (serviceMode) {
-      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", requestedDateFrom, requestedDateTo);
-      const filtered = items.filter((item) => {
-        const d = invoiceDate(item);
-        return d >= requestedDateFrom && d <= requestedDateTo;
-      });
-      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
-    }
     const userInnsRow = await pool.query<{ inn: string }>(
       "SELECT inn FROM account_companies WHERE login = $1",
       [String(login).trim().toLowerCase()],
     );
     const allowedInns = new Set<string>(
-      userInnsRow.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean)
+      userInnsRow.rows.map((r: { inn?: unknown }) => String(r.inn ?? "").trim()).filter(Boolean),
     );
     const requestedInn = inn && String(inn).trim() ? String(inn).trim() : null;
     const filterInns = requestedInn
@@ -315,35 +306,60 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? new Set<string>([requestedInn])
         : new Set<string>()
       : allowedInns;
-    if (filterInns.size > 0) {
-      const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(
-        pool,
-        "invoices",
-        requestedDateFrom,
-        requestedDateTo,
-        {
-          inns: filterInns,
-        },
-      );
-      const filtered = fromNormalized
-        ? items
-        : items.filter((item) => {
-            const itemInnVal = invoiceInn(item);
-            if (!filterInns.has(itemInnVal)) return false;
-            const d = invoiceDate(item);
-            return d >= requestedDateFrom && d <= requestedDateTo;
-          });
-      return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
+    if (filterInns.size === 0) return null;
+    const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(
+      pool,
+      "invoices",
+      requestedDateFrom,
+      requestedDateTo,
+      { inns: filterInns },
+    );
+    return fromNormalized
+      ? items
+      : items.filter((item) => {
+          const itemInnVal = invoiceInn(item);
+          if (!filterInns!.has(itemInnVal)) return false;
+          const d = invoiceDate(item);
+          return d >= requestedDateFrom && d <= requestedDateTo;
+        });
+  };
+
+  const cacheEligible = useDocumentCache || !!serviceMode;
+  if (cacheEligible) {
+    try {
+      if (serviceMode) {
+        const pool = getPool();
+        const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(
+          pool,
+          "invoices",
+          requestedDateFrom,
+          requestedDateTo,
+          { normalizedOnly: true },
+        );
+        const rows = fromNormalized
+          ? items
+          : items.filter((item) => {
+              const d = invoiceDate(item);
+              return d >= requestedDateFrom && d <= requestedDateTo;
+            });
+        return res.status(200).json(finalizeInvoiceList(rows, responseOptions));
+      }
+      if (useDocumentCache) {
+        const cached = await readNonServiceInvoicesFromCache();
+        if (cached !== null) {
+          return res.status(200).json(finalizeInvoiceList(cached, responseOptions));
+        }
+      }
+    } catch (e) {
+      logError(ctx, "invoices_cache_read_failed", e);
+      if (preferCacheOnlyOnVercel() || serviceMode) {
+        return res.status(200).json(finalizeInvoiceList([], responseOptions));
+      }
     }
-  } catch {
-    if (preferCacheOnlyOnVercel()) {
-      return res.status(200).json([]);
-    }
-    // БД недоступна или кэш пустой — идём в 1С
   }
 
-  if (preferCacheOnlyOnVercel()) {
-    return res.status(200).json([]);
+  if (preferCacheOnlyOnVercel() || serviceMode) {
+    return res.status(200).json(finalizeInvoiceList([], responseOptions));
   }
 
   const url = new URL(BASE_URL);
