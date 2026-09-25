@@ -14,7 +14,8 @@ describe("invoicePaymentStatusForUi", () => {
     expect(invoicePaymentStatusForUi("НеОплачен", 1000, 0, 1000)).toBe("Не оплачен");
   });
 
-  it("marks paid when balance zero", () => {
+  it("marks paid when balance zero before unpaid status text", () => {
+    expect(invoicePaymentStatusForUi("Не оплачен", 1000, 1000, 0)).toBe("Оплачен");
     expect(invoicePaymentStatusForUi("", 1000, 1000, 0)).toBe("Оплачен");
   });
 });

@@ -1,5 +1,5 @@
 import { getInvoicePaymentFilterKey, getPaymentFilterKey, type InvoicePaymentFinance } from "./invoicePaymentFilter.js";
-import { lookupCargoMapString } from "./invoicePaymentState.js";
+import { invoicePaymentStateRaw, lookupCargoMapString } from "./invoicePaymentState.js";
 
 export { buildCargoStateBillByNumber, invoicePaymentStateRaw } from "./invoicePaymentState.js";
 
@@ -39,6 +39,35 @@ const INVOICE_SUM_HEADER_FIELDS = [
   "СуммаСНДС",
   "SumWithVAT",
 ];
+
+const INVOICE_BALANCE_HEADER_FIELDS = [
+  "Balance",
+  "balance",
+  "SumBalance",
+  "sumBalance",
+  "Debt",
+  "SumDebt",
+  "sumDebt",
+  "Остаток",
+  "Remainder",
+  "remainder",
+  "Rest",
+  "Saldo",
+  "СуммаОстаток",
+  "SumRemainder",
+] as const;
+
+/** Остаток из 1С (если поле есть в GetIinvoices), иначе null → считаем sum − paid. */
+export function invoiceBalanceFrom1C(inv: Record<string, unknown>): number | null {
+  for (const key of INVOICE_BALANCE_HEADER_FIELDS) {
+    if (!(key in inv)) continue;
+    const raw = inv[key];
+    if (raw === undefined || raw === null) continue;
+    if (typeof raw === "string" && raw.trim() === "") continue;
+    return Math.max(0, parseDocAmount(raw));
+  }
+  return null;
+}
 
 function sumFromInvoiceList(inv: Record<string, unknown>): number {
   const list = inv.List ?? inv.list ?? inv.Строки ?? inv.Items ?? inv.items;
@@ -107,6 +136,16 @@ function invoiceSumPaidFromFieldsOnly(
   cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
+  const balance1c = invoiceBalanceFrom1C(inv);
+  if (balance1c !== null && sum > 0) {
+    return Math.max(0, Math.min(sum, sum - balance1c));
+  }
+
+  const paymentState = invoicePaymentStateRaw(inv, cargoStateBillByNumber, getFirstCargoNumber);
+  const paymentKey = getPaymentFilterKey(paymentState || undefined);
+  if (paymentKey === "paid" && sum > 0) return sum;
+  if ((paymentKey === "unpaid" || paymentKey === "cancelled") && sum > 0) return 0;
+
   const explicit = parseDocAmount(
     inv.Sum_paid ??
       inv.SumPaid ??
@@ -141,6 +180,10 @@ function invoicePaymentFinance(
   cargoStateBillByNumber?: Map<string, string>,
 ): InvoicePaymentFinance {
   const sum = invoiceDocSum(inv);
+  const balance1c = invoiceBalanceFrom1C(inv);
+  if (balance1c !== null && sum > 0) {
+    return { sum, paid: Math.max(0, sum - balance1c), balance: balance1c };
+  }
   const paid = invoiceSumPaidFromFieldsOnly(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber);
   return { sum, paid, balance: Math.max(0, sum - paid) };
 }
@@ -166,6 +209,10 @@ export function invoiceSumPaid(
   cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
+  const balance1c = invoiceBalanceFrom1C(inv);
+  if (balance1c !== null && sum > 0) {
+    return Math.max(0, Math.min(sum, sum - balance1c));
+  }
   const fromFields = invoiceSumPaidFromFieldsOnly(
     inv,
     cargoSumPaidByNumber,
@@ -231,6 +278,8 @@ export function invoiceBalance(
   cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
+  const balance1c = invoiceBalanceFrom1C(inv);
+  if (balance1c !== null) return balance1c;
   return Math.max(
     0,
     sum - invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber),
