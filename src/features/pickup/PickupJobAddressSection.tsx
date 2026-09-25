@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo } from "react";
 import type { Account } from "../../types";
 import type { CityCode } from "../../../lib/haulzCalculator/types";
 import type { City, JobData } from "../../../lib/pickup/model";
@@ -9,6 +9,7 @@ import {
   type PvzSelectionState,
 } from "../documents/orders/DocumentsOrderPvzSection";
 import { filterDocumentsOrderPvzByCity } from "../documents/orders/documentsOrderPvzFilter";
+import { pvzItemConfirmedCoords } from "../../api/client/documentsOrders";
 import { Field } from "./Forms";
 
 export function pickupCityToCode(city: City): CityCode {
@@ -71,6 +72,34 @@ export function PickupJobAddressSection({
     [pvzList, cityCode, ownerInn],
   );
 
+  useEffect(() => {
+    if (!addressState.pvzRef || addressState.addr) return;
+    const item = scopedPvzList.find((p) => p.Ссылка === addressState.pvzRef);
+    const confirmed = pvzItemConfirmedCoords(item);
+    if (!confirmed || !item) return;
+    const label = item.ГородНаименование
+      ? `${item.Наименование} · ${item.ГородНаименование}`
+      : item.Наименование;
+    onAddressStateChange((prev) => ({
+      ...prev,
+      addr: {
+        label,
+        fullAddress: confirmed.fullAddress || prev.query || data.address,
+        point: { lat: confirmed.latitude, lon: confirmed.longitude },
+        city: cityCode,
+        sourceId: item.Ссылка,
+      },
+      query: confirmed.fullAddress || prev.query || data.address,
+    }));
+  }, [
+    addressState.pvzRef,
+    addressState.addr,
+    scopedPvzList,
+    cityCode,
+    data.address,
+    onAddressStateChange,
+  ]);
+
   return (
     <>
       {!ownerInn && (
@@ -93,6 +122,7 @@ export function PickupJobAddressSection({
         onChange={onAddressStateChange}
         defaultCity={cityCode}
         courierOnly
+        confirmPvzOnMap
       />
       <div className="pk-grid pk-address-times">
         <Field

@@ -1,4 +1,5 @@
 import { billingJournal, billingEdit, billingSend } from "../../lib/pickup/billing.js";
+import { backfillPickupJobCoordinates } from "../../lib/pickup/backfillJobCoords.js";
 import { uuid } from "../../lib/pickup/model.js";
 import {
   checkRoute,
@@ -1574,6 +1575,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
     if (!actor.dispatcher && !actor.driver)
       throw new PickupError("Нет доступа к заборной логистике", 403);
+    if (body.action === "backfill_job_coords") {
+      dispatcherOnly(actor);
+      db.release();
+      db = undefined;
+      const fromDate = String(body.fromDate ?? "2026-09-17").trim();
+      const toDate = body.toDate ? String(body.toDate).trim() : undefined;
+      const city = body.city ? String(body.city).trim() : undefined;
+      const result = await backfillPickupJobCoordinates(getPool(), fromDate, {
+        city,
+        toDate,
+        actor: login,
+      });
+      return res.status(200).json(result);
+    }
     if (["billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
       dispatcherOnly(actor);
       db.release(); db = undefined;

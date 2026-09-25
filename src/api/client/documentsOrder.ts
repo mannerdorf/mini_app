@@ -94,6 +94,25 @@ export async function fetchDocumentsGeocode(
   return r;
 }
 
+export async function fetchSavePvzConfirmedCoords(
+  auth: DocumentsAuthScope,
+  params: {
+    pvzRef: string;
+    city: "moscow" | "kaliningrad";
+    latitude: number;
+    longitude: number;
+    fullAddress: string;
+  },
+): Promise<void> {
+  const res = await fetch("/api/documents/pvz-coords", {
+    method: "POST",
+    headers: authHeaders(auth),
+    body: authBody(auth, { action: "save", ...params }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(parseError(res, data));
+}
+
 export async function fetchDocumentsOrderOptions(
   auth: DocumentsAuthScope,
   direction: Direction,

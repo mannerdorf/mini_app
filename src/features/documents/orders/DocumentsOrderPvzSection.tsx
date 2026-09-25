@@ -2,14 +2,20 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { AddressSelection, CityCode } from "../../../../lib/haulzCalculator/types";
 import { warehouseForCity } from "../../../../lib/haulzCalculator/warehouses";
-import { fetchPvzList, type PvzItem } from "../../../api/client/documentsOrders";
+import {
+  fetchPvzList,
+  pvzItemConfirmedCoords,
+  type PvzItem,
+} from "../../../api/client/documentsOrders";
 import {
   fetchDocumentsGeocode,
+  fetchSavePvzConfirmedCoords,
   type DocumentsAuthScope,
 } from "../../../api/client/documentsOrder";
 import type { AuthData } from "../../../types";
 import { DocumentsOrderAddressField } from "./DocumentsOrderAddressField";
 import { DocumentsOrderCustomAddressContacts } from "./DocumentsOrderCustomAddressContacts";
+import { DocumentsOrderMapPicker } from "./DocumentsOrderMapPicker";
 import { filterDocumentsOrderPvzList, inferPvzCityCode } from "./documentsOrderPvzFilter";
 
 const CITY_LABELS: Record<CityCode, string> = {
@@ -54,6 +60,8 @@ type Props = {
   /** Забор: только адрес курьером, без «Со склада / на складе». */
   courierOnly?: boolean;
   courierLabel?: string;
+  /** Первый выбор ПВЗ — подтверждение на карте и запись в pickup_pvz_coords. */
+  confirmPvzOnMap?: boolean;
 };
 
 function pvzLabel(p: PvzItem): string {
@@ -95,9 +103,14 @@ export function DocumentsOrderPvzSection({
   defaultCity,
   courierOnly = false,
   courierLabel = "Курьером",
+  confirmPvzOnMap = false,
 }: Props) {
   const [geocodeLoading, setGeocodeLoading] = useState(false);
   const [geocodeError, setGeocodeError] = useState<string | null>(null);
+  const [pvzMapOpen, setPvzMapOpen] = useState(false);
+  const [pvzMapQuery, setPvzMapQuery] = useState("");
+  const [pvzMapDraft, setPvzMapDraft] = useState<AddressSelection | null>(null);
+  const [pendingPvz, setPendingPvz] = useState<{ item: PvzItem; city: CityCode } | null>(null);
   const warehouseLabel = side === "from" ? "Со Склада" : "на Складе";
   const isWarehouseMode = !courierOnly && state.deliveryMode === "point";
 
@@ -118,33 +131,48 @@ export function DocumentsOrderPvzSection({
     });
   }, [courierOnly, defaultCity, onChange]);
 
+  const applyPvzSelection = useCallback(
+    (p: PvzItem, city: CityCode, addr: AddressSelection) => {
+      onChange((prev) => ({
+        ...prev,
+        deliveryMode: "courier",
+        addressKind: "pvz",
+        pvzRef: p.Ссылка,
+        pvzItem: p,
+        addr,
+        query: addr.fullAddress,
+        city,
+      }));
+    },
+    [onChange],
+  );
+
   const geocodePvz = useCallback(
-    async (p: PvzItem, city: CityCode) => {
+    async (p: PvzItem, city: CityCode, requireMapConfirm: boolean) => {
       setGeocodeLoading(true);
       setGeocodeError(null);
       try {
         const q = geocodeQueryForPvz(p);
         const r = await fetchDocumentsGeocode(authScope, { address: q, city });
-        onChange({
-          ...state,
-          deliveryMode: "courier",
-          addressKind: "pvz",
-          pvzRef: p.Ссылка,
-          pvzItem: p,
-          addr: {
-            label: pvzLabel(p),
-            fullAddress: r.fullAddress || q,
-            point: r.point,
-            city,
-            sourceId: p.Ссылка,
-          },
-          query: r.fullAddress || q,
+        const draft: AddressSelection = {
+          label: pvzLabel(p),
+          fullAddress: r.fullAddress || q,
+          point: r.point,
           city,
-        });
+          sourceId: p.Ссылка,
+        };
+        if (requireMapConfirm) {
+          setPendingPvz({ item: p, city });
+          setPvzMapQuery(draft.fullAddress);
+          setPvzMapDraft(draft);
+          setPvzMapOpen(true);
+          return;
+        }
+        applyPvzSelection(p, city, draft);
       } catch (e) {
         setGeocodeError((e as Error)?.message || "Не удалось определить координаты ПВЗ");
-        onChange({
-          ...state,
+        onChange((prev) => ({
+          ...prev,
           deliveryMode: "courier",
           addressKind: "pvz",
           pvzRef: p.Ссылка,
@@ -152,12 +180,30 @@ export function DocumentsOrderPvzSection({
           addr: null,
           query: geocodeQueryForPvz(p),
           city,
-        });
+        }));
       } finally {
         setGeocodeLoading(false);
       }
     },
-    [authScope, onChange, state],
+    [applyPvzSelection, authScope, onChange],
+  );
+
+  const selectPvzItem = useCallback(
+    (item: PvzItem, city: CityCode) => {
+      const confirmed = pvzItemConfirmedCoords(item);
+      if (confirmed) {
+        applyPvzSelection(item, city, {
+          label: pvzLabel(item),
+          fullAddress: confirmed.fullAddress || geocodeQueryForPvz(item),
+          point: { lat: confirmed.latitude, lon: confirmed.longitude },
+          city,
+          sourceId: item.Ссылка,
+        });
+        return;
+      }
+      void geocodePvz(item, city, confirmPvzOnMap);
+    },
+    [applyPvzSelection, confirmPvzOnMap, geocodePvz],
   );
 
   const setDeliveryMode = (deliveryMode: "courier" | "point") => {
@@ -255,7 +301,7 @@ export function DocumentsOrderPvzSection({
                       return;
                     }
                     const city = inferPvzCityCode(item, defaultCity) ?? defaultCity;
-                    void geocodePvz(item, city);
+                    selectPvzItem(item, city);
                   }}
                 >
                   <option value="">— Выберите ПВЗ —</option>
@@ -372,6 +418,50 @@ export function DocumentsOrderPvzSection({
             </>
           )}
         </>
+      )}
+
+      {confirmPvzOnMap && pendingPvz && (
+        <DocumentsOrderMapPicker
+          open={pvzMapOpen}
+          onClose={() => {
+            setPvzMapOpen(false);
+            setPendingPvz(null);
+            setPvzMapDraft(null);
+          }}
+          authScope={authScope}
+          city={pendingPvz.city}
+          side={side}
+          screenTitle="Подтвердите точку ПВЗ на карте"
+          confirmLabel="Сохранить координаты ПВЗ"
+          query={pvzMapQuery}
+          setQuery={setPvzMapQuery}
+          draftAddr={pvzMapDraft}
+          setDraftAddr={setPvzMapDraft}
+          onConfirm={async (addr) => {
+            if (!addr.point || !pendingPvz) return;
+            try {
+              await fetchSavePvzConfirmedCoords(authScope, {
+                pvzRef: pendingPvz.item.Ссылка,
+                city: pendingPvz.city,
+                latitude: addr.point.lat,
+                longitude: addr.point.lon,
+                fullAddress: addr.fullAddress,
+              });
+              pendingPvz.item.ПодтвержденныеКоординаты = {
+                latitude: addr.point.lat,
+                longitude: addr.point.lon,
+                fullAddress: addr.fullAddress,
+              };
+              applyPvzSelection(pendingPvz.item, pendingPvz.city, addr);
+              setPvzMapOpen(false);
+              setPendingPvz(null);
+              setPvzMapDraft(null);
+              setGeocodeError(null);
+            } catch (e) {
+              setGeocodeError((e as Error)?.message || "Не удалось сохранить координаты ПВЗ");
+            }
+          }}
+        />
       )}
     </div>
   );

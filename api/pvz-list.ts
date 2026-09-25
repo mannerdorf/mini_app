@@ -2,6 +2,7 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser } from "../lib/verifyRegisteredUser.js";
 import { initRequestContext, logError } from "./_lib/observability.js";
+import { pgTableExists } from "./_haulzReturns.js";
 
 const normalizeLogin = (v: unknown) => String(v ?? "").trim().toLowerCase();
 const normalizeInn = (v: unknown) => String(v ?? "").replace(/\D/g, "").trim();
@@ -66,9 +67,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'') || ' ' || coalesce(otpravitel_poluchatel,'')) NOT LIKE '%андреевск%'" +
       " AND lower(coalesce(naimenovanie,'') || ' ' || coalesce(gorod,'') || ' ' || coalesce(region,'') || ' ' || coalesce(otpravitel_poluchatel,'')) NOT LIKE '%железнодорожн%12%'";
 
+    const coordsTableReady = await pgTableExists(pool, "pickup_pvz_coords");
     const { rows } = await pool.query(
-      `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
-              vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso
+      coordsTableReady
+        ? `SELECT p.ssylka, p.naimenovanie, p.kod_dlya_pechati, p.gorod, p.region,
+              p.vladelec_inn, p.vladelec_naimenovanie, p.otpravitel_poluchatel, p.kontaktnoe_litso,
+              c.latitude AS confirmed_lat, c.longitude AS confirmed_lon, c.full_address AS confirmed_address
+       FROM cache_pvz p
+       LEFT JOIN pickup_pvz_coords c ON c.pvz_ref = p.ssylka
+       WHERE regexp_replace(coalesce(p.vladelec_inn, ''), '[^0-9]', '', 'g') = $1
+       ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
+       ORDER BY p.sort_order ASC, p.naimenovanie ASC`
+        : `SELECT ssylka, naimenovanie, kod_dlya_pechati, gorod, region,
+              vladelec_inn, vladelec_naimenovanie, otpravitel_poluchatel, kontaktnoe_litso,
+              null::float8 AS confirmed_lat, null::float8 AS confirmed_lon, null::text AS confirmed_address
        FROM cache_pvz
        WHERE regexp_replace(coalesce(vladelec_inn, ''), '[^0-9]', '', 'g') = $1
        ${geoExclude} ${zelenoeExclude} ${haulzWarehouseExclude}
@@ -79,6 +91,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pvz = rows.map((r: Record<string, string>) => {
       const naim = (r.naimenovanie || "").replace(/\s+/g, " ").trim();
       const gorod = (r.gorod || "").replace(/\s+/g, " ").trim();
+      const lat = Number(r.confirmed_lat);
+      const lon = Number(r.confirmed_lon);
+      const confirmed =
+        Number.isFinite(lat) && Number.isFinite(lon)
+          ? {
+              latitude: lat,
+              longitude: lon,
+              fullAddress: (r.confirmed_address || "").trim(),
+            }
+          : undefined;
       return {
         Ссылка: r.ssylka || "",
         Наименование: naim,
@@ -89,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ВладелецНаименование: r.vladelec_naimenovanie || "",
         ОтправительПолучательНаименование: r.otpravitel_poluchatel || "",
         КонтактноеЛицо: r.kontaktnoe_litso || "",
+        ...(confirmed ? { ПодтвержденныеКоординаты: confirmed } : {}),
       };
     });
 

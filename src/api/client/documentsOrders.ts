@@ -2,6 +2,12 @@
  * API заявок / ПВЗ (раздел «Документы» → новая заявка).
  */
 
+export type PvzConfirmedCoords = {
+  latitude: number;
+  longitude: number;
+  fullAddress?: string;
+};
+
 export type PvzItem = {
   Ссылка: string;
   Наименование: string;
@@ -12,7 +18,14 @@ export type PvzItem = {
   ВладелецНаименование: string;
   ОтправительПолучательНаименование: string;
   КонтактноеЛицо: string;
+  ПодтвержденныеКоординаты?: PvzConfirmedCoords;
 };
+
+export function pvzItemConfirmedCoords(item: PvzItem | null | undefined): PvzConfirmedCoords | null {
+  const c = item?.ПодтвержденныеКоординаты;
+  if (!c || !Number.isFinite(c.latitude) || !Number.isFinite(c.longitude)) return null;
+  return c;
+}
 
 export async function fetchPvzList(auth: {
   login: string;

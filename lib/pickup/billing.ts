@@ -3,6 +3,7 @@ import type { Job } from './model.js';
 import { PickupError } from './model.js';
 import { isNormalizedCacheReady } from '../documentCacheNormalized.js';
 import { buildPickupCustomerQuote } from './customerQuote.js';
+import { resolvePickupBillingCoords } from './pvzCoords.js';
 import { deliverySetter } from './deliveryService.js';
 
 const text = (value: unknown) => String(value ?? '').trim();
@@ -85,8 +86,10 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       source = sourceFor(job, matchBillingTransport(job,cargos));
       if (job.data.customerBillMode === 'auto') {
         if (source.weight == null || source.volume == null || source.chargeableWeight == null || source.places == null) throw new Error('В перевозке отсутствуют места, вес, объём или платный вес');
+        const billingPoint = await resolvePickupBillingCoords(pool, job);
         amount = (await buildPickupCustomerQuote(pool, {city:job.city,weightKg:source.weight,volumeM3:source.volume,
-          chargeableWeightKg:source.chargeableWeight,kmOverride:job.data.mkadKm,latitude:job.data.latitude,longitude:job.data.longitude})).totalRub;
+          chargeableWeightKg:source.chargeableWeight,kmOverride:job.data.mkadKm,
+          latitude: billingPoint?.latitude ?? job.data.latitude,longitude: billingPoint?.longitude ?? job.data.longitude})).totalRub;
       }
     } catch (e) { error = (e as Error).message; }
     if (source) {
