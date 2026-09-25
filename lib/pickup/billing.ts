@@ -3,7 +3,7 @@ import type { Job } from './model.js';
 import { PickupError } from './model.js';
 import { isNormalizedCacheReady } from '../documentCacheNormalized.js';
 import { buildPickupCustomerQuote } from './customerQuote.js';
-import { resolvePickupBillingCoords } from './pvzCoords.js';
+import { persistResolvedPickupCoords, resolvePickupPointCoords } from './pvzCoords.js';
 import { deliverySetter } from './deliveryService.js';
 
 const text = (value: unknown) => String(value ?? '').trim();
@@ -86,10 +86,18 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       source = sourceFor(job, matchBillingTransport(job,cargos));
       if (job.data.customerBillMode === 'auto') {
         if (source.weight == null || source.volume == null || source.chargeableWeight == null || source.places == null) throw new Error('В перевозке отсутствуют места, вес, объём или платный вес');
-        const billingPoint = await resolvePickupBillingCoords(pool, job);
+        let resolved = await resolvePickupPointCoords(pool, job.city, job.data);
+        if (resolved && (job.data.latitude == null || job.data.longitude == null)) {
+          job.data = await persistResolvedPickupCoords(pool, job, resolved, actor);
+          resolved = {
+            ...resolved,
+            latitude: job.data.latitude as number,
+            longitude: job.data.longitude as number,
+          };
+        }
         amount = (await buildPickupCustomerQuote(pool, {city:job.city,weightKg:source.weight,volumeM3:source.volume,
           chargeableWeightKg:source.chargeableWeight,kmOverride:job.data.mkadKm,
-          latitude: billingPoint?.latitude ?? job.data.latitude,longitude: billingPoint?.longitude ?? job.data.longitude})).totalRub;
+          latitude: resolved?.latitude ?? job.data.latitude,longitude: resolved?.longitude ?? job.data.longitude})).totalRub;
       }
     } catch (e) { error = (e as Error).message; }
     if (source) {
@@ -117,8 +125,15 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
     }
     const sync = (await pool.query('SELECT state,last_error FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows[0];
+    const amountManual = Boolean(record?.amount_manual);
+    const displayAmount =
+      error && !amountManual
+        ? null
+        : record?.amount == null
+          ? null
+          : Number(record.amount);
     return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,
-      ...record, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount:record?.amount == null ? null : Number(record.amount), error, numberSync:sync };
+      ...record, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));

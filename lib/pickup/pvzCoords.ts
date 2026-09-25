@@ -152,22 +152,62 @@ export async function resolvePickupPointCoords(
 
   const address = String(data.address ?? "").trim();
   if (address) {
-    try {
-      const fwd = await dgisGeocodeFull(address, pool);
-      if (fwd?.point) {
-        return {
-          latitude: fwd.point.lat,
-          longitude: fwd.point.lon,
-          fullAddress: fwd.fullAddress || address,
-          source: "geocode",
-        };
+    const cityLabel = city === "kaliningrad" ? "Калининград" : "Москва";
+    const queries = [
+      address,
+      address.toLowerCase().includes(cityLabel.toLowerCase()) ? "" : `${cityLabel}, ${address}`,
+    ].filter(Boolean);
+    for (const q of queries) {
+      try {
+        const fwd = await dgisGeocodeFull(q, pool);
+        if (fwd?.point) {
+          return {
+            latitude: fwd.point.lat,
+            longitude: fwd.point.lon,
+            fullAddress: fwd.fullAddress || address,
+            source: "geocode",
+          };
+        }
+      } catch {
+        /* try next query */
       }
-    } catch {
-      return null;
     }
   }
 
   return null;
+}
+
+/** Записать найденные координаты в забор (и в реестр ПВЗ при geocode + pvzRef). */
+export async function persistResolvedPickupCoords(
+  pool: Pool,
+  job: Pick<Job, "id" | "city" | "data">,
+  resolved: ResolvedPickupPoint,
+  actor: string,
+): Promise<JobData> {
+  const next: JobData = {
+    ...job.data,
+    latitude: resolved.latitude,
+    longitude: resolved.longitude,
+  };
+  if (resolved.fullAddress?.trim()) {
+    next.address = resolved.fullAddress.trim();
+  }
+  await pool.query(
+    `update pickup_jobs set data = $2::jsonb, version = version + 1, updated_at = now() where id = $1`,
+    [job.id, JSON.stringify(next)],
+  );
+  const pvzRef = String(job.data.pvzRef ?? "").trim();
+  if (pvzRef && resolved.source === "geocode") {
+    await savePvzConfirmedCoords(pool, {
+      pvzRef,
+      city: job.city,
+      latitude: resolved.latitude,
+      longitude: resolved.longitude,
+      fullAddress: resolved.fullAddress || next.address || "",
+      confirmedBy: actor,
+    });
+  }
+  return next;
 }
 
 export async function resolvePickupBillingCoords(
