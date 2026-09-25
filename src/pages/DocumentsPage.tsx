@@ -84,6 +84,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
                 cargoStateByNumber={page.cargoStateByNumber}
                 cargoRouteByNumber={page.cargoRouteByNumber}
                 cargoSumPaidByNumber={page.cargoSumPaidByNumber}
+                cargoStateBillByNumber={page.cargoStateBillByNumber}
                 normCargoKey={page.normCargoKey}
                 isInvoiceFavorite={page.invoicesCatalog.isInvoiceFavorite}
                 toggleInvoiceFavorite={page.invoicesCatalog.toggleInvoiceFavorite}

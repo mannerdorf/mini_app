@@ -6,7 +6,12 @@ import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { formatCurrency, formatInvoiceNumber, invoicePaymentStatusForUi, stripOoo } from "../../../lib/formatUtils";
 import { ClickableInvoiceNumber } from "../../../components/ui/EntityLinks";
-import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../../lib/invoiceAmounts.js";
+import {
+  invoiceBalance,
+  invoiceDocSum,
+  invoicePaymentStateRaw,
+  invoiceSumPaid,
+} from "../../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
 import {
   DocumentsInvoiceFinanceHeadCells,
@@ -56,6 +61,7 @@ type Props = {
   cargoStateByNumber: Map<string, string>;
   cargoRouteByNumber: Map<string, string>;
   cargoSumPaidByNumber: Map<string, number>;
+  cargoStateBillByNumber: Map<string, string>;
   normCargoKey: (raw: string) => string;
   isInvoiceFavorite: (invNum: string | undefined) => boolean;
   toggleInvoiceFavorite: (invNum: string | undefined) => void;
@@ -93,6 +99,7 @@ export function DocumentsInvoicesSection({
   cargoStateByNumber,
   cargoRouteByNumber,
   cargoSumPaidByNumber,
+  cargoStateBillByNumber,
   normCargoKey,
   isInvoiceFavorite,
   toggleInvoiceFavorite,
@@ -161,9 +168,23 @@ export function DocumentsInvoicesSection({
                                                         const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                                                         const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                                                         const isum = invoiceDocSum(inv);
-                                                        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                                        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                                                        const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                                                        const ipaid = invoiceSumPaid(
+                                                            inv,
+                                                            cargoSumPaidByNumber,
+                                                            getFirstCargoNumberFromInvoice,
+                                                            cargoStateBillByNumber,
+                                                        );
+                                                        const ibalance = invoiceBalance(
+                                                            inv,
+                                                            cargoSumPaidByNumber,
+                                                            getFirstCargoNumberFromInvoice,
+                                                            cargoStateBillByNumber,
+                                                        );
+                                                        const ipayState = invoicePaymentStateRaw(
+                                                            inv,
+                                                            cargoStateBillByNumber,
+                                                            getFirstCargoNumberFromInvoice,
+                                                        );
                                                         const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                                                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
@@ -243,9 +264,23 @@ export function DocumentsInvoicesSection({
                         const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                         const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                         const isum = invoiceDocSum(inv);
-                        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                        const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                        const ipaid = invoiceSumPaid(
+                            inv,
+                            cargoSumPaidByNumber,
+                            getFirstCargoNumberFromInvoice,
+                            cargoStateBillByNumber,
+                        );
+                        const ibalance = invoiceBalance(
+                            inv,
+                            cargoSumPaidByNumber,
+                            getFirstCargoNumberFromInvoice,
+                            cargoStateBillByNumber,
+                        );
+                        const ipayState = invoicePaymentStateRaw(
+                            inv,
+                            cargoStateBillByNumber,
+                            getFirstCargoNumberFromInvoice,
+                        );
                         const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
@@ -307,9 +342,23 @@ export function DocumentsInvoicesSection({
                         const inum = inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? '';
                         const idt = inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? '';
                         const isum = invoiceDocSum(inv);
-                        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-                        const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
+                        const ipaid = invoiceSumPaid(
+                            inv,
+                            cargoSumPaidByNumber,
+                            getFirstCargoNumberFromInvoice,
+                            cargoStateBillByNumber,
+                        );
+                        const ibalance = invoiceBalance(
+                            inv,
+                            cargoSumPaidByNumber,
+                            getFirstCargoNumberFromInvoice,
+                            cargoStateBillByNumber,
+                        );
+                        const ipayState = invoicePaymentStateRaw(
+                            inv,
+                            cargoStateBillByNumber,
+                            getFirstCargoNumberFromInvoice,
+                        );
                         const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
@@ -383,6 +432,7 @@ export function DocumentsInvoicesSection({
             cargoStateByNumber={cargoStateByNumber}
             cargoRouteByNumber={cargoRouteByNumber}
             cargoSumPaidByNumber={cargoSumPaidByNumber}
+            cargoStateBillByNumber={cargoStateBillByNumber}
             perevozkiLoading={perevozkiLoading}
             isFavorite={isInvoiceFavorite(String(selectedInvoice?.Number ?? selectedInvoice?.number ?? ""))}
             onToggleFavorite={() =>

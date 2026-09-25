@@ -497,6 +497,7 @@ type FilterInvoicesParams = {
   cargoRouteByNumber: Map<string, string>;
   cargoTransportByNumber: Map<string, string>;
   cargoSumPaidByNumber?: Map<string, number>;
+  cargoStateBillByNumber?: Map<string, string>;
 };
 
 export function linkedCargoMatchesTransportFilter(
@@ -583,12 +584,17 @@ function invoiceMatchesBillStatusFilter(
   billStatusFilterSet: Set<SharedBillStatusKey>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: any) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): boolean {
   if (billStatusFilterSet.size === 0) return true;
   for (const filterKey of billStatusFilterSet) {
     if (filterKey === "unpaid") {
-      if (isOutstandingDebtInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumber)) return true;
-    } else if (getInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber) === filterKey) {
+      if (isOutstandingDebtInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber)) {
+        return true;
+      }
+    } else if (
+      getInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber) === filterKey
+    ) {
       return true;
     }
   }
@@ -620,6 +626,7 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
     cargoTransportByNumber,
     transportLinkedCargoNumbers,
     cargoSumPaidByNumber,
+    cargoStateBillByNumber,
   } = params;
 
   let res = [...items];
@@ -635,7 +642,13 @@ export function buildFilteredInvoices(params: FilterInvoicesParams) {
   }
   if (billStatusFilterSet.size > 0) {
     res = res.filter((i) =>
-      invoiceMatchesBillStatusFilter(i, billStatusFilterSet, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice),
+      invoiceMatchesBillStatusFilter(
+        i,
+        billStatusFilterSet,
+        cargoSumPaidByNumber,
+        getFirstCargoNumberFromInvoice,
+        cargoStateBillByNumber,
+      ),
     );
   }
   if (typeFilterSet.size > 0) {

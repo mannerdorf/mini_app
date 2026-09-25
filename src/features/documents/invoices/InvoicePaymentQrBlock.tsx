@@ -24,6 +24,7 @@ type Props = {
   invoice: Record<string, unknown>;
   auth: AuthData | null | undefined;
   cargoSumPaidByNumber?: Map<string, number>;
+  cargoStateBillByNumber?: Map<string, string>;
 };
 
 function getFirstCargoNumberFromInvoice(inv: Record<string, unknown>): string | null {
@@ -50,7 +51,7 @@ function SummaryTile({ label, value, accent }: { label: string; value: string; a
   );
 }
 
-export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: Props) {
+export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber, cargoStateBillByNumber }: Props) {
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<QrResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,10 +62,10 @@ export function InvoicePaymentQrBlock({ invoice, auth, cargoSumPaidByNumber }: P
   const amounts = useMemo(() => {
     const getCargo = (inv: Record<string, unknown>) => getFirstCargoNumberFromInvoice(inv);
     const docSum = invoiceDocSum(invoice);
-    const paid = invoiceSumPaid(invoice, cargoSumPaidByNumber, getCargo);
-    const balance = invoiceBalance(invoice, cargoSumPaidByNumber, getCargo);
+    const paid = invoiceSumPaid(invoice, cargoSumPaidByNumber, getCargo, cargoStateBillByNumber);
+    const balance = invoiceBalance(invoice, cargoSumPaidByNumber, getCargo, cargoStateBillByNumber);
     return { docSum, paid, balance };
-  }, [invoice, cargoSumPaidByNumber]);
+  }, [invoice, cargoSumPaidByNumber, cargoStateBillByNumber]);
 
   const loadQr = useCallback(async () => {
     if (!auth?.login || !auth?.password || !mayPay) return;

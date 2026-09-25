@@ -8,7 +8,7 @@ import {
     buildCargoTransportByNumber,
     buildTransportLinkedCargoNumbersInPeriod,
 } from "../lib/documentsPipeline";
-import { buildCargoSumPaidByNumber } from "../../../../lib/invoiceAmounts.js";
+import { buildCargoStateBillByNumber, buildCargoSumPaidByNumber } from "../../../../lib/invoiceAmounts.js";
 
 export type UseDocumentsCargoContextParams = {
     auth: AuthData;
@@ -120,6 +120,11 @@ export function useDocumentsCargoContext({
         [perevozkiItems],
     );
 
+    const cargoStateBillByNumber = useMemo(
+        () => buildCargoStateBillByNumber((perevozkiItems || []) as Record<string, unknown>[]),
+        [perevozkiItems],
+    );
+
     const cargoTransportByNumber = useMemo(() => {
         const base = buildCargoTransportByNumber(perevozkiItems || []);
         (sendingsItems || []).forEach((row: any) => {
@@ -179,6 +184,7 @@ export function useDocumentsCargoContext({
         cargoRouteByNumber,
         cargoSumByNumber,
         cargoSumPaidByNumber,
+        cargoStateBillByNumber,
         cargoTransportByNumber,
     };
 }

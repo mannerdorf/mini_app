@@ -49,6 +49,7 @@ export type UseDocumentsCatalogsParams = {
         | "cargoRouteByNumber"
         | "cargoTransportByNumber"
         | "cargoSumPaidByNumber"
+        | "cargoStateBillByNumber"
     >;
     filters: Pick<
         DocumentsPageFiltersState,
@@ -113,6 +114,7 @@ export function useDocumentsCatalogs({
         cargoRouteByNumber,
         cargoTransportByNumber,
         cargoSumPaidByNumber,
+        cargoStateBillByNumber,
     } = cargo;
 
     const {
@@ -187,6 +189,7 @@ export function useDocumentsCatalogs({
         cargoRouteByNumber,
         cargoTransportByNumber,
         cargoSumPaidByNumber,
+        cargoStateBillByNumber,
         normCargoKey,
         expandedTableCustomer,
         setExpandedTableCustomer,

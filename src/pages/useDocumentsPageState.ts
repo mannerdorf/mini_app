@@ -272,6 +272,7 @@ export function useDocumentsPageState({
         cargoStateByNumber: cargo.cargoStateByNumber,
         cargoRouteByNumber: cargo.cargoRouteByNumber,
         cargoSumPaidByNumber: cargo.cargoSumPaidByNumber,
+        cargoStateBillByNumber: cargo.cargoStateBillByNumber,
         normCargoKey: cargo.normCargoKey,
         perevozkiItems: cargo.perevozkiItems,
         edoDocumentsSummary: catalogs.edoDocumentsSummary,

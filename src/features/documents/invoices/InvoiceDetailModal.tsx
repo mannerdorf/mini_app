@@ -28,6 +28,7 @@ type InvoiceDetailModalProps = {
     cargoStateByNumber?: Map<string, string>;
     cargoRouteByNumber?: Map<string, string>;
     cargoSumPaidByNumber?: Map<string, number>;
+    cargoStateBillByNumber?: Map<string, string>;
     perevozkiLoading?: boolean;
     isFavorite?: boolean;
     onToggleFavorite?: () => void;
@@ -42,6 +43,7 @@ export function InvoiceDetailModal({
     cargoStateByNumber,
     cargoRouteByNumber,
     cargoSumPaidByNumber,
+    cargoStateBillByNumber,
     perevozkiLoading,
     isFavorite,
     onToggleFavorite,
@@ -232,7 +234,12 @@ export function InvoiceDetailModal({
                     </Typography.Body>
                 )}
                 {auth && !isPaid && (
-                    <InvoicePaymentQrBlock invoice={item} auth={auth} cargoSumPaidByNumber={cargoSumPaidByNumber} />
+                    <InvoicePaymentQrBlock
+                        invoice={item}
+                        auth={auth}
+                        cargoSumPaidByNumber={cargoSumPaidByNumber}
+                        cargoStateBillByNumber={cargoStateBillByNumber}
+                    />
                 )}
                 {list.length > 0 ? (
                     <DocumentDetailLineCards

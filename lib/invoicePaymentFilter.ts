@@ -1,6 +1,7 @@
 /** Как в src/lib/statusUtils.ts — фильтр оплаты счёта для документов. */
 
 import { invoicePaymentStatusForUi } from "../src/lib/formatUtils.js";
+import { invoicePaymentStateRaw } from "./invoicePaymentState.js";
 
 export type PaymentFilterKey = "unpaid" | "cancelled" | "paid" | "partial" | "unknown";
 
@@ -30,21 +31,20 @@ export function getPaymentFilterKey(stateBill: string | undefined): PaymentFilte
   return "unknown";
 }
 
+export type InvoicePaymentFilterContext = {
+  finance?: InvoicePaymentFinance;
+  cargoStateBillByNumber?: Map<string, string>;
+  getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null;
+};
+
 export function getInvoicePaymentFilterKey(
   inv: Record<string, unknown> | null | undefined,
-  finance?: InvoicePaymentFinance,
+  ctx?: InvoicePaymentFinance | InvoicePaymentFilterContext,
 ): PaymentFilterKey {
-  const raw = String(
-    inv?.StateBill ??
-      inv?.stateBill ??
-      inv?.Status ??
-      inv?.State ??
-      inv?.state ??
-      inv?.Статус ??
-      inv?.status ??
-      inv?.PaymentStatus ??
-      "",
-  );
+  const context: InvoicePaymentFilterContext =
+    ctx && "sum" in ctx ? { finance: ctx } : (ctx ?? {});
+  const { finance, cargoStateBillByNumber, getFirstCargoNumber } = context;
+  const raw = inv ? invoicePaymentStateRaw(inv, cargoStateBillByNumber, getFirstCargoNumber) : "";
   const fromRaw = getPaymentFilterKey(raw || undefined);
   if (fromRaw === "cancelled") return fromRaw;
   if (finance && finance.sum > 0) {

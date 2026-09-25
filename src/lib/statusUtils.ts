@@ -85,12 +85,17 @@ export function getInvoicePaymentFilterKey(
     inv: Record<string, unknown> | null | undefined,
     cargoSumPaidByNumber?: Map<string, number>,
     getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+    cargoStateBillByNumber?: Map<string, string>,
 ): ReturnType<typeof getPaymentFilterKey> {
     if (!inv) return "unknown";
     const sum = invoiceDocSum(inv);
-    const paid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber);
-    const balance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber);
-    return getInvoicePaymentFilterKeyCore(inv, { sum, paid, balance });
+    const paid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber);
+    const balance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber);
+    return getInvoicePaymentFilterKeyCore(inv, {
+        finance: { sum, paid, balance },
+        cargoStateBillByNumber,
+        getFirstCargoNumber,
+    });
 }
 
 export type BillStatusFilterKey = 'all' | ReturnType<typeof getPaymentFilterKey>;

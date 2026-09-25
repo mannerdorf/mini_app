@@ -1,4 +1,7 @@
-import { getInvoicePaymentFilterKey, type InvoicePaymentFinance } from "./invoicePaymentFilter.js";
+import { getInvoicePaymentFilterKey, getPaymentFilterKey, type InvoicePaymentFinance } from "./invoicePaymentFilter.js";
+import { lookupCargoMapString } from "./invoicePaymentState.js";
+
+export { buildCargoStateBillByNumber, invoicePaymentStateRaw } from "./invoicePaymentState.js";
 
 /** Деньги в счетах/письме — всегда с копейками. */
 export function formatInvoiceMoney(n: number): string {
@@ -101,16 +104,32 @@ function invoiceSumPaidFromFieldsOnly(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
   const explicit = parseDocAmount(
-    inv.Sum_paid ?? inv.SumPaid ?? inv.sum_paid ?? inv.sumPaid ?? inv.SumPay ?? inv.PaidSum ?? inv.Оплачено,
+    inv.Sum_paid ??
+      inv.SumPaid ??
+      inv.sum_paid ??
+      inv.sumPaid ??
+      inv.SumPay ??
+      inv.PaidSum ??
+      inv.Оплачено ??
+      inv.SumPayment ??
+      inv.PaidAmount,
   );
   if (explicit > 0) return Math.min(explicit, sum);
 
   if (cargoSumPaidByNumber && getFirstCargoNumber) {
     const fromCargo = lookupCargoMapAmount(cargoSumPaidByNumber, getFirstCargoNumber(inv));
     if (fromCargo > 0) return Math.min(fromCargo, sum);
+  }
+
+  if (cargoStateBillByNumber && getFirstCargoNumber) {
+    const stateBill = lookupCargoMapString(cargoStateBillByNumber, getFirstCargoNumber(inv));
+    const key = getPaymentFilterKey(stateBill || undefined);
+    if (key === "paid") return sum;
+    if (key === "unpaid" || key === "cancelled") return 0;
   }
   return 0;
 }
@@ -119,9 +138,10 @@ function invoicePaymentFinance(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): InvoicePaymentFinance {
   const sum = invoiceDocSum(inv);
-  const paid = invoiceSumPaidFromFieldsOnly(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+  const paid = invoiceSumPaidFromFieldsOnly(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber);
   return { sum, paid, balance: Math.max(0, sum - paid) };
 }
 
@@ -129,8 +149,13 @@ function resolveInvoicePaymentFilterKey(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ) {
-  return getInvoicePaymentFilterKey(inv, invoicePaymentFinance(inv, cargoSumPaidByNumber, getFirstCargoNumber));
+  return getInvoicePaymentFilterKey(inv, {
+    finance: invoicePaymentFinance(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber),
+    cargoStateBillByNumber,
+    getFirstCargoNumber,
+  });
 }
 
 /** Оплаченная сумма: счёт → перевозка → статус. */
@@ -138,12 +163,23 @@ export function invoiceSumPaid(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
-  const fromFields = invoiceSumPaidFromFieldsOnly(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+  const fromFields = invoiceSumPaidFromFieldsOnly(
+    inv,
+    cargoSumPaidByNumber,
+    getFirstCargoNumber,
+    cargoStateBillByNumber,
+  );
   if (fromFields > 0) return fromFields;
 
-  const key = resolveInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+  const key = resolveInvoicePaymentFilterKey(
+    inv,
+    cargoSumPaidByNumber,
+    getFirstCargoNumber,
+    cargoStateBillByNumber,
+  );
   if (key === "paid") return sum;
   if (key === "unpaid" || key === "cancelled") return 0;
   return 0;
@@ -154,11 +190,17 @@ export function isOutstandingFinanceInvoice(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): boolean {
-  const key = resolveInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+  const key = resolveInvoicePaymentFilterKey(
+    inv,
+    cargoSumPaidByNumber,
+    getFirstCargoNumber,
+    cargoStateBillByNumber,
+  );
   if (key === "paid" || key === "cancelled") return false;
   if (key === "unpaid" || key === "partial") return true;
-  return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber) > 0.005;
+  return invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber) > 0.005;
 }
 
 /**
@@ -169,8 +211,14 @@ export function isOutstandingDebtInvoice(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): boolean {
-  const key = resolveInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+  const key = resolveInvoicePaymentFilterKey(
+    inv,
+    cargoSumPaidByNumber,
+    getFirstCargoNumber,
+    cargoStateBillByNumber,
+  );
   if (key === "paid" || key === "cancelled" || key === "partial") return false;
   return key === "unpaid";
 }
@@ -180,7 +228,11 @@ export function invoiceBalance(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
   getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+  cargoStateBillByNumber?: Map<string, string>,
 ): number {
   const sum = invoiceDocSum(inv);
-  return Math.max(0, sum - invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber));
+  return Math.max(
+    0,
+    sum - invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber, cargoStateBillByNumber),
+  );
 }

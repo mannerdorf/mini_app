@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   invoiceBalance,
   invoiceDocSum,
+  invoicePaymentStateRaw,
   invoiceSumPaid,
 } from "../../../lib/invoiceAmounts.js";
 import { stripOoo, invoicePaymentStatusForUi } from "../../../lib/formatUtils";
@@ -47,6 +48,7 @@ type UseDocumentsInvoicesInput = {
   cargoRouteByNumber: Map<string, string>;
   cargoTransportByNumber: Map<string, string>;
   cargoSumPaidByNumber: Map<string, number>;
+  cargoStateBillByNumber: Map<string, string>;
   normCargoKey: (raw: string) => string;
   expandedTableCustomer: string | null;
   setExpandedTableCustomer: React.Dispatch<React.SetStateAction<string | null>>;
@@ -74,6 +76,7 @@ export function useDocumentsInvoices({
   cargoRouteByNumber,
   cargoTransportByNumber,
   cargoSumPaidByNumber,
+  cargoStateBillByNumber,
   normCargoKey,
   expandedTableCustomer,
   setExpandedTableCustomer,
@@ -134,6 +137,7 @@ export function useDocumentsInvoices({
       cargoRouteByNumber,
       cargoTransportByNumber,
       cargoSumPaidByNumber,
+      cargoStateBillByNumber,
     });
   }, [
     invoiceFilterInputs,
@@ -150,6 +154,7 @@ export function useDocumentsInvoices({
     cargoRouteByNumber,
     cargoTransportByNumber,
     cargoSumPaidByNumber,
+    cargoStateBillByNumber,
   ]);
 
   const documentsSummary = useMemo(
@@ -166,7 +171,7 @@ export function useDocumentsInvoices({
     const map = new Map<string, { customer: string; items: any[]; sum: number }>();
     filteredInvoiceItems.forEach((inv) => {
       const key = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? "").trim() || "—";
-      const sum = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+      const sum = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
       const existing = map.get(key);
       if (existing) {
         existing.items.push(inv);
@@ -205,24 +210,17 @@ export function useDocumentsInvoices({
       const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "").toString().replace(/^0000-/, "");
       const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "").toString();
       const getStatus = (inv: any) => {
-        const ipayState = String(
-          inv.StateBill ??
-            inv.Status ??
-            inv.State ??
-            inv.state ??
-            inv.Статус ??
-            inv.status ??
-            inv.PaymentStatus ??
-            "",
-        );
+        const ipayState = invoicePaymentStateRaw(inv, cargoStateBillByNumber, getFirstCargoNumberFromInvoice);
         const isum = invoiceDocSum(inv);
-        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
+        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
         return invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
       };
       const getSum = (inv: any) => invoiceDocSum(inv);
-      const getPaid = (inv: any) => invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
-      const getBalance = (inv: any) => invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+      const getPaid = (inv: any) =>
+        invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
+      const getBalance = (inv: any) =>
+        invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
       const getDeliveryState = (inv: any) => {
         const num = getFirstCargoNumberFromInvoice(inv);
         return (num ? cargoStateByNumber.get(normCargoKey(num)) : undefined) ?? "";
@@ -268,6 +266,7 @@ export function useDocumentsInvoices({
       cargoStateByNumber,
       cargoRouteByNumber,
       cargoSumPaidByNumber,
+      cargoStateBillByNumber,
       normCargoKey,
     ]
   );
