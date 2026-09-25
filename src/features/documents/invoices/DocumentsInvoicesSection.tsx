@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Typography } from "@maxhub/max-ui";
 import { ArrowDown, ArrowUp, Loader2 } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
-import { formatCurrency, formatInvoiceNumber, normalizeInvoiceStatus, stripOoo } from "../../../lib/formatUtils";
+import { formatCurrency, formatInvoiceNumber, invoicePaymentStatusForUi, stripOoo } from "../../../lib/formatUtils";
 import { ClickableInvoiceNumber } from "../../../components/ui/EntityLinks";
 import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../../lib/invoiceAmounts.js";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
@@ -164,7 +164,7 @@ export function DocumentsInvoicesSection({
                                                         const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                                                         const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                                                         const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                                                        const ist = normalizeInvoiceStatus(ipayState || undefined);
+                                                        const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                                                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                                                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                                                         const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
@@ -195,7 +195,7 @@ export function DocumentsInvoicesSection({
                                                                         sum={isum}
                                                                         paid={ipaid}
                                                                         balance={ibalance}
-                                                                        payState={ipayState}
+                                                                        payState={ist || ipayState}
                                                                     />
                                                                 )}
                                                             </tr>
@@ -246,7 +246,7 @@ export function DocumentsInvoicesSection({
                         const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                         const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                         const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                        const ist = normalizeInvoiceStatus(ipayState || undefined);
+                        const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                         const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
@@ -277,7 +277,7 @@ export function DocumentsInvoicesSection({
                                         sum={isum}
                                         paid={ipaid}
                                         balance={ibalance}
-                                        payState={ipayState}
+                                        payState={ist || ipayState}
                                         padding="0.5rem 0.4rem"
                                     />
                                 )}
@@ -310,7 +310,7 @@ export function DocumentsInvoicesSection({
                         const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                         const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
                         const ipayState = String(inv.StateBill ?? inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? '');
-                        const ist = normalizeInvoiceStatus(ipayState || undefined);
+                        const ist = invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
                         const istBadgeStyle = ist === 'Оплачен' ? { bg: 'rgba(34, 197, 94, 0.2)', color: '#22c55e' } : ist === 'Оплачен частично' ? { bg: 'rgba(234, 179, 8, 0.2)', color: '#ca8a04' } : ist === 'Не оплачен' ? { bg: 'rgba(239, 68, 68, 0.2)', color: '#ef4444' } : { bg: 'var(--color-panel-secondary)', color: 'var(--color-text-secondary)' };
                         const firstCargoNum = getFirstCargoNumberFromInvoice(inv);
                         const deliveryState = firstCargoNum ? cargoStateByNumber.get(normCargoKey(firstCargoNum)) : undefined;
@@ -341,7 +341,7 @@ export function DocumentsInvoicesSection({
                                         sum={isum}
                                         paid={ipaid}
                                         balance={ibalance}
-                                        payState={ipayState}
+                                        payState={ist || ipayState}
                                         padding="0.5rem 0.4rem"
                                     />
                                 )}

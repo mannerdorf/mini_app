@@ -4,7 +4,7 @@ import {
   invoiceDocSum,
   invoiceSumPaid,
 } from "../../../lib/invoiceAmounts.js";
-import { stripOoo, normalizeInvoiceStatus } from "../../../lib/formatUtils";
+import { stripOoo, invoicePaymentStatusForUi } from "../../../lib/formatUtils";
 import type { EdoCounterpartyFilter } from "../../../lib/edoCounterpartyStatus";
 import type { CargoStatusFilterKey, RouteFilterKey, SharedBillStatusKey, TypeFilterKey } from "../../../lib/sharedListFilters";
 import {
@@ -204,19 +204,22 @@ export function useDocumentsInvoices({
     (invoiceItems: any[]) => {
       const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "").toString().replace(/^0000-/, "");
       const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "").toString();
-      const getStatus = (inv: any) =>
-        normalizeInvoiceStatus(
-          String(
-            inv.StateBill ??
-              inv.Status ??
-              inv.State ??
-              inv.state ??
-              inv.Статус ??
-              inv.status ??
-              inv.PaymentStatus ??
-              "",
-          ) || undefined,
+      const getStatus = (inv: any) => {
+        const ipayState = String(
+          inv.StateBill ??
+            inv.Status ??
+            inv.State ??
+            inv.state ??
+            inv.Статус ??
+            inv.status ??
+            inv.PaymentStatus ??
+            "",
         );
+        const isum = invoiceDocSum(inv);
+        const ipaid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+        const ibalance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
+        return invoicePaymentStatusForUi(ipayState, isum, ipaid, ibalance);
+      };
       const getSum = (inv: any) => invoiceDocSum(inv);
       const getPaid = (inv: any) => invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
       const getBalance = (inv: any) => invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);

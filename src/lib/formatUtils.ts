@@ -84,3 +84,21 @@ export const normalizeInvoiceStatus = (s: string | undefined): string => {
     if (lower.includes('не') || lower.includes('неоплачен')) return 'Не оплачен';
     return s;
 };
+
+/** Бейдж оплаты: StateBill/Status из 1С, иначе по сумме/оплачено/остатку (как у 3914 без StateBill). */
+export function invoicePaymentStatusForUi(
+    rawState: string,
+    sum: number,
+    paid: number,
+    balance: number,
+): string {
+    const normalized = normalizeInvoiceStatus(rawState.trim() || undefined);
+    if (normalized === 'Оплачен' || normalized === 'Оплачен частично' || normalized === 'Не оплачен') {
+        return normalized;
+    }
+    if (sum <= 0) return '';
+    if (balance <= 0.009) return 'Оплачен';
+    if (paid > 0.009 && balance > 0.009) return 'Оплачен частично';
+    if (balance > 0.009) return 'Не оплачен';
+    return '';
+}
