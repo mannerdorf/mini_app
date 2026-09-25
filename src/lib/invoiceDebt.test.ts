@@ -16,10 +16,10 @@ describe("isOutstandingDebtInvoice", () => {
     ).toBe(false);
   });
 
-  it("excludes unknown even with balance", () => {
+  it("includes unknown with full balance and zero paid (no StateBill from 1C)", () => {
     expect(
-      isOutstandingDebtInvoice({ SumDoc: 500 }, undefined, () => null),
-    ).toBe(false);
+      isOutstandingDebtInvoice({ Status: "Доставлено", SumDoc: 500 }, undefined, () => null),
+    ).toBe(true);
   });
 
   it("excludes paid", () => {

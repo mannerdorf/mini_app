@@ -588,7 +588,7 @@ function invoiceMatchesBillStatusFilter(
   for (const filterKey of billStatusFilterSet) {
     if (filterKey === "unpaid") {
       if (isOutstandingDebtInvoice(inv, cargoSumPaidByNumber, getFirstCargoNumber)) return true;
-    } else if (getInvoicePaymentFilterKey(inv) === filterKey) {
+    } else if (getInvoicePaymentFilterKey(inv, cargoSumPaidByNumber, getFirstCargoNumber) === filterKey) {
       return true;
     }
   }

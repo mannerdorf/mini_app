@@ -1,4 +1,6 @@
 import type { StatusFilter } from "../types.js";
+import { invoiceBalance, invoiceDocSum, invoiceSumPaid } from "../../lib/invoiceAmounts.js";
+import { getInvoicePaymentFilterKey as getInvoicePaymentFilterKeyCore } from "../../lib/invoicePaymentFilter.js";
 
 function remapPostbStatusLabel(raw: string): string {
     const s = String(raw ?? "").trim();
@@ -79,19 +81,16 @@ export const getPaymentFilterKey = (stateBill: unknown): 'unpaid' | 'cancelled' 
     return "unknown";
 };
 
-export function getInvoicePaymentFilterKey(inv: Record<string, unknown> | null | undefined): ReturnType<typeof getPaymentFilterKey> {
-    const raw = String(
-        inv?.StateBill ??
-            inv?.stateBill ??
-            inv?.Status ??
-            inv?.State ??
-            inv?.state ??
-            inv?.Статус ??
-            inv?.status ??
-            inv?.PaymentStatus ??
-            ""
-    );
-    return getPaymentFilterKey(raw);
+export function getInvoicePaymentFilterKey(
+    inv: Record<string, unknown> | null | undefined,
+    cargoSumPaidByNumber?: Map<string, number>,
+    getFirstCargoNumber?: (inv: Record<string, unknown>) => string | null,
+): ReturnType<typeof getPaymentFilterKey> {
+    if (!inv) return "unknown";
+    const sum = invoiceDocSum(inv);
+    const paid = invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+    const balance = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumber);
+    return getInvoicePaymentFilterKeyCore(inv, { sum, paid, balance });
 }
 
 export type BillStatusFilterKey = 'all' | ReturnType<typeof getPaymentFilterKey>;
