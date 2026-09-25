@@ -86,6 +86,7 @@ export function PickupJobDefaultPlaceSection({
         state={state}
         onChange={onChange}
         defaultCity={cityCode}
+        confirmPvzOnMap
       />
     </>
   );
