@@ -187,7 +187,9 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['PickupCost', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
+    const EXCLUDED_KEYS = ['PickupCost', 'ZayavkaNumber', 'zayavkaNumber', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
+    const zayavkaNumberDisplay =
+        String((item as any).ZayavkaNumber ?? (item as any).zayavkaNumber ?? "").trim() || "-";
     const parseAmount = (val: unknown): number => {
         if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
         const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
@@ -469,6 +471,7 @@ export function CargoDetailsModal({
                                 }
                             />
                             <DetailItem label="Стоимость пикапа" value={renderValue((item as any).PickupCost, "₽")} />
+                            <DetailItem label="Номер заявки" value={zayavkaNumberDisplay} />
                         </div>
                         {useServiceRequest && (
                             <div className="cargo-details-tiles-row cargo-details-tiles-row--service">
