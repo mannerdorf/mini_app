@@ -38,14 +38,10 @@
     transform: translateX(16px);
 }
 
-/* Обводка переключателей на экране «Роли» (TapSwitch) — видимы в светлой теме */
+/* Обёртка TapSwitch (шапка, роли, таблица) — без доп. «кольца» вокруг тумблера */
 .roles-switch-wrap {
     display: inline-flex;
     align-items: center;
-    border-radius: 999px;
-    border: 1px solid var(--color-border);
-    padding: 2px;
-    box-sizing: border-box;
 }
 
 /* Табель в CMS: контейнер и панели не обрезают скролл; обёртка растягивается под ширину таблицы */

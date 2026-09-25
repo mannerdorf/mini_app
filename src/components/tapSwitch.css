@@ -51,7 +51,12 @@ button.tap-switch .tap-switch__thumb {
 button.tap-switch[aria-checked="true"] .tap-switch__thumb {
   left: calc(100% - (var(--switch-track) + var(--switch-thumb)) / 2);
 }
-button.tap-switch[role="switch"]:focus-visible { outline: 3px solid var(--ux-focus); outline-offset: 2px; }
+button.tap-switch[role="switch"]:focus-visible {
+  outline: none;
+}
+button.tap-switch[role="switch"]:focus-visible::before {
+  box-shadow: 0 0 0 2px var(--ux-focus);
+}
 button.tap-switch[role="switch"]:disabled { cursor: not-allowed; opacity: .6; }
 @media (prefers-reduced-motion: reduce) {
   button.tap-switch::before, button.tap-switch .tap-switch__thumb { transition: none; }
