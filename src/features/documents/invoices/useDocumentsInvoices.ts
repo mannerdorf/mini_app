@@ -205,7 +205,18 @@ export function useDocumentsInvoices({
       const getNum = (inv: any) => (inv.Number ?? inv.number ?? inv.Номер ?? inv.N ?? "").toString().replace(/^0000-/, "");
       const getDate = (inv: any) => (inv.DateDoc ?? inv.Date ?? inv.date ?? inv.Дата ?? "").toString();
       const getStatus = (inv: any) =>
-        normalizeInvoiceStatus(inv.Status ?? inv.State ?? inv.state ?? inv.Статус ?? inv.status ?? inv.PaymentStatus ?? "");
+        normalizeInvoiceStatus(
+          String(
+            inv.StateBill ??
+              inv.Status ??
+              inv.State ??
+              inv.state ??
+              inv.Статус ??
+              inv.status ??
+              inv.PaymentStatus ??
+              "",
+          ) || undefined,
+        );
       const getSum = (inv: any) => invoiceDocSum(inv);
       const getPaid = (inv: any) => invoiceSumPaid(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
       const getBalance = (inv: any) => invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice);
