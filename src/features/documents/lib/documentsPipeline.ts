@@ -900,7 +900,20 @@ export function buildDocsSummary(list: any[], perevozkiItems?: any[]): DocsSumma
   return { sum, count: list.length, ...buildLinkedCargoMetrics(list, perevozkiItems) };
 }
 
-/** Итоги счетов: по умолчанию остаток к оплате (balance); метрики груза — по связанным перевозкам. */
+/** Группируем уже отфильтрованные счета; «Сумма» — полная стоимость документов. */
+export function groupInvoicesByCustomer(filteredInvoices: any[]) {
+  const map = new Map<string, { customer: string; items: any[]; sum: number }>();
+  for (const inv of filteredInvoices) {
+    const customer = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? "").trim() || "—";
+    const group: { customer: string; items: any[]; sum: number } = map.get(customer) ?? { customer, items: [], sum: 0 };
+    group.items.push(inv);
+    group.sum += invoiceDocSum(inv);
+    map.set(customer, group);
+  }
+  return Array.from(map.values());
+}
+
+/** Итоги счетов: полная стоимость; метрики груза — по связанным перевозкам. */
 export function buildInvoicesSummary(
   filteredInvoices: any[],
   _acts: any[] | undefined | null,
@@ -908,11 +921,11 @@ export function buildInvoicesSummary(
   options?: {
     cargoSumPaidByNumber?: Map<string, number>;
     getFirstCargoNumber?: (inv: any) => string | null;
-    /** false — полная сумма документа (для ЭДО и пр.). */
+    /** true — явно запрошенный остаток к оплате вместо полной стоимости. */
     useBalance?: boolean;
   },
 ): DocsSummaryTotals {
-  const useBalance = options?.useBalance !== false;
+  const useBalance = options?.useBalance === true;
   let sum = 0;
   filteredInvoices.forEach((inv) => {
     sum += useBalance

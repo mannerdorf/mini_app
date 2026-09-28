@@ -10,6 +10,7 @@ import type { EdoCounterpartyFilter } from "../../../lib/edoCounterpartyStatus";
 import type { CargoStatusFilterKey, RouteFilterKey, SharedBillStatusKey, TypeFilterKey } from "../../../lib/sharedListFilters";
 import {
   buildFilteredInvoices,
+  groupInvoicesByCustomer,
   buildInvoicesSummary,
   getFirstCargoNumberFromInvoice,
   resolveInvoiceFiltersForDocSection,
@@ -159,27 +160,14 @@ export function useDocumentsInvoices({
 
   const documentsSummary = useMemo(
     () =>
-      buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems, {
-        cargoSumPaidByNumber,
-        getFirstCargoNumber: getFirstCargoNumberFromInvoice,
-        useBalance: true,
-      }),
-    [filteredInvoiceItems, actsItems, perevozkiItems, cargoSumPaidByNumber],
+      buildInvoicesSummary(filteredInvoiceItems, actsItems, perevozkiItems),
+    [filteredInvoiceItems, actsItems, perevozkiItems],
   );
 
-  const groupedByCustomer = useMemo(() => {
-    const map = new Map<string, { customer: string; items: any[]; sum: number }>();
-    filteredInvoiceItems.forEach((inv) => {
-      const key = (inv.Customer ?? inv.customer ?? inv.Контрагент ?? inv.Contractor ?? inv.Organization ?? "").trim() || "—";
-      const sum = invoiceBalance(inv, cargoSumPaidByNumber, getFirstCargoNumberFromInvoice, cargoStateBillByNumber);
-      const existing = map.get(key);
-      if (existing) {
-        existing.items.push(inv);
-        existing.sum += sum;
-      } else map.set(key, { customer: key, items: [inv], sum });
-    });
-    return Array.from(map.entries()).map(([, v]) => v);
-  }, [filteredInvoiceItems]);
+  const groupedByCustomer = useMemo(
+    () => groupInvoicesByCustomer(filteredInvoiceItems),
+    [filteredInvoiceItems],
+  );
 
   const sortedGroupedByCustomer = useMemo(() => {
     const key = (row: { customer: string; sum: number; items: any[] }) =>
