@@ -71,7 +71,7 @@ function eventUrl(event: NotificationEvent, cargoNumber: string): string {
   return `/documents?section=Отправки&cargo=${number}`;
 }
 
-function billEventsOnChange(
+export function billEventsOnChange(
   isFirstSeen: boolean,
   prevStateBill: string | null | undefined,
   item: CargoSnapshotItem,

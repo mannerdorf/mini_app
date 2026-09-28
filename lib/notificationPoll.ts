@@ -213,10 +213,12 @@ export function hasBillNumberForPush(item: any): boolean {
   return display !== "—" && display !== "0";
 }
 
-/** Признак выставленного счёта: номер счёта и/или StateBill из 1С. */
+/** Реальный номер или статус существующего счёта; «Не выставлен» номер не обещает. */
 export function hasBillSignal(item: any): boolean {
   if (hasRealBillNumber(item)) return true;
   const stateBill = String(item?.StateBill ?? item?.stateBill ?? item?.StatusBill ?? "").trim();
+  const normalized = stateBill.toLowerCase().replace(/\s+/g, " ");
+  if (/^не\s*выставлен[аоы]?$/.test(normalized) || normalized === "not issued") return false;
   return stateBill.length > 0;
 }
 
