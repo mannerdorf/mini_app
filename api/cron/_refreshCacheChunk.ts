@@ -1,3 +1,4 @@
+import { runDocumentRefreshQueue } from "../../lib/documentRefreshQueue.js";
 import { runCronWork, cronDateWindow } from "../../lib/cronWorkState.js";
 import { addDaysIso } from "../../lib/documentCacheRefreshCore.js";
 import { writeOrdersSyncTrace, safeOrdersSyncError } from "../../lib/ordersSyncDiagnostics.js";
@@ -106,8 +107,17 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
   try {
     const pool = getPool();
     await ensureDocumentCacheTables(pool);
-    return res.status(200).json(await runCronWork(pool,"documents_recent",25,async cursor => {
-    const kinds: DocumentCacheKind[] = [...ROTATING_DOCUMENT_KINDS,"customers"];
+    const requestedKind = getStringQuery(req, "kind");
+    const lane = getStringQuery(req, "lane") || "recent";
+    if (requestedKind === "invoices" || requestedKind === "perevozki") {
+      if (lane !== "recent" && lane !== "active" && lane !== "history") return res.status(400).json({ error: "lane must be recent, active or history" });
+      const result = await runDocumentRefreshQueue(pool, credentials.login, credentials.password, requestedKind, lane);
+      return res.status(200).json({ ...result, request_id: auth.ctx.requestId });
+    }
+    if (requestedKind && requestedKind !== "auxiliary") return res.status(400).json({ error: "Unknown document queue" });
+    if (lane !== "recent") return res.status(400).json({ error: "lane requires invoices or perevozki" });
+    return res.status(200).json(await runCronWork(pool,requestedKind === "auxiliary" ? "documents_auxiliary" : "documents_recent",25,async cursor => {
+    const kinds: DocumentCacheKind[] = requestedKind === "auxiliary" ? ["sendings", "acts", "customers"] : [...ROTATING_DOCUMENT_KINDS,"customers"];
     const position = Number.isInteger(cursor.position) ? cursor.position % kinds.length : 0;
     const kind = kinds[position];
     const { dateFrom, dateTo } = cronDateWindow(3);

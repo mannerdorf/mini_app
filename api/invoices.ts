@@ -165,8 +165,8 @@ export async function readRegisteredInvoicesFromCache(
     });
     if (fromNormalized) return items;
     return filterInvoicesForRegisteredUser(pool, verified, login, inn, dateFrom, dateTo, items);
-  } catch {
-    return [];
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -186,6 +186,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
+
+  const cacheOnly = body?.cacheOnly === true;
 
   if (isHaulzSummarySandboxAction(body?.action)) {
     const handled = await handleHaulzSummarySandboxRequest(req, res, ctx.requestId);
@@ -261,7 +263,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     ? clampDateFromToMaxSpan(requestedDateFrom, requestedDateTo, MAX_SERVICE_INVOICE_RANGE_DAYS)
     : requestedDateFrom;
 
-  const useDocumentCache = shouldServeFromDocumentCache(requestedDateFrom, requestedDateTo);
+  const useDocumentCache = cacheOnly || shouldServeFromDocumentCache(requestedDateFrom, requestedDateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {
@@ -287,7 +289,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch (e) {
       logError(ctx, "invoices_registered_user_failed", e);
-      return res.status(200).json([]);
+      return res.status(503).json({ error: "Не удалось прочитать данные счетов. Повторите позже.", request_id: ctx.requestId });
     }
   }
 
@@ -337,14 +339,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   } catch {
     if (preferCacheOnlyOnVercel()) {
-      return res.status(200).json([]);
+      return res.status(503).json({ error: "Не удалось прочитать данные счетов. Повторите позже.", request_id: ctx.requestId });
     }
-    // БД недоступна или кэш пустой — идём в 1С
+    // БД недоступна — идём в 1С
   }
 
   if (preferCacheOnlyOnVercel()) {
     return res.status(200).json([]);
   }
+
+  if (cacheOnly) return res.status(503).json({ error: "Данные из БД временно недоступны", request_id: ctx.requestId });
 
   const url = new URL(BASE_URL);
   url.searchParams.set("DateB", upstreamDateFrom);

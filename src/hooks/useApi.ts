@@ -24,6 +24,11 @@ const SWR_OPTIONS = {
     },
 } as const;
 
+// Only registered accounts use the authenticated cache-only path for background polling.
+const documentPolling = (auth: AuthData | null) => auth?.isRegisteredUser
+    ? { ...SWR_OPTIONS, refreshInterval: 60_000, revalidateOnFocus: true, revalidateOnReconnect: true }
+    : SWR_OPTIONS;
+
 const mapNumber = (value: unknown): number => {
     if (value === null || value === undefined) return 0;
     if (typeof value === "number") return value;
@@ -73,7 +78,7 @@ async function fetcherPerevozki(params: PerevozkiParams): Promise<CargoItem[]> {
         ...(dateField && dateField !== "default" ? { dateField } : {}),
         ...(useServiceRequest ? { serviceMode: true } : {}),
         ...(inn ? { inn } : auth.inn ? { inn: auth.inn } : {}),
-        ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        ...(auth.isRegisteredUser ? { isRegisteredUser: true, cacheOnly: true } : {}),
         ...(includeCargoNumbers?.length ? { includeCargoNumbers } : {}),
     };
     const data = await apiFetchJson<{ items?: unknown[] } | unknown[]>(PROXY_API_BASE_URL, {
@@ -94,7 +99,7 @@ export function usePerevozki(params: PerevozkiParams) {
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherPerevozki(params),
-        SWR_OPTIONS
+        documentPolling(auth)
     );
     return {
         items: data ?? [],
@@ -138,7 +143,7 @@ async function fetcherPerevozkiMulti(params: PerevozkiMultiRoleParams): Promise<
         dateFrom,
         dateTo,
         ...((params.inn ?? auth.inn) ? { inn: params.inn ?? auth.inn ?? undefined } : {}),
-        ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+        ...(auth.isRegisteredUser ? { isRegisteredUser: true, cacheOnly: true } : {}),
         ...(includeCargoNumbers?.length ? { includeCargoNumbers } : {}),
     };
 
@@ -191,7 +196,7 @@ export function usePerevozkiMulti(params: PerevozkiMultiRoleParams) {
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherPerevozkiMulti(params),
-        SWR_OPTIONS
+        documentPolling(auth)
     );
     return {
         items: data ?? [],
@@ -299,7 +304,7 @@ export function usePerevozkiMultiAccounts(params: PerevozkiMultiAccountsParams) 
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherPerevozkiMultiAccounts(params),
-        SWR_OPTIONS
+        auths.every(account => account.isRegisteredUser) ? documentPolling(auths[0] ?? null) : SWR_OPTIONS
     );
     return {
         items: data ?? [],
@@ -336,7 +341,7 @@ async function fetcherInvoices(params: InvoicesParams): Promise<CargoItem[]> {
             serviceMode: useServiceRequest,
             ...(monitor ? { monitor } : {}),
             ...(unpaidOnly ? { unpaidOnly: true } : {}),
-            ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+            ...(auth.isRegisteredUser ? { isRegisteredUser: true, cacheOnly: true } : {}),
         }),
     });
     const list = Array.isArray(data) ? data : (data && typeof data === "object" ? (data as Record<string, unknown>).items ?? (data as Record<string, unknown>).Invoices ?? (data as Record<string, unknown>).invoices ?? [] : []);
@@ -351,7 +356,7 @@ export function useInvoices(params: InvoicesParams) {
     const { data, error, isLoading, mutate } = useSWR<CargoItem[]>(
         key,
         () => fetcherInvoices(params),
-        SWR_OPTIONS
+        documentPolling(auth)
     );
     return {
         items: data ?? [],

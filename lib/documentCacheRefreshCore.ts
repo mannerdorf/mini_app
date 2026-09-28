@@ -1,3 +1,4 @@
+import { validatedFinancialDocumentRows } from "./documentCachePayload.js";
 import type { Pool } from "pg";
 import { CACHE_EARLIEST_DATE, CACHE_HISTORY_DAYS, cacheBackfillRangeStart } from "./cacheHistoryDays.js";
 import {
@@ -233,7 +234,9 @@ export async function refreshDatedKindForWindow(
   if (kind === "orders" && (!Array.isArray(json) || json.some(row => !row || typeof row !== "object" || !row.Номер || !row.ЗаказчикИНН || !row.Ссылка))) {
     throw new Error("GetZayavki: неверный формат ответа, предыдущие данные сохранены");
   }
-  const chunkRows = extractKnownArray(json, ...jsonKeys);
+  const chunkRows = kind === "perevozki" || kind === "invoices"
+    ? validatedFinancialDocumentRows(json, kind)
+    : extractKnownArray(json, ...jsonKeys);
   await options?.trace?.({stage:"write_database",receivedRows:chunkRows.length});
 
   const normalizedKind = kind as NormalizedDocumentKind;

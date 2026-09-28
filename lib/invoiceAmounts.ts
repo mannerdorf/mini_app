@@ -1,5 +1,5 @@
 import { getInvoicePaymentFilterKey, getPaymentFilterKey, type InvoicePaymentFinance } from "./invoicePaymentFilter.js";
-import { invoicePaymentStateRaw, lookupCargoMapString } from "./invoicePaymentState.js";
+import { invoicePaymentStateRaw } from "./invoicePaymentState.js";
 
 export { buildCargoStateBillByNumber, invoicePaymentStateRaw } from "./invoicePaymentState.js";
 
@@ -19,6 +19,15 @@ export function parseDocAmount(val: unknown): number {
   const normalized = s.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
   const num = parseFloat(normalized);
   return Number.isFinite(num) ? num : 0;
+}
+
+/** Missing/invalid is not zero: zero is a meaningful payment value. */
+function optionalFinancialAmount(value: unknown): number | null {
+  if (typeof value !== "string" && typeof value !== "number") return null;
+  const text = String(value).replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+  if (!text || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(text)) return null;
+  const amount = Number(text);
+  return Number.isFinite(amount) && amount >= 0 ? amount : null;
 }
 
 const INVOICE_SUM_HEADER_FIELDS = [
@@ -64,7 +73,8 @@ export function invoiceBalanceFrom1C(inv: Record<string, unknown>): number | nul
     const raw = inv[key];
     if (raw === undefined || raw === null) continue;
     if (typeof raw === "string" && raw.trim() === "") continue;
-    return Math.max(0, parseDocAmount(raw));
+    const amount = optionalFinancialAmount(raw);
+    if (amount !== null) return amount;
   }
   return null;
 }
@@ -128,7 +138,7 @@ export function buildCargoSumPaidByNumber(perevozkiItems: Record<string, unknown
   return m;
 }
 
-/** Оплачено только по полям счёта / перевозки (без вывода из текстового статуса). */
+/** Остаток → явная оплата счёта → оплата перевозки → текстовый статус. */
 function invoiceSumPaidFromFieldsOnly(
   inv: Record<string, unknown>,
   cargoSumPaidByNumber?: Map<string, number>,
@@ -141,35 +151,19 @@ function invoiceSumPaidFromFieldsOnly(
     return Math.max(0, Math.min(sum, sum - balance1c));
   }
 
-  const paymentState = invoicePaymentStateRaw(inv, cargoStateBillByNumber, getFirstCargoNumber);
-  const paymentKey = getPaymentFilterKey(paymentState || undefined);
-  if (paymentKey === "paid" && sum > 0) return sum;
-  if ((paymentKey === "unpaid" || paymentKey === "cancelled") && sum > 0) return 0;
-
-  const explicit = parseDocAmount(
-    inv.Sum_paid ??
-      inv.SumPaid ??
-      inv.sum_paid ??
-      inv.sumPaid ??
-      inv.SumPay ??
-      inv.PaidSum ??
-      inv.Оплачено ??
-      inv.SumPayment ??
-      inv.PaidAmount,
-  );
-  if (explicit > 0) return Math.min(explicit, sum);
+  for (const field of ["Sum_paid", "SumPaid", "sum_paid", "sumPaid", "SumPay", "PaidSum", "Оплачено", "SumPayment", "PaidAmount"]) {
+    const explicit = optionalFinancialAmount(inv[field]);
+    if (explicit !== null) return Math.min(explicit, sum);
+  }
 
   if (cargoSumPaidByNumber && getFirstCargoNumber) {
     const fromCargo = lookupCargoMapAmount(cargoSumPaidByNumber, getFirstCargoNumber(inv));
     if (fromCargo > 0) return Math.min(fromCargo, sum);
   }
 
-  if (cargoStateBillByNumber && getFirstCargoNumber) {
-    const stateBill = lookupCargoMapString(cargoStateBillByNumber, getFirstCargoNumber(inv));
-    const key = getPaymentFilterKey(stateBill || undefined);
-    if (key === "paid") return sum;
-    if (key === "unpaid" || key === "cancelled") return 0;
-  }
+  // Text is a fallback only when no payment amounts are available.
+  const paymentState = invoicePaymentStateRaw(inv, cargoStateBillByNumber, getFirstCargoNumber);
+  if (getPaymentFilterKey(paymentState || undefined) === "paid") return sum;
   return 0;
 }
 

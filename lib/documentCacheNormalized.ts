@@ -481,13 +481,14 @@ export async function readNormalizedByDateRange(
 
   const { rows } = await pool.query<{
     payload: unknown;
+    updated_at: Date | string;
     customer_inn: string | null;
     sender_inn: string | null;
     receiver_inn: string | null;
   }>(
     kind === "perevozki"
-      ? `select payload, customer_inn, sender_inn, receiver_inn from ${table} where ${where} order by doc_date desc nulls last`
-      : `select payload, customer_inn, null::text as sender_inn, null::text as receiver_inn from ${table} where ${where} order by doc_date desc nulls last`,
+      ? `select payload, updated_at, customer_inn, sender_inn, receiver_inn from ${table} where ${where} order by doc_date desc nulls last`
+      : `select payload, updated_at, customer_inn, null::text as sender_inn, null::text as receiver_inn from ${table} where ${where} order by doc_date desc nulls last`,
     params,
   );
   return rows.map((r) => {
@@ -496,6 +497,7 @@ export async function readNormalizedByDateRange(
         ? ({ ...(r.payload as Record<string, unknown>) } as Record<string, unknown>)
         : (r.payload as any);
     if (!payload || typeof payload !== "object") return r.payload;
+    payload._cacheUpdatedAt = r.updated_at ? new Date(r.updated_at).toISOString() : null;
     if (kind !== "perevozki") return payload;
     if (!customerInn(payload) && r.customer_inn) {
       payload.CustomerINN = r.customer_inn;

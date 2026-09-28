@@ -1,3 +1,4 @@
+import { CacheFreshness } from "../components/shared/CacheFreshness";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
@@ -1109,6 +1110,7 @@ export function CargoPage({
                 </Typography.Label>
             )}
 
+            <CacheFreshness items={filteredItems} />
             <CargoStateBlocks
                 loading={loading}
                 error={error}

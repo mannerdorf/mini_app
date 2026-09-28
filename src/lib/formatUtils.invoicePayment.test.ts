@@ -19,3 +19,11 @@ describe("invoicePaymentStatusForUi", () => {
     expect(invoicePaymentStatusForUi("", 1000, 1000, 0)).toBe("Оплачен");
   });
 });
+
+it("does not allow a paid label to hide outstanding debt", () => {
+  expect(invoicePaymentStatusForUi("Оплачен", 1000, 0, 1000)).toBe("Не оплачен");
+  expect(invoicePaymentStatusForUi("Не оплачен", 1000, 400, 600)).toBe("Оплачен частично");
+});
+it("keeps cancelled separate from payment status", () => {
+  expect(invoicePaymentStatusForUi("Отменён", 1000, 0, 1000)).toBe("Отменён");
+});

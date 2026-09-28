@@ -37,7 +37,7 @@ export async function loadCacheBlob(pool: Pool, kind: NormalizedDocumentKind): P
   }
   if (cacheRow.rows.length === 0) return [];
   const data = cacheRow.rows[0].data;
-  return Array.isArray(data) ? (data as any[]) : [];
+  return Array.isArray(data) ? data.map(item => item && typeof item === "object" && !Array.isArray(item) ? { ...item, _cacheUpdatedAt: null } : item) : []; // Blob timestamp covers only the last window, not each document.
 }
 
 export function innColumnForPerevozkiMode(mode?: unknown): InnFilterColumn {

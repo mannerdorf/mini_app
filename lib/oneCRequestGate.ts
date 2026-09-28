@@ -4,8 +4,9 @@ import {setTimeout as delay} from 'node:timers/promises';
 import type {Pool} from 'pg';
 import {getRequestSignal} from './requestCancellation.js';
 
-const context=new AsyncLocalStorage<boolean>();
-export const withOneCPriority=<T>(background:boolean,fn:()=>T):T=>context.run(background,fn);
+const context=new AsyncLocalStorage<number>();
+export const withOneCPriority=<T>(background:boolean,fn:()=>T):T=>context.run(background ? 1 : 0,fn);
+export const withOneCHistoryPriority=<T>(fn:()=>T):T=>context.run(2,fn);
 export function isOneCUrl(input:string|URL|Request):boolean {
   try {const url=new URL(input instanceof Request?input.url:String(input));return url.hostname==='tdn.postb.ru' && url.pathname.startsWith('/workbase/hs/');} catch{return false;}
 }
@@ -24,14 +25,14 @@ export function installOneCRequestGate(getPool:()=>Pool) {
   const original=globalThis.fetch.bind(globalThis);
   globalThis.fetch=async(input,init)=>{
     if(!isOneCUrl(input)) return original(input,init);
-    const pool=getPool(),token=randomUUID(),background=context.getStore()===true;
+    const pool=getPool(),token=randomUUID(),priority=context.getStore() ?? 0;
     const signals=[init?.signal,input instanceof Request?input.signal:null,getRequestSignal(),AbortSignal.timeout(240000)].filter(Boolean) as AbortSignal[];
     const signal=AbortSignal.any(signals);
     let acquired=false,failed=false;
     try {
       while(!acquired) {
         signal.throwIfAborted();
-        acquired=await acquireOneCGate(pool,token,background?1:0);
+        acquired=await acquireOneCGate(pool,token,priority);
         if(!acquired) await delay(1000,undefined,{signal});
       }
       const response=await original(input,{...init,signal:AbortSignal.any([signal,AbortSignal.timeout(120000)])});

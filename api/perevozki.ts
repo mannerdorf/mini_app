@@ -306,8 +306,8 @@ export async function readRegisteredPerevozkiFromCache(
       dateField,
       partyNameNorms,
     );
-  } catch {
-    return [];
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -327,6 +327,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
     }
   }
+
+  const cacheOnly = body?.cacheOnly === true;
 
   if (isHaulzSummarySandboxAction(body?.action)) {
     const handled = await handleHaulzSummarySandboxRequest(req, res, ctx.requestId);
@@ -390,7 +392,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ error: "login and password are required", request_id: ctx.requestId });
   }
 
-  const useDocumentCache = shouldServeFromDocumentCache(dateFrom, dateTo);
+  const useDocumentCache = cacheOnly || shouldServeFromDocumentCache(dateFrom, dateTo);
   let registeredVerified: VerifiedRegisteredUser | null = null;
 
   if (isRegisteredUser) {
@@ -422,7 +424,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch (e) {
       logError(ctx, "perevozki_registered_user_failed", e);
-      return res.status(200).json([]);
+      return res.status(503).json({ error: "Не удалось прочитать данные перевозок. Повторите позже.", request_id: ctx.requestId });
     }
   }
 
@@ -472,15 +474,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       }
     } catch {
       if (preferCacheOnlyOnVercel()) {
-        return res.status(200).json([]);
+        return res.status(503).json({ error: "Не удалось прочитать данные перевозок. Повторите позже.", request_id: ctx.requestId });
       }
-      // БД недоступна или кэш пустой — идём в 1С
+      // БД недоступна — идём в 1С
     }
   }
 
   if (preferCacheOnlyOnVercel()) {
     return res.status(200).json([]);
   }
+
+  if (cacheOnly) return res.status(503).json({ error: "Данные из БД временно недоступны", request_id: ctx.requestId });
 
   // Запрос данных перевозок: DateB, DateE; при serviceMode не передаём INN и Mode
   const url = new URL(BASE_URL);

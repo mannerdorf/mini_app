@@ -1,3 +1,4 @@
+import { CacheFreshness } from "../../../components/shared/CacheFreshness";
 import type { MotionProps as SharedMotionProps } from "motion/react";
 import React from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -111,6 +112,7 @@ export function DocumentsInvoicesSection({
 
   return (
     <motion.div className="documents-summary-section-body">
+      <CacheFreshness items={filteredItems} />
     {(loading || !!error) && <DocumentsStateBlocks loading={loading} error={error} emptyText="" />}
     <AnimatePresence mode="wait">
     {!loading && !error && tableModeGroupedByCustomer && sortedGroupedByCustomer.length > 0 ? (

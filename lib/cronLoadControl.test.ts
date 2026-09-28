@@ -60,3 +60,11 @@ it('recovers an expired gate lease and pauses only background traffic',async()=>
  expect(await acquireOneCGate(pool,'paused',1)).toBe(false);
  expect(await acquireOneCGate(pool,'user',0)).toBe(true);
 });
+it('prioritizes active document work over queued history',async()=>{
+ await db.exec("DELETE FROM one_c_request_waiters; UPDATE one_c_request_gate SET token=NULL,lease_until=now()+interval '1 minute',background_pause_until=NULL,next_at=now()-interval '1 second'");
+ expect(await acquireOneCGate(pool,'history',2)).toBe(false);
+ expect(await acquireOneCGate(pool,'current',1)).toBe(false);
+ await db.exec("UPDATE one_c_request_gate SET lease_until=NULL");
+ expect(await acquireOneCGate(pool,'history',2)).toBe(false);
+ expect(await acquireOneCGate(pool,'current',1)).toBe(true);
+});
