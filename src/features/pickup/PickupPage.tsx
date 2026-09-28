@@ -996,7 +996,6 @@ export function PickupPage({
                     act={act}
                   />
 
-                  <PickupJobOrderEditor key={j.id} job={j} busy={busy} act={act} />
                   <PickupJobBillingEditor key={`billing-${j.id}`} job={j} busy={busy} call={call} act={act} error={error} />
 
                   <div className="pk-actions">
@@ -2000,8 +1999,6 @@ function JobDetails({
     [photos, setPhotos] = useState<string[]>([]),
     [photoBusy, setPhotoBusy] = useState(false),
     [error, setError] = useState("");
-  const [savedPhotos, setSavedPhotos] = useState<string[]>([]),
-    [proofOpen, setProofOpen] = useState(false);
   const [resultOpen, setResultOpen] = useState(false),
     [problemOpen, setProblemOpen] = useState(false);
   const pending = job.status === "pending" || job.status === "arrived";
@@ -2010,6 +2007,7 @@ function JobDetails({
     <article
       className={`pk-job pk-status-${job.status}${dispatcherCompact ? " pk-job--dispatcher-compact" : ""}`}
     >
+      <PickupJobTimeline id={job.id} version={job.version} call={call} photoCount={job.photo_count ?? 0} />
       {driver && (
         <div className="pk-actions">
           {!driver && <PickupJobStatusBadge status={job.status} />}
@@ -2027,7 +2025,9 @@ function JobDetails({
             <div><dt>Окно забора</dt><dd>{job.data.windowFrom}–{job.data.windowTo}</dd></div>
             <div><dt>Груз</dt><dd>{plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</dd></div>
             <div><dt>Заказчик</dt><dd>{job.data.customerName || "—"}</dd></div>
-            <div><dt>Заявка</dt><dd>{job.data.zayavkaNumber || "Не указана"}</dd></div>
+            <div><dt>Номер заявки</dt><dd>{dispatcher
+              ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
+              : job.data.zayavkaNumber || "Не указана"}</dd></div>
           </dl>
           {job.data.defaultPlaceAddress && <details className="pk-card-section"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
         </section>
@@ -2099,48 +2099,15 @@ function JobDetails({
             {job.data.requirements?.trim() ? <p>{job.data.requirements}</p> : null}
             <p>{job.data.note}</p>
           </details>
+          {job.note?.trim() && (
+            <section aria-label="Комментарий">
+              <h4>Комментарий</h4>
+              <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{job.note}</p>
+            </section>
+          )}
         </details>
       )}
-      {job.note && (job.status === "problem" || job.status === "partial"
-        ? <p className="pk-warning">{job.note}</p>
-        : <details className="pk-card-section"><summary>Комментарий водителя</summary><p>{job.note}</p></details>)}
       {job.resolution && <p className="pk-notice">Решение: {job.resolution}</p>}
-      {!!job.photo_count && (
-        <>
-          <button
-            onClick={async () => {
-              setError("");
-              try {
-                const r = await call({ action: "photos", id: job.id });
-                setSavedPhotos(
-                  r.photos.map(
-                    (p: any) => `data:${p.content_type};base64,${p.base64}`,
-                  ),
-                );
-                setProofOpen(true);
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Фото забора ({job.photo_count})
-          </button>
-          {proofOpen && (
-            <div className="pk-photos">
-              {savedPhotos.map((src, i) => (
-                <a
-                  key={i}
-                  href={src}
-                  download={`pickup-${job.id}-${i + 1}.jpg`}
-                >
-                  <img src={src} alt={`Фото забора ${i + 1}`} />
-                </a>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-      <details className="pk-card-section"><summary>История статусов</summary><PickupJobTimeline id={job.id} version={job.version} call={call} /></details>
       {canAct && pending && (
         <div className="pk-complete">
           <h3>Действия на точке</h3>

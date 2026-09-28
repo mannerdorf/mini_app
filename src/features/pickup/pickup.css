@@ -2557,3 +2557,8 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-card-help > summary { cursor: pointer; }
 .pk-day-drawer .pk-card { border: 0; box-shadow: none; padding: 0; }
 @media (max-width: 420px) { .pk-pickup-facts { grid-template-columns: 1fr; } }
+
+.pk-order-inline { display: grid; gap: 8px; min-width: 0; font-weight: 400; }
+.pk-order-inline .pk-field { margin: 0; }
+.pk-order-inline input { width: 100%; min-width: 0; box-sizing: border-box; }
+.pk-order-inline button { justify-self: start; }
