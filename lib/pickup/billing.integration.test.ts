@@ -6,6 +6,7 @@ vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
 import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
+import {processPickupAutoBilling} from './autoBilling.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
 const pool:any={query:(s:string,p?:any[])=>db.query(s,p),connect:async()=>({query:(s:string,p?:any[])=>db.query(s,p),release:()=>{}})};
@@ -23,6 +24,7 @@ beforeAll(async()=>{
     CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
   const migration=readFileSync(new URL('../../migrations/114_pickup_1c_integration.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);
+  await db.exec(readFileSync(new URL('../../migrations/119_pickup_auto_billing.sql',import.meta.url),'utf8'));
 },30000);
 afterAll(()=>db.close());
 beforeEach(async()=>{await db.exec('TRUNCATE pickup_jobs,cache_perevozki,cache_perevozki_rows,document_cache_normalized_state,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
@@ -185,6 +187,60 @@ describe('billing transport joined by order number',()=>{
     for(const row of [{...cargo(),НомерПикапа:'',ZayavkaNumber:'000123'},{...cargo(),INN:'other',НомерПикапа:'',ZayavkaNumber:'different'}])
       await db.query('INSERT INTO cache_perevozki_rows VALUES($1)',[JSON.stringify(row)]);
     expect((await journal()).rows[0].error).toContain('неоднозначен');
+    expect(deliverySetter).not.toHaveBeenCalled();
+  });
+});
+
+describe('automatic pickup billing',()=>{
+  it('sends calculated cost after eligible handoff and never sends twice',async()=>{
+    await seed();
+    expect(await processPickupAutoBilling(pool)).toMatchObject({processed:1,status:'transmitted'});
+    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:540});
+    expect(await processPickupAutoBilling(pool)).toEqual({processed:0});
+    expect(deliverySetter).toHaveBeenCalledTimes(1);
+  });
+  it('waits for cargo, then sends when cargo becomes available',async()=>{
+    await seed();await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([])]);
+    expect(await processPickupAutoBilling(pool)).toMatchObject({waiting:1});
+    expect(deliverySetter).not.toHaveBeenCalled();
+    await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([cargo()])]);
+    await db.query('UPDATE pickup_auto_billing_queue SET next_at=now()');
+    expect(await processPickupAutoBilling(pool)).toMatchObject({status:'transmitted'});
+  });
+  it('does not retry an uncertain write',async()=>{
+    await seed();vi.mocked(deliverySetter).mockResolvedValue({ok:false,uncertain:true,error:'timeout'});
+    expect(await processPickupAutoBilling(pool)).toMatchObject({status:'uncertain'});
+    await db.query('UPDATE pickup_auto_billing_queue SET next_at=now()');
+    await processPickupAutoBilling(pool);
+    expect(deliverySetter).toHaveBeenCalledTimes(1);
+  });
+  it('does not enqueue manual jobs, but enqueues a subsequent switch to automatic',async()=>{
+    await seed('manual');
+    expect(await processPickupAutoBilling(pool)).toEqual({processed:0});
+    await db.query("UPDATE pickup_jobs SET data=jsonb_set(data,'{customerBillMode}','\"auto\"') WHERE id=$1",[id]);
+    expect(await processPickupAutoBilling(pool)).toMatchObject({status:'transmitted'});
+  });
+  it('does not backfill old deposited jobs when migration is reapplied',async()=>{
+    await seed();await db.exec('DELETE FROM pickup_auto_billing_queue');
+    await db.exec(readFileSync(new URL('../../migrations/119_pickup_auto_billing.sql',import.meta.url),'utf8'));
+    expect(await processPickupAutoBilling(pool)).toEqual({processed:0});
+  });
+  it('waits for the request number before enqueueing',async()=>{
+    await seed();await db.exec('DELETE FROM pickup_auto_billing_queue');
+    await db.query("UPDATE pickup_jobs SET data=jsonb_set(data,'{zayavkaNumber}','\"\"') WHERE id=$1",[id]);
+    expect(await processPickupAutoBilling(pool)).toEqual({processed:0});
+    await db.query("UPDATE pickup_jobs SET data=jsonb_set(data,'{zayavkaNumber}','\"000123\"') WHERE id=$1",[id]);
+    expect(await processPickupAutoBilling(pool)).toMatchObject({status:'transmitted'});
+  });
+  it('does not automatically transmit a dispatcher-edited amount',async()=>{
+    await seed();const row=(await journal()).rows[0];
+    await billingEdit(pool,'dispatcher',{id,version:row.version,amount:777,action:'billing_save'});
+    expect(await processPickupAutoBilling(pool)).toMatchObject({waiting:1});
+    expect(deliverySetter).not.toHaveBeenCalled();
+  });
+  it('does not send if automatic mode was disabled while waiting',async()=>{
+    await seed();await db.query("UPDATE pickup_jobs SET data=jsonb_set(data,'{customerBillMode}','\"manual\"') WHERE id=$1",[id]);
+    expect(await processPickupAutoBilling(pool)).toMatchObject({waiting:1});
     expect(deliverySetter).not.toHaveBeenCalled();
   });
 });

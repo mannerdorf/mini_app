@@ -34,6 +34,15 @@ describe("invoice totals use full document amounts after filtering", () => {
     expect(buildInvoicesSummary(list, [])).toMatchObject({ sum, count });
     expect(groupInvoicesByCustomer(list).reduce((total, group) => total + group.sum, 0)).toBe(sum);
   });
+  it("totals all three 5 POST invoices from the reported example", () => {
+    const invoices = [
+      { Customer: "5 ПОСТ", Number: "3914", SumDoc: 3843480.90, SumPaid: 0 },
+      { Customer: "5 ПОСТ", Number: "3764", SumDoc: 4232983.65, SumPaid: 0 },
+      { Customer: "5 ПОСТ", Number: "3485", SumDoc: 3008699.40, SumPaid: 3008699.40 },
+    ];
+    expect(groupInvoicesByCustomer(invoices)[0].sum).toBeCloseTo(11085163.95, 2);
+    expect(buildInvoicesSummary(invoices, []).sum).toBeCloseTo(11085163.95, 2);
+  });
   it("returns zero and no customer rows when nothing matches", () => {
     expect(buildInvoicesSummary([], [])).toMatchObject({ sum: 0, count: 0 });
     expect(groupInvoicesByCustomer([])).toEqual([]);

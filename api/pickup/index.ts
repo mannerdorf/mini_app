@@ -502,7 +502,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     }
     return { quote };
   }
-  if (action === "photos") {
+  if (action === "photos" || action === "job_history") {
     const { rows } = await db.query("SELECT * FROM pickup_jobs WHERE id=$1", [
       uuid(body.id),
     ]);
@@ -514,6 +514,19 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         await routeById(db, rows[0].route_id),
         body.serviceBrowse === true,
       );
+    }
+    if (action === "job_history") {
+      const events = await db.query(
+        "SELECT id,action,data,created_at FROM pickup_events WHERE job_id=$1 ORDER BY created_at,id",
+        [body.id],
+      );
+      const statusActions = new Set(["Прибыл на точку", "Груз забран", "Проблема на точке", "Решение диспетчера", "Забор отменён", "Груз сдан на склад", "Статус забора изменён диспетчером", "arrive", "complete", "problem", "resolve", "cancel", "set_job_status"]);
+      return { createdAt: rows[0].created_at, status: rows[0].status,
+        events: events.rows.filter((e) => statusActions.has(e.action)).map((e) => ({
+          id: e.id, action: e.action, created_at: e.created_at,
+          data: { from: e.data?.from, to: e.data?.to, note: e.data?.note },
+        })),
+      };
     }
     return {
       photos: (
@@ -1236,6 +1249,9 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           { note: `Заявка № ${number}` },
         );
       }
+      for (const job of jobs.filter((j) => ["picked_up", "partial"].includes(j.status))) {
+        await event(db, actor, "Груз сдан на склад", route.id, job.id, { from: job.status, to: "deposited" });
+      }
       await db.query(
         "UPDATE pickup_jobs SET status='deposited',version=version+1,updated_at=now() WHERE route_id=$1 AND status IN ('picked_up','partial')",
         [route.id],
@@ -1534,6 +1550,10 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       route.id,
       job.id,
       {
+        from: job.status,
+        to: action === "arrive" ? "arrived" : action === "problem" ? "problem"
+          : action === "resolve" ? (job.status === "problem" ? "resolved" : job.status)
+          : Number(body.actual_places) !== plannedPlaces(job.data) ? "partial" : "picked_up",
         note: textValue(body.note, 3000),
         ...(action === "complete" ? { actualPlaces: body.actual_places } : {}),
       },
@@ -1630,6 +1650,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "snapshot",
       "directory",
       "photos",
+      "job_history",
       "customer_quote",
       "sender_defaults",
     ].includes(body.action);

@@ -1,3 +1,4 @@
+import { CargoPickupPhotos } from "./CargoPickupPhotos";
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, X, Heart, Share2, Layers, Scale, Weight, List, Info, ClipboardList, Download } from "lucide-react";
@@ -187,7 +188,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['_cacheUpdatedAt', 'PickupCost', 'ZayavkaNumber', 'zayavkaNumber', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
+    const EXCLUDED_KEYS = ['pickupHasDriverPhotos', '_cacheUpdatedAt', 'PickupCost', 'ZayavkaNumber', 'zayavkaNumber', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
     const zayavkaNumberDisplay =
         String((item as any).ZayavkaNumber ?? (item as any).zayavkaNumber ?? "").trim() || "-";
     const parseAmount = (val: unknown): number => {
@@ -461,7 +462,14 @@ export function CargoDetailsModal({
                             </div>
                         )}
                         <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
-                            <DetailItem label="Заборная логистика" value={<CargoPickupLogisticsBadge item={item} />} />
+                            <DetailItem label="Заборная логистика" value={
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                    <CargoPickupLogisticsBadge item={item} />
+                                    {item.pickupHasDriverPhotos === true && (
+                                        <CargoPickupPhotos key={String(item.Number)} item={item} auth={auth} />
+                                    )}
+                                </span>
+                            } />
                             <DetailItem
                                 label="Последняя миля"
                                 value={

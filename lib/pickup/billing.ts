@@ -76,9 +76,9 @@ function sourceFor(job: Job, row: any) {
     orderNumber: job.data.zayavkaNumber, ...transportMetrics(row), mode: job.data.customerBillMode,
     city: job.city, km: job.data.mkadKm, latitude: job.data.latitude ?? null, longitude: job.data.longitude ?? null };
 }
-export async function billingJournal(pool: Pool, city: string, date: string, actor: string) {
+export async function billingJournal(pool: Pool, city: string, date: string, actor: string, onlyJobId?: string) {
   if (!['moscow','kaliningrad'].includes(city) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new PickupError('Укажите город и дату');
-  const { rows: jobs } = await pool.query<Job>(`SELECT * FROM pickup_jobs WHERE city=$1 AND date=$2 AND status='deposited' AND data->>'issueCustomerBill'='true' ORDER BY job_number`,[city,date]);
+  const { rows: jobs } = await pool.query<Job>(`SELECT * FROM pickup_jobs WHERE city=$1 AND date=$2 AND status='deposited' AND data->>'issueCustomerBill'='true' AND ($3::uuid IS NULL OR id=$3) ORDER BY job_number`,[city,date,onlyJobId ?? null]);
   const cargos = jobs.length ? await transports(pool,jobs) : [];
   async function prepareRow(job: Job) {
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
@@ -161,7 +161,7 @@ export async function billingEdit(pool: Pool, actor: string, body: any) {
     await db.query('COMMIT'); return {ok:true};
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
 }
-export async function billingSend(pool: Pool, actor: string, body: any) {
+export async function billingSend(pool: Pool, actor: string, body: any, automatic = false) {
   if(body.confirmed !== true) throw new PickupError("Подтвердите передачу стоимости в 1С");
   // One row per HTTP request; the UI performs a bounded sequential batch.
   const db = await pool.connect();
@@ -170,11 +170,14 @@ export async function billingSend(pool: Pool, actor: string, body: any) {
     await db.query('BEGIN');
     const selected = (await db.query(`SELECT b.*,j.data,j.status AS job_status,j.job_number,j.city FROM pickup_billing b JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
     if (!selected || selected.version !== body.version || selected.status !== 'not_issued' || selected.amount == null || selected.job_status !== 'deposited' || !selected.data.issueCustomerBill) throw new PickupError('Обновите журнал: строка изменилась или уже обработана',409);
+    if (automatic && (selected.data.customerBillMode !== 'auto' || !text(selected.data.zayavkaNumber) || selected.amount_manual || selected.last_error)) {
+      throw new PickupError('Автоматическая передача недоступна: проверьте расчёт и номер заявки',409);
+    }
     const job = {...selected,id:body.id} as Job;
     const actual = sourceFor(job,matchBillingTransport(job,await transports(pool,[job])));
     if (JSON.stringify(actual) !== JSON.stringify(Object.fromEntries(Object.keys(actual).map(key=>[key,selected.source[key]])))) throw new PickupError('Данные перевозки изменились. Обновите журнал и проверьте сумму.',409);
     await db.query("UPDATE pickup_billing SET status='sending',version=version+1,updated_by=$2,updated_at=now() WHERE job_id=$1",[body.id,actor]);
-    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number})]);
+    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number,automatic})]);
     claimed=selected;
     await db.query('COMMIT');
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }

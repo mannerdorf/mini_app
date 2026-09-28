@@ -335,6 +335,12 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
     expect(after.jobs[0].status).toBe("picked_up");
     expect(after.jobs[0].version).toBe(j.version + 2);
     expect((await ok("driver", {action: "photos", id:j.id})).photos).toHaveLength(1);
+    const history = await ok("driver", { action: "job_history", id: j.id });
+    expect(history.createdAt).toBeTruthy();
+    expect(history.events.map((e: any) => e.data.to)).toEqual(["arrived", "picked_up"]);
+    expect(history.events.every((e: any) => Boolean(e.created_at))).toBe(true);
+    expect((await request("other", { action: "job_history", id: j.id })).status).toBe(403);
+
   });
 
   it("requires photo and actual count, saves proof and handles repeated delivery once", async () => {
@@ -386,6 +392,8 @@ describe("pickup API with PostgreSQL (PGlite)", () => {
     const final = await snapshot();
     expect(final.routes[0].status).toBe("completed");
     expect(final.jobs[0].status).toBe("deposited");
+    const history = await ok("driver", { action: "job_history", id: j.id });
+    expect(history.events.some((e: any) => e.data.to === "deposited" && e.created_at)).toBe(true);
   });
   it("lets driver deposit after partial pickup without dispatcher resolution", async () => {
     await setup();

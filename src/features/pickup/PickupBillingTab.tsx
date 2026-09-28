@@ -58,7 +58,7 @@ export function PickupBillingTab({city,date,call}: {city:keyof typeof cities;dat
   const filtered=rows.filter(r=>`${r.jobNumber} ${r.customer} ${r.source?.transportNumber} ${r.orderNumber || r.source?.orderNumber || ""}`.toLowerCase().includes(search.toLowerCase()));
   return <section className="pk-panel pk-billing" aria-busy={busy}>
     <h2>Выставление счетов · {date} · {cities[city]}</h2>
-    <p className="pk-hint">Данные груза — из перевозки в БД. Диспетчер проверяет сумму и подтверждает передачу стоимости. После успешной передачи счета выставляются автоматически в 1С.</p>
+    <p className="pk-hint">Данные груза — из перевозки в БД. Автоматический расчёт передаётся через очередь после сдачи на склад и заполнения заявки. Ручной расчёт проверяет и передаёт диспетчер. После успешной передачи счета выставляются автоматически в 1С.</p>
     <div className="pk-actions">
       <label>Поиск <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Заказчик, забор, перевозка, заявка" /></label>
       <button disabled={busy} onClick={()=>void run(async()=>{})}>Обновить</button>

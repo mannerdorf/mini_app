@@ -40,3 +40,6 @@ HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 
 # После миграции 118: отправка уведомлений из БД, без запросов в 1С.
 * * * * * /opt/haulz/cron-call.sh /api/cron/process-cargo-notifications
+
+# После миграции 119: один автоматический расчёт за запуск.
+*/5 * * * * /opt/haulz/cron-call.sh /api/cron/process-pickup-auto-billing

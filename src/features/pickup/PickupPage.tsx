@@ -1,3 +1,4 @@
+import { PickupJobTimeline } from "./PickupJobTimeline";
 import { pickupEventLabel } from "./pickupEventLabel";
 import { PickupJobBillingEditor } from "./PickupJobBillingEditor";
 import { PickupJobOrderEditor } from "./PickupJobOrderEditor";
@@ -2094,6 +2095,7 @@ function JobDetails({
           {job.data.payment || "Не указано"}
         </p>
       )}
+      <PickupJobTimeline id={job.id} version={job.version} call={call} />
       {job.note && <p className="pk-warning">{job.note}</p>}
       {job.resolution && <p className="pk-notice">Решение: {job.resolution}</p>}
       {!!job.photo_count && (

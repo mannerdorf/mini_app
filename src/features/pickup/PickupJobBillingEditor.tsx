@@ -32,7 +32,7 @@ export function PickupJobBillingEditor({job,busy,call,act,error}: Props) {
         num={value=>value.trim()===""?null:Number(value)} />
       <label className="pk-field"><span>Оплата</span><input value={data.payment || ""}
         maxLength={100} onChange={e=>setData(prev=>({...prev,payment:e.target.value}))} /></label>
-      <p className="pk-hint">Окончательную сумму и передачу в 1С подтвердите в журнале счетов. Сохранение карточки не отправляет стоимость в 1С.</p>
+      <p className="pk-hint">При автоматическом расчёте после сдачи на склад и указания заявки стоимость передаётся в 1С автоматически через очередь. При ручном расчёте сумму и передачу подтверждает диспетчер в журнале счетов.</p>
       <button type="button" className="pk-primary" disabled={draft.conflict || locked} onClick={async()=>{
         setSaving(true);
         try {

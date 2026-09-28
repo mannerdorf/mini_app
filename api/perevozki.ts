@@ -1,3 +1,4 @@
+import { annotateCargoPickupPhotos } from "../lib/pickup/cargoPhotoIndicator.js";
 import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
@@ -366,7 +367,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const filtered = items.filter((item) =>
         isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
       );
-      return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+      return res.status(200).json(await annotateCargoPickupPhotos(getPool(), Array.isArray(filtered) ? filtered : []));
     } catch (e) {
       logError(ctx, "perevozki_admin_cache_failed", e);
       return res.status(500).json({ error: "Ошибка чтения кэша перевозок", request_id: ctx.requestId });
@@ -420,7 +421,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const extra = await readPerevozkiFromCacheByNumbers(pool, extraCargoNumbers);
           result = mergePerevozkiByNumber(result, extra);
         }
-        return res.status(200).json(Array.isArray(result) ? result : []);
+        return res.status(200).json(await annotateCargoPickupPhotos(getPool(), Array.isArray(result) ? result : []));
       }
     } catch (e) {
       logError(ctx, "perevozki_registered_user_failed", e);
@@ -460,7 +461,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           const filtered = items.filter((item) =>
             isCargoInDateRangeForField(item, dateFrom, dateTo, dateField),
           );
-          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+          return res.status(200).json(await annotateCargoPickupPhotos(getPool(), Array.isArray(filtered) ? filtered : []));
         }
         if (filterInns && filterInns.size > 0) {
           const filtered = fromNormalized
@@ -469,7 +470,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 if (!itemMatchesRegisteredInns(item, filterInns!, mode)) return false;
                 return isCargoInDateRangeForField(item, dateFrom, dateTo, dateField);
               });
-          return res.status(200).json(Array.isArray(filtered) ? filtered : []);
+          return res.status(200).json(await annotateCargoPickupPhotos(getPool(), Array.isArray(filtered) ? filtered : []));
         }
       }
     } catch {
@@ -609,7 +610,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           console.error("webpush event dispatch from perevozki failed:", error?.message || error);
         }
       }
-      return res.status(200).json(Array.isArray(json) ? mergedList : { ...json, items: mergedList });
+      const annotatedList = await annotateCargoPickupPhotos(getPool(), mergedList);
+      return res.status(200).json(Array.isArray(json) ? annotatedList : { ...json, items: annotatedList });
     } catch {
       return res.status(200).send(text);
     }
