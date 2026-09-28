@@ -174,7 +174,7 @@ export async function billingEdit(pool: Pool, actor: string, body: any) {
       manual ? [body.id,body.version,actor] : [body.id,body.version,actor,Math.round(body.amount*100)/100,JSON.stringify(acceptedSource),acceptedSource!.transportNumber]);
     if (!rows.rows.length) throw new PickupError('Запись изменилась или действие недоступно. Обновите журнал.',409);
     await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',[body.id,actor,manual?'confirmed_issued':'amount_edited',JSON.stringify({amount:rows.rows[0].amount})]);
-    await db.query('COMMIT'); return {ok:true};
+    await db.query('COMMIT'); return {ok:true, version:rows.rows[0].version};
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
 }
 export async function billingSend(pool: Pool, actor: string, body: any, automatic = false) {

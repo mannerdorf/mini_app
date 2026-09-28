@@ -82,11 +82,7 @@ export function PickupBulkAssign({
                 .toFixed(2)}{" "}
               / {vehicle?.data.capacityM3 || "—"} м³
             </p>
-            {warnings.map((w) => (
-              <p className="pk-warning" key={w}>
-                {w}
-              </p>
-            ))}
+            {warnings.length > 0 && <p className="pk-capacity-warning" role="status">{warnings.join(" · ")}</p>}
             {route.status === "published" && (
               <p className="pk-hint">
                 Состав опубликованного маршрута изменится. Водителю потребуется

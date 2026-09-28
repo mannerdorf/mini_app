@@ -2481,10 +2481,10 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   .pk-root .pk-billing-table tbody tr { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); padding: .75rem; border: 1px solid var(--color-border); border-radius: 12px; background: var(--pk-panel); }
   .pk-root .pk-billing-table tbody td { display: block; min-width: 0; padding: .4rem; border: 0; overflow-wrap: anywhere; }
   .pk-root .pk-billing-table tbody td::before { content: attr(data-label); display: block; color: var(--color-text-secondary); font-size: .75rem; margin-bottom: .25rem; }
-  .pk-root .pk-billing-table td:nth-child(8) { grid-column: 1 / -1; grid-row: 1; font-size: 1.1rem; }
-  .pk-root .pk-billing-table td:nth-child(3), .pk-root .pk-billing-table td:nth-child(11), .pk-root .pk-billing-table td:nth-child(12), .pk-root .pk-billing-table td:nth-child(13) { grid-column: 1 / -1; }
-  .pk-root .pk-billing-table td:nth-child(11) input { width: 100% !important; min-height: 44px; box-sizing: border-box; }
-  .pk-root .pk-billing-table td:nth-child(13) button { width: 100%; min-height: 44px; margin-bottom: .4rem; }
+  .pk-root .pk-billing-table td[data-label="№ забора"] { grid-column: 1 / -1; grid-row: 1; font-size: 1.1rem; }
+  .pk-root .pk-billing-table td[data-label="Заказчик"], .pk-root .pk-billing-table td[data-label="Сумма, ₽"], .pk-root .pk-billing-table td[data-label="Статус"], .pk-root .pk-billing-table td[data-label="Действие"] { grid-column: 1 / -1; }
+  .pk-root .pk-billing-table td[data-label="Сумма, ₽"] input { width: 100% !important; min-height: 44px; box-sizing: border-box; }
+  .pk-root .pk-billing-table td[data-label="Действие"] button { width: 100%; min-height: 44px; margin-bottom: .4rem; }
   .pk-root .pk-billing .pk-actions > label, .pk-root .pk-billing .pk-actions > button { width: 100%; }
   .pk-root .pk-billing .pk-actions input { width: 100%; box-sizing: border-box; }
 }
@@ -2761,4 +2761,22 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-root .pk-job-footer-actions > .pk-actions {
   margin: 0;
   align-items: center;
+}
+
+.pk-root .pk-capacity-warning {
+  margin: 8px 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pk-warning-text);
+  font-size: .875rem;
+  line-height: 1.5;
+}
+
+.pk-root .pk-pickup-facts dd.pk-cargo-plan-fact {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0;
 }

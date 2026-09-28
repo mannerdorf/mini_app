@@ -182,16 +182,8 @@ export function PickupPage({
   const [dayFilter, setDayFilter] = useState<DayFilter>("all");
   const [search, setSearch] = useState("");
   const [directorySearch, setDirectorySearch] = useState("");
-  const [jobView, setJobView] = useState<PickupJobView>(readPickupJobView);
+  const [jobView] = useState<PickupJobView>(readPickupJobView);
   const jobViewCompact = jobView === "compact";
-  const setJobViewPersist = (next: PickupJobView) => {
-    setJobView(next);
-    try {
-      localStorage.setItem(PICKUP_JOB_VIEW_KEY, next);
-    } catch {
-      /* ignore */
-    }
-  };
   const serial = useRef(0),
     lock = useRef(false);
   const key = `snapshot:${account.login.toLowerCase()}:${mode}:${city}:${date}`;
@@ -636,30 +628,7 @@ export function PickupPage({
               ))}
             </nav>
           </div>
-          {(tab === "jobs" || tab === "routes") && (
-            <div
-              className="pk-view-toggle haulz-calc-segment"
-              role="group"
-              aria-label="Вид карточек заборов"
-            >
-              <button
-                type="button"
-                className={`haulz-calc-segment__btn${!jobViewCompact ? " haulz-calc-segment__btn--active" : ""}`}
-                aria-pressed={!jobViewCompact}
-                onClick={() => setJobViewPersist("detailed")}
-              >
-                Подробно
-              </button>
-              <button
-                type="button"
-                className={`haulz-calc-segment__btn${jobViewCompact ? " haulz-calc-segment__btn--active" : ""}`}
-                aria-pressed={jobViewCompact}
-                onClick={() => setJobViewPersist("compact")}
-              >
-                Сжатый
-              </button>
-            </div>
-          )}
+
         </>
       )}
       {loading ? null : dispatch && tab === "monitor" ? (
@@ -1288,12 +1257,10 @@ export function PickupPage({
                     stale={stale}
                   />
                 )}
-                {dispatch &&
-                  routeWarnings(routeJobs, route.snapshot.vehicle).map((w) => (
-                    <p key={w} className="pk-warning pk-warning--compact">
-                      {w}
-                    </p>
-                  ))}
+                {dispatch && (() => {
+                  const warnings = routeWarnings(routeJobs, route.snapshot.vehicle);
+                  return warnings.length > 0 ? <p className="pk-capacity-warning" role="status">{warnings.join(" · ")}</p> : null;
+                })()}
                 {dispatch && (
                   <div className="pk-route-plan-bar">
                     <p className="pk-route-plan-summary">
@@ -2022,18 +1989,20 @@ function JobDetails({
       )}
       {!driver ? (
         <section className="pk-pickup-overview" aria-label="Основное о заборе">
-          <div className="pk-actions"><PickupJobStatusBadge status={job.status} />{job.actual_places !== null && <span>Забрано: {job.actual_places} мест</span>}</div>
+          <div className="pk-actions"><PickupJobStatusBadge status={job.status} /></div>
           <h3>{job.data.senderName}</h3>
           <p>{job.data.address}</p>
           <dl className="pk-pickup-facts">
             <div><dt>Окно забора</dt><dd>{job.data.windowFrom}–{job.data.windowTo}</dd></div>
-            <div><dt>Груз</dt><dd>{plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</dd>
-            </div>
+            <div><dt>Груз</dt><dd className="pk-cargo-plan-fact">
+              <span>План: {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</span>
+              <span>Факт: {job.actual_places != null ? `${job.actual_places} мест` : "—"}</span>
+            </dd></div>
             <div><dt>Заказчик</dt><dd>{job.data.customerName || "—"}</dd></div>
             <div><dt>Номер заявки</dt><dd>{dispatcher
               ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
               : job.data.zayavkaNumber || "Не указана"}</dd></div>
-            <div><dt>Номер перевозки</dt><dd>{job.linked_transport_number || job.data.cargoNumber?.trim() || "Не найден в загруженных перевозках"}</dd></div>
+            <div><dt>Номер перевозки</dt><dd>{job.linked_transport_number || job.data.cargoNumber?.trim() || "Нет данных"}</dd></div>
           </dl>
           {job.data.defaultPlaceAddress && <details className="pk-card-section pk-unload-place"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
         </section>
