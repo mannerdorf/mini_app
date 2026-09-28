@@ -21,7 +21,7 @@ export function PickupTimelinePhotos({ id, count, call }: { id: string; count: n
     return () => { cancelled = true; };
   }, [open, id, call, attempt]);
   return <div className="pk-timeline-photos">
-    <button type="button" className="pk-icon-btn" aria-label={`Фото забора: ${count}`} title={`Фото забора (${count})`} aria-expanded={open} onClick={() => setOpen(!open)}>
+    <button type="button" className="pk-timeline-photo-trigger" aria-label={`Фото забора: ${count}`} title={`Фото забора (${count})`} aria-expanded={open} onClick={() => setOpen(!open)}>
       <Camera size={18} aria-hidden="true" /><span>{count}</span>
     </button>
     {open && <div>

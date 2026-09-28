@@ -1,8 +1,8 @@
+import { X } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { plannedPlaces, type Job, type Route } from "../../../lib/pickup/model";
 import { PickupJobStatusBadge } from "./PickupJobStatusBadge";
 import { PickupEditGuardProvider, usePickupEditGuard } from "./PickupEditGuard";
-import { PickupJobNumber } from "./PickupJobNumber";
 export function PickupDayRow({
   job,
   route,
@@ -91,16 +91,16 @@ export function PickupDayRow({
         >
           <div className="pk-day-drawer-body">
             <header className="pk-day-drawer-header">
-              <div>
-                <h2>Карточка забора</h2>
-                <PickupJobNumber job={job} prominent />
-              </div>
+              <h2>Карточка забора{job.job_number?.trim() ? ` ${job.job_number.trim()}` : ""}</h2>
               <button
                 type="button"
                 autoFocus
+                className="pk-day-drawer-close"
+                aria-label="Закрыть"
+                title="Закрыть"
                 onClick={close}
               >
-                Закрыть
+                <X size={20} aria-hidden="true" />
               </button>
             </header>
             {confirmClose && <div className="pk-panel" role="alert">

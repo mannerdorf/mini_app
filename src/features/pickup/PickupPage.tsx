@@ -2023,7 +2023,9 @@ function JobDetails({
           <p>{job.data.address}</p>
           <dl className="pk-pickup-facts">
             <div><dt>Окно забора</dt><dd>{job.data.windowFrom}–{job.data.windowTo}</dd></div>
-            <div><dt>Груз</dt><dd>{plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</dd></div>
+            <div><dt>Груз</dt><dd>{plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</dd>
+              <dd className="pk-cargo-composition">{job.data.places.map((place) => `${place.count} × ${place.kind || "место"}`).join(" · ")}</dd>
+            </div>
             <div><dt>Заказчик</dt><dd>{job.data.customerName || "—"}</dd></div>
             <div><dt>Номер заявки</dt><dd>{dispatcher
               ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
@@ -2088,17 +2090,17 @@ function JobDetails({
               ))}
             </div>
           )}
-          <details className="pk-card-section">
-            <summary>Состав груза и примечания</summary>
+          {driver && <details className="pk-card-section">
+            <summary>Состав груза</summary>
             {job.data.places.map((p, i) => (
               <p key={i}>
                 {p.count} × {p.kind || "место"}
               </p>
             ))}
             <p>Объём: {job.data.volumeM3 ?? "—"} м³</p>
-            {job.data.requirements?.trim() ? <p>{job.data.requirements}</p> : null}
-            <p>{job.data.note}</p>
-          </details>
+          </details>}
+          {job.data.requirements?.trim() && <p>{job.data.requirements}</p>}
+          {job.data.note?.trim() && <p>{job.data.note}</p>}
           {job.note?.trim() && (
             <section aria-label="Комментарий">
               <h4>Комментарий</h4>

@@ -1357,10 +1357,9 @@
   font-size: 14px;
 }
 .pk-instructions {
-  padding: 12px;
-  background: #f1f5fa;
-  color: #24374e;
-  border-radius: 8px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
   white-space: pre-wrap;
 }
 .pk-warning {
@@ -2141,10 +2140,6 @@
   color: var(--pk-ink);
   border-left: 3px solid #35a775;
 }
-.pk-driver-root .pk-instructions {
-  background: color-mix(in srgb, #4b82f0 7%, var(--pk-panel));
-  color: var(--pk-ink);
-}
 
 .pk-deposit-confirm {
   margin-top: 16px;
@@ -2562,3 +2557,102 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-order-inline .pk-field { margin: 0; }
 .pk-order-inline input { width: 100%; min-width: 0; box-sizing: border-box; }
 .pk-order-inline button { justify-self: start; }
+
+.pk-job-timeline { position: relative; }
+.pk-job-timeline > h3 { padding-right: 64px; }
+.pk-root button.pk-timeline-photo-trigger,
+.pk-root button.pk-timeline-photo-trigger:hover:not(:disabled) {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--pk-ink);
+}
+.pk-root button.pk-timeline-photo-trigger:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}
+
+.pk-root .pk-order-inline .pk-field > input:not([type="checkbox"]) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  color: var(--pk-ink);
+  font: inherit;
+  font-weight: 600;
+}
+
+.pk-pickup-facts dd.pk-cargo-composition { margin-top: 4px; font-weight: 400; }
+
+/* Pickup drawer typography: title / content / supporting text. */
+.pk-root .pk-day-drawer {
+  --pk-card-font-title: 1.25rem;
+  --pk-card-font-body: 1rem;
+  --pk-card-font-meta: .875rem;
+  font-size: var(--pk-card-font-body);
+  line-height: 1.5;
+}
+.pk-root .pk-day-drawer :is(.pk-job, .pk-panel, .pk-pickup-overview, .pk-order-inline) {
+  font-size: var(--pk-card-font-body);
+}
+.pk-root .pk-day-drawer .pk-day-drawer-header h2 {
+  font-size: var(--pk-card-font-title);
+  font-weight: 600;
+  line-height: 1.3;
+}
+.pk-root .pk-day-drawer :is(h3, h4, summary, .pk-pickup-facts dd, .pk-job-number strong) {
+  font-size: var(--pk-card-font-body);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.pk-root .pk-day-drawer :is(button, input, select, textarea) {
+  font-size: var(--pk-card-font-body);
+  line-height: 1.5;
+}
+.pk-root .pk-day-drawer :is(.pk-muted, .pk-hint, .pk-eyebrow, .pk-card-help, .pk-pickup-facts dt, .pk-field > span, .pk-job-timeline time, .pk-job-number, .pk-badge) {
+  font-size: var(--pk-card-font-meta);
+  line-height: 1.5;
+}
+.pk-root .pk-day-drawer .pk-card-help summary {
+  font-size: var(--pk-card-font-meta);
+  font-weight: 400;
+}
+.pk-root .pk-day-drawer :is(.pk-warning, .pk-notice, .pk-instructions, .pk-cargo-composition) {
+  font-size: var(--pk-card-font-body);
+  line-height: 1.5;
+}
+.pk-root .pk-day-drawer .pk-pickup-facts dd.pk-cargo-composition { font-weight: 400; }
+
+.pk-root button.pk-day-drawer-close,
+.pk-root button.pk-day-drawer-close:hover:not(:disabled) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-secondary, var(--pk-muted));
+}
+.pk-root button.pk-day-drawer-close:hover:not(:disabled) {
+  color: var(--pk-ink);
+}
+.pk-root button.pk-day-drawer-close:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 2px;
+}

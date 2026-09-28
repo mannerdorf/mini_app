@@ -16,10 +16,9 @@ export function PickupJobTimeline({ id, version, call, photoCount = 0 }: { id: s
     return () => { cancelled = true; };
   }, [id, version, call, attempt]);
   const entries = history ? jobTimeline(history) : [];
-  const photoEntry = entries.find((entry) => entry.label === "Груз забран" || entry.label === "Частичный забор");
   return <section className="pk-job-timeline pk-card-section" aria-label="История статусов забора">
     <h3>История статусов</h3>
-    {photoCount > 0 && !photoEntry && <PickupTimelinePhotos key={id} id={id} count={photoCount} call={call} />}
+    {photoCount > 0 && <PickupTimelinePhotos key={id} id={id} count={photoCount} call={call} />}
     <p className="pk-muted">Дата и время по Москве (МСК)</p>
     {error ? <p role="alert">{error} <button type="button" onClick={() => setAttempt(attempt + 1)}>Повторить</button></p>
       : !history ? <p role="status">Загрузка истории…</p>
@@ -29,7 +28,6 @@ export function PickupJobTimeline({ id, version, call, photoCount = 0 }: { id: s
           <strong>{entry.label}</strong>
           <time dateTime={entry.date}>{new Date(entry.date).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
           {entry.note && <p>{entry.note}</p>}
-          {photoCount > 0 && entry.id === photoEntry?.id && <PickupTimelinePhotos key={id} id={id} count={photoCount} call={call} />}
         </li>)}</ol>
       </>}
   </section>;

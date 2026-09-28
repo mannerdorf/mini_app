@@ -1,5 +1,5 @@
 import { pickupBillingExplanation } from "./pickupBillingExplanation";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PickupDraftConflict, usePickupVersionedDraft } from "./PickupEditGuard";
 import type { Job } from "../../../lib/pickup/model";
 import type { PickupCall } from "./client";
@@ -14,28 +14,39 @@ export function PickupJobBillingEditor({job,busy,call,act,error}: Props) {
   const { value: data, setValue: setData, saving, setSaving } = draft;
   const locked = Boolean(job.billing_status && job.billing_status !== "not_issued");
   const [message,setMessage] = useState("");
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (!draft.dirty || draft.conflict || busy || saving || locked || failed) return;
+    const timer = setTimeout(async () => {
+      setSaving(true);
+      setMessage("Сохраняем…");
+      try {
+        const ok = await act({ action: "set_job_billing", id: job.id, version: draft.version, data }, "Расчёты сохранены");
+        if (ok) { draft.saved(); setMessage("Сохранено"); }
+        else { setFailed(true); setMessage("Не удалось сохранить изменения"); }
+      } catch { setFailed(true); setMessage("Не удалось сохранить изменения"); }
+      finally { setSaving(false); }
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [data, draft.dirty, draft.conflict, draft.version, busy, saving, locked, failed, act, job.id]);
+  const patchData = (patch: Partial<Job["data"]>) => {
+    setData(prev => ({ ...prev, ...patch }));
+    setFailed(false); setMessage("");
+  };
   return <><details className="pk-panel pk-card-section">
     <summary>Расчёты с заказчиком · {job.data.issueCustomerBill ? (job.data.customerBillMode === "auto" ? "Автоматически" : "Вручную") : "Без счёта"}</summary>
     {draft.conflict && <PickupDraftConflict acceptServer={draft.acceptServer} keepDraft={draft.keepDraft}>Сумма на сервере: {job.data.priceRub ?? "не указана"}. Оплата: {job.data.payment || "не указана"}.</PickupDraftConflict>}
     {locked && <p role="status">Расчёты недоступны для изменения: стоимость уже передавалась в 1С или требует сверки. Проверьте результат в разделе «Выставление счетов».</p>}
     <fieldset disabled={busy || saving || locked} style={{border:0,padding:0,minWidth:0}}>
       <PickupCustomerQuoteSection city={job.city} data={data} call={call}
-        onPatch={patch=>{setData(prev=>({...prev,...patch}));setMessage("");}}
+        onPatch={patchData}
         num={value=>value.trim()===""?null:Number(value)} />
       <label className="pk-field"><span>Оплата</span><input value={data.payment || ""}
-        maxLength={100} onChange={e=>setData(prev=>({...prev,payment:e.target.value}))} /></label>
-      <details className="pk-card-help"><summary>Как передаётся стоимость в 1С</summary><p className="pk-hint">Автоматический расчёт передаётся через очередь после сдачи на склад и заполнения заявки. Ручной расчёт подтверждает диспетчер в журнале счетов.</p></details>
-      <button type="button" className="pk-primary" disabled={draft.conflict || locked} onClick={async()=>{
-        setSaving(true);
-        try {
-          const ok=await act({action:"set_job_billing",id:job.id,version:draft.version,data},"Расчёты сохранены");
-          if(ok) draft.saved();
-          setMessage(ok?"Расчёты сохранены":"Не удалось сохранить. Проверьте сообщение об ошибке и обновите карточку.");
-        } catch {setMessage("Не удалось сохранить расчёты. Попробуйте ещё раз.");}
-        finally {setSaving(false);}
-      }}>{saving?"Сохраняем…":"Сохранить расчёты"}</button>
+        maxLength={100} onChange={e=>patchData({payment:e.target.value})} /></label>
+
     </fieldset>
-    {message && <p role={error ? "alert" : "status"}>{error || message}</p>}
+    {message && <p role={failed ? "alert" : "status"}>{failed ? error || message : message}</p>}
+    {failed && !locked && <button type="button" disabled={busy || saving || draft.conflict} onClick={() => setFailed(false)}>Повторить сохранение</button>}
   </details><details className="pk-panel pk-card-section"><summary>Синхронизация с 1С{job.billing_info?.error || job.number_sync_info?.error ? " · Требует внимания" : ""}</summary><p className="pk-hint">{pickupBillingExplanation(job)}</p>
     <p>Перевозка в последнем расчёте: {job.billing_info?.transportNumber || 'Не подтверждена. Откройте журнал счетов для проверки связи.'}</p>
     <p>Сумма в журнале: {job.billing_info?.amount != null ? `${job.billing_info.amount} ₽` : 'Не рассчитана или не сохранена'}</p>
