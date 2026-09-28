@@ -35,6 +35,7 @@ export type ShipmentStatusPanelProps = {
   /** Встроенный блок в модалке (без полноэкранного фона) */
   embedded?: boolean;
   stepOutOfSla?: (index: number) => boolean;
+  receiptPhotoControl?: React.ReactNode;
 };
 
 function deriveStepStatuses(steps: PerevozkaTimelineStep[]): TrackingStepStatus[] {
@@ -218,7 +219,7 @@ function StepIcon({ step }: { step: TrackingStep }) {
   );
 }
 
-function TrackingStepRow({ step, index, total }: { step: TrackingStep; index: number; total: number }) {
+function TrackingStepRow({ step, index, total, photoControl }: { step: TrackingStep; index: number; total: number; photoControl?: React.ReactNode }) {
   const rowClass = [
     "shipment-status-step",
     step.status === "current" ? "shipment-status-step--current" : "",
@@ -243,7 +244,7 @@ function TrackingStepRow({ step, index, total }: { step: TrackingStep; index: nu
           aria-hidden
         />
       )}
-      <StepIcon step={step} />
+      {photoControl || <StepIcon step={step} />}
       <div className="shipment-status-step__body">
         <div
           className={[
@@ -275,6 +276,7 @@ export function ShipmentStatusPanel({
   error,
   embedded = true,
   stepOutOfSla,
+  receiptPhotoControl,
 }: ShipmentStatusPanelProps) {
   const trackingSteps = useMemo((): TrackingStep[] => {
     const statuses = deriveStepStatuses(steps);
@@ -333,7 +335,8 @@ export function ShipmentStatusPanel({
           <div className="shipment-status-steps">
             {trackingSteps.map((step, index) => (
               <React.Fragment key={`${step.id}-${step.title}`}>
-                <TrackingStepRow step={step} index={index} total={trackingSteps.length} />
+                <TrackingStepRow step={step} index={index} total={trackingSteps.length}
+                  photoControl={step.title === `Получена в ${fromCity}` && step.date ? receiptPhotoControl : undefined} />
                 {index < trackingSteps.length - 1 && <div className="shipment-status-step__divider" />}
               </React.Fragment>
             ))}

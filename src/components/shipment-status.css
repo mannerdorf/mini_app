@@ -685,3 +685,14 @@
     background: #06101f;
     color: #fff;
 }
+
+.shipment-status-panel button.shipment-status-photo-button {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.shipment-status-panel button.shipment-status-photo-button:focus-visible {
+  outline: 2px solid var(--color-primary, #2563eb);
+  outline-offset: 3px;
+}

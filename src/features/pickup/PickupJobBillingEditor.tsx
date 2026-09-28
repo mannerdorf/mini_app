@@ -47,7 +47,7 @@ export function PickupJobBillingEditor({job,busy,call,act,error}: Props) {
     </fieldset>
     {message && <p role={failed ? "alert" : "status"}>{failed ? error || message : message}</p>}
     {failed && !locked && <button type="button" disabled={busy || saving || draft.conflict} onClick={() => setFailed(false)}>Повторить сохранение</button>}
-  </details><details className="pk-panel pk-card-section"><summary>Синхронизация с 1С{job.billing_info?.error || job.number_sync_info?.error ? " · Требует внимания" : ""}</summary><p className="pk-hint">{pickupBillingExplanation(job)}</p>
+  </details><details className="pk-panel pk-card-section pk-sync-details"><summary>Синхронизация с 1С{job.billing_info?.error || job.number_sync_info?.error ? " · Требует внимания" : ""}</summary><p className="pk-hint">{pickupBillingExplanation(job)}</p>
     <p>Перевозка в последнем расчёте: {job.billing_info?.transportNumber || 'Не подтверждена. Откройте журнал счетов для проверки связи.'}</p>
     <p>Сумма в журнале: {job.billing_info?.amount != null ? `${job.billing_info.amount} ₽` : 'Не рассчитана или не сохранена'}</p>
     {job.billing_info?.updatedAt && <p>Расчёт обновлён: {new Date(job.billing_info.updatedAt).toLocaleString('ru-RU')}</p>}

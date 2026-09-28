@@ -6,7 +6,7 @@ import type { AuthData, CargoItem } from "../../types";
 import { perevozkiCustomerInn } from "../../../lib/perevozkiPartyMatch";
 
 type Photo = { id: string; content_type: string; base64: string };
-export function CargoPickupPhotos({ item, auth }: { item: CargoItem; auth: AuthData }) {
+export function CargoPickupPhotos({ item, auth, className = "cargo-pickup-photo-button" }: { item: CargoItem; auth: AuthData; className?: string }) {
   const [open, setOpen] = useState(false);
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(false);
@@ -31,7 +31,7 @@ export function CargoPickupPhotos({ item, auth }: { item: CargoItem; auth: AuthD
     return () => controller.abort();
   }, [open, attempt, auth.login, auth.password, item]);
   return <>
-    <button type="button" className="cargo-pickup-photo-button" aria-label={open ? "Скрыть фото забора" : "Показать фото забора от водителя"} title="Фото забора от водителя" aria-expanded={open} onClick={() => setOpen(!open)}>
+    <button type="button" className={className} aria-label={open ? "Скрыть фото забора" : "Показать фото забора от водителя"} title="Фото забора от водителя" aria-expanded={open} onClick={() => setOpen(!open)}>
       <Camera size={20} aria-hidden="true" />
     </button>
     {open && createPortal(<GuardedDialog title="Фото забора от водителя" onClose={() => setOpen(false)} className="modal-overlay">

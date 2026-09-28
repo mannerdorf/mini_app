@@ -510,6 +510,10 @@ export function CargoDetailsModal({
                                         loading={perevozkaLoading}
                                         error={perevozkaError}
                                         embedded
+                                        receiptPhotoControl={item.pickupHasDriverPhotos === true ? (
+                                            <CargoPickupPhotos key={String(item.Number)} item={item} auth={auth}
+                                                className="shipment-status-step-icon shipment-status-step-icon--completed shipment-status-photo-button" />
+                                        ) : undefined}
                                         stepOutOfSla={(index) => isTimelineStepOutOfSla(perevozkaTimeline?.[index]?.date)}
                                     />
                                 );

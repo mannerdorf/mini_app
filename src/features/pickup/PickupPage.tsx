@@ -2030,8 +2030,9 @@ function JobDetails({
             <div><dt>Номер заявки</dt><dd>{dispatcher
               ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
               : job.data.zayavkaNumber || "Не указана"}</dd></div>
+            <div><dt>Номер перевозки</dt><dd>{job.data.cargoNumber?.trim() || "Не указан"}</dd></div>
           </dl>
-          {job.data.defaultPlaceAddress && <details className="pk-card-section"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
+          {job.data.defaultPlaceAddress && <details className="pk-card-section pk-unload-place"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
         </section>
       ) : (
         <p className="pk-hint">
@@ -2107,9 +2108,11 @@ function JobDetails({
               <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{job.note}</p>
             </section>
           )}
+          {job.resolution?.trim() && (
+            <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>Решение: {job.resolution}</p>
+          )}
         </details>
       )}
-      {job.resolution && <p className="pk-notice">Решение: {job.resolution}</p>}
       {canAct && pending && (
         <div className="pk-complete">
           <h3>Действия на точке</h3>
