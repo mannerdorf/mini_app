@@ -37,3 +37,6 @@ HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 
 # Старые неизвестные перевозки: шесть дат за ночь, отдельный курсор и низкий приоритет.
 18 0-5 * * * /opt/haulz/cron-call.sh '/api/cron/refresh-cache?kind=perevozki&lane=archive'
+
+# После миграции 118: отправка уведомлений из БД, без запросов в 1С.
+* * * * * /opt/haulz/cron-call.sh /api/cron/process-cargo-notifications

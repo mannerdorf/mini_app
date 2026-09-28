@@ -123,6 +123,8 @@ export async function dispatchWebPushCargoEvents(params: {
   items: CargoSnapshotItem[];
   source?: string;
   dedupeTtlSeconds?: number;
+  cacheOnly?: boolean;
+  reliableQueue?: boolean;
 }): Promise<{
   ok: boolean;
   source: string;
@@ -133,6 +135,7 @@ export async function dispatchWebPushCargoEvents(params: {
   failed: number;
   deduped: number;
   cleanedSubscriptions: number;
+  deferred?: number;
 }> {
   const { pool, source = "event_dispatch", dedupeTtlSeconds = 300 } = params;
   const input = Array.isArray(params.items) ? params.items : [];
@@ -168,6 +171,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
   if (!ownerInnCacheLoaded) {
     return {
+      deferred: params.reliableQueue ? 1 : 0,
       ok: true,
       source,
       scanned: rawPrepared.length,
@@ -311,6 +315,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
   const planDateChanges: Array<{ cargoNumber: string; date: string }> = [];
 
+  let deferred = 0;
   let changed = 0;
   let attempted = 0;
   let delivered = 0;
@@ -329,7 +334,7 @@ export async function dispatchWebPushCargoEvents(params: {
   for (const [inn, nums] of cargoNumbersByInn) {
     invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
   }
-  const perevozkaCreds = getPerevozkiServiceCredentials();
+  const perevozkaCreds = params.cacheOnly ? null : getPerevozkiServiceCredentials();
   const snapshotByKey = await syncCargoPushSnapshots(pool, {
     entries: prepared.map((row) => ({
       item: row.raw as Record<string, unknown>,
@@ -364,6 +369,8 @@ export async function dispatchWebPushCargoEvents(params: {
 
     const subscribers = subscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
     const pushSubscribers = pushSubscriberByInn.get(item.inn) || new Map<string, Record<string, boolean>>();
+    const failuresBefore = failed;
+    const deferredBefore = deferred;
     let deferBillStateUpdate = false;
     let deferCargoStateUpdate = false;
 
@@ -424,6 +431,7 @@ export async function dispatchWebPushCargoEvents(params: {
         ].join(":");
         const shouldSend = await acquireWebPushDedupeKey(dedupeKey, dedupeTtlSeconds);
         if (!shouldSend) {
+          if (params.reliableQueue) deferred += 1;
           deduped += 1;
           continue;
         }
@@ -494,6 +502,7 @@ export async function dispatchWebPushCargoEvents(params: {
         ].join(":");
         const shouldSend = await acquireWebPushDedupeKey(dedupeKey, dedupeTtlSeconds);
         if (!shouldSend) {
+          if (params.reliableQueue) deferred += 1;
           deduped += 1;
           continue;
         }
@@ -517,6 +526,11 @@ export async function dispatchWebPushCargoEvents(params: {
       }
     }
 
+    if (params.reliableQueue && (failed > failuresBefore || deferred > deferredBefore)) {
+      deferBillStateUpdate = true;
+      deferCargoStateUpdate = true;
+    }
+    if (deferBillStateUpdate || deferCargoStateUpdate) deferred += 1;
     try {
       const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
       const stateToPersist = deferCargoStateUpdate ? (prev?.state ?? null) : item.state;
@@ -527,9 +541,10 @@ export async function dispatchWebPushCargoEvents(params: {
          do update set state = excluded.state, state_bill = excluded.state_bill,
            plan_date = excluded.plan_date,
            updated_at = now()`,
-        [item.inn, item.cargoNumber, stateToPersist, stateBillToPersist, planDate || null]
+        [item.inn, item.cargoNumber, stateToPersist, stateBillToPersist, params.reliableQueue && planDateChanges.some(change => change.cargoNumber === item.cargoNumber) ? prevPlanDate : (planDate || null)]
       );
-    } catch {
+    } catch (error) {
+      if (params.reliableQueue) throw error;
       // State persistence is best-effort when DB schema differs.
     }
   }
@@ -544,7 +559,14 @@ export async function dispatchWebPushCargoEvents(params: {
       delivered += planResult.delivered;
       failed += planResult.failed;
       deduped += planResult.skipped;
-    } catch {
+      if (params.reliableQueue && planResult.failed === 0) {
+        for (const change of planDateChanges) {
+          const item = prepared.find(row => row.cargoNumber === change.cargoNumber)!;
+          await pool.query("UPDATE cargo_last_state SET plan_date=$3 WHERE inn=$1 AND cargo_number=$2", [item.inn, change.cargoNumber, change.date]);
+        }
+      }
+    } catch (error) {
+      if (params.reliableQueue) throw error;
       // plan-date push is best-effort
     }
   }
@@ -559,5 +581,6 @@ export async function dispatchWebPushCargoEvents(params: {
     failed,
     deduped,
     cleanedSubscriptions,
+    deferred,
   };
 }

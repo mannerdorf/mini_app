@@ -379,6 +379,7 @@ export async function syncNormalizedWindow(
   incoming: unknown[],
   dateFrom: string,
   dateTo: string,
+  beforeCommit?: (client: PoolClient) => Promise<void>,
 ): Promise<number> {
   if (!isNormalizedKind(kind)) return 0;
   await ensureNormalizedCacheTables(pool);
@@ -389,6 +390,7 @@ export async function syncNormalizedWindow(
     await client.query(`delete from ${table} where doc_date >= $1::date and doc_date <= $2::date`, [dateFrom, dateTo]);
     const count = await upsertItems(client, kind, incoming);
     await refreshNormalizedState(client, kind);
+    await beforeCommit?.(client);
     await client.query("COMMIT");
     return count;
   } catch (e) {

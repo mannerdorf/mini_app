@@ -64,7 +64,7 @@ export async function sendWebPushToLogin(
           expirationTime: sub.expirationTime ?? undefined,
         },
         serializedPayload,
-        { TTL: 60 * 60 * 24 }
+        { TTL: 60 * 60 * 24, timeout: 10000 }
       );
       sent += 1;
       alive.push(sub);

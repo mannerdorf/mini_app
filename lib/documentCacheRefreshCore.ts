@@ -9,7 +9,7 @@ import {
   upsertCargoSendingAssignments,
   upsertSendingsMetrics,
 } from "./sendingsMetrics.js";
-import { dispatchWebPushCargoEvents } from "../api/_lib/webpushEventDispatch.js";
+import { enqueueCargoNotifications } from "./cargoNotificationQueue.js";
 import {
   ensureNormalizedCacheTables,
   isNormalizedCacheReady,
@@ -249,9 +249,12 @@ export async function refreshDatedKindForWindow(
     kind !== "orders" &&
     (process.env.CACHE_REFRESH_SKIP_BLOB === "1" || (await isNormalizedCacheReady(pool, normalizedKind)));
 
+  const enqueue = kind === "perevozki" && options?.webPush !== false
+    ? (client: import("pg").PoolClient) => enqueueCargoNotifications(client, chunkRows, `cron_refresh_${mode}`)
+    : undefined;
   let cacheCount: number;
   if (skipBlobRefresh) {
-    await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);
+    await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo, enqueue);
     cacheCount = chunkRows.length;
   } else {
     const currentRows = await readCacheRow(pool, table);
@@ -260,25 +263,16 @@ export async function refreshDatedKindForWindow(
     await trace({stage:"database_saved",savedRows:mergedRows.length});
     cacheCount = mergedRows.length;
     try {
-      await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);
-    } catch {
+      await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo, enqueue);
+    } catch (error) {
+      if (enqueue) throw error;
       // normalized sync не блокирует refresh blob
     }
   }
 
   await trace({stage:"database_complete",savedRows:cacheCount});
   let detail: string | undefined;
-  if (kind === "perevozki" && chunkRows.length > 0 && options?.webPush !== false) {
-    await trace({stage:"webpush_start"});
-    const dispatchResult = await dispatchWebPushCargoEvents({
-      pool,
-      items: chunkRows as any[],
-      source: `cron_refresh_${mode}`,
-      dedupeTtlSeconds: 300,
-    });
-    await trace({stage:"webpush_complete"});
-    detail = `webpush changed=${dispatchResult.changed}, delivered=${dispatchResult.delivered}, failed=${dispatchResult.failed}, deduped=${dispatchResult.deduped}`;
-  }
+  if (enqueue) detail = "notifications queued";
   if (kind === "sendings") {
     let perevozkiRows: unknown[];
     if (await isNormalizedCacheReady(pool, "perevozki")) {
