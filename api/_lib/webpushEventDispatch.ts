@@ -345,7 +345,7 @@ export async function dispatchWebPushCargoEvents(params: {
   const invoiceByInnAndCargo = new Map<string, Map<string, Record<string, unknown>>>();
   trace("invoice_payloads");
   for (const [inn, nums] of cargoNumbersByInn) {
-    invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
+    invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums, trace));
   }
   const perevozkaCreds = params.cacheOnly ? null : getPerevozkiServiceCredentials();
   trace("snapshots");

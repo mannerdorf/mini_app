@@ -62,6 +62,29 @@ describe("shouldFetchPerevozkaLastMileForPush", () => {
   });
 });
 
+it("does not read the legacy invoice blob for a missing normalized invoice", async () => {
+  const calls: string[] = [];
+  const pool = {query: async <T extends Record<string,unknown>>(sql:string) => {
+    calls.push(sql);
+    return {rows:(sql.includes("document_cache_normalized_state") ? [{row_count:"11079"}] : []) as unknown as T[]};
+  }};
+  const {loadInvoicePayloadsByCargoNumbers} = await import("./notificationCargoPayloadEnrich.js");
+  expect((await loadInvoicePayloadsByCargoNumbers(pool,"7820046291",["000141896"])).size).toBe(0);
+  expect(calls.some(sql=>sql.includes("from cache_invoices where"))).toBe(false);
+  expect(calls.some(sql=>sql.includes("document_cache_normalized_state"))).toBe(true);
+});
+it("retains legacy fallback when normalized invoices are unavailable", async () => {
+  const calls: string[] = [];
+  const pool = {query: async <T extends Record<string,unknown>>(sql:string) => {
+    calls.push(sql);
+    return {rows:(sql.includes("from cache_invoices where") ? [{data:[{Number:"bill-1",List:[{Number:"000141896"}]}]}] : []) as unknown as T[]};
+  }};
+  const {loadInvoicePayloadsByCargoNumbers} = await import("./notificationCargoPayloadEnrich.js");
+  const result=await loadInvoicePayloadsByCargoNumbers(pool,"7820046291",["000141896"]);
+  expect(calls.some(sql=>sql.includes("from cache_invoices where"))).toBe(true);
+  expect(result.get("141896")?.Number ?? result.get("000141896")?.Number).toBe("bill-1");
+});
+
 describe("enrichBillItemForPushTemplate", () => {
   it("fills bill number from linked invoice without overwriting cargo number", () => {
     const invoiceByCargo = new Map([

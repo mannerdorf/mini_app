@@ -1,5 +1,5 @@
 import { cargoNumberLookupKeys, notificationCargoNumber } from "./notificationCargoOwnerInn.js";
-import { normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
+import { isNormalizedCacheReady, normalizeCargoNumberForLookup } from "./documentCacheNormalized.js";
 import { hasLastMileForPush } from "./cargoLastMileMeta.js";
 import { fetchInvoicesByInn } from "./notificationPoll.js";
 import { normalizeNotificationInn } from "./notificationInnScope.js";
@@ -72,6 +72,7 @@ export function mergeCargoItemForPushTemplate(
 export async function loadCargoPayloadsByNumbers(
   pool: Queryable,
   cargoNumbers: string[],
+  trace?: (stage: string) => void,
 ): Promise<Map<string, Record<string, unknown>>> {
   const lookupKeys = new Set<string>();
   const normalizedKeys = new Set<string>();
@@ -209,6 +210,7 @@ export async function loadInvoicePayloadsByCargoNumbers(
   pool: Queryable,
   customerInn: string,
   cargoNumbers: string[],
+  trace?: (stage: string) => void,
 ): Promise<Map<string, Record<string, unknown>>> {
   const wantedKeys = new Set<string>();
   for (const number of cargoNumbers) {
@@ -230,6 +232,7 @@ export async function loadInvoicePayloadsByCargoNumbers(
     }
   };
 
+  trace?.("invoice_by_customer");
   try {
     const { rows } = await pool.query<{ doc_number: string | null; payload: unknown }>(
       `SELECT doc_number, payload
@@ -248,6 +251,7 @@ export async function loadInvoicePayloadsByCargoNumbers(
   if (missingAfterInn.length > 0) {
     const patterns = cargoIlikePatterns(missingAfterInn);
     if (patterns.length > 0) {
+      trace?.("invoice_text_search");
       try {
         const { rows } = await pool.query<{ doc_number: string | null; payload: unknown }>(
           `SELECT doc_number, payload
@@ -265,6 +269,11 @@ export async function loadInvoicePayloadsByCargoNumbers(
   }
 
   if (byCargo.size === 0 || cargosMissingInvoice(cargoNumbers, byCargo).length > 0) {
+    // A missing invoice in the authoritative normalized cache is not a reason
+    // to load the entire legacy JSON blob again for every queued cargo.
+    trace?.("invoice_cache_readiness");
+    if (await isNormalizedCacheReady(pool as Parameters<typeof isNormalizedCacheReady>[0], "invoices")) return byCargo;
+    trace?.("invoice_legacy_blob");
     try {
       const { readCacheRow } = await import("./documentCacheRefreshCore.js");
       const blob = (await readCacheRow(pool as Parameters<typeof readCacheRow>[0], "cache_invoices")) as Record<
