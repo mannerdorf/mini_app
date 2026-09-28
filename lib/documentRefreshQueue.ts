@@ -7,7 +7,7 @@ import { getInvoicePaymentFilterKey } from "./invoicePaymentFilter.js";
 import { coerceStatusDisplay } from "../src/lib/statusUtils.js";
 
 export type RefreshQueueKind = "invoices" | "perevozki";
-export type RefreshQueueLane = "recent" | "active" | "history";
+export type RefreshQueueLane = "recent" | "active" | "history" | "archive";
 
 /** Unknown states stay in the queue; only explicit final states may leave it. */
 export function isOpenDocument(kind: RefreshQueueKind, payload: Record<string, unknown>): boolean {
@@ -20,6 +20,13 @@ export function isOpenDocument(kind: RefreshQueueKind, payload: Record<string, u
   const state = coerceStatusDisplay(payload.State ?? payload.state ?? payload.Status).trim().toLowerCase();
   // Avoid matching intermediate phrases such as "готов к выдаче" or "не доставлен".
   return !/^(доставлен[аоы]?|заверш[её]н[аоы]?|выдан[аоы]?|отмен[её]н[аоы]?|аннулирован[аоы]?)[.!]?$/.test(state);
+}
+
+/** Only old missing/explicitly unknown cargo states move to the slow lane; never mark them closed. */
+export function isArchiveCandidate(kind: RefreshQueueKind, day: string | null, payload: Record<string, unknown>, now = new Date()): boolean {
+  if (kind !== "perevozki" || !day || day >= cronDateWindow(90, now).dateFrom) return false;
+  const state = coerceStatusDisplay(payload.State ?? payload.state ?? payload.Status).trim().toLowerCase();
+  return !state || state === "неизвестный статус";
 }
 
 export function nextActiveDay(days: string[], after: unknown): string | null {
@@ -73,10 +80,18 @@ export async function runDocumentRefreshQueue(
       `SELECT doc_date::text AS day, updated_at, payload FROM ${table} WHERE doc_date < $1::date OR doc_date IS NULL`,
       [recent.dateFrom],
     );
+    const archived = rows.filter(row => isArchiveCandidate(kind, row.day, row.payload));
+    if (lane === "archive") {
+      const days = archived.map(row => row.day!);
+      const day = nextActiveDay(days, cursor.lastDate);
+      if (!day) return { result: { ok: true, kind, lane, idle: true }, cursor };
+      const result = await withOneCHistoryPriority(() => refresh(pool, login, password, kind, day, day, "chunk"));
+      return { result: { ok: true, kind, lane, date: day, pendingDays: new Set(days).size, result }, cursor: { lastDate: day } };
+    }
     const open = rows.filter(row => isOpenDocument(kind, row.payload));
     const grouped = new Map<string, { day: string; open: boolean; updatedAt: string | null }>();
     for (const row of rows) {
-      if (!row.day) continue;
+      if (!row.day || isArchiveCandidate(kind, row.day, row.payload)) continue;
       const prior = grouped.get(row.day);
       const updatedAt = row.updated_at ? new Date(row.updated_at).toISOString() : null;
       grouped.set(row.day, { day: row.day, open: (prior?.open ?? false) || isOpenDocument(kind, row.payload),

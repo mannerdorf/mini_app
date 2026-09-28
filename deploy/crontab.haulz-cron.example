@@ -34,3 +34,6 @@ HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 # Ночной обход: один день за запуск, 18 дней за ночь на каждый тип.
 8,28,48 0-5 * * * /opt/haulz/cron-call.sh '/api/cron/refresh-cache?kind=perevozki&lane=history'
 9,29,49 0-5 * * * /opt/haulz/cron-call.sh '/api/cron/refresh-cache?kind=invoices&lane=history'
+
+# Старые неизвестные перевозки: шесть дат за ночь, отдельный курсор и низкий приоритет.
+18 0-5 * * * /opt/haulz/cron-call.sh '/api/cron/refresh-cache?kind=perevozki&lane=archive'

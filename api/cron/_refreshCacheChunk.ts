@@ -110,7 +110,8 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
     const requestedKind = getStringQuery(req, "kind");
     const lane = getStringQuery(req, "lane") || "recent";
     if (requestedKind === "invoices" || requestedKind === "perevozki") {
-      if (lane !== "recent" && lane !== "active" && lane !== "history") return res.status(400).json({ error: "lane must be recent, active or history" });
+      if (lane !== "recent" && lane !== "active" && lane !== "history" && lane !== "archive") return res.status(400).json({ error: "lane must be recent, active, history or archive" });
+      if (lane === "archive" && requestedKind !== "perevozki") return res.status(400).json({ error: "archive requires perevozki" });
       const result = await runDocumentRefreshQueue(pool, credentials.login, credentials.password, requestedKind, lane);
       return res.status(200).json({ ...result, request_id: auth.ctx.requestId });
     }

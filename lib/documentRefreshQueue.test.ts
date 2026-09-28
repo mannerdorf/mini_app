@@ -1,7 +1,7 @@
 import { beforeAll, afterAll, it, expect, vi } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { isOpenDocument, nextActiveDay, runDocumentRefreshQueue, closureWatch, nextHistoryDay } from "./documentRefreshQueue.js";
+import { isOpenDocument, isArchiveCandidate, nextActiveDay, runDocumentRefreshQueue, closureWatch, nextHistoryDay } from "./documentRefreshQueue.js";
 let db: PGlite;
 const pool: any = { query: (s: string, p?: unknown[]) => db.query(s, p) };
 beforeAll(async () => {
@@ -60,4 +60,31 @@ it("persists historical progress and does not advance after a timeout", async ()
   refresh.mockRejectedValueOnce(new Error("timeout"));
   await expect(runDocumentRefreshQueue(pool,"x","x","invoices","history",refresh)).rejects.toThrow("timeout");
   expect((await db.query<any>("SELECT cursor FROM cron_work_state WHERE name='documents_invoices_history'")).rows[0].cursor).toEqual(before);
+});
+
+it("isolates only old unknown cargo; known active and recent unknown stay urgent", () => {
+  const now = new Date("2026-09-28T12:00:00Z");
+  expect(isArchiveCandidate("perevozki","2024-06-01",{State:"неизвестный статус"},now)).toBe(true);
+  expect(isArchiveCandidate("perevozki","2024-06-01",{},now)).toBe(true);
+  for (const state of ["В пути","Готово к выдаче","Новый статус 1С","Доставлено"])
+    expect(isArchiveCandidate("perevozki","2024-06-01",{State:state},now)).toBe(false);
+  expect(isArchiveCandidate("perevozki","2026-09-20",{State:"неизвестный статус"},now)).toBe(false);
+  expect(isArchiveCandidate("perevozki",null,{},now)).toBe(false);
+  expect(isArchiveCandidate("invoices","2024-06-01",{},now)).toBe(false);
+});
+it("keeps archive out of active rotation, retries without advancing and promotes resolved active cargo", async () => {
+  await db.exec(`INSERT INTO cache_perevozki_rows(doc_date,payload) VALUES
+    ('2024-06-01','{"State":"неизвестный статус"}'),
+    ('2024-06-02','{"State":"неизвестный статус"}'),
+    ('2025-01-01','{"State":"В пути"}');`);
+  const refresh: any = vi.fn(async () => ({cacheCount:3}));
+  expect(await runDocumentRefreshQueue(pool,"x","x","perevozki","active",refresh)).toMatchObject({date:"2025-01-01",pendingDays:1});
+  expect(await runDocumentRefreshQueue(pool,"x","x","perevozki","archive",refresh)).toMatchObject({date:"2024-06-01",pendingDays:2});
+  await db.exec("UPDATE cron_work_state SET next_at=now()-interval '1 minute' WHERE name='documents_perevozki_archive'");
+  refresh.mockRejectedValueOnce(new Error("timeout"));
+  await expect(runDocumentRefreshQueue(pool,"x","x","perevozki","archive",refresh)).rejects.toThrow("timeout");
+  expect((await db.query<any>("SELECT cursor FROM cron_work_state WHERE name='documents_perevozki_archive'")).rows[0].cursor.lastDate).toBe("2024-06-01");
+  await db.exec(`UPDATE cache_perevozki_rows SET payload='{"State":"В пути"}' WHERE doc_date='2024-06-01';
+    UPDATE cron_work_state SET next_at=now()-interval '1 minute' WHERE name='documents_perevozki_active';`);
+  expect(await runDocumentRefreshQueue(pool,"x","x","perevozki","active",refresh)).toMatchObject({date:"2024-06-01",pendingDays:2});
 });

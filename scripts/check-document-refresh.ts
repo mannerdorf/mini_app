@@ -1,6 +1,6 @@
 /** Read-only readiness report. Load DATABASE_URL in the shell; never prints credentials or documents. */
 import { getPool } from "../api/_db.js";
-import { isOpenDocument } from "../lib/documentRefreshQueue.js";
+import { isOpenDocument, isArchiveCandidate } from "../lib/documentRefreshQueue.js";
 import { cronDateWindow } from "../lib/cronWorkState.js";
 const pool = getPool();
 try {
@@ -14,13 +14,15 @@ try {
     const table = kind === "invoices" ? "cache_invoices_rows" : "cache_perevozki_rows";
     const rows = (await pool.query(`SELECT doc_date::text AS day,updated_at,payload FROM ${table}`)).rows;
     const open = rows.filter(row => isOpenDocument(kind,row.payload));
-    const dates = new Set(open.filter(row => row.day && row.day < recent.dateFrom).map(row => row.day));
+    const archived = open.filter(row => isArchiveCandidate(kind,row.day,row.payload));
+    const archiveDays = new Set(archived.map(row => row.day)).size;
+    const dates = new Set(open.filter(row => row.day && row.day < recent.dateFrom && !isArchiveCandidate(kind,row.day,row.payload)).map(row => row.day));
     const states: Record<string,number> = {};
     if (kind === "perevozki") for (const row of rows) {
       const state = String(row.payload.State ?? row.payload.state ?? "Не указан");
       states[state] = (states[state] || 0)+1;
     }
-    console.log(JSON.stringify({kind,documents:rows.length,open:open.length,oldActiveDays:dates.size,minimumCycleMinutes:dates.size*5,undated:open.filter(row=>!row.day).length,states}));
+    console.log(JSON.stringify({kind,documents:rows.length,open:open.length,oldActiveDays:dates.size,archiveDocuments:archived.length,archiveDays,minimumCycleMinutes:dates.size*5,undated:open.filter(row=>!row.day).length,states}));
   }
   console.log(JSON.stringify({queues:(await pool.query("SELECT name,next_at,lease_until,failures,updated_at FROM cron_work_state WHERE name LIKE 'documents_%' ORDER BY name")).rows}));
 } catch {
