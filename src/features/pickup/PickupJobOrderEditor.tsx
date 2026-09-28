@@ -19,7 +19,7 @@ export function PickupJobOrderEditor({ job, busy, act, inline = false }: Props) 
     <label className="pk-field">
       {!inline && <span>Номер заявки</span>}
       <input aria-label="Номер заявки" type="text" maxLength={100} value={number} disabled={busy || saving}
-        placeholder="Как в 1С, включая начальные нули"
+        placeholder=""
         onChange={e => { setNumber(e.target.value); setMessage(""); }} />
     </label>
 

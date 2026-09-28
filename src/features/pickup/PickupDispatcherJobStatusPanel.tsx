@@ -61,7 +61,7 @@ export function PickupDispatcherJobStatusPanel({
               type="text"
               maxLength={100}
               value={zayavkaNumber}
-              placeholder="Как в 1С, включая начальные нули"
+              placeholder=""
               onChange={(e) => setZayavkaNumber(e.target.value)}
               disabled={busy}
               required

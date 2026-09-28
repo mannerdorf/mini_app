@@ -2024,7 +2024,6 @@ function JobDetails({
           <dl className="pk-pickup-facts">
             <div><dt>Окно забора</dt><dd>{job.data.windowFrom}–{job.data.windowTo}</dd></div>
             <div><dt>Груз</dt><dd>{plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³</dd>
-              <dd className="pk-cargo-composition">{job.data.places.map((place) => `${place.count} × ${place.kind || "место"}`).join(" · ")}</dd>
             </div>
             <div><dt>Заказчик</dt><dd>{job.data.customerName || "—"}</dd></div>
             <div><dt>Номер заявки</dt><dd>{dispatcher

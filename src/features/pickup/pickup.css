@@ -1617,7 +1617,7 @@
 }
 .pk-day-row .pk-badge {
   justify-self: start;
-  white-space: normal;
+  white-space: nowrap;
 }
 .pk-root .pk-day-drawer {
   position: fixed;
@@ -2050,8 +2050,8 @@
   content: "−";
 }
 .pk-driver-stop .pk-badge {
-  white-space: normal;
-  max-width: 130px;
+  white-space: nowrap;
+  max-width: none;
 }
 .pk-driver-root .pk-job {
   padding-bottom: 16px;
@@ -2559,7 +2559,7 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-order-inline button { justify-self: start; }
 
 .pk-job-timeline { position: relative; }
-.pk-job-timeline > h3 { padding-right: 64px; }
+.pk-job-timeline > ol { padding-right: 54px; }
 .pk-root button.pk-timeline-photo-trigger,
 .pk-root button.pk-timeline-photo-trigger:hover:not(:disabled) {
   position: absolute;
@@ -2594,7 +2594,6 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   font-weight: 600;
 }
 
-.pk-pickup-facts dd.pk-cargo-composition { margin-top: 4px; font-weight: 400; }
 
 /* Pickup drawer typography: title / content / supporting text. */
 .pk-root .pk-day-drawer {
@@ -2629,11 +2628,10 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   font-size: var(--pk-card-font-meta);
   font-weight: 400;
 }
-.pk-root .pk-day-drawer :is(.pk-warning, .pk-notice, .pk-instructions, .pk-cargo-composition) {
+.pk-root .pk-day-drawer :is(.pk-warning, .pk-notice, .pk-instructions) {
   font-size: var(--pk-card-font-body);
   line-height: 1.5;
 }
-.pk-root .pk-day-drawer .pk-pickup-facts dd.pk-cargo-composition { font-weight: 400; }
 
 .pk-root button.pk-day-drawer-close,
 .pk-root button.pk-day-drawer-close:hover:not(:disabled) {
@@ -2678,4 +2676,67 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   font-size: 0.75rem;
   font-weight: 400;
   line-height: 1.5;
+}
+
+.pk-root button[aria-label="Копировать забор"],
+.pk-root button[aria-label="Удалить забор"],
+.pk-root button[aria-label="Копировать забор"]:hover:not(:disabled),
+.pk-root button[aria-label="Удалить забор"]:hover:not(:disabled) {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pk-root button[aria-label="Копировать забор"] {
+  color: var(--pk-ink);
+}
+
+/* Align overview labels and values, including the editable order number. */
+.pk-root .pk-pickup-overview > .pk-actions {
+  margin: 0;
+  align-items: center;
+}
+.pk-root .pk-pickup-facts {
+  column-gap: 24px;
+  row-gap: 16px;
+  align-items: start;
+}
+.pk-root .pk-pickup-facts > div {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 4px;
+}
+.pk-root .pk-pickup-facts dt {
+  margin: 0;
+  line-height: 1.5;
+}
+.pk-root .pk-pickup-facts dd {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  margin: 0;
+  line-height: 1.5;
+}
+.pk-root .pk-pickup-facts .pk-order-inline {
+  width: 100%;
+}
+.pk-root .pk-pickup-facts .pk-order-inline .pk-field {
+  display: block;
+  margin: 0;
+}
+.pk-root .pk-pickup-facts .pk-order-inline input:not([type="checkbox"]) {
+  display: block;
+  height: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  line-height: 1.5;
+}
+
+.pk-root .pk-job-timeline > .pk-timeline-timezone {
+  margin: 12px 0 0;
+  text-align: right;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  font-weight: 400;
+  color: var(--pk-muted);
 }
