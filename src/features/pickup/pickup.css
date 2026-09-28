@@ -2542,3 +2542,18 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-job-timeline li::before { content: ""; position: absolute; left: -1.4rem; top: 0.35rem; width: 10px; height: 10px; border-radius: 50%; background: var(--color-primary, #2563eb); }
 .pk-job-timeline time { display: block; font-size: 0.85rem; color: var(--color-text-secondary); }
 .pk-job-timeline li p { margin: 0.25rem 0 0; }
+
+/* Pickup details: compact overview, independent disclosure sections. */
+.pk-pickup-overview { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--pk-border); border-radius: 16px; background: var(--pk-panel); }
+.pk-pickup-overview :is(h3,p,dl) { margin: 0; }
+.pk-pickup-facts { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.pk-pickup-facts > div { min-width: 0; }
+.pk-pickup-facts dt { font-size: .8rem; color: var(--pk-muted); margin-bottom: 4px; }
+.pk-pickup-facts dd { margin: 0; overflow-wrap: anywhere; font-weight: 600; }
+.pk-root .pk-card-section { margin: 12px 0; padding: 14px 16px; border: 1px solid var(--pk-border); border-radius: 14px; background: var(--pk-panel); }
+.pk-card-section > summary { cursor: pointer; font-weight: 600; min-height: 28px; padding: 4px 0; }
+.pk-card-section[open] > summary { margin-bottom: 12px; }
+.pk-card-help { margin: 12px 0; font-size: .85rem; color: var(--pk-muted); }
+.pk-card-help > summary { cursor: pointer; }
+.pk-day-drawer .pk-card { border: 0; box-shadow: none; padding: 0; }
+@media (max-width: 420px) { .pk-pickup-facts { grid-template-columns: 1fr; } }

@@ -13,7 +13,7 @@ export function PickupJobOrderEditor({ job, busy, act }: Props) {
   const { value: number, setValue: setNumber, saving, setSaving } = draft;
   const [message, setMessage] = useState("");
   const value = number.trim();
-  return <section className="pk-panel" aria-label="Заявка по забору">
+  return <section className="pk-panel pk-card-section" aria-label="Заявка по забору">
     {draft.conflict && <PickupDraftConflict acceptServer={draft.acceptServer} keepDraft={draft.keepDraft}>Номер на сервере: {job.data.zayavkaNumber || "не указан"}.</PickupDraftConflict>}
     <label className="pk-field">
       <span>Номер заявки</span>
@@ -21,7 +21,7 @@ export function PickupJobOrderEditor({ job, busy, act }: Props) {
         placeholder="Как в 1С, включая начальные нули"
         onChange={e => { setNumber(e.target.value); setMessage(""); }} />
     </label>
-    <p className="pk-hint">Можно указать или исправить номер, в том числе после сдачи груза на склад.</p>
+
     <button type="button" className="pk-primary" disabled={busy || saving || draft.conflict || !value || value === (job.data.zayavkaNumber || "").trim()}
       onClick={async () => {
         setSaving(true);

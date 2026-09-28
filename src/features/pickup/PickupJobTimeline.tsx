@@ -15,7 +15,6 @@ export function PickupJobTimeline({ id, version, call }: { id: string; version: 
     return () => { cancelled = true; };
   }, [id, version, call, attempt]);
   return <section className="pk-job-timeline" aria-label="История статусов забора">
-    <h3>История статусов</h3>
     <p className="pk-muted">Дата и время по Москве (МСК)</p>
     {error ? <p role="alert">{error} <button type="button" onClick={() => setAttempt(attempt + 1)}>Повторить</button></p>
       : !history ? <p role="status">Загрузка истории…</p>
@@ -25,7 +24,7 @@ export function PickupJobTimeline({ id, version, call }: { id: string; version: 
           <time dateTime={entry.date}>{new Date(entry.date).toLocaleString("ru-RU", { timeZone: "Europe/Moscow", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}</time>
           {entry.note && <p>{entry.note}</p>}
         </li>)}</ol>
-        <p className="pk-muted">Показаны сохранённые события. Для старых заборов отдельные переходы могли не записываться.</p>
+        <details className="pk-card-help"><summary>О полноте истории</summary><p className="pk-muted">Показаны сохранённые события. Для старых заборов отдельные переходы могли не записываться.</p></details>
       </>}
   </section>;
 }
