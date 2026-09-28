@@ -43,6 +43,8 @@ export function closureWatch(
   const eligible: string[] = [];
   for (const row of days) {
     if (row.open) { closedAt[row.day] = null; eligible.push(row.day); continue; }
+    // Only an observed open -> closed transition starts the grace period.
+    if (!Object.prototype.hasOwnProperty.call(previous, row.day)) continue;
     const since = previous[row.day] || now.toISOString();
     closedAt[row.day] = since;
     const age = now.getTime() - Date.parse(since);
@@ -97,12 +99,16 @@ export async function runDocumentRefreshQueue(
       grouped.set(row.day, { day: row.day, open: (prior?.open ?? false) || isOpenDocument(kind, row.payload),
         updatedAt: prior?.updatedAt && updatedAt ? (prior.updatedAt < updatedAt ? prior.updatedAt : updatedAt) : updatedAt });
     }
-    const watch = closureWatch([...grouped.values()], cursor.closedAt || {});
+    // V1 seeded every historical closed day. Discard those timestamps once;
+    // retain observed open days so their next real closure is still monitored.
+    const previousClosures = cursor.closureWatchVersion === 2 ? (cursor.closedAt || {})
+      : Object.fromEntries(Object.entries(cursor.closedAt || {}).filter(([, value]) => value === null));
+    const watch = closureWatch([...grouped.values()], previousClosures);
     const days = watch.eligible;
     const day = nextActiveDay(days, cursor.lastDate);
     const summary = { kind, lane, pendingDays: days.length, undatedDocuments: open.filter(row => !row.day).length };
-    if (!day) return { result: { ok: true, ...summary, idle: true }, cursor: { ...cursor, closedAt: watch.closedAt } };
+    if (!day) return { result: { ok: true, ...summary, idle: true }, cursor: { ...cursor, closureWatchVersion: 2, closedAt: watch.closedAt } };
     const result = await refresh(pool, login, password, kind, day, day, "chunk");
-    return { result: { ok: true, ...summary, date: day, result }, cursor: { lastDate: day, closedAt: watch.closedAt } };
+    return { result: { ok: true, ...summary, date: day, result }, cursor: { lastDate: day, closureWatchVersion: 2, closedAt: watch.closedAt } };
   });
 }

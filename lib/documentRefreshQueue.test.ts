@@ -38,7 +38,8 @@ it("groups old unpaid invoices by date, keeps cursor on failure and isolates que
 it("keeps closure time stable, waits a day, expires after seven days and reopens", () => {
   const now = new Date("2026-09-28T12:00:00Z");
   const row = {day:"2025-01-01",open:false,updatedAt:"2026-09-26T12:00:00Z"};
-  const initial=closureWatch([row],{},now);
+  expect(closureWatch([row],{},now).eligible).toEqual([]);
+  const initial=closureWatch([row],{[row.day]:null},now);
   expect(initial.eligible).toEqual([row.day]);
   expect(closureWatch([row],initial.closedAt,new Date("2026-09-29T12:00:00Z")).closedAt).toEqual(initial.closedAt);
   expect(closureWatch([{...row,updatedAt:now.toISOString()}],initial.closedAt,now).eligible).toEqual([]);
@@ -87,4 +88,14 @@ it("keeps archive out of active rotation, retries without advancing and promotes
   await db.exec(`UPDATE cache_perevozki_rows SET payload='{"State":"В пути"}' WHERE doc_date='2024-06-01';
     UPDATE cron_work_state SET next_at=now()-interval '1 minute' WHERE name='documents_perevozki_active';`);
   expect(await runDocumentRefreshQueue(pool,"x","x","perevozki","active",refresh)).toMatchObject({date:"2024-06-01",pendingDays:2});
+});
+
+it("drops v1 historical closed-day seeds without losing observed open days", async () => {
+  await db.exec(`UPDATE cron_work_state SET next_at=now()-interval '1 minute', cursor='{"lastDate":"2025-02-01","closedAt":{"2025-03-01":"2099-01-01T00:00:00Z","2025-01-01":null}}' WHERE name='documents_invoices_active'`);
+  const refresh: any = vi.fn(async () => ({cacheCount:2}));
+  expect(await runDocumentRefreshQueue(pool,"x","x","invoices","active",refresh)).toMatchObject({pendingDays:2,date:"2025-01-01"});
+  const cursor=(await db.query<any>("SELECT cursor FROM cron_work_state WHERE name='documents_invoices_active'")).rows[0].cursor;
+  expect(cursor.closureWatchVersion).toBe(2);
+  expect(cursor.closedAt["2025-03-01"]).toBeUndefined();
+  expect(cursor.closedAt["2025-01-01"]).toBeNull();
 });

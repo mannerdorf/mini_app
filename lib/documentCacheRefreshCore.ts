@@ -227,9 +227,14 @@ export async function refreshDatedKindForWindow(
   mode: RefreshWindowResult["mode"],
   options?: { webPush?: boolean; trace?: (patch: Record<string, unknown>) => Promise<void> },
 ): Promise<RefreshWindowResult> {
+  const startedAt = Date.now();
+  const trace = async (patch: Record<string, unknown>) => {
+    console.info("document_refresh_stage", JSON.stringify({kind, mode, dateFrom, dateTo, elapsedMs: Date.now() - startedAt, ...patch}));
+    await options?.trace?.(patch);
+  };
   const { url, table, jsonKeys } = kindEndpoint(kind, dateFrom, dateTo);
-  await options?.trace?.({stage:"request_1c",status:"running",dateFrom,dateTo});
-  const json = await fetchServiceJson(login, password, url, async status => { await options?.trace?.({stage:"response_1c",httpStatus:status}); });
+  await trace({stage:"request_1c",status:"running",dateFrom,dateTo});
+  const json = await fetchServiceJson(login, password, url, async status => { await trace({stage:"response_1c",httpStatus:status}); });
   // A malformed HTTP 200 must never erase the previous window of orders.
   if (kind === "orders" && (!Array.isArray(json) || json.some(row => !row || typeof row !== "object" || !row.Номер || !row.ЗаказчикИНН || !row.Ссылка))) {
     throw new Error("GetZayavki: неверный формат ответа, предыдущие данные сохранены");
@@ -237,7 +242,7 @@ export async function refreshDatedKindForWindow(
   const chunkRows = kind === "perevozki" || kind === "invoices"
     ? validatedFinancialDocumentRows(json, kind)
     : extractKnownArray(json, ...jsonKeys);
-  await options?.trace?.({stage:"write_database",receivedRows:chunkRows.length});
+  await trace({stage:"write_database",receivedRows:chunkRows.length});
 
   const normalizedKind = kind as NormalizedDocumentKind;
   const skipBlobRefresh =
@@ -252,7 +257,7 @@ export async function refreshDatedKindForWindow(
     const currentRows = await readCacheRow(pool, table);
     const mergedRows = mergeChunkIntoCache(kind, currentRows, chunkRows, dateFrom, dateTo);
     await updateCacheRow(pool, table, mergedRows);
-    await options?.trace?.({stage:"database_saved",savedRows:mergedRows.length});
+    await trace({stage:"database_saved",savedRows:mergedRows.length});
     cacheCount = mergedRows.length;
     try {
       await syncNormalizedWindow(pool, normalizedKind, chunkRows, dateFrom, dateTo);
@@ -261,14 +266,17 @@ export async function refreshDatedKindForWindow(
     }
   }
 
+  await trace({stage:"database_complete",savedRows:cacheCount});
   let detail: string | undefined;
   if (kind === "perevozki" && chunkRows.length > 0 && options?.webPush !== false) {
+    await trace({stage:"webpush_start"});
     const dispatchResult = await dispatchWebPushCargoEvents({
       pool,
       items: chunkRows as any[],
       source: `cron_refresh_${mode}`,
       dedupeTtlSeconds: 300,
     });
+    await trace({stage:"webpush_complete"});
     detail = `webpush changed=${dispatchResult.changed}, delivered=${dispatchResult.delivered}, failed=${dispatchResult.failed}, deduped=${dispatchResult.deduped}`;
   }
   if (kind === "sendings") {
@@ -293,6 +301,7 @@ export async function refreshDatedKindForWindow(
     detail = `metrics=${metrics.updated}, assignments=${assignments.updated}`;
   }
 
+  await trace({stage:"complete"});
   return { kind, mode, dateFrom, dateTo, chunkCountRows: chunkRows.length, cacheCount, detail };
 }
 
