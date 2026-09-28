@@ -131,6 +131,7 @@ export type Job = {
   photo_count?: number;
   /** Dispatcher-only billing state; null means no billing record yet. */
   billing_status?: string | null;
+  linked_transport_number?: string;
   billing_info?: { transportNumber: string | null; amount: number | string | null; error: string | null; updatedAt: string } | null;
   number_sync_info?: { state: string; error: string | null; updatedAt: string } | null;
 };

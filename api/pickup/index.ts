@@ -1,4 +1,4 @@
-import { billingJournal, billingEdit, billingSend } from "../../lib/pickup/billing.js";
+import { billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
 import { backfillPickupJobCoordinates } from "../../lib/pickup/backfillJobCoords.js";
 import { uuid } from "../../lib/pickup/model.js";
 import {
@@ -273,6 +273,7 @@ async function readSnapshot(db: PoolClient, actor: Actor, body: any) {
       [body.city, body.date, seeAllRoutes, routeIds],
     )
   ).rows;
+  if (actor.dispatcher) await resolvePickupTransportNumbers(getPool(), jobs);
   const events = (
     await db.query(
       `SELECT * FROM pickup_events WHERE route_id=ANY($1::uuid[]) OR job_id=ANY($2::uuid[]) ORDER BY created_at DESC LIMIT 200`,

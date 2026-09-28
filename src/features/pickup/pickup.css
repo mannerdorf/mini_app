@@ -2740,3 +2740,25 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   font-weight: 400;
   color: var(--pk-muted);
 }
+
+.pk-root .pk-day-drawer:focus { outline: none; }
+.pk-root button.pk-day-drawer-close,
+.pk-root button[aria-label="Копировать забор"] {
+  border: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.pk-root button.pk-day-drawer-close:focus:not(:focus-visible),
+.pk-root button[aria-label="Копировать забор"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+.pk-job-footer-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+.pk-root .pk-job-footer-actions > .pk-actions {
+  margin: 0;
+  align-items: center;
+}

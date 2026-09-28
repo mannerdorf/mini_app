@@ -82,6 +82,8 @@ export function PickupDayRow({
         <dialog
           ref={dialog}
           className="pk-day-drawer"
+          tabIndex={-1}
+          autoFocus
           aria-label={`Забор: ${job.data.senderName}`}
           onClose={() => setOpen(false)}
           onCancel={event => { event.preventDefault(); close(); }}
@@ -94,7 +96,6 @@ export function PickupDayRow({
               <h2>Карточка забора{job.job_number?.trim() ? ` ${job.job_number.trim()}` : ""}</h2>
               <button
                 type="button"
-                autoFocus
                 className="pk-day-drawer-close"
                 aria-label="Закрыть"
                 title="Закрыть"

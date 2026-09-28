@@ -71,6 +71,22 @@ async function transports(pool: Pool, jobs: Pick<Job,'job_number'|'data'>[]): Pr
   if (!Array.isArray(raw)) throw new PickupError('Перевозки ещё не загружены в БД', 503);
   return raw;
 }
+/** Read-only link for pickup cards; never calculates or sends billing. */
+export async function resolvePickupTransportNumbers(pool: Pool, jobs: Job[]): Promise<void> {
+  const candidates = jobs.filter(job => job.data.zayavkaNumber?.trim() || job.data.cargoNumber?.trim());
+  if (!candidates.length) return;
+  let rows: any[];
+  try { rows = await transports(pool, candidates); }
+  catch (error) {
+    if ((error as { code?: string }).code === '42P01' || error instanceof PickupError) return;
+    throw error;
+  }
+  for (const job of candidates) {
+    try { job.linked_transport_number = transportNumber(matchBillingTransport(job, rows)); }
+    catch { /* Missing or ambiguous matches must not invent a transport link. */ }
+  }
+}
+
 function sourceFor(job: Job, row: any) {
   return { transportNumber: transportNumber(row), pickupNumber: job.job_number, customerInn: job.data.customerInn,
     orderNumber: job.data.zayavkaNumber, ...transportMetrics(row), mode: job.data.customerBillMode,

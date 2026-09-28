@@ -998,16 +998,8 @@ export function PickupPage({
 
                   <PickupJobBillingEditor key={`billing-${j.id}`} job={j} busy={busy} call={call} act={act} error={error} />
 
-                  <div className="pk-actions">
-                    <button
-                      type="button"
-                      className="pk-icon-btn"
-                      aria-label="Копировать забор"
-                      title="Копировать забор"
-                      onClick={() => setEditor({ type: "job", copyFrom: j })}
-                    >
-                      <Copy size={16} aria-hidden />
-                    </button>
+                  <div className="pk-job-footer-actions">
+                    <div className="pk-actions">
                     {pickupJobCanEdit(j.status) && (
                       <button
                         type="button"
@@ -1016,13 +1008,6 @@ export function PickupPage({
                         Изменить
                       </button>
                     )}
-                    {jobDeleteAllowed(j.status) && (
-                      <DeleteJobButton job={j} busy={busy} act={act} compact />
-                    )}
-                    <span>
-                      {snapshot.routes.find((r) => r.id === j.route_id)?.name ??
-                        "Не распределён"}
-                    </span>
                     {dispatch && pickupJobCanCancel(j.status) && (
                       <PickupCancelJobSection
                         job={j}
@@ -1041,6 +1026,25 @@ export function PickupPage({
                         }
                       />
                     )}
+                    </div>
+                    <div className="pk-actions">
+                    <button
+                      type="button"
+                      className="pk-icon-btn"
+                      aria-label="Копировать забор"
+                      title="Копировать забор"
+                      onClick={() => setEditor({ type: "job", copyFrom: j })}
+                    >
+                      <Copy size={16} aria-hidden />
+                    </button>
+                    {jobDeleteAllowed(j.status) && (
+                      <DeleteJobButton job={j} busy={busy} act={act} compact />
+                    )}
+                    <span>
+                      {snapshot.routes.find((r) => r.id === j.route_id)?.name ??
+                        "Не распределён"}
+                    </span>
+                    </div>
                   </div>
                   {j.status === "cancelled" && j.resolution && (
                     <p className="pk-muted pk-cancel-reason">{j.resolution}</p>
@@ -2029,7 +2033,7 @@ function JobDetails({
             <div><dt>Номер заявки</dt><dd>{dispatcher
               ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
               : job.data.zayavkaNumber || "Не указана"}</dd></div>
-            <div><dt>Номер перевозки</dt><dd>{job.data.cargoNumber?.trim() || "Не указан"}</dd></div>
+            <div><dt>Номер перевозки</dt><dd>{job.linked_transport_number || job.data.cargoNumber?.trim() || "Не найден в загруженных перевозках"}</dd></div>
           </dl>
           {job.data.defaultPlaceAddress && <details className="pk-card-section pk-unload-place"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
         </section>

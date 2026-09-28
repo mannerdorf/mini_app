@@ -33,7 +33,7 @@ export function PickupCancelJobSection({
   if (!open) {
     return (
       <button type="button" onClick={() => setOpen(true)}>
-        Отменить забор
+        Отменить
       </button>
     );
   }

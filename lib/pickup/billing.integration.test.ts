@@ -5,7 +5,7 @@ import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
-import {billingJournal,billingEdit,billingSend,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
+import {billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {processPickupAutoBilling} from './autoBilling.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
@@ -243,4 +243,18 @@ describe('automatic pickup billing',()=>{
     expect(await processPickupAutoBilling(pool)).toMatchObject({waiting:1});
     expect(deliverySetter).not.toHaveBeenCalled();
   });
+});
+
+it('resolves the card transport by order without enabling billing or changing job data', async()=>{
+  await seed();
+  await db.query('UPDATE cache_perevozki SET data=$1', [JSON.stringify([{...cargo(), НомерПикапа:'', ZayavkaNumber:'123'}])]);
+  const job:any=(await db.query('SELECT * FROM pickup_jobs WHERE id=$1',[id])).rows[0];
+  job.data.issueCustomerBill=false;
+  await resolvePickupTransportNumbers(pool,[job]);
+  expect(job.linked_transport_number).toBe('000001');
+  expect(job.data.cargoNumber).toBe('');
+  job.data.customerInn='other';
+  delete job.linked_transport_number;
+  await resolvePickupTransportNumbers(pool,[job]);
+  expect(job.linked_transport_number).toBeUndefined();
 });
