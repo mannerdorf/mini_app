@@ -43,7 +43,7 @@ export function useHaulzSession({
   hydrateDeferredItogSheet,
   setters,
   otpravkaFile,
-  workbook,
+  workbook: _workbook,
 }: UseHaulzSessionParams) {
   const {
     setOtpravkaFile,
@@ -173,7 +173,8 @@ export function useHaulzSession({
 
   useEffect(() => {
     if (autoLoadedSessionRef.current || loadingJobs || !auth || loadedFor.current !== authRef.current) return;
-    if (jobId || workbook || otpravkaFile) {
+    // Prefer jobId/otpravkaFile over workbook: workbook may arrive via ref one tick later.
+    if (jobId || otpravkaFile) {
       autoLoadedSessionRef.current = true;
       return;
     }
@@ -183,7 +184,7 @@ export function useHaulzSession({
       return;
     }
     autoLoadedSessionRef.current = true;
-  }, [loadingJobs, jobs, auth, jobId, workbook, otpravkaFile, loadJob]);
+  }, [loadingJobs, jobs, auth, jobId, otpravkaFile, loadJob]);
 
   const handleDeleteJob = useCallback(
     async (id: string) => {

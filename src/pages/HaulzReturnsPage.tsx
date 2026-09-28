@@ -27,6 +27,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   const [storedFilesCollapsed, setStoredFilesCollapsed] = useState(true);
 
   const sessionRef = useRef<ReturnType<typeof useHaulzSession> | null>(null);
+  const workbookRef = useRef<HaulzWorkbook | null>(null);
   const setWorkbookRef = useRef<React.Dispatch<React.SetStateAction<HaulzWorkbook | null>>>(() => undefined);
   const setActiveTabRef = useRef<React.Dispatch<React.SetStateAction<string>>>(() => undefined);
   const setWorkbookTableCollapsedRef = useRef<React.Dispatch<React.SetStateAction<boolean>>>(() => undefined);
@@ -61,11 +62,33 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
     hydrateDeferredItogSheet: (wb, id) => hydrateDeferredItogSheetRef.current(wb, id),
   });
 
+  // Session first so workbook/ul hooks get a live jobId (not a stale sessionRef snapshot).
+  // Workbook setters go through refs until useHaulzWorkbook mounts below.
+  const session = useHaulzSession({
+    auth,
+    hydrateDeferredItogSheet: (wb, id) => hydrateDeferredItogSheetRef.current(wb, id),
+    otpravkaFile: upload.otpravkaFile,
+    workbook: workbookRef.current,
+    setters: {
+      setOtpravkaFile: upload.setOtpravkaFile,
+      setUlPrio1: upload.setUlPrio1,
+      setUlPrio2: upload.setUlPrio2,
+      setWorkbook: (value) => setWorkbookRef.current(value),
+      setActiveTab: (value) => setActiveTabRef.current(value),
+      setWorkbookTableCollapsed: (value) => setWorkbookTableCollapsedRef.current(value),
+      setTdPanelOpen: (value) => setTdPanelOpenRef.current(value),
+      setError,
+      setProcessing: upload.setProcessing,
+    },
+  });
+
+  sessionRef.current = session;
+
   const workbookHook = useHaulzWorkbook({
     auth,
-    jobId: sessionRef.current?.jobId ?? null,
-    jobs: sessionRef.current?.jobs ?? [],
-    storedFiles: sessionRef.current?.storedFiles ?? [],
+    jobId: session.jobId,
+    jobs: session.jobs,
+    storedFiles: session.storedFiles,
     processing: upload.processing,
     otpravkaFile: upload.otpravkaFile,
     ulPrio1: upload.ulPrio1,
@@ -83,11 +106,12 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   setActiveTabRef.current = workbookHook.setActiveTab;
   setWorkbookTableCollapsedRef.current = workbookHook.setWorkbookTableCollapsed;
   setTdPanelOpenRef.current = workbookHook.setTdPanelOpen;
+  workbookRef.current = workbookHook.workbook;
 
   const ulLoader = useUlSheetLoader({
     auth,
-    storedFiles: sessionRef.current?.storedFiles ?? [],
-    jobId: sessionRef.current?.jobId ?? null,
+    storedFiles: session.storedFiles,
+    jobId: session.jobId,
     workbook: workbookHook.workbook,
     setWorkbook: workbookHook.setWorkbook,
     setError,
@@ -97,26 +121,6 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
   ensureUlSheetLoadedRef.current = ulLoader.ensureUlSheetLoaded;
   hydrateAllUlSheetsRef.current = ulLoader.hydrateAllUlSheets;
   hydrateDeferredItogSheetRef.current = ulLoader.hydrateDeferredItogSheet;
-
-  const session = useHaulzSession({
-    auth,
-    hydrateDeferredItogSheet: ulLoader.hydrateDeferredItogSheet,
-    otpravkaFile: upload.otpravkaFile,
-    workbook: workbookHook.workbook,
-    setters: {
-      setOtpravkaFile: upload.setOtpravkaFile,
-      setUlPrio1: upload.setUlPrio1,
-      setUlPrio2: upload.setUlPrio2,
-      setWorkbook: workbookHook.setWorkbook,
-      setActiveTab: workbookHook.setActiveTab,
-      setWorkbookTableCollapsed: workbookHook.setWorkbookTableCollapsed,
-      setTdPanelOpen: workbookHook.setTdPanelOpen,
-      setError,
-      setProcessing: upload.setProcessing,
-    },
-  });
-
-  sessionRef.current = session;
 
   const { workbook, activeSheet } = workbookHook;
 

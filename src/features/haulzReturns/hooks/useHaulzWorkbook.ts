@@ -116,6 +116,8 @@ export function useHaulzWorkbook({
     workbook?.sheets.find((s) => s.id !== "__workbook_meta__");
 
   useEffect(() => {
+    // Live jobId must come from session state (not a stale ref). With a session
+    // loaded, never wipe the workbook — clearing is done by loadJob/upload handlers.
     if (jobId || processing) return;
     if (!otpravkaFile || (ulPrio1.length === 0 && ulPrio2.length === 0)) {
       setWorkbook(null);

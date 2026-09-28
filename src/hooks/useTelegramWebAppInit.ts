@@ -35,8 +35,17 @@ export function useTelegramWebAppInit(setTheme: (theme: "light" | "dark") => voi
       }
 
       const themeHandler = () => {
-        const scheme = String((webApp as { colorScheme?: string })?.colorScheme || "").toLowerCase();
-        if (scheme === "dark" || scheme === "light") setTheme(scheme);
+        // Prefer explicit user choice; default remains light when nothing saved.
+        try {
+          const saved = window.localStorage.getItem("haulz.theme");
+          if (saved === "dark" || saved === "light") {
+            setTheme(saved);
+            return;
+          }
+        } catch {
+          // ignore storage errors
+        }
+        setTheme("light");
       };
 
       if (typeof webApp.onEvent === "function") {
