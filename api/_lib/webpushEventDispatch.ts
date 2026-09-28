@@ -125,6 +125,7 @@ export async function dispatchWebPushCargoEvents(params: {
   dedupeTtlSeconds?: number;
   cacheOnly?: boolean;
   reliableQueue?: boolean;
+  trace?: (stage: string) => void;
 }): Promise<{
   ok: boolean;
   source: string;
@@ -136,8 +137,11 @@ export async function dispatchWebPushCargoEvents(params: {
   deduped: number;
   cleanedSubscriptions: number;
   deferred?: number;
+  retryReasons?: string[];
 }> {
   const { pool, source = "event_dispatch", dedupeTtlSeconds = 300 } = params;
+  const trace = (stage: string) => params.trace?.(stage);
+  const retryReasons = new Set<string>();
   const input = Array.isArray(params.items) ? params.items : [];
   const rawPrepared = input
     .map((item) => ({
@@ -152,6 +156,7 @@ export async function dispatchWebPushCargoEvents(params: {
     return { ok: true, source, scanned: 0, changed: 0, attempted: 0, delivered: 0, failed: 0, deduped: 0, cleanedSubscriptions: 0 };
   }
 
+  trace("owner_lookup");
   const { byNumber: ownerInnByCargo, loaded: ownerInnCacheLoaded } = await loadCargoCustomerInnByNumbers(
     pool,
     rawPrepared.map((x) => x.cargoNumber),
@@ -172,6 +177,7 @@ export async function dispatchWebPushCargoEvents(params: {
   if (!ownerInnCacheLoaded) {
     return {
       deferred: params.reliableQueue ? 1 : 0,
+      retryReasons:["owner_cache_unavailable"],
       ok: true,
       source,
       scanned: rawPrepared.length,
@@ -185,17 +191,20 @@ export async function dispatchWebPushCargoEvents(params: {
   }
 
   try {
+    trace("ensure_tables");
     await ensureNotificationTables(pool);
   } catch {
     // Continue even if DDL was rejected by permissions.
   }
 
+  trace("templates");
   const pushTemplates = await loadPushNotificationTemplates(pool);
 
   const inns = Array.from(new Set(prepared.map((x) => x.inn)));
   const cargoNumbers = Array.from(new Set(prepared.map((x) => x.cargoNumber)));
   const subscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
   const pushSubscriberByInn = new Map<string, Map<string, Record<string, boolean>>>();
+  trace("subscriber_scopes");
   const scopes = await loadEffectivePushLoginScopes(pool);
   const loginsByInn = invertScopesByInn(scopes);
   const scopedPairs: Array<{ login: string; inn: string }> = [];
@@ -208,6 +217,7 @@ export async function dispatchWebPushCargoEvents(params: {
   const prefsByLogin = new Map<string, Record<string, boolean>>();
   const pushPrefsByLogin = new Map<string, Record<string, boolean>>();
   const loadedFromState = new Set<string>();
+  trace("preferences");
   const loginsWithToken = await listLoginsWithFcmTokens(pool, logins);
   const activationByLogin = await loadPushActivationByLogins(pool, logins);
   if (logins.length > 0) {
@@ -293,6 +303,7 @@ export async function dispatchWebPushCargoEvents(params: {
     };
   }
 
+  trace("previous_state");
   const lastStateRows = await pool.query<{ inn: string; cargo_number: string; state: string | null; state_bill: string | null; plan_date: string | null }>(
     `select inn, cargo_number, state, state_bill, plan_date
      from cargo_last_state
@@ -323,6 +334,7 @@ export async function dispatchWebPushCargoEvents(params: {
   let deduped = 0;
   let cleanedSubscriptions = 0;
   const nowBucket = Math.floor(Date.now() / (1000 * dedupeTtlSeconds));
+  trace("cargo_payloads");
   const payloadByNumber = await loadCargoPayloadsByNumbers(pool, cargoNumbers);
   const cargoNumbersByInn = new Map<string, string[]>();
   for (const row of prepared) {
@@ -331,10 +343,12 @@ export async function dispatchWebPushCargoEvents(params: {
     cargoNumbersByInn.set(row.inn, list);
   }
   const invoiceByInnAndCargo = new Map<string, Map<string, Record<string, unknown>>>();
+  trace("invoice_payloads");
   for (const [inn, nums] of cargoNumbersByInn) {
     invoiceByInnAndCargo.set(inn, await loadInvoicePayloadsByCargoNumbers(pool, inn, nums));
   }
   const perevozkaCreds = params.cacheOnly ? null : getPerevozkiServiceCredentials();
+  trace("snapshots");
   const snapshotByKey = await syncCargoPushSnapshots(pool, {
     entries: prepared.map((row) => ({
       item: row.raw as Record<string, unknown>,
@@ -375,6 +389,7 @@ export async function dispatchWebPushCargoEvents(params: {
     let deferCargoStateUpdate = false;
 
     for (const event of eventsToSend) {
+      trace("template_enrichment");
       const templateItem = await resolveCargoItemForPushTemplate({
         item: item.raw as Record<string, unknown>,
         event,
@@ -386,10 +401,12 @@ export async function dispatchWebPushCargoEvents(params: {
         snapshotByKey,
       });
       if (event === "bill_created" && !hasBillNumberForPush(templateItem)) {
+        retryReasons.add("missing_bill_number");
         deferBillStateUpdate = true;
         continue;
       }
       if (shouldDeferLastMilePush(event, templateItem, pushTemplates)) {
+        retryReasons.add("missing_last_mile");
         deferCargoStateUpdate = true;
         continue;
       }
@@ -429,13 +446,15 @@ export async function dispatchWebPushCargoEvents(params: {
           String(item.stateBill || ""),
           String(nowBucket),
         ].join(":");
+        trace("dedupe_lock");
         const shouldSend = await acquireWebPushDedupeKey(dedupeKey, dedupeTtlSeconds);
         if (!shouldSend) {
-          if (params.reliableQueue) deferred += 1;
+          if (params.reliableQueue) { deferred += 1; retryReasons.add("dedupe_busy"); }
           deduped += 1;
           continue;
         }
         attempted += 1;
+        trace("web_delivery");
         const sendResult = await sendWebPushToLogin(login, {
           title: message.title,
           body: message.body,
@@ -443,7 +462,7 @@ export async function dispatchWebPushCargoEvents(params: {
           tag: `${event}:${item.cargoNumber}`,
         });
         if (sendResult.sent > 0) delivered += 1;
-        if (!sendResult.ok) failed += 1;
+        if (!sendResult.ok) { failed += 1; retryReasons.add("provider_failed"); }
         cleanedSubscriptions += sendResult.removed || 0;
         try {
           await pool.query(
@@ -500,13 +519,15 @@ export async function dispatchWebPushCargoEvents(params: {
           String(item.stateBill || ""),
           String(nowBucket),
         ].join(":");
+        trace("dedupe_lock");
         const shouldSend = await acquireWebPushDedupeKey(dedupeKey, dedupeTtlSeconds);
         if (!shouldSend) {
-          if (params.reliableQueue) deferred += 1;
+          if (params.reliableQueue) { deferred += 1; retryReasons.add("dedupe_busy"); }
           deduped += 1;
           continue;
         }
         attempted += 1;
+        trace("fcm_delivery");
         const sendResult = await sendFcmToLogin(login, {
           title: message.title,
           body: message.body,
@@ -521,7 +542,7 @@ export async function dispatchWebPushCargoEvents(params: {
           },
         });
         if (sendResult.sent > 0) delivered += 1;
-        if (!sendResult.ok) failed += 1;
+        if (!sendResult.ok) { failed += 1; retryReasons.add("provider_failed"); }
         cleanedSubscriptions += sendResult.removed || 0;
       }
     }
@@ -532,6 +553,7 @@ export async function dispatchWebPushCargoEvents(params: {
     }
     if (deferBillStateUpdate || deferCargoStateUpdate) deferred += 1;
     try {
+      trace("save_state");
       const stateBillToPersist = deferBillStateUpdate ? (prev?.stateBill ?? null) : item.stateBill;
       const stateToPersist = deferCargoStateUpdate ? (prev?.state ?? null) : item.state;
       await pool.query(
@@ -551,6 +573,7 @@ export async function dispatchWebPushCargoEvents(params: {
 
   if (planDateChanges.length > 0) {
     try {
+      trace("plan_delivery");
       const planResult = await dispatchPlannedDeliveryDatePush({
         pool,
         plans: planDateChanges,
@@ -582,5 +605,6 @@ export async function dispatchWebPushCargoEvents(params: {
     deduped,
     cleanedSubscriptions,
     deferred,
+    retryReasons:[...retryReasons],
   };
 }

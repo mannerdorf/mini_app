@@ -15,9 +15,9 @@ export async function enqueueCargoNotifications(client: Pick<PoolClient, "query"
     ON CONFLICT(dedupe_key) DO NOTHING`, [JSON.stringify(rows), source]);
 }
 
-type DeliveryResult = { failed: number; deferred?: number };
+type DeliveryResult = { failed: number; deferred?: number; retryReasons?: string[] };
 /** One worker globally. Session lock is released on crash; durable rows remain pending. */
-export async function processCargoNotifications(pool: Pool, deliver: (payload: Record<string, unknown>) => Promise<DeliveryResult>) {
+export async function processCargoNotifications(pool: Pool, deliver: (payload: Record<string, unknown>, trace: (stage: string) => void) => Promise<DeliveryResult>) {
   const client = await pool.connect();
   let locked = false;
   let completed = 0, retried = 0;
@@ -32,15 +32,30 @@ export async function processCargoNotifications(pool: Pool, deliver: (payload: R
         AND NOT EXISTS(SELECT 1 FROM cargo_notification_queue prior WHERE prior.cargo_number=q.cargo_number AND prior.id<q.id AND prior.completed_at IS NULL)
         ORDER BY q.id LIMIT 1`)).rows[0];
       if (!row) break;
+      const itemStarted = Date.now();
+      let stage = "start";
+      let reason = "";
+      const trace = (next: string) => {
+        stage = /^[a-z_]{1,60}$/.test(next) ? next : "unknown";
+        console.info("cargo_notification_stage", JSON.stringify({id:row.id,stage,elapsedMs:Date.now()-itemStarted}));
+      };
+      trace("start");
       try {
-        const result = await deliver(row.payload);
-        if (result.failed || result.deferred) throw new Error("delivery_incomplete");
+        const result = await deliver(row.payload, trace);
+        if (result.failed || result.deferred) {
+          const allowed = new Set(["owner_cache_unavailable", "missing_bill_number", "missing_last_mile", "dedupe_busy", "provider_failed"]);
+          reason = [...new Set((result.retryReasons || []).filter(value => allowed.has(value)))].join(",")
+            || (result.failed ? "provider_failed" : "deferred_unspecified");
+          throw new Error("delivery_incomplete");
+        }
         await client.query("UPDATE cargo_notification_queue SET completed_at=now(),last_error=NULL WHERE id=$1", [row.id]);
+        trace("complete");
         completed++;
       } catch {
         await client.query(`UPDATE cargo_notification_queue SET attempts=attempts+1,
           next_at=now()+least(360,power(2,least(attempts,9))) * interval '1 minute',
-          last_error='delivery_incomplete' WHERE id=$1`, [row.id]);
+          last_error=$2 WHERE id=$1`, [row.id, reason || `exception_at_${stage}`]);
+        console.info("cargo_notification_retry", JSON.stringify({id:row.id,stage,reason:reason || `exception_at_${stage}`,elapsedMs:Date.now()-itemStarted}));
         retried++;
       }
     }

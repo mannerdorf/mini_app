@@ -40,3 +40,14 @@ it("keeps deferred data pending and excludes concurrent workers",async()=>{
   expect(deliver).not.toHaveBeenCalled();
   locked=false;
 });
+it("records safe deferral reasons and exception stage without secret error text",async()=>{
+  await db.exec("DELETE FROM cargo_notification_queue");
+  await enqueueCargoNotifications(client,[{Number:"diagnostics-a"},{Number:"diagnostics-b"}],"test");
+  await processCargoNotifications(pool,async(item,trace)=>{
+    if(item.Number==='diagnostics-a') return {failed:0,deferred:1,retryReasons:['missing_bill_number','secret-token']};
+    trace('subscriber_scopes');
+    throw new Error('password=secret-token');
+  });
+  const rows=(await db.query<any>("SELECT last_error FROM cargo_notification_queue ORDER BY id")).rows;
+  expect(rows.map(row=>row.last_error)).toEqual(['missing_bill_number','exception_at_subscriber_scopes']);
+});

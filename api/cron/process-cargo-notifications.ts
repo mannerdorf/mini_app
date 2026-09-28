@@ -9,7 +9,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (denied) return res.status(denied.status).json({error:denied.error});
   try {
     const pool = getPool();
-    const result = await processCargoNotifications(pool, item => dispatchWebPushCargoEvents({pool, items:[item], source:"cargo_queue", cacheOnly:true, reliableQueue:true}));
+    const result = await processCargoNotifications(pool, (item, trace) => dispatchWebPushCargoEvents({pool, items:[item], source:"cargo_queue", cacheOnly:true, reliableQueue:true, trace}));
     return res.status(200).json({ok:true,...result});
   } catch { return res.status(503).json({error:"Не удалось обработать уведомления. Проверьте миграцию 118 и БД."}); }
 }
