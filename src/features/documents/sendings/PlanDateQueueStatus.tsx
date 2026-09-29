@@ -1,25 +1,27 @@
-import {createContext,useContext,useEffect,useState,type ReactNode} from 'react';
+import React,{createContext,useContext,useEffect,useState,useMemo,useCallback,type ReactNode} from 'react';
+import {Play} from 'lucide-react';
 import './plan-date-queue.css';
 import {uniquePlanDateTasks} from './planDateQueueTasks';
-import {fetchPlanDateQueue,type PlanDateQueueTask} from '../../../api/client/documentsSendings';
+import {fetchPlanDateQueue,resumePlanDateQueue,type PlanDateQueueTask} from '../../../api/client/documentsSendings';
 import type {DocumentsAuth} from '../../../api/client/documentsAuth';
 import {collectSendingFreightCargoNumbers} from './sendingsMetrics';
 import {formatPerevozkaNumberForApi} from '../../../lib/perevozkaNumber';
 
-const QueueContext=createContext<{tasks:PlanDateQueueTask[];error:string}>({tasks:[],error:''});
+const QueueContext=createContext<{byNumber:Map<string,PlanDateQueueTask>;error:string;resume?:(task:PlanDateQueueTask)=>Promise<void>}>({byNumber:new Map(),error:''});
 const labels:Record<string,string>={pending:'В очереди',sending:'Отправляется',verifying:'Проверяем результат в 1С',done:'Записано',uncertain:'Требует сверки',error:'Ошибка'};
 function rowNumbers(row:unknown):string[]{
  return [...new Set(collectSendingFreightCargoNumbers(row).map(formatPerevozkaNumberForApi).filter(Boolean))];
 }
 export function PlanDateQueueProvider({auth,rows,children}:{auth?:DocumentsAuth|null;rows:unknown[];children:ReactNode}) {
  const [state,setState]=useState({tasks:[] as PlanDateQueueTask[],error:''});
- const numbersKey=JSON.stringify([...new Set(rows.flatMap(rowNumbers))].sort());
+ const numbersKey=useMemo(()=>JSON.stringify([...new Set(rows.flatMap(rowNumbers))].sort()),[rows]);
  useEffect(()=>{
   setState({tasks:[],error:''});
   if(!auth)return;
-  let stopped=false,running=false;
+  let stopped=false,running=false,nextPollAt=0;
   const numbers=JSON.parse(numbersKey) as string[];
-  const update=async()=>{
+  const update=async(force=false)=>{
+   if(!force && Date.now()<nextPollAt)return;
    if(running || document.hidden)return;running=true;
    try{
     const tasks:PlanDateQueueTask[]=[];
@@ -27,21 +29,35 @@ export function PlanDateQueueProvider({auth,rows,children}:{auth?:DocumentsAuth|
      if(stopped)return;
      tasks.push(...await fetchPlanDateQueue(auth,numbers.slice(offset,offset+500)));
     }
-    if(!stopped)setState({tasks:uniquePlanDateTasks(tasks),error:''});
-   }catch(e){if(!stopped)setState(prev=>({...prev,error:(e as Error).message}));}
+    const unique=uniquePlanDateTasks(tasks);
+    nextPollAt=Date.now()+(unique.some(task=>['pending','sending','verifying'].includes(task.state))?30000:60000);
+    if(!stopped)setState(prev=>!prev.error&&JSON.stringify(prev.tasks)===JSON.stringify(unique)?prev:{tasks:unique,error:''});
+   }catch(e){nextPollAt=Date.now()+60000;if(!stopped)setState(prev=>({...prev,error:(e as Error).message}));}
    finally{running=false;}
   };
   void update();const timer=setInterval(()=>void update(),10000);
-  window.addEventListener('haulz:plan-date-queued',update);
-  return()=>{stopped=true;clearInterval(timer);window.removeEventListener('haulz:plan-date-queued',update);};
+  const queued=()=>void update(true);
+  window.addEventListener('haulz:plan-date-queued',queued);
+  return()=>{stopped=true;clearInterval(timer);window.removeEventListener('haulz:plan-date-queued',queued);};
  },[auth?.login,auth?.password,numbersKey]);
- return <QueueContext.Provider value={state}>{children}</QueueContext.Provider>;
+ const resume=useCallback(async(task:PlanDateQueueTask)=>{
+  if(!auth)return;
+  const updated=await resumePlanDateQueue(auth,task);
+  setState(prev=>({...prev,tasks:prev.tasks.map(item=>item.cargo_number===updated.cargo_number?updated:item)}));
+  window.dispatchEvent(new Event('haulz:plan-date-queued'));
+ },[auth?.login,auth?.password]);
+ const byNumber=useMemo(()=>new Map(state.tasks.map(task=>[formatPerevozkaNumberForApi(task.cargo_number),task])),[state.tasks]);
+ const context=useMemo(()=>({byNumber,error:state.error,resume:auth?resume:undefined}),[byNumber,state.error,resume,!!auth]);
+ return <QueueContext.Provider value={context}>{children}</QueueContext.Provider>;
 }
 
 export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:ReactNode}) {
- const {tasks,error}=useContext(QueueContext);
- const numbers=new Set(rowNumbers(row));
- const matching=tasks.filter(task=>numbers.has(formatPerevozkaNumberForApi(task.cargo_number)));
+ const {byNumber,error,resume}=useContext(QueueContext);
+ const [resuming,setResuming]=useState<string|null>(null);
+ const [resumeError,setResumeError]=useState('');
+ const [expanded,setExpanded]=useState(false);
+ const numbers=useMemo(()=>rowNumbers(row),[row]);
+ const matching=useMemo(()=>numbers.map(number=>byNumber.get(number)).filter((task):task is PlanDateQueueTask=>!!task),[numbers,byNumber]);
  if(!matching.length)return <>{fallback}{error&&<span className="sending-plan-progress__error" title={error}> · Очередь недоступна</span>}</>;
  const done=matching.filter(task=>task.state==='done').length;
  const attention=matching.filter(task=>['error','uncertain'].includes(task.state)).length;
@@ -52,7 +68,7 @@ export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:Rea
  const queueStatus=[sending?`Отправка: ${sending}`:'',waiting?`В очереди: ${waiting}`:'',verifying?`Ожидают подтверждения: ${verifying}`:''].filter(Boolean).join(' · ');
  const description=`Записано ${done} из ${matching.length}${attention?`; требуют внимания: ${attention}`:''}${error?`; ${error}`:''}`;
  return <span className="sending-plan-progress" onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
-  <details>
+  <details onToggle={event=>setExpanded(event.currentTarget.open)}>
    <summary aria-label={`Установка плановых дат: ${description}. Подробности`} title={description}>
     <span className={`sending-plan-progress__bar${busy?' sending-plan-progress__bar--busy':''}${attention||error?' sending-plan-progress__bar--attention':''}`}
      role="progressbar" aria-label="Установка плановых дат" aria-valuemin={0} aria-valuemax={matching.length} aria-valuenow={done} aria-valuetext={description}>
@@ -61,8 +77,9 @@ export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:Rea
     </span>
    </summary>
    <span className="sending-plan-progress__details">
+    {resumeError&&<span role="alert">{resumeError}</span>}
     {error&&<span role="alert">{error}<br/></span>}
-    {matching.map(task=>{
+    {expanded&&matching.map(task=>{
      const date=task.target_date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3.$2.$1');
      const statusLabel=labels[task.state]||task.state;
      return <span key={task.cargo_number}
@@ -70,6 +87,9 @@ export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:Rea
       title={`${statusLabel}${task.last_error?` — ${task.last_error}`:''}`}
       aria-label={`${task.cargo_number}, ${date}, ${statusLabel}${task.last_error?`, ${task.last_error}`:''}`}>
       {task.cargo_number} · {date}
+      {resume&&['error','uncertain'].includes(task.state)&&<button type="button" className="sending-plan-progress__resume"
+       disabled={resuming!==null} aria-label={`Продолжить отправку ${task.cargo_number}`} title="Продолжить: повторно поставить эту дату в очередь 1С"
+       onClick={async()=>{if(resuming)return;setResuming(task.cargo_number);setResumeError('');try{await resume(task);}catch(e){setResumeError((e as Error).message);}finally{setResuming(null);}}}><Play size={14} aria-hidden="true"/> Продолжить</button>}
      </span>;
     })}
    </span>

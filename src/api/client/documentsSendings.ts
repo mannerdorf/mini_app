@@ -89,3 +89,12 @@ export async function postSendingsFerryAssignment(body: {
   }
   return data;
 }
+
+export async function resumePlanDateQueue(auth:DocumentsAuth,task:PlanDateQueueTask):Promise<PlanDateQueueTask> {
+ const {ok,data}=await documentsFetchJson<{task:PlanDateQueueTask;error?:string}>("/api/sendings-plan-date",{
+  method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),
+  body:JSON.stringify({action:'resume',cargoNumber:task.cargo_number,date:task.target_date,updatedAt:task.updated_at})
+ });
+ if(!ok)throw new Error(data?.error||'Не удалось продолжить');
+ return data.task;
+}

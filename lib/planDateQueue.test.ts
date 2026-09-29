@@ -1,7 +1,7 @@
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {PGlite} from '@electric-sql/pglite';
 import {readFileSync} from 'node:fs';
-import {enqueuePlanDates,processPlanDateQueue} from './planDateQueue';
+import {enqueuePlanDates,processPlanDateQueue,resumePlanDate} from './planDateQueue';
 import {extractConfirmedPlanDate} from './planDateService';
 let db:PGlite,pool:any;
 beforeEach(async()=>{
@@ -52,4 +52,20 @@ it('only verifies explicit plan fields belonging to the requested cargo',()=>{
  expect(extractConfirmedPlanDate({Number:'142716',DateArrivalPlan:'2026-09-30T00:00:00'},'000142716')).toBe('2026-09-30');
  expect(extractConfirmedPlanDate({Number:'142716',DateArrival:'2026-09-30'},'000142716')).toBeNull();
  expect(extractConfirmedPlanDate({Number:'other',PlanDate:'2026-09-30'},'000142716')).toBeNull();
+});
+
+it('explicitly resumes failed tasks once while protecting active and stale tasks',async()=>{
+ await enqueuePlanDates(pool,['142716'],'2026-09-30','user');
+ await db.exec("UPDATE plan_date_queue SET state='uncertain'");
+ const before=await task();
+ const stamp=new Date(before.updated_at).toISOString();
+ await expect(resumePlanDate(pool,'142716','2026-10-01',stamp,'dispatcher')).rejects.toThrow();
+ const resumed=await resumePlanDate(pool,'142716','2026-09-30',stamp,'dispatcher');
+ expect(resumed.state).toBe('pending');
+ await expect(resumePlanDate(pool,'142716','2026-09-30',stamp,'dispatcher')).rejects.toThrow();
+ const io={write:vi.fn(async()=>({ok:true})),read:vi.fn(async()=>null)};
+ await processPlanDateQueue(pool,io);
+ expect(io.write).toHaveBeenCalledTimes(1);
+ const done=await task();
+ await expect(resumePlanDate(pool,'142716','2026-09-30',new Date(done.updated_at).toISOString(),'dispatcher')).rejects.toThrow();
 });

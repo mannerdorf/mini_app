@@ -44,3 +44,6 @@
 .sending-plan-progress__entry { display: block; margin-bottom: 4px; }
 .sending-plan-progress__entry--done { color: var(--color-success, #15803d); }
 .sending-plan-progress__entry--pending { color: var(--color-danger, #dc2626); }
+
+.sending-plan-progress__resume { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 2px 4px; border: 0; background: transparent; color: var(--color-accent, #2563eb); cursor: pointer; font: inherit; }
+.sending-plan-progress__resume:disabled { opacity: .5; cursor: wait; }

@@ -1,6 +1,7 @@
 import React from 'react';
 import {act,create} from 'react-test-renderer';
 import {afterEach,expect,it,vi} from 'vitest';
+import {ApiError} from './client';
 import {PickupBillingTab} from './PickupBillingTab';
 let root:ReturnType<typeof create>;
 afterEach(()=>{if(root)act(()=>root.unmount());});
@@ -48,14 +49,32 @@ it('shows the order number even without a transport match',async()=>{
 });
 it('opens a sandbox without sending and displays diagnostics after one explicit retry',async()=>{
  const result={ok:false,error:'401',diagnostics:{curl:'curl example',status:401,response:'Unauthorized',elapsedMs:12}};
- const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:result);
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:b.action==='billing_preview'?{version:4,amount:100,transportNumber:'000001',status:'manual',diagnostics:result.diagnostics}:result);
  await mount(call);
  const button=(label:string)=>root.root.findAllByType('button').find(b=>b.children.includes(label))!;
  await act(async()=>button('Выставить счёт · песочница').props.onClick());
- expect(call.mock.calls).toHaveLength(1);
+ expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(0);
+ expect(JSON.stringify(root.toJSON())).toContain('curl example');
  await act(async()=>button('Отправить повторно в 1С').props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true});
  expect(JSON.stringify(root.toJSON())).toContain('Unauthorized');
  expect(JSON.stringify(root.toJSON())).toContain('curl example');
  expect(button('Отправить повторно в 1С').props.disabled).toBe(true);
+});
+
+it('keeps curl and exposes the application HTTP response when sending is rejected',async()=>{
+ const call=vi.fn(async(b:any)=>{
+  if(b.action==='billing_journal')return {rows:[{...row,status:'manual'}]};
+  if(b.action==='billing_preview')return {version:4,amount:100,status:'manual',diagnostics:{curl:'curl prepared',status:null,response:'',elapsedMs:0}};
+  throw new ApiError('Строка изменилась',409,'{"error":"Строка изменилась"}');
+ });
+ await mount(call);
+ const button=(label:string)=>root.root.findAllByType('button').find(b=>b.children.includes(label))!;
+ await act(async()=>button('Выставить счёт · песочница').props.onClick());
+ await act(async()=>button('Отправить повторно в 1С').props.onClick());
+ const rendered=JSON.stringify(root.toJSON());
+ expect(rendered).toContain('curl prepared');
+ expect(rendered).toContain('409');
+ expect(rendered).toContain('Ответ 1С не получен');
+ expect(button('Обновить данные и запрос').props.disabled).toBe(false);
 });

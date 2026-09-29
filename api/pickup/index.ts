@@ -1,4 +1,4 @@
-import { billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
+import { billingPreview, billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
 import { backfillPickupJobCoordinates } from "../../lib/pickup/backfillJobCoords.js";
 import { uuid } from "../../lib/pickup/model.js";
 import {
@@ -1610,11 +1610,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return res.status(200).json(result);
     }
-    if (["billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
+    if (["billing_preview", "billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
       dispatcherOnly(actor);
       db.release(); db = undefined;
       const pool = getPool();
-      const result = body.action === "billing_journal" ? await billingJournal(pool,body.city,body.date,login)
+      const result = body.action === "billing_preview" ? await billingPreview(pool,body.id) : body.action === "billing_journal" ? await billingJournal(pool,body.city,body.date,login)
         : body.action === "billing_send" ? await billingSend(pool,login,body) : await billingEdit(pool,login,body);
       return res.status(200).json(result);
     }

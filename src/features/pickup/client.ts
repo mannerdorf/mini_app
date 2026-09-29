@@ -6,6 +6,7 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public status: number,
+    public responseBody?: string,
   ) {
     super(message);
   }
@@ -40,12 +41,15 @@ export function pickupClient(account: Account): PickupCall {
         }),
         signal: controller.signal,
       });
-      const result = await response.json().catch(() => ({}));
+      const responseBody = await response.text();
+      let result: any = {};
+      try { result = JSON.parse(responseBody); } catch { /* Keep raw HTTP error for diagnostics. */ }
       if (!response.ok) {
         if (response.status < 500) attempts.delete(fingerprint);
         throw new ApiError(
           result.error || `Ошибка запроса (${response.status})`,
           response.status,
+          responseBody.slice(0,16000),
         );
       }
       attempts.delete(fingerprint);

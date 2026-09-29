@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import type { DeliveryWriteResult } from '../../../lib/pickup/deliveryService';
+import type { DeliveryDiagnostics, DeliveryWriteResult } from '../../../lib/pickup/deliveryService';
 import type { Job, Route } from '../../../lib/pickup/model';
 import { cities } from '../../../lib/pickup/model';
-import type { PickupCall } from './client';
+import { ApiError, type PickupCall } from './client';
 import { billingAmountText, billingDraftConflicts, editBillingAmount, type BillingDrafts } from './billingDrafts';
 
 type Row = {orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
@@ -12,7 +12,7 @@ const labels: Record<string,string> = {not_issued:'Не выставлен',send
 export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof cities;date:string;jobs:Job[];routes:Route[];call:PickupCall}) {
   const [rows,setRows]=useState<Row[]>([]),[drafts,setDrafts]=useState<BillingDrafts>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[search,setSearch]=useState('');
-  const [sandbox,setSandbox]=useState<{row:Row;result?:DeliveryWriteResult;error?:string}|null>(null);
+  const [sandbox,setSandbox]=useState<{row:Row;result?:DeliveryWriteResult;error?:string;preview?:DeliveryDiagnostics;apiStatus?:number;apiResponse?:string}|null>(null);
   const running=useRef(false);
   const generation=useRef(0);
   const load=useCallback(async(savedId?:string)=>{
@@ -46,6 +46,16 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
       setMessage(`${row.jobNumber}: передача не подтверждена — сверьте данные в 1С. ${(e as Error).message}`);
     }
   };
+  const openSandbox=async(row:Row)=>{
+    setSandbox({row});
+    await run(async()=>{
+      try {
+        const preview=await call<{version:number;amount:number;transportNumber:string;status:string;diagnostics:DeliveryDiagnostics}>({action:'billing_preview',id:row.jobId});
+        setSandbox({row:{...row,version:preview.version,amount:preview.amount,status:preview.status,source:row.source?{...row.source,transportNumber:preview.transportNumber}:row.source},preview:preview.diagnostics});
+      } catch(e) {setSandbox({row,error:`Не удалось подготовить запрос. Проверьте, что API обновлён. ${(e as Error).message}`,apiStatus:e instanceof ApiError?e.status:undefined,apiResponse:e instanceof ApiError?e.responseBody:undefined});}
+      return false;
+    });
+  };
   const senderName=(row:Row)=>row.sender || jobs.find(job=>job.id===row.jobId)?.data.senderName || "";
   const filtered=rows.filter(r=>`${r.jobNumber} ${r.customer} ${senderName(r)} ${r.source?.transportNumber} ${r.orderNumber || r.source?.orderNumber || ""}`.toLowerCase().includes(search.toLowerCase()));
   return <section className="pk-panel pk-billing" aria-busy={busy}>
@@ -57,20 +67,26 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
       <h3>Песочница 1С · {sandbox.row.jobNumber}</h3>
       <p>Повторная передача стоимости: {sandbox.row.amount} ₽, перевозка {sandbox.row.source?.transportNumber}. Это реальный запрос в 1С методом SetPickupCost.</p>
       {sandbox.row.status==='uncertain'&&<p>Предыдущая запись могла выполниться. Повторная отправка перезапишет стоимость.</p>}
-      <button disabled={busy||!!sandbox.result||!!sandbox.error} onClick={()=>void run(async()=>{
+      <button disabled={busy||!sandbox.preview||!!sandbox.result||!!sandbox.error||!['manual','uncertain','not_issued'].includes(sandbox.row.status||'')} onClick={()=>void run(async()=>{
         setSandbox({...sandbox,result:undefined,error:undefined});
         try {
           const result=await call<DeliveryWriteResult>({action:'billing_send',id:sandbox.row.jobId,version:sandbox.row.version,confirmed:true,retry:true});
           setSandbox({...sandbox,result});
-        } catch(e) {setSandbox({...sandbox,error:(e as Error).message});}
+        } catch(e) {setSandbox({...sandbox,error:(e as Error).message,apiStatus:e instanceof ApiError?e.status:undefined,apiResponse:e instanceof ApiError?e.responseBody:undefined});}
       })}>Отправить повторно в 1С</button>
+      <button disabled={busy} onClick={()=>void openSandbox(rows.find(row=>row.jobId===sandbox.row.jobId)||sandbox.row)}>Обновить данные и запрос</button>
       <button disabled={busy} onClick={()=>setSandbox(null)}>Закрыть</button>
+      <h4>curl запроса в 1С</h4>
+      <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result?.diagnostics?.curl||sandbox.preview?.curl||'Запрос ещё не подготовлен: требуется ответ API с актуальной конфигурацией 1С.'}</pre>
+      <p>Учётные данные заменены переменными ONE_C_LOGIN и ONE_C_PASSWORD.</p>
+      <h4>Ответ API приложения{sandbox.apiStatus?` · HTTP ${sandbox.apiStatus}`:''}</h4>
+      <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.apiResponse||sandbox.error|| (sandbox.result ? JSON.stringify(sandbox.result,null,2) : 'Отправка ещё не выполнялась.')}</pre>
+      {!sandbox.result?.diagnostics&&<><h4>Ответ 1С</h4><p>{sandbox.error?'Ответ 1С не получен: запрос остановлен на уровне API приложения или соединения.':'Запрос в 1С ещё не отправлен.'}</p></>}
+
       {sandbox.error&&<p role="alert">{sandbox.error}</p>}
       {sandbox.result&&<>
         <p role="status">{sandbox.result.ok?'Стоимость передана в 1С':sandbox.result.error}</p>
         {sandbox.result.diagnostics&&<>
-          <h4>curl</h4><p>Учётные данные заменены переменными ONE_C_LOGIN и ONE_C_PASSWORD.</p>
-          <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result.diagnostics.curl}</pre>
           <h4>Ответ 1С · HTTP {sandbox.result.diagnostics.status??'нет ответа'} · {sandbox.result.diagnostics.elapsedMs} мс</h4>
           <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result.diagnostics.response||'Тело ответа не получено'}</pre>
         </>}
@@ -93,7 +109,7 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
       </td>
       <td data-label="Статус"><strong style={{color:['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{labels[row.status||'']||'Нет данных'}</strong>{(row.error||row.last_error)&&<small style={{display:'block'}}>{row.error||row.last_error}</small>}</td>
       <td data-label="Действие">{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
-      {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>setSandbox({row})}>Выставить счёт · песочница</button>}
+      {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>void openSandbox(row)}>Выставить счёт · песочница</button>}
       {['manual','uncertain','sending'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(window.confirm(`Подтвердить: счёт по забору ${row.jobNumber} действительно выставлен в 1С?`))void run(async()=>{await call({action:'billing_mark_issued',id:row.jobId,version:row.version});});}}>Подтвердить ручное выставление</button>}</td>
     </tr>)}</tbody></table></div>}
   </section>;

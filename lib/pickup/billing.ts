@@ -4,7 +4,7 @@ import { PickupError } from './model.js';
 import { isNormalizedCacheReady } from '../documentCacheNormalized.js';
 import { buildPickupCustomerQuote } from './customerQuote.js';
 import { persistResolvedPickupCoords, resolvePickupPointCoords } from './pvzCoords.js';
-import { deliverySetter } from './deliveryService.js';
+import { deliveryRequestPreview, deliverySetter } from './deliveryService.js';
 
 const text = (value: unknown) => String(value ?? '').trim();
 export function transportMetrics(row: any) {
@@ -179,6 +179,12 @@ export async function billingEdit(pool: Pool, actor: string, body: any) {
     await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',[body.id,actor,manual?'confirmed_issued':'amount_edited',JSON.stringify({amount:rows.rows[0].amount})]);
     await db.query('COMMIT'); return {ok:true, version:rows.rows[0].version};
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
+}
+export async function billingPreview(pool:Pool, id:string) {
+  const record=(await pool.query('SELECT job_id,amount,transport_number,version,status FROM pickup_billing WHERE job_id=$1',[id])).rows[0];
+  if(!record) throw new PickupError('Запись не найдена',404);
+  const diagnostics=deliveryRequestPreview('SetPickupCost',{Номер:record.transport_number,СтоимостьПикапа:Number(record.amount)}).diagnostics;
+  return {version:record.version,amount:record.amount,transportNumber:record.transport_number,status:record.status,diagnostics};
 }
 export async function billingSend(pool: Pool, actor: string, body: any, automatic = false) {
   if(body.confirmed !== true) throw new PickupError("Подтвердите передачу стоимости в 1С");

@@ -32,6 +32,16 @@ export async function enqueuePlanDates(pool:Pool, numbers:string[], date:string,
     await db.query('COMMIT');return tasks;
   } catch(e){await db.query('ROLLBACK');throw e;} finally{db.release();}
 }
+/** Explicit user retry; active tasks and completed writes cannot be reset. */
+export async function resumePlanDate(pool:Pool, number:unknown, date:unknown, updatedAt:unknown, actor:string) {
+  if(!validPlanDate(date) || typeof updatedAt!=='string' || !Number.isFinite(Date.parse(updatedAt))) throw new Error('Обновите очередь перед продолжением');
+  const result=await pool.query(`UPDATE plan_date_queue SET state='pending',checks=0,last_error=NULL,
+    requested_by=$4,next_at=now(),updated_at=now()
+    WHERE cargo_number=$1 AND target_date=$2 AND date_trunc('milliseconds',updated_at)=date_trunc('milliseconds',$3::timestamptz)
+      AND state IN ('error','uncertain') RETURNING *`,[planDateNumber(number),date,updatedAt,actor]);
+  if(!result.rows.length) throw new Error('Запись уже изменилась или обрабатывается. Обновите очередь.');
+  return result.rows[0];
+}
 export async function processPlanDateQueue(pool:Pool, io:PlanDateIO) {
   const db=await pool.connect();
   let locked=false;
