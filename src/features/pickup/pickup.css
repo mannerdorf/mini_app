@@ -2780,3 +2780,23 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   gap: 4px;
   padding: 10px 0;
 }
+
+.pk-root .pk-pickup-facts .pk-order-number-actions { display: flex; align-items: center; gap: 8px; }
+.pk-root .pk-pickup-facts button.pk-document-number,
+.pk-root .pk-pickup-facts button.pk-order-edit {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  min-height: 44px;
+  color: var(--color-primary, #2563eb);
+}
+.pk-root .pk-pickup-facts button.pk-document-number,
+.pk-root .pk-pickup-facts .pk-order-inline input:not([type="checkbox"]) {
+  font-family: inherit;
+  font-size: var(--pk-card-font-body, 1rem);
+  font-weight: 600;
+  line-height: 1.5;
+}
+.pk-root .pk-pickup-facts button.pk-document-number:hover { text-decoration: underline; }
+.pk-root .pk-pickup-facts button.pk-order-edit { min-width: 32px; color: var(--pk-muted); }

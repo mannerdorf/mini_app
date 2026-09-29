@@ -31,6 +31,7 @@ export type AppNavigationContextValue = {
   openActInPlace: (act: Record<string, unknown>) => void;
   openClaimFromCargo: (cargoNumber: string) => void;
   openDocumentsWithSection: (section: string) => void;
+  openOrderByNumber: (number: string) => void;
   openAisWithMmsi: (mmsi: string) => void;
 };
 
@@ -221,6 +222,12 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
     [setActiveTab],
   );
 
+  const openOrderByNumber = useCallback((number: string) => {
+    if (!number.trim()) return;
+    applySearch(number.trim());
+    openDocumentsWithSection("Заявки");
+  }, [applySearch, openDocumentsWithSection]);
+
   const openAisWithMmsi = useCallback(
     (mmsi: string) => {
       if (!mmsi || mmsi.replace(/\D/g, "").length !== 9) return;
@@ -286,6 +293,7 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
       openActInPlace,
       openClaimFromCargo,
       openDocumentsWithSection,
+      openOrderByNumber,
       openAisWithMmsi,
     }),
     [
@@ -299,6 +307,7 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
       openActInPlace,
       openClaimFromCargo,
       openDocumentsWithSection,
+      openOrderByNumber,
       openAisWithMmsi,
     ],
   );

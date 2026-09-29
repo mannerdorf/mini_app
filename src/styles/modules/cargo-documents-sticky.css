@@ -1025,3 +1025,17 @@
     top: auto !important;
     box-shadow: none;
 }
+
+/* Orders toolbar must not cover the sandbox or order rows while scrolling. */
+.documents-page--with-orders-section > .documents-page-sticky-header {
+    position: relative;
+    top: auto;
+}
+.documents-page--with-orders-section .documents-table-offset-desktop,
+.documents-page--with-orders-section .documents-cards-offset-desktop,
+.documents-page--with-orders-section .documents-zayavki-below-new-order,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-table-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-cards-offset-desktop,
+.documents-page--with-orders-section.documents-page--saas-analytics .documents-zayavki-below-new-order {
+    margin-top: 1rem;
+}

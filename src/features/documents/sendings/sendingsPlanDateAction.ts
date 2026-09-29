@@ -1,3 +1,4 @@
+import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
 import { postSendingsPlanDate } from "../../../api/client/documents";
 
 type PlanDateActionSetters = {
@@ -24,7 +25,7 @@ export async function applySendingsPlanDateForCargo(
   setError(null);
   setInfo(null);
   try {
-    const data = await postSendingsPlanDate(dateValue, cargoNumbers);
+    const data = await postSendingsPlanDate(dateValue, [...new Set(cargoNumbers.map(formatPerevozkaNumberForApi).filter(Boolean))]);
     const updated = Number(data?.updated ?? 0);
     const requested = Number(data?.requested ?? cargoNumbers.length);
     const failed = Number(data?.failed ?? Math.max(0, requested - updated));
@@ -34,12 +35,12 @@ export async function applySendingsPlanDateForCargo(
         : "";
     if (failed > 0) {
       setError(
-        `Плановая дата прибытия на терминал записана частично: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ""}`,
+        `${updated === 0 ? "Плановая дата прибытия на терминал не записана" : "Плановая дата прибытия на терминал записана частично"}: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ""}`,
       );
     } else {
       setInfo(`Плановая дата прибытия на терминал ${dateValue} записана для ${updated} перевозок.`);
+      onClose?.();
     }
-    onClose?.();
   } catch (e: unknown) {
     setError(String((e as Error)?.message || "Не удалось записать плановую дату прибытия на терминал."));
   } finally {

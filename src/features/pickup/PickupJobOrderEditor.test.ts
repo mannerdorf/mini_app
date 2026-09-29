@@ -15,3 +15,15 @@ it('lets dispatcher set an order on a deposited job without changing its status'
     expect(JSON.stringify(root!.toJSON())).toContain('Номер заявки сохранён');
   } finally {await act(async()=>root!.unmount());}
 });
+it('opens the linked order without saving and keeps editing available separately',async()=>{
+  const open=vi.fn(),save=vi.fn();
+  let root:ReturnType<typeof create>;
+  await act(async()=>{root=create(React.createElement(PickupJobOrderEditor,{job:{id:'j1',version:3,data:{zayavkaNumber:'000018356'}} as any,busy:false,act:save,inline:true,onOpen:open}));});
+  try {
+    await act(async()=>root!.root.findByProps({className:'pk-document-number'}).props.onClick());
+    expect(open).toHaveBeenCalledWith('000018356');
+    expect(save).not.toHaveBeenCalled();
+    await act(async()=>root!.root.findByProps({'aria-label':'Изменить номер заявки'}).props.onClick());
+    expect(root!.root.findByType('input').props.value).toBe('000018356');
+  } finally {await act(async()=>root!.unmount());}
+});

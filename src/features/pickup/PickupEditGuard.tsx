@@ -63,3 +63,13 @@ export function PickupDraftConflict({ children, acceptServer, keepDraft }: {
     </div>
   </div>;
 }
+
+export function usePickupNavigationGuard() {
+  const states = useContext(EditContext);
+  return (navigate: () => void) => {
+    if (states && [...states.values()].some(state => state.busy)) return;
+    if (states && [...states.values()].some(state => state.dirty) &&
+        !window.confirm("Есть несохранённые изменения. Перейти без сохранения?")) return;
+    navigate();
+  };
+}

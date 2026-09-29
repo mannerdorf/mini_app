@@ -1,3 +1,5 @@
+import { useAppNavigation } from "../../contexts/AppNavigationContext";
+import { usePickupNavigationGuard } from "./PickupEditGuard";
 import { PickupJobTimeline } from "./PickupJobTimeline";
 import { pickupEventLabel } from "./pickupEventLabel";
 import { PickupJobBillingEditor } from "./PickupJobBillingEditor";
@@ -1972,6 +1974,9 @@ function JobDetails({
     [error, setError] = useState("");
   const [resultOpen, setResultOpen] = useState(false),
     [problemOpen, setProblemOpen] = useState(false);
+  const navigation = useAppNavigation();
+  const navigate = usePickupNavigationGuard();
+  const transportNumber = job.linked_transport_number || job.data.cargoNumber?.trim();
   const pending = job.status === "pending" || job.status === "arrived";
   const dispatcherCompact = compact && dispatcher && !driver;
   return (
@@ -2000,9 +2005,9 @@ function JobDetails({
             </dd></div>
             <div><dt>Заказчик</dt><dd>{job.data.customerName || "—"}</dd></div>
             <div><dt>Номер заявки</dt><dd>{dispatcher
-              ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline />
-              : job.data.zayavkaNumber || "Не указана"}</dd></div>
-            <div><dt>Номер перевозки</dt><dd>{job.linked_transport_number || job.data.cargoNumber?.trim() || "Нет данных"}</dd></div>
+              ? <PickupJobOrderEditor key={job.id} job={job} busy={busy} act={act} inline onOpen={number => navigate(() => navigation.openOrderByNumber(number))} />
+              : job.data.zayavkaNumber ? <button type="button" className="pk-document-number" onClick={() => navigate(() => navigation.openOrderByNumber(job.data.zayavkaNumber))}>{job.data.zayavkaNumber}</button> : "Нет данных"}</dd></div>
+            <div><dt>Номер перевозки</dt><dd>{transportNumber ? <button type="button" className="pk-document-number" onClick={() => navigate(() => navigation.openCargoFromDocuments(transportNumber))}>{transportNumber}</button> : "Нет данных"}</dd></div>
           </dl>
           {job.data.defaultPlaceAddress && <details className="pk-card-section pk-unload-place"><summary>Место выгрузки</summary><p>{job.data.defaultPlaceAddress}</p></details>}
         </section>

@@ -8,6 +8,7 @@ import {
 } from "react";
 import { postSendingsEorStatus } from "../../../api/client/documents";
 import type { SanctionCheckResult } from "../../../lib/sanctions";
+import { collectSendingFreightCargoNumbers } from "./sendingsMetrics";
 import { applySendingsPlanDateForCargo } from "./sendingsPlanDateAction";
 import type { EorStatus } from "./sendingsTypes";
 
@@ -169,11 +170,7 @@ export function useSendingsBulkActions({
     const cargoNumbers = Array.from(
       new Set(
         selectedSendingRowsMeta
-          .flatMap((row) => {
-            const direct = String(row.sendingNumber || "").trim();
-            if (direct) return [direct];
-            return row.cargoNumbers.map((v) => String(v).trim()).filter(Boolean);
-          })
+          .flatMap((row) => collectSendingFreightCargoNumbers(row.row))
           .filter(Boolean),
       ),
     );
