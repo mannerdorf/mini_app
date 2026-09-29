@@ -136,6 +136,9 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
         error='Эта перевозка уже есть в журнале другого забора'; source=null;
       }
     }
+    // Round only unissued calculator amounts; preserve amounts already sent to 1C.
+    await pool.query(`UPDATE pickup_billing SET amount=round(amount),version=version+1,updated_at=now(),updated_by=$2
+      WHERE job_id=$1 AND source->>'mode'='auto' AND status IN ('not_issued','manual') AND amount<>round(amount)`,[job.id,actor]);
     const record = (await pool.query('SELECT * FROM pickup_billing WHERE job_id=$1',[job.id])).rows[0];
     if(record?.amount_manual && source && JSON.stringify(source)!==JSON.stringify(Object.fromEntries(Object.keys(source).map(key=>[key,record.source[key]])))) {
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
@@ -171,7 +174,7 @@ export async function billingEdit(pool: Pool, actor: string, body: any) {
     const rows = await db.query(`UPDATE pickup_billing SET ${manual ? "status='issued'" : 'amount=$4,amount_manual=true,source=$5,transport_number=$6'},
       version=version+1,updated_by=$3,updated_at=now() WHERE job_id=$1 AND version=$2
       AND status IN (${manual ? "'manual','uncertain','sending'" : "'not_issued','manual'"}) AND (status<>'sending' OR updated_at<now()-interval '5 minutes') RETURNING *`,
-      manual ? [body.id,body.version,actor] : [body.id,body.version,actor,Math.round(body.amount*100)/100,JSON.stringify(acceptedSource),acceptedSource!.transportNumber]);
+      manual ? [body.id,body.version,actor] : [body.id,body.version,actor,acceptedSource!.mode==='auto'?Math.round(body.amount):Math.round(body.amount*100)/100,JSON.stringify(acceptedSource),acceptedSource!.transportNumber]);
     if (!rows.rows.length) throw new PickupError('Запись изменилась или действие недоступно. Обновите журнал.',409);
     await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',[body.id,actor,manual?'confirmed_issued':'amount_edited',JSON.stringify({amount:rows.rows[0].amount})]);
     await db.query('COMMIT'); return {ok:true, version:rows.rows[0].version};

@@ -91,7 +91,7 @@ function calcExtras(
     lines.push({
       key: `extra:${s.code}`,
       label: s.label,
-      amountRub: Math.round(amount * 100) / 100,
+      amountRub: Math.round(amount),
     });
   }
   return lines;
@@ -220,7 +220,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     lines.push({
       key: "pickup",
       label: `Забор (${pickupCity === "moscow" ? "МКАД" : "КАД"}, ${pickupKm.toFixed(1)} км)`,
-      amountRub: Math.round(pickupCalc.total * 100) / 100,
+      amountRub: Math.round(pickupCalc.total),
       meta: { tierIndex: pickupCalc.tierIndex, km: pickupKm, cityFee: pickupCalc.cityFee, outsideRingFee: pickupCalc.perKmFee },
     });
   }
@@ -228,7 +228,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   lines.push({
     key: "mainline",
     label: `Магистраль ${mainlineModeLabelQuoteLine(req.mainlineMode)}`,
-    amountRub: Math.round(mainlineAmount * 100) / 100,
+    amountRub: Math.round(mainlineAmount),
     meta: {
       pricePerKg: mainlineRate,
       mode: req.mainlineMode,
@@ -242,7 +242,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     lines.push({
       key: "last_mile",
       label: `Последняя миля (${lastMileCity === "moscow" ? "МКАД" : "КАД"}, ${lastMileKm.toFixed(1)} км)`,
-      amountRub: Math.round(lastMileCalc.total * 100) / 100,
+      amountRub: Math.round(lastMileCalc.total),
       meta: { tierIndex: lastMileCalc.tierIndex, km: lastMileKm, cityFee: lastMileCalc.cityFee, outsideRingFee: lastMileCalc.perKmFee },
     });
   }
@@ -260,7 +260,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   const boxesLine = calcBoxesQuote(req.places, tariffs.boxes);
   if (boxesLine) lines.push(boxesLine);
 
-  const totalRub = Math.round(lines.reduce((s, l) => s + l.amountRub, 0) * 100) / 100;
+  const totalRub = Math.round(lines.reduce((s, l) => s + l.amountRub, 0));
   const mainlineOptions = buildMainlineOptions(
     tariffs.mainline,
     direction,
@@ -271,7 +271,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
     const clientTariff = clientTariffsByMode[option.mode];
     if (!clientTariff) continue;
     option.pricePerKg = clientTariff.tariff;
-    option.estimatedRub = Math.round(clientTariff.tariff * option.billableWeightKg * 100) / 100;
+    option.estimatedRub = Math.round(clientTariff.tariff * option.billableWeightKg);
   }
 
   return {

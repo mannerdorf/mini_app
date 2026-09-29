@@ -14,6 +14,7 @@ import { isWbOnlyAccount, WbOnlyAppLayout } from "./wb/appWb";
 import { isRedReturnsOnlyAccount, RED_RETURNS_LABEL, syncRedReturnsUrl } from "./features/redReturns/appRedReturns";
 import { HaulzReturnsPage } from "./app/lazyPages";
 import { useLegalCompliance } from "./hooks/useLegalCompliance";
+import { usePersistedServiceMode } from "./hooks/usePersistedServiceMode";
 import { useShowCustomerColumn } from "./hooks/useShowCustomerColumn";
 import { useMobileLayout } from "./hooks/useMobileLayout";
 import { useRegisteredAccountSync } from "./hooks/useRegisteredAccountSync";
@@ -75,7 +76,7 @@ function AppRoot() {
 
     useTelegramWebAppInit(setTheme);
 
-    const [useServiceRequest, setUseServiceRequest] = useState(false);
+    const [useServiceRequest, setUseServiceRequest] = usePersistedServiceMode(activeAccount);
 
     const legalCompliance = useLegalCompliance(activeAccount);
 
@@ -103,11 +104,6 @@ function AppRoot() {
     const isNativePush = useMemo(() => isNativePushEnvironment(), []);
     const androidUpdate = useAndroidAppUpdate(!!auth && isNativeAndroid);
     const [androidUpdateDismissed, setAndroidUpdateDismissed] = useState(false);
-    useEffect(() => {
-        if (!serviceModeUnlocked && useServiceRequest) {
-            setUseServiceRequest(false);
-        }
-    }, [serviceModeUnlocked, useServiceRequest]);
     useTwoFaSettingsSync();
     useEffect(() => {
         const login = activeAccount?.login?.trim().toLowerCase();

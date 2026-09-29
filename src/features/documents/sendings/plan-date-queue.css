@@ -38,3 +38,9 @@
   .sending-plan-progress__bar--busy, .sending-plan-progress__bar--busy .sending-plan-progress__fill { animation: none; }
   .sending-plan-progress__fill { transition: none; }
 }
+
+.sending-plan-progress__status { display: block; max-width: 220px; margin-top: 3px; font-size: 12px; white-space: normal; color: var(--color-text-secondary); }
+
+.sending-plan-progress__entry { display: block; margin-bottom: 4px; }
+.sending-plan-progress__entry--done { color: var(--color-success, #15803d); }
+.sending-plan-progress__entry--pending { color: var(--color-danger, #dc2626); }

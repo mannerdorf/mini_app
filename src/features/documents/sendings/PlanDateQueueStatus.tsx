@@ -45,7 +45,11 @@ export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:Rea
  if(!matching.length)return <>{fallback}{error&&<span className="sending-plan-progress__error" title={error}> · Очередь недоступна</span>}</>;
  const done=matching.filter(task=>task.state==='done').length;
  const attention=matching.filter(task=>['error','uncertain'].includes(task.state)).length;
- const busy=!error && matching.some(task=>['pending','sending','verifying'].includes(task.state));
+ const waiting=matching.filter(task=>task.state==='pending').length;
+ const sending=matching.filter(task=>task.state==='sending').length;
+ const verifying=matching.filter(task=>task.state==='verifying').length;
+ const busy=!error && sending>0;
+ const queueStatus=[sending?`Отправка: ${sending}`:'',waiting?`В очереди: ${waiting}`:'',verifying?`Ожидают подтверждения: ${verifying}`:''].filter(Boolean).join(' · ');
  const description=`Записано ${done} из ${matching.length}${attention?`; требуют внимания: ${attention}`:''}${error?`; ${error}`:''}`;
  return <span className="sending-plan-progress" onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
   <details>
@@ -58,9 +62,19 @@ export function SendingPlanDateProgress({row,fallback}:{row:unknown;fallback:Rea
    </summary>
    <span className="sending-plan-progress__details">
     {error&&<span role="alert">{error}<br/></span>}
-    {matching.map(task=><span key={task.cargo_number}>{task.cargo_number} · {task.target_date} · {labels[task.state]||task.state}{task.last_error?` — ${task.last_error}`:''}<br/></span>)}
+    {matching.map(task=>{
+     const date=task.target_date.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3.$2.$1');
+     const statusLabel=labels[task.state]||task.state;
+     return <span key={task.cargo_number}
+      className={`sending-plan-progress__entry sending-plan-progress__entry--${task.state==='done'?'done':'pending'}`}
+      title={`${statusLabel}${task.last_error?` — ${task.last_error}`:''}`}
+      aria-label={`${task.cargo_number}, ${date}, ${statusLabel}${task.last_error?`, ${task.last_error}`:''}`}>
+      {task.cargo_number} · {date}
+     </span>;
+    })}
    </span>
   </details>
+  {queueStatus&&!error&&<span className="sending-plan-progress__status">{queueStatus}</span>}
   {(attention>0 || error)&&<span className="sending-plan-progress__error">{error?'Нет обновления':`Требуют внимания: ${attention}`}</span>}
  </span>;
 }

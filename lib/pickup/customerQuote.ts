@@ -73,7 +73,7 @@ export async function buildPickupCustomerQuote(
   );
 
   const ringName = input.city === "moscow" ? "МКАД" : "КАД";
-  const totalRub = Math.round(calc.total * 100) / 100;
+  const totalRub = Math.round(calc.total);
   const summary = [
     `Забор ${totalRub.toLocaleString("ru-RU")} ₽`,
     `${ringName} +${km.toFixed(1)} км`,

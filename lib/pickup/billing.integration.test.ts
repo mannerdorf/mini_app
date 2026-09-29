@@ -258,3 +258,17 @@ it('resolves the card transport by order without enabling billing or changing jo
   await resolvePickupTransportNumbers(pool,[job]);
   expect(job.linked_transport_number).toBeUndefined();
 });
+
+it('rounds unissued calculator amounts, including previously rejected amounts, before sending', async()=>{
+  await seed();
+  const initial=(await journal()).rows[0];
+  await db.query("UPDATE pickup_billing SET amount=2448.44,status='manual' WHERE job_id=$1",[id]);
+  expect((await journal()).rows[0].amount).toBe(2448);
+  await db.query("UPDATE pickup_billing SET status='not_issued',amount_manual=true WHERE job_id=$1",[id]);
+  const row=(await journal()).rows[0];
+  const saved=await billingEdit(pool,'dispatcher',{action:'billing_save',id,version:row.version,amount:2448.5});
+  await billingSend(pool,'dispatcher',{id,version:saved.version,confirmed:true});
+  expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:initial.source.transportNumber,СтоимостьПикапа:2449});
+  await db.query("UPDATE pickup_billing SET amount=2448.44,status='transmitted' WHERE job_id=$1",[id]);
+  expect((await journal()).rows[0].amount).toBe(2448.44);
+});

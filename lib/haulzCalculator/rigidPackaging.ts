@@ -125,7 +125,7 @@ export function calcRigidPackagingQuote(
   return {
     key: "extra:packaging",
     label: PACKAGING_EXTRA_LABEL,
-    amountRub: Math.round(best.total * 100) / 100,
+    amountRub: Math.round(best.total),
     meta: {
       palletType: best.palletType.code,
       palletCount: best.pallets.length,

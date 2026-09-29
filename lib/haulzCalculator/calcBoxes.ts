@@ -25,7 +25,7 @@ export function calcBoxesQuote(
   return {
     key: "boxes",
     label: BOXES_QUOTE_LABEL,
-    amountRub: Math.round(total * 100) / 100,
+    amountRub: Math.round(total),
     meta: { count },
   };
 }

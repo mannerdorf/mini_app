@@ -24,7 +24,7 @@ export function buildMainlineOptions(
       label: mainlineModeLabelRu(m.mode),
       pricePerKg: Number(m.price_per_kg) || 0,
       deliveryDays: Number(m.delivery_days) || 0,
-      estimatedRub: Math.round((Number(m.price_per_kg) || 0) * billableWeightKg * 100) / 100,
+      estimatedRub: Math.round((Number(m.price_per_kg) || 0) * billableWeightKg),
       billableWeightKg,
       direction: m.direction,
     }))
