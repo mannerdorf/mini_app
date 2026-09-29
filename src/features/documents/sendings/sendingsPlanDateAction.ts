@@ -10,7 +10,7 @@ export async function applySendingsPlanDateForCargo(date:string,numbers:string[]
  try {
    const result=await postSendingsPlanDate(date,[...new Set(numbers.map(formatPerevozkaNumberForApi).filter(Boolean))],setters.auth);
    if(!Array.isArray(result.tasks))throw new Error('Обновите API для работы с очередью плановых дат.');
-   setters.setInfo(`В очереди обработки: ${result.queued}. Результат отображается в «Очереди плановых дат».`);
+   setters.setInfo(`В очереди обработки: ${result.queued}. Прогресс отображается в строках отправок.`);
    if(typeof window!=='undefined')window.dispatchEvent(new Event('haulz:plan-date-queued'));
    setters.onClose?.();
  }catch(e){setters.setError((e as Error).message);}finally{setters.setLoading(false);}

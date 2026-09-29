@@ -1,3 +1,4 @@
+import { SendingPlanDateProgress } from "./PlanDateQueueStatus";
 import React from "react";
 import { motion } from "motion/react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
@@ -213,7 +214,7 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
                                             )}
                                         </Typography.Label>
                                         <Typography.Label>
-                                            План: {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
+                                            План: <SendingPlanDateProgress row={row} fallback={plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'} />
                                         </Typography.Label>
                                     </Flex>
                                     <Typography.Label style={{ fontSize: '0.8rem', color: 'var(--color-text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={vehicle || '—'}>

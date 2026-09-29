@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool } from './_db.js';
 import { respondCorsPreflight } from './_lib/cors.js';
 import { verifyRegisteredUser } from '../lib/verifyRegisteredUser.js';
-import { enqueuePlanDates } from '../lib/planDateQueue.js';
+import { enqueuePlanDates, planDateNumber } from '../lib/planDateQueue.js';
 import { getSuperAdminRequestContext, isVerifiedSuperAdmin } from '../lib/adminDocumentCacheAccess.js';
 export default async function handler(req:VercelRequest,res:VercelResponse) {
  if(respondCorsPreflight(req,res)) return;
@@ -21,6 +21,12 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
      if(user?.permissions?.eor!==true && user?.permissions?.supervisor!==true) return res.status(403).json({error:'Нет права изменять плановую дату'});
    }
    if(body?.action==='status') {
+     if(Array.isArray(body.cargoNumbers)) {
+       if(body.cargoNumbers.length>500) return res.status(400).json({error:'Не более 500 перевозок за запрос'});
+       const numbers=[...new Set(body.cargoNumbers.map(planDateNumber))];
+       const tasks=(await pool.query('SELECT cargo_number,target_date,state,last_error,updated_at FROM plan_date_queue WHERE cargo_number=ANY($1::text[])',[numbers])).rows;
+       return res.status(200).json({tasks});
+     }
      const tasks=(await pool.query(`SELECT cargo_number,target_date,state,last_error,updated_at FROM plan_date_queue ORDER BY (state IN ('pending','sending','verifying','uncertain')) DESC,updated_at DESC LIMIT 100`)).rows;
      return res.status(200).json({tasks});
    }

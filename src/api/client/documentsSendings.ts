@@ -48,9 +48,9 @@ export async function postSendingsPlanDate(date:string,cargoNumbers:string[],aut
  if(!ok)throw new Error(data?.error||'Не удалось поставить дату в очередь');
  return data;
 }
-export async function fetchPlanDateQueue(auth:DocumentsAuth):Promise<PlanDateQueueTask[]> {
+export async function fetchPlanDateQueue(auth:DocumentsAuth,cargoNumbers?:string[]):Promise<PlanDateQueueTask[]> {
  const {ok,data}=await documentsFetchJson<{tasks:PlanDateQueueTask[];error?:string}>("/api/sendings-plan-date",{
-   method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),body:JSON.stringify({action:'status'})
+   method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),body:JSON.stringify({action:'status',cargoNumbers})
  });
  if(!ok)throw new Error(data?.error||'Не удалось прочитать очередь');
  return data.tasks;

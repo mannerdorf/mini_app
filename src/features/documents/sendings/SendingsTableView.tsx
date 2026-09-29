@@ -1,3 +1,4 @@
+import { SendingPlanDateProgress } from "./PlanDateQueueStatus";
 import React from "react";
 import { motion } from "motion/react";
 
@@ -221,7 +222,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                                 {sendingStatusLabel ? <StatusBadge status={sendingStatusLabel} /> : '—'}
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem', whiteSpace: 'nowrap' }}>
-                                                {plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'}
+                                                <SendingPlanDateProgress row={row} fallback={plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'} />
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             {hasAnalytics && (

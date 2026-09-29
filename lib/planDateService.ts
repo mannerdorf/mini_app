@@ -52,11 +52,14 @@ export async function callSetPlanDate(
 }
 
 
+export class PlanDateConfigurationError extends Error {}
 export function planDateCredentials() {
- const login=(process.env.PLAN_DATE_SERVICE_LOGIN||process.env.HAULZ_1C_SERVICE_LOGIN||process.env.PEREVOZKI_SERVICE_LOGIN||'').trim();
- const password=(process.env.PLAN_DATE_SERVICE_PASSWORD||process.env.HAULZ_1C_SERVICE_PASSWORD||process.env.PEREVOZKI_SERVICE_PASSWORD||'').trim();
- if(!login||!password) throw new Error('Не настроены учётные данные записи плановой даты');
- return {login,password};
+ for (const prefix of ['PLAN_DATE_SERVICE','HAULZ_1C_SERVICE','PEREVOZKI_SERVICE','POLL_SERVICE']) {
+   const login=(process.env[`${prefix}_LOGIN`]||'').trim();
+   const password=(process.env[`${prefix}_PASSWORD`]||'').trim();
+   if(login && password) return {login,password};
+ }
+ throw new PlanDateConfigurationError('Не настроена полная пара логина и пароля 1С: PLAN_DATE_SERVICE, HAULZ_1C_SERVICE, PEREVOZKI_SERVICE или POLL_SERVICE. Проверьте окружение haulz-cron и перезапустите службу.');
 }
 export function extractConfirmedPlanDate(data:unknown, number:string):string|null {
  if(!data || typeof data!=='object' || Array.isArray(data)) return null;

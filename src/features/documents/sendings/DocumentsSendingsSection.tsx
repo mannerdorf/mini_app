@@ -1,4 +1,4 @@
-import {PlanDateQueueStatus} from "./PlanDateQueueStatus";
+import {PlanDateQueueProvider} from "./PlanDateQueueStatus";
 import React from "react";
 import { Typography } from "@maxhub/max-ui";
 import { SendingsInfographic } from "./SendingsInfographic";
@@ -69,7 +69,6 @@ export function DocumentsSendingsSection({
             deliveryStatusFilterSet={deliveryStatusFilterSet}
             setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
           />
-          {canEditPlanDate && sendingsSectionProps.auth && <PlanDateQueueStatus auth={sendingsSectionProps.auth} />}
           <SendingsPreface
             hasAnalytics={hasAnalytics}
             showSums={showSums}
@@ -98,7 +97,9 @@ export function DocumentsSendingsSection({
             setSendingsSummaryCollapsed={setSendingsSummaryCollapsed}
             rowsCount={sendingRowsSorted.length}
           />
-          <SendingsSection {...sendingsSectionProps} />
+          <PlanDateQueueProvider auth={canEditPlanDate ? sendingsSectionProps.auth : undefined} rows={sendingRowsSorted}>
+            <SendingsSection {...sendingsSectionProps} />
+          </PlanDateQueueProvider>
         </>
       )}
       {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
