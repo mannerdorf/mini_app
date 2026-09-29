@@ -531,12 +531,29 @@
   min-width: 155px;
 }
 .pk-toolbar--app-filters {
-  align-items: flex-end;
-  gap: 16px;
-  padding: 14px 16px;
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--color-bg-primary, #f4f6f9) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--pk-border) 70%, transparent);
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.pk-root .pk-toolbar--app-filters .filter-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  min-height: var(--control-height-chip, 36px);
+  padding: var(--control-padding-y-chip, 8px) var(--control-padding-x-chip, 14px);
+  background: var(--color-bg-card);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 12px);
+  font-size: var(--text-base, 0.875rem);
+  font-weight: 400;
+  line-height: 1.2;
+}
+.pk-root .pk-toolbar--app-filters .filter-button:hover {
+  background: var(--color-bg-hover);
 }
 .pk-toolbar--app-filters .pk-field--app {
   min-width: 168px;
@@ -918,9 +935,10 @@
   padding: 4px;
   background: var(--pk-panel);
 }
-.pk-route-row.pk-selected {
-  border-color: #235ed5;
-  background: #edf3ff;
+.pk-root .pk-route-row.pk-selected {
+  border-color: var(--color-primary-blue, #235ed5);
+  background: color-mix(in srgb, var(--color-primary-blue, #235ed5) 14%, var(--pk-panel));
+  color: var(--pk-ink);
 }
 .pk-root button.pk-route-tile {
   flex: 1;
@@ -2206,7 +2224,8 @@
   padding: 8px;
   color: var(--color-error, #dc4545);
   background: transparent;
-  border: 1px solid var(--pk-border);
+  border: 0;
+  box-shadow: none;
   border-radius: 8px;
 }
 .pk-root button.pk-delete-icon:hover:not(:disabled) {
@@ -2215,7 +2234,6 @@
     var(--color-error, #dc4545) 10%,
     var(--pk-panel)
   );
-  border-color: var(--color-error, #dc4545);
 }
 
 .pk-route-check { width: min(1100px, calc(100vw - 24px)); max-height: 90dvh; overflow: auto; }

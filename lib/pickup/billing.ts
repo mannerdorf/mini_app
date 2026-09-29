@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import type { Job } from './model.js';
 import { PickupError } from './model.js';
+import { pickBillNumber } from '../notificationPoll.js';
 import { isNormalizedCacheReady } from '../documentCacheNormalized.js';
 import { buildPickupCustomerQuote } from './customerQuote.js';
 import { persistResolvedPickupCoords, resolvePickupPointCoords } from './pvzCoords.js';
@@ -92,14 +93,17 @@ function sourceFor(job: Job, row: any) {
     orderNumber: job.data.zayavkaNumber, ...transportMetrics(row), mode: job.data.customerBillMode,
     city: job.city, km: job.data.mkadKm, latitude: job.data.latitude ?? null, longitude: job.data.longitude ?? null };
 }
-export async function billingJournal(pool: Pool, city: string, date: string, actor: string, onlyJobId?: string) {
-  if (!['moscow','kaliningrad'].includes(city) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new PickupError('Укажите город и дату');
-  const { rows: jobs } = await pool.query<Job>(`SELECT * FROM pickup_jobs WHERE city=$1 AND date=$2 AND status='deposited' AND data->>'issueCustomerBill'='true' AND ($3::uuid IS NULL OR id=$3) ORDER BY job_number`,[city,date,onlyJobId ?? null]);
+export async function billingJournal(pool: Pool, city: string, date: string, actor: string, onlyJobId?: string, dateTo: string = date) {
+  if (!['moscow','kaliningrad'].includes(city) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo) || dateTo < date) throw new PickupError('Укажите город и дату');
+  const { rows: jobs } = await pool.query<Job>(`SELECT *,to_char(date,'YYYY-MM-DD') AS billing_date FROM pickup_jobs WHERE city=$1 AND date BETWEEN $2::date AND $4::date AND status='deposited' AND data->>'issueCustomerBill'='true' AND ($3::uuid IS NULL OR id=$3) ORDER BY date DESC,job_number`,[city,date,onlyJobId ?? null,dateTo]);
   const cargos = jobs.length ? await transports(pool,jobs) : [];
   async function prepareRow(job: Job) {
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
+    let invoiceNumber = '';
     try {
-      source = sourceFor(job, matchBillingTransport(job,cargos));
+      const transport = matchBillingTransport(job,cargos);
+      invoiceNumber = pickBillNumber(transport);
+      source = sourceFor(job, transport);
       if (job.data.customerBillMode === 'auto') {
         if (source.weight == null || source.volume == null || source.chargeableWeight == null || source.places == null) throw new Error('В перевозке отсутствуют места, вес, объём или платный вес');
         let resolved = await resolvePickupPointCoords(pool, job.city, job.data);
@@ -151,8 +155,8 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
         : record?.amount == null
           ? null
           : Number(record.amount);
-    return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,sender:job.data.senderName,
-      ...record, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
+    return { jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
+      ...record, invoiceNumber, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));

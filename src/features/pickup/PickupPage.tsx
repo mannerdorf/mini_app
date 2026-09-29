@@ -84,6 +84,8 @@ import { PickupDispatcherJobStatusPanel } from "./PickupDispatcherJobStatusPanel
 import { PickupBulkAssign } from "./PickupBulkAssign";
 import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
+import { ListDateFilterControl, usePersistedDateFilter, useListDateRange } from "../listWorkspace";
+import { PickupCityFilter, PickupDayFilter } from "./PickupToolbarFilters";
 import { PickupBillingTab } from "./PickupBillingTab";
 import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
 import { PickupDriverMobileRoute } from "./PickupDriverMobileRoute";
@@ -154,6 +156,10 @@ export function PickupPage({
   );
   const [city, setCity] = useState<City>(() => readDriverCity(account.login) || "moscow"),
     [date, setDate] = useState(() => today(readDriverCity(account.login) || "moscow"));
+  const billingDates = usePersistedDateFilter({storageKey:"pickup-billing-date-filter"});
+  const {apiDateRange: billingRange} = useListDateRange(billingDates);
+  const [billingRangeCount,setBillingRangeCount] = useState<number|null>(null);
+  useEffect(()=>setBillingRangeCount(null),[city,billingRange.dateFrom,billingRange.dateTo]);
   const cityChosen = useRef(!!readDriverCity(account.login));
   useEffect(() => {
     const saved = readDriverCity(account.login);
@@ -459,9 +465,7 @@ export function PickupPage({
         label={`${cities[city]} · ${date}`}
       >
         <div className="pk-toolbar pk-toolbar--app-filters">
-          <Select
-            label="Город"
-            variant="app"
+          <PickupCityFilter
             value={city}
             onChange={(v) => {
               setCity(v as City);
@@ -469,15 +473,11 @@ export function PickupPage({
               saveDriverCity(account.login, v as City);
               setDate(today(v as City));
             }}
-            options={Object.entries(cities).map(([id, name]) => ({ id, name }))}
           />
-          <Field
-            label="Дата"
-            variant="app"
-            type="date"
+          {dispatch && tab === "billing" ? <ListDateFilterControl {...billingDates} apiDateRange={billingRange} onResetFilters={()=>billingDates.setDateFilter('сегодня')} /> : <PickupDayFilter
             value={date}
             onChange={setDate}
-          />
+          />}
           {dispatch && (
             <div className="pk-actions">
               <button
@@ -611,7 +611,7 @@ export function PickupPage({
               {(
                 [
                   ["directories", "Справочники"],
-                  ["billing", `Выставление счетов · ${billingCount}`],
+                  ["billing", `Выставление счетов${tab === "billing" ? (billingRangeCount===null ? "" : ` · ${billingRangeCount}`) : ` · ${billingCount}`}`],
                 ] as const
               ).map(([id, label]) => (
                 <button
@@ -644,9 +644,11 @@ export function PickupPage({
           }}
         />
       ) : dispatch && tab === "billing" ? (
-        <PickupBillingTab key={`${city}:${date}`} call={call}
+        <PickupBillingTab key={`${city}:${billingRange.dateFrom}:${billingRange.dateTo}`} call={call}
           city={city}
-          date={date}
+          date={billingRange.dateFrom}
+          dateTo={billingRange.dateTo}
+          onCount={setBillingRangeCount}
           jobs={snapshot.jobs}
           routes={routes}
         />

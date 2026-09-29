@@ -1614,7 +1614,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       dispatcherOnly(actor);
       db.release(); db = undefined;
       const pool = getPool();
-      const result = body.action === "billing_preview" ? await billingPreview(pool,body.id) : body.action === "billing_journal" ? await billingJournal(pool,body.city,body.date,login)
+      const result = body.action === "billing_preview" ? await billingPreview(pool,body.id) : body.action === "billing_journal" ? await billingJournal(pool,body.city,body.dateFrom ?? body.date,login,undefined,body.dateTo ?? body.dateFrom ?? body.date)
         : body.action === "billing_send" ? await billingSend(pool,login,body) : await billingEdit(pool,login,body);
       return res.status(200).json(result);
     }

@@ -1,7 +1,6 @@
 import React from 'react';
 import {act,create} from 'react-test-renderer';
 import {afterEach,expect,it,vi} from 'vitest';
-import {ApiError} from './client';
 import {PickupBillingTab} from './PickupBillingTab';
 let root:ReturnType<typeof create>;
 afterEach(()=>{if(root)act(()=>root.unmount());});
@@ -47,34 +46,21 @@ it('shows the order number even without a transport match',async()=>{
  await mount(vi.fn(async()=>({rows:[{...row,source:undefined}]})));
  expect(root.root.findByProps({'data-label':'№ заявки'}).children).toContain('000123');
 });
-it('opens a sandbox without sending and displays diagnostics after one explicit retry',async()=>{
- const result={ok:false,error:'401',diagnostics:{curl:'curl example',status:401,response:'Unauthorized',elapsedMs:12}};
- const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:b.action==='billing_preview'?{version:4,amount:100,transportNumber:'000001',status:'manual',diagnostics:result.diagnostics}:result);
+it('offers an explicit retry without a sandbox or a preview request',async()=>{
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:{ok:true});
  await mount(call);
- const button=(label:string)=>root.root.findAllByType('button').find(b=>b.children.includes(label))!;
- await act(async()=>button('Выставить счёт · песочница').props.onClick());
- expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(0);
- expect(JSON.stringify(root.toJSON())).toContain('curl example');
- await act(async()=>button('Отправить повторно в 1С').props.onClick());
+ expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal']);
+ const retry=root.root.findAllByType('button').find(b=>b.children.includes('Повторить передачу в 1С'))!;
+ await act(async()=>retry.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true});
- expect(JSON.stringify(root.toJSON())).toContain('Unauthorized');
- expect(JSON.stringify(root.toJSON())).toContain('curl example');
- expect(button('Отправить повторно в 1С').props.disabled).toBe(true);
+ expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(1);
+ expect(call.mock.calls.some(([b])=>b.action==='billing_preview')).toBe(false);
+ expect(JSON.stringify(root.toJSON())).not.toContain('Песочница');
 });
 
-it('keeps curl and exposes the application HTTP response when sending is rejected',async()=>{
- const call=vi.fn(async(b:any)=>{
-  if(b.action==='billing_journal')return {rows:[{...row,status:'manual'}]};
-  if(b.action==='billing_preview')return {version:4,amount:100,status:'manual',diagnostics:{curl:'curl prepared',status:null,response:'',elapsedMs:0}};
-  throw new ApiError('Строка изменилась',409,'{"error":"Строка изменилась"}');
- });
- await mount(call);
- const button=(label:string)=>root.root.findAllByType('button').find(b=>b.children.includes(label))!;
- await act(async()=>button('Выставить счёт · песочница').props.onClick());
- await act(async()=>button('Отправить повторно в 1С').props.onClick());
- const rendered=JSON.stringify(root.toJSON());
- expect(rendered).toContain('curl prepared');
- expect(rendered).toContain('409');
- expect(rendered).toContain('Ответ 1С не получен');
- expect(button('Обновить данные и запрос').props.disabled).toBe(false);
+it('shows the invoice number in the status column once it is available',async()=>{
+ await mount(vi.fn(async()=>({rows:[{...row,status:'transmitted',invoiceNumber:'000001529'}]})));
+ const status=root.root.findByProps({'data-label':'Статус'});
+ expect(status.findByType('strong').children).toEqual(['Счёт № 000001529']);
+ expect(JSON.stringify(status.children.map(c=>typeof c==='string'?c:null))).not.toContain('Передано в 1С');
 });

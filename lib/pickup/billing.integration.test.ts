@@ -285,3 +285,27 @@ it('retries a rejected transfer only explicitly and rejects stale or completed r
   await expect(billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,retry:true})).rejects.toThrow();
   expect(deliverySetter).toHaveBeenCalledTimes(2);
 });
+
+it('reads a newly issued invoice from the current transport without changing the sent billing record',async()=>{
+  await seed();
+  await processPickupAutoBilling(pool);
+  const before=(await journal()).rows[0];
+  expect(before.invoiceNumber).toBe('');
+  await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([{...cargo(),BillNum:'000001529'}])]);
+  const after=(await journal()).rows[0];
+  expect(after.invoiceNumber).toBe('000001529');
+  expect(after.status).toBe('transmitted');
+  expect(after.version).toBe(before.version);
+  expect(deliverySetter).toHaveBeenCalledTimes(1);
+});
+
+it('includes both ends of the billing period and returns each job date',async()=>{
+  await seed();
+  for(const [number,date] of [['ZB-002','2026-09-18'],['ZB-003','2026-09-19']]) {
+    await db.query("INSERT INTO pickup_jobs SELECT $1,$2,city,$3,status,data FROM pickup_jobs WHERE id=$4",[randomUUID(),number,date,id]);
+  }
+  const result=await billingJournal(pool,'moscow','2026-09-17','dispatcher',undefined,'2026-09-18');
+  expect(result.rows.map(row=>[row.jobNumber,row.date])).toEqual([['ZB-002','2026-09-18'],['ZB-001','2026-09-17']]);
+  expect((await journal()).rows).toHaveLength(1);
+  await expect(billingJournal(pool,'moscow','2026-09-18','dispatcher',undefined,'2026-09-17')).rejects.toThrow();
+});
