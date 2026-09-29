@@ -1,5 +1,6 @@
 import {createContext,useContext,useEffect,useState,type ReactNode} from 'react';
 import './plan-date-queue.css';
+import {uniquePlanDateTasks} from './planDateQueueTasks';
 import {fetchPlanDateQueue,type PlanDateQueueTask} from '../../../api/client/documentsSendings';
 import type {DocumentsAuth} from '../../../api/client/documentsAuth';
 import {collectSendingFreightCargoNumbers} from './sendingsMetrics';
@@ -26,7 +27,7 @@ export function PlanDateQueueProvider({auth,rows,children}:{auth?:DocumentsAuth|
      if(stopped)return;
      tasks.push(...await fetchPlanDateQueue(auth,numbers.slice(offset,offset+500)));
     }
-    if(!stopped)setState({tasks,error:''});
+    if(!stopped)setState({tasks:uniquePlanDateTasks(tasks),error:''});
    }catch(e){if(!stopped)setState(prev=>({...prev,error:(e as Error).message}));}
    finally{running=false;}
   };
