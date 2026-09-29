@@ -69,3 +69,15 @@ it('explicitly resumes failed tasks once while protecting active and stale tasks
  const done=await task();
  await expect(resumePlanDate(pool,'142716','2026-09-30',new Date(done.updated_at).toISOString(),'dispatcher')).rejects.toThrow();
 });
+
+it('reconciles only verification tasks and preserves the actual verification error',async()=>{
+ await enqueuePlanDates(pool,['142716','142717'],'2026-09-30','user');
+ await db.exec("UPDATE plan_date_queue SET state='verifying',checks=2 WHERE cargo_number='000142717'");
+ const io={write:vi.fn(async()=>({ok:true})),read:vi.fn(async()=>{throw new Error('В свежих данных 1С плановая дата не заполнена');})};
+ await processPlanDateQueue(pool,io,true);
+ expect(io.write).not.toHaveBeenCalled();
+ const rows=(await db.query<any>('SELECT * FROM plan_date_queue ORDER BY cargo_number')).rows;
+ expect(rows[0].state).toBe('pending');
+ expect(rows[1].state).toBe('uncertain');
+ expect(rows[1].last_error).toContain('не заполнена');
+});

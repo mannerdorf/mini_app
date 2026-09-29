@@ -9,7 +9,7 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
  const denied=requireCronAuth(req);if(denied)return res.status(denied.status).json({error:denied.error});
  try {
    const {login,password}=planDateCredentials(),pool=getPool();
-   const result=await processPlanDateQueue(pool,{write:(number,date)=>callSetPlanDate(login,password,number,date),read:number=>readPlanDate(login,password,number)});
+   const result=await processPlanDateQueue(pool,{write:(number,date)=>callSetPlanDate(login,password,number,date),read:number=>readPlanDate(pool,login,password,number)});
    if(result.done && result.number) {
      void dispatchPlannedDeliveryDatePush({pool,date:result.date,cargoNumbers:[result.number]}).catch(()=>{});
    }

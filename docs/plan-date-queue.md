@@ -69,3 +69,14 @@ cd /opt/haulz/app
 
 Проверка БД: `SELECT cargo_number,target_date,state,attempts,checks,last_error FROM plan_date_queue ORDER BY updated_at DESC;`
 При `uncertain` не сбрасывать состояние в pending без сверки с 1С.
+
+Проверка результата использует свежий `GetPerevozki` с ИНН и датами документа из кэша
+и читает `DateArrival`. Метод `GETAPI?metod=Getperevozka` возвращает историю/упаковки
+и для проверки плановой даты не подходит. Кэш служит только для параметров поиска;
+сохранённые в нём даты не подтверждают запись. Пустые даты, несовпадения и ошибки
+чтения сохраняются в `last_error` отдельно.
+
+Для повторной сверки старых `uncertain` переводить выбранные записи в `verifying`,
+сбрасывая `checks`, но сохраняя `attempts`. `processPlanDateQueue(pool, io, true)`
+обрабатывает только проверки и никогда не вызывает запись. Не переводить их в
+`pending`: это повторная отправка в 1С.

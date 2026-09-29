@@ -42,7 +42,7 @@ export async function resumePlanDate(pool:Pool, number:unknown, date:unknown, up
   if(!result.rows.length) throw new Error('Запись уже изменилась или обрабатывается. Обновите очередь.');
   return result.rows[0];
 }
-export async function processPlanDateQueue(pool:Pool, io:PlanDateIO) {
+export async function processPlanDateQueue(pool:Pool, io:PlanDateIO, verificationOnly=false) {
   const db=await pool.connect();
   let locked=false;
   try {
@@ -51,7 +51,7 @@ export async function processPlanDateQueue(pool:Pool, io:PlanDateIO) {
     // A crashed sender is reconciled by reading, never resent.
     await db.query(`UPDATE plan_date_queue SET state='verifying',next_at=now(),last_error='Проверка после прерывания записи'
       WHERE state='sending' AND updated_at<now()-interval '3 minutes'`);
-    const task=(await db.query<PlanDateTask>(`SELECT * FROM plan_date_queue WHERE state IN ('pending','verifying') AND next_at<=now() ORDER BY next_at,created_at LIMIT 1`)).rows[0];
+    const task=(await db.query<PlanDateTask>(`SELECT * FROM plan_date_queue WHERE state IN ('pending','verifying') AND (NOT $1::boolean OR state='verifying') AND next_at<=now() ORDER BY next_at,created_at LIMIT 1`,[verificationOnly])).rows[0];
     if(!task) return {processed:0};
     let done=false;
     if(task.state==='pending') {
@@ -65,11 +65,12 @@ export async function processPlanDateQueue(pool:Pool, io:PlanDateIO) {
         [task.cargo_number,result.uncertain?'verifying':'error',result.error||'1С отклонила запись']);
     } else {
       let observed:string|null=null;
-      try{observed=await io.read(task.cargo_number);}catch{/* retain the ambiguous write */}
+      let readError='';
+      try{observed=await io.read(task.cargo_number);}catch(error){readError=error instanceof Error?error.message:'Ошибка проверки даты в 1С';}
       done=observed===task.target_date;
       if(!done) await db.query(`UPDATE plan_date_queue SET checks=checks+1,state=CASE WHEN checks>=2 THEN 'uncertain' ELSE 'verifying' END,
         next_at=now()+interval '5 minutes',updated_at=now(),last_error=$2 WHERE cargo_number=$1`,
-        [task.cargo_number,observed?`В 1С дата ${observed}; требуется сверка`:'1С не вернула подтверждение плановой даты; требуется сверка']);
+        [task.cargo_number,observed?`В 1С дата ${observed}; ожидается ${task.target_date}`:readError||'1С не вернула подтверждение плановой даты; требуется сверка']);
     }
     if(done) {
       await db.query('BEGIN');

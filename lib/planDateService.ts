@@ -1,5 +1,6 @@
 const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+import { SERVICE_AUTH } from './oneCServiceAuth.js';
+import type { Pool } from 'pg';
 
 const normalizeText = (value: unknown) => String(value ?? "").trim();
 
@@ -76,9 +77,40 @@ export function extractConfirmedPlanDate(data:unknown, number:string):string|nul
  }
  return null;
 }
-export async function readPlanDate(login:string,password:string,number:string) {
- const url=new URL(BASE_URL);url.searchParams.set('metod','Getperevozka');url.searchParams.set('Number',number);
- const response=await fetch(url,{headers:{Auth:`Basic ${login}:${password}`,Authorization:SERVICE_AUTH},signal:AbortSignal.timeout(25000)});
- if(!response.ok) return null;
- return extractConfirmedPlanDate(await response.json(),number);
+/** Getperevozka returns history/packages; only GetPerevozki exposes DateArrival. */
+export async function readPlanDate(pool:Pool,login:string,password:string,number:string) {
+ const normalized=(await pool.query("SELECT to_regclass('public.cache_perevozki_rows') AS name")).rows[0]?.name;
+ let rows:any[]=[];
+ if(normalized) rows=(await pool.query(`SELECT payload FROM cache_perevozki_rows
+   WHERE ltrim(coalesce(payload->>'rawNumber',payload->>'Number'),'0')=ltrim($1,'0')`,[number])).rows.map(r=>r.payload);
+ if(!rows.length) {
+   const legacy=(await pool.query("SELECT to_regclass('public.cache_perevozki') AS name")).rows[0]?.name;
+   if(legacy) rows=(await pool.query(`SELECT item AS payload FROM cache_perevozki,
+     LATERAL jsonb_array_elements(data) item WHERE id=1 AND ltrim(coalesce(item->>'rawNumber',item->>'Number'),'0')=ltrim($1,'0')`,[number])).rows.map(r=>r.payload);
+ }
+ if(rows.length!==1) throw new Error('Не найдена однозначная перевозка для проверки даты в 1С');
+ const cached=rows[0];
+ const inn=String(cached.ЗаказчикИНН??cached.INN??cached.CustomerINN??'').trim();
+ const dates=[cached.DatePrih,cached.DateDoc].map(v=>String(v??'').slice(0,10)).filter(v=>/^\d{4}-\d{2}-\d{2}$/.test(v)&&v>'2000-01-01'&&Number.isFinite(Date.parse(v))).sort();
+ if(!inn||!dates.length) throw new Error('Не хватает ИНН или даты перевозки для проверки в 1С');
+ const url=new URL('https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki');
+ url.searchParams.set('INN',inn);
+ url.searchParams.set('DateB',dates[0]);url.searchParams.set('DateE',dates[dates.length-1]);
+ let response:Response;
+ try {response=await fetch(url,{headers:{Auth:`Basic ${login}:${password}`,Authorization:SERVICE_AUTH},signal:AbortSignal.timeout(60000)});}
+ catch {throw new Error('Не удалось получить свежую дату из 1С за 60 секунд; результат записи не проверен');}
+ if(!response.ok) throw new Error(`Проверка даты в 1С: HTTP ${response.status}`);
+ const data:any=await response.json();
+ const items=Array.isArray(data)?data:data?.items;
+ if(!Array.isArray(items)) throw new Error('1С вернула неожиданный формат списка перевозок');
+ const matches=items.filter(r=>r&&typeof r==='object'&&String(r.rawNumber??r.Number??'').replace(/^0+/,'')===number.replace(/^0+/,''));
+ if(matches.length!==1) throw new Error('Перевозка не найдена однозначно в свежем ответе 1С');
+ const row=matches[0];
+ const receivedInn=String(row.ЗаказчикИНН??row.INN??row.CustomerINN??'').trim();
+ if(receivedInn && receivedInn!==inn) throw new Error('ИНН перевозки в ответе 1С не совпадает');
+ // Read the real list field, never synthetic plan fields patched into our cache.
+ const date=String(row.DateArrival??'').slice(0,10);
+ if(!date || date==='0001-01-01') throw new Error('В свежих данных 1С плановая дата не заполнена');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date) throw new Error('В 1С некорректная плановая дата');
+ return date;
 }
