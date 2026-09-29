@@ -157,6 +157,7 @@ export function PickupPage({
   );
   const [city, setCity] = useState<City>(() => readDriverCity(account.login) || "moscow"),
     [date, setDate] = useState(() => today(readDriverCity(account.login) || "moscow"));
+  const {openInvoiceInPlace} = useAppNavigation();
   const billingDates = usePersistedDateFilter({storageKey:"pickup-billing-date-filter"});
   const {apiDateRange: billingRange} = useListDateRange(billingDates);
   const [billingRangeCount,setBillingRangeCount] = useState<number|null>(null);
@@ -651,6 +652,7 @@ export function PickupPage({
           date={billingRange.dateFrom}
           dateTo={billingRange.dateTo}
           onCount={setBillingRangeCount}
+          onOpenInvoice={openInvoiceInPlace}
           jobs={snapshot.jobs}
           routes={routes}
         />

@@ -1,3 +1,4 @@
+import { ClickableInvoiceNumber } from '../../components/ui/EntityLinks';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Job, Route } from '../../../lib/pickup/model';
 import { cities } from '../../../lib/pickup/model';
@@ -8,7 +9,7 @@ type Row = {invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:str
   source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Передано в 1С',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставлен',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
-export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount}: {city:keyof typeof cities;date:string;dateTo?:string;onCount?:(count:number)=>void;jobs:Job[];routes:Route[];call:PickupCall}) {
+export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpenInvoice}: {city:keyof typeof cities;date:string;dateTo?:string;onCount?:(count:number)=>void;onOpenInvoice?:(invoice:Record<string,unknown>)=>void;jobs:Job[];routes:Route[];call:PickupCall}) {
   const [rows,setRows]=useState<Row[]>([]),[drafts,setDrafts]=useState<BillingDrafts>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const running=useRef(false);
@@ -69,7 +70,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount}: {cit
           <button disabled={busy} onClick={()=>setDrafts(previous=>({...previous,[row.jobId]:{...previous[row.jobId],baseVersion:row.version}}))}>Оставить мой ввод</button>
         </div>}
       </td>
-      <td data-label="Статус"><strong style={{color:row.invoiceNumber||['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{row.invoiceNumber ? `Счёт № ${row.invoiceNumber}` : labels[row.status||'']||'Нет данных'}</strong>{row.error&&<small style={{display:'block'}}>{row.error}</small>}</td>
+      <td data-label="Статус"><strong style={{color:row.invoiceNumber||['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.customer}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : labels[row.status||'']||'Нет данных'}</strong>{row.error&&<small style={{display:'block'}}>{row.error}</small>}</td>
       <td data-label="Действие">{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
       {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Повторно записать стоимость в 1С?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
       {['manual','uncertain','sending'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(window.confirm(`Подтвердить: счёт по забору ${row.jobNumber} действительно выставлен в 1С?`))void run(async()=>{await call({action:'billing_mark_issued',id:row.jobId,version:row.version});});}}>Подтвердить ручное выставление</button>}</td>

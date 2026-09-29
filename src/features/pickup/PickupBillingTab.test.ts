@@ -5,7 +5,7 @@ import {PickupBillingTab} from './PickupBillingTab';
 let root:ReturnType<typeof create>;
 afterEach(()=>{if(root)act(()=>root.unmount());});
 const row={jobId:'1',jobNumber:'ZB-1',date:'2026-09-19',customer:'Тест',version:4,amount:100,status:'not_issued',orderNumber:'000123'};
-async function mount(call:any){await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:row.date,jobs:[],routes:[],call}));});}
+async function mount(call:any,onOpenInvoice?: (invoice:Record<string,unknown>)=>void){await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:row.date,jobs:[],routes:[],call,onOpenInvoice}));});}
 const issue=()=>root.root.findAllByType('button').find(b=>b.children.includes('Выставить счёт'))!;
 it('saves the edited amount before sending with the returned version',async()=>{
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[row]}:b.action==='billing_save'?{ok:true,version:5}:{ok:true,status:'transmitted'});
@@ -58,9 +58,12 @@ it('offers an explicit retry without a sandbox or a preview request',async()=>{
  expect(JSON.stringify(root.toJSON())).not.toContain('Песочница');
 });
 
-it('shows the invoice number in the status column once it is available',async()=>{
- await mount(vi.fn(async()=>({rows:[{...row,status:'transmitted',invoiceNumber:'000001529'}]})));
+it('opens the invoice when its number is clicked',async()=>{
+ const open=vi.fn();
+ await mount(vi.fn(async()=>({rows:[{...row,status:'transmitted',invoiceNumber:'000001529'}]})),open);
  const status=root.root.findByProps({'data-label':'Статус'});
- expect(status.findByType('strong').children).toEqual(['Счёт № 000001529']);
- expect(JSON.stringify(status.children.map(c=>typeof c==='string'?c:null))).not.toContain('Передано в 1С');
+ const stopPropagation=vi.fn();
+ await act(async()=>status.findByType('button').props.onClick({stopPropagation}));
+ expect(open).toHaveBeenCalledWith({Number:'000001529',Customer:'Тест'});
+ expect(stopPropagation).toHaveBeenCalledOnce();
 });
