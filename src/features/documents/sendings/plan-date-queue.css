@@ -1,0 +1,81 @@
+.plan-date-queue {
+  margin: 12px 0;
+  padding: 8px 0;
+  font-size: 0.8rem;
+}
+
+.plan-date-queue__heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.plan-date-queue__heading > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.plan-date-queue__heading > :last-child {
+  color: var(--color-text-secondary);
+}
+
+.plan-date-queue__track {
+  flex: 1 0 48px;
+  min-width: 48px;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--color-bg-hover, #e8edf5);
+}
+
+.plan-date-queue__fill {
+  height: 100%;
+  width: 100%;
+  border-radius: inherit;
+  background: var(--color-success, #10b981);
+}
+
+.plan-date-queue__track--busy .plan-date-queue__fill {
+  width: 35%;
+  background: linear-gradient(90deg, #60a5fa, var(--color-primary-blue, #2563eb));
+  animation: plan-date-queue-loading 1.8s ease-in-out infinite;
+}
+
+.plan-date-queue__track--attention:not(.plan-date-queue__track--busy) .plan-date-queue__fill {
+  background: var(--color-warning, #b45309);
+}
+
+.plan-date-queue__notice {
+  margin: 6px 0 0;
+  color: var(--color-warning, #b45309);
+}
+
+.plan-date-queue__details {
+  margin-top: 6px;
+  color: var(--color-text-secondary);
+}
+
+.plan-date-queue__details summary {
+  cursor: pointer;
+  width: fit-content;
+}
+
+.plan-date-queue__tasks {
+  max-height: 240px;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  color: var(--color-text-primary);
+}
+
+@keyframes plan-date-queue-loading {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(286%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plan-date-queue__track--busy .plan-date-queue__fill {
+    animation: none;
+    width: 100%;
+    opacity: 0.6;
+  }
+}

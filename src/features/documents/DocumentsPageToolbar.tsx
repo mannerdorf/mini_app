@@ -1,7 +1,7 @@
 import React, { useRef } from "react";
 import { motion } from "motion/react";
 import { Button, Typography } from "@maxhub/max-ui";
-import { ChevronDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { FilterDropdownPortal } from "../../components/ui/FilterDropdownPortal";
 import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton";
 import { CustomPeriodModal } from "../../components/modals/CustomPeriodModal";
@@ -179,8 +179,6 @@ export function DocumentsPageToolbar({
   closeDocumentsToolbarDropdownsForTransport,
 }: DocumentsPageToolbarProps) {
   const {
-    sortOrder,
-    onToggleSort,
     dateFilter,
     setDateFilter,
     apiDateRange,
@@ -230,16 +228,6 @@ export function DocumentsPageToolbar({
             style={{ display: "flex", gap: "0.5rem", alignItems: "center", flexShrink: 0 }}
           >
             <ResetAllFiltersButton />
-            {docSection !== "Тарифы" && docSection !== "Договоры" ? (
-              <Button
-                className="filter-button"
-                style={{ padding: "0.5rem", minWidth: "auto" }}
-                onClick={onToggleSort}
-                title={sortOrder === "desc" ? "Дата по убыванию" : "Дата по возрастанию"}
-              >
-                {sortOrder === "desc" ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
-              </Button>
-            ) : null}
             {docSection !== "Договоры" ? (
               <>
                 <div ref={dateButtonRef} style={{ display: "inline-flex" }}>

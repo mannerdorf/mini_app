@@ -18,7 +18,8 @@ export function ResetAllFiltersButton({ onReset, className }: Props) {
         padding: "0.5rem",
         minWidth: "auto",
         color: "#dc2626",
-        borderColor: "#fecaca",
+        border: "none",
+        boxShadow: "none",
         flexShrink: 0,
       }}
       onClick={() => {
