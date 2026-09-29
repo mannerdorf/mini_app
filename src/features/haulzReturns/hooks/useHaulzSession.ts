@@ -118,6 +118,7 @@ export function useHaulzSession({
       try {
         let data = await getHaulzReturnsJob(auth, id);
         if (!current()) return;
+        if (!data.job || !Array.isArray(data.files)) throw new Error('Сервер вернул неполные данные сессии. Повторите открытие.');
 
         if (!data.workbook && data.files.length > 0) {
           await processHaulzReturnsJob(auth, id);
@@ -126,6 +127,8 @@ export function useHaulzSession({
           if (!current()) return;
         }
 
+        if (!data.job || !Array.isArray(data.files)) throw new Error('Сервер вернул неполные данные сессии. Повторите открытие.');
+        if (!data.workbook && data.job.status === 'ready') throw new Error('Не удалось загрузить сохранённый результат сессии. Повторите открытие.');
         if (data.workbook) {
           const savedTdMeta = {
             tdDraft: data.workbook.tdDraft,

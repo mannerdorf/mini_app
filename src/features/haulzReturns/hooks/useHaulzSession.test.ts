@@ -60,3 +60,10 @@ it("invalidates a pending load when starting a new upload", async () => {
   expect(session.jobId).toBe("new-upload");
   expect(session.storedFiles).toEqual([]);
 });
+it('does not select an empty session when the API response has no job',async()=>{
+ vi.mocked(getHaulzReturnsJob).mockResolvedValue({files:[],workbook:null} as never);
+ await act(async()=>session.loadJob('A'));
+ expect(session.jobId).toBeNull();
+ expect(setters.setError).toHaveBeenLastCalledWith('Сервер вернул неполные данные сессии. Повторите открытие.');
+ expect(setters.setProcessing).toHaveBeenLastCalledWith(false);
+});

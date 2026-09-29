@@ -177,11 +177,18 @@ export async function getHaulzReturnsJob(
   workbook: HaulzWorkbook | null;
   needsUlTdDatePersist?: boolean;
 }> {
-  const res = await fetch(`/api/haulz-returns/job?jobId=${encodeURIComponent(jobId)}`, {
-    headers: authHeaders(auth),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res, data)}`);
+  // A malformed/truncated response must not become a successfully loaded empty session.
+  const url = haulzReturnsApiUrl(`/api/haulz-returns/job?jobId=${encodeURIComponent(jobId)}`);
+  let data: any;
+  for(let attempt=0;attempt<2;attempt++) {
+    const res=await fetch(url,{headers:authHeaders(auth),cache:'no-store'});
+    try { data=await res.json(); } catch { data=null; }
+    if(!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res,data)}`);
+    if(data && typeof data==='object' && data.job && String(data.job.id)===String(jobId)
+      && Array.isArray(data.files) && Object.prototype.hasOwnProperty.call(data,'workbook')
+      && (data.workbook===null || Array.isArray(data.workbook?.sheets))) break;
+    if(attempt===1) throw new Error('[загрузка сессии] Сервер вернул неполные данные сессии. Повторите открытие.');
+  }
   type WorkbookWire = Omit<HaulzWorkbook, "itogControlKeys" | "excludedUlNumbers"> & {
     itogControlKeys?: string[] | { keys?: string[]; excludedUl?: string[] };
     excludedUlNumbers?: string[];
