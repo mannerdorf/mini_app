@@ -58,6 +58,7 @@ export function useHaulzSession({
   } = setters;
 
   const [jobId, setJobIdState] = useState<string | null>(null);
+  const [loadingJobId,setLoadingJobId]=useState<string|null>(null);
   const loadSequence = useRef(0);
   const listSequence = useRef(0);
   const authRef = useRef(auth);
@@ -70,6 +71,7 @@ export function useHaulzSession({
   const setJobId = useCallback<React.Dispatch<React.SetStateAction<string | null>>>((value) => {
     ++loadSequence.current;
     setJobIdState(value);
+    setLoadingJobId(null);
     setProcessing(false);
   }, [setProcessing]);
   const [storedFiles, setStoredFiles] = useState<HaulzReturnsFileMeta[]>([]);
@@ -83,6 +85,7 @@ export function useHaulzSession({
 
   useEffect(() => {
     autoLoadedSessionRef.current = false;
+    setLoadingJobId(null);
     setJobIdState(null); setStoredFiles([]); setJobs([]); setWorkbook(null);
     setOtpravkaFile(null); setUlPrio1([]); setUlPrio2([]); setProcessing(false);
     setJobsError(null); setRenamingJobId(null); setRenameDraft(""); setRenaming(false); setError(null);
@@ -113,6 +116,7 @@ export function useHaulzSession({
       const seq = ++loadSequence.current;
       const current = () => seq === loadSequence.current;
       setError(null);
+      setLoadingJobId(id);
       setProcessing(true);
       setJobIdState(null); setStoredFiles([]); setWorkbook(null);
       try {
@@ -156,7 +160,7 @@ export function useHaulzSession({
       } catch (e: unknown) {
         if (current()) setError((e as Error)?.message || "Ошибка загрузки сессии");
       } finally {
-        if (current()) setProcessing(false);
+        if (current()) { setProcessing(false); setLoadingJobId(null); }
       }
     },
     [
@@ -253,6 +257,7 @@ export function useHaulzSession({
 
   return {
     jobId,
+    loadingJobId,
     setJobId,
     storedFiles,
     setStoredFiles,

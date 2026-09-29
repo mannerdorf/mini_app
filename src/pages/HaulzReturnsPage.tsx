@@ -153,6 +153,7 @@ export function HaulzReturnsPage({ auth, onBack, pageTitle = "Возврат и�
         ) : null}
       </Flex>
 
+      {session.loadingJobId&&<p role="status">Загружаем сохранённую сессию {session.jobs.find(job=>job.id===session.loadingJobId)?.title||session.loadingJobId}…</p>}
       <HaulzSessionList
         jobs={session.jobs}
         loadingJobs={session.loadingJobs}

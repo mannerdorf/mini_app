@@ -78,7 +78,7 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
       <button disabled={busy} onClick={()=>setSandbox(null)}>Закрыть</button>
       <h4>curl запроса в 1С</h4>
       <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result?.diagnostics?.curl||sandbox.preview?.curl||'Запрос ещё не подготовлен: требуется ответ API с актуальной конфигурацией 1С.'}</pre>
-      <p>Учётные данные заменены переменными ONE_C_LOGIN и ONE_C_PASSWORD.</p>
+      <p>Учётные данные заменены переменными PEREVOZKI_SERVICE_LOGIN, PEREVOZKI_SERVICE_PASSWORD и SERVICE_AUTH.</p>
       <h4>Ответ API приложения{sandbox.apiStatus?` · HTTP ${sandbox.apiStatus}`:''}</h4>
       <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.apiResponse||sandbox.error|| (sandbox.result ? JSON.stringify(sandbox.result,null,2) : 'Отправка ещё не выполнялась.')}</pre>
       {!sandbox.result?.diagnostics&&<><h4>Ответ 1С</h4><p>{sandbox.error?'Ответ 1С не получен: запрос остановлен на уровне API приложения или соединения.':'Запрос в 1С ещё не отправлен.'}</p></>}

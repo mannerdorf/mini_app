@@ -366,8 +366,15 @@
 .pk-root .pk-customer-quote__fields {
   margin-top: 8px;
 }
+.pk-root .pk-billing {
+  container-type: inline-size;
+  container-name: pickup-billing;
+  min-width: 0;
+}
 .pk-root .pk-billing-table-wrap {
-  overflow-x: auto;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin-top: 12px;
   border: 1px solid var(--pk-border);
   border-radius: 12px;
@@ -375,13 +382,15 @@
 }
 .pk-root .pk-billing-table {
   width: 100%;
-  min-width: 880px;
+  min-width: 0;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
 }
 .pk-root .pk-billing-table th,
 .pk-root .pk-billing-table td {
-  padding: 10px 12px;
+  padding: 10px 6px;
+  overflow-wrap: anywhere;
   text-align: left;
   vertical-align: top;
   border-bottom: 1px solid var(--pk-border);
@@ -389,8 +398,24 @@
 .pk-root .pk-billing-table th {
   font-weight: 600;
   background: var(--pk-panel);
-  white-space: nowrap;
+  white-space: normal;
 }
+/* Keep every column, including actions, inside the panel. */
+.pk-root .pk-billing-table th:nth-child(1) { width: 6%; }
+.pk-root .pk-billing-table th:nth-child(2),
+.pk-root .pk-billing-table th:nth-child(3) { width: 9%; }
+.pk-root .pk-billing-table th:nth-child(4) { width: 4%; }
+.pk-root .pk-billing-table th:nth-child(5),
+.pk-root .pk-billing-table th:nth-child(6) { width: 5%; }
+.pk-root .pk-billing-table th:nth-child(7),
+.pk-root .pk-billing-table th:nth-child(8) { width: 7%; }
+.pk-root .pk-billing-table th:nth-child(9),
+.pk-root .pk-billing-table th:nth-child(10),
+.pk-root .pk-billing-table th:nth-child(11) { width: 8%; }
+.pk-root .pk-billing-table th:nth-child(12),
+.pk-root .pk-billing-table th:nth-child(13) { width: 12%; }
+.pk-root .pk-billing-table :is(input, button) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.pk-root .pk-billing-table button { white-space: normal; overflow-wrap: anywhere; padding: 8px 6px; }
 .pk-root .pk-billing-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -2472,8 +2497,8 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-root { --pk-success-text: #4ade80; --pk-warning-text: #fbbf24; }
 .light-mode .pk-root { --pk-success-text: #166534; --pk-warning-text: #92400e; }
 
-/* Keep one set of financial inputs: each table row becomes a mobile card. */
-@media (max-width: 767px) {
+/* Narrow panels use cards so actions and financial inputs remain readable. */
+@container pickup-billing (max-width: 1100px) {
   .pk-root .pk-billing-table-wrap { overflow: visible; }
   .pk-root .pk-billing-table { min-width: 0; width: 100%; }
   .pk-root .pk-billing-table thead { display: none; }

@@ -13,7 +13,7 @@ it('recovers from an incomplete response with one read-only retry',async()=>{
 });
 it('rejects empty successful responses instead of manufacturing an empty session',async()=>{
  const fetcher=vi.fn(async()=>new Response('{}'));vi.stubGlobal('fetch',fetcher);
- await expect(getHaulzReturnsJob(auth,'34')).rejects.toThrow('неполные данные');
+ await expect(getHaulzReturnsJob(auth,'34')).rejects.toThrow('Неполный ответ API');
  expect(fetcher).toHaveBeenCalledTimes(2);
 });
 it('does not retry permission failures',async()=>{

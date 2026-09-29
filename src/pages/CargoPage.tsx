@@ -2,7 +2,7 @@ import { CacheFreshness } from "../components/shared/CacheFreshness";
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { ChevronDown, X, ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import { TapSwitch } from "../components/TapSwitch";
 import { FilterDropdownPortal } from "../components/ui/FilterDropdownPortal";
 import { ResetAllFiltersButton } from "../components/ui/ResetAllFiltersButton";
@@ -714,41 +714,6 @@ export function CargoPage({
             <div className="filters-container filters-row-scroll">
                 <div className="filter-group" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0 }}>
                     <ResetAllFiltersButton />
-                    <Button
-                        className="filter-button"
-                        style={{ padding: '0.5rem', minWidth: 'auto' }}
-                        onClick={() => {
-                            if (!sortBy) {
-                                setSortBy('datePrih');
-                                setSortOrder('desc');
-                            } else if (sortBy === 'datePrih' && sortOrder === 'desc') {
-                                setSortOrder('asc');
-                            } else if (sortBy === 'datePrih' && sortOrder === 'asc') {
-                                setSortBy('dateVr');
-                                setSortOrder('desc');
-                            } else if (sortBy === 'dateVr' && sortOrder === 'desc') {
-                                setSortOrder('asc');
-                            } else if (sortBy === 'dateVr' && sortOrder === 'asc') {
-                                setSortBy(null);
-                                setSortOrder('desc');
-                            }
-                        }}
-                        title={
-                            !sortBy ? "Сортировать по дате прихода" :
-                            sortBy === 'datePrih' && sortOrder === 'desc' ? "Сортировать по дате прихода (возрастание)" :
-                            sortBy === 'datePrih' && sortOrder === 'asc' ? "Сортировать по дате доставки" :
-                            sortBy === 'dateVr' && sortOrder === 'desc' ? "Сортировать по дате доставки (возрастание)" :
-                            "Сбросить сортировку"
-                        }
-                    >
-                        {!sortBy ? (
-                            <ArrowUpDown className="w-4 h-4" style={{ opacity: 0.5 }} />
-                        ) : sortOrder === 'asc' ? (
-                            <ArrowUp className="w-4 h-4" />
-                        ) : (
-                            <ArrowDown className="w-4 h-4" />
-                        )}
-                    </Button>
                     <div ref={dateButtonRef} style={{ display: 'inline-flex' }}>
                         <Button className="filter-button" onClick={() => { setIsDateDropdownOpen(!isDateDropdownOpen); setDateDropdownMode('main'); setIsStatusDropdownOpen(false); setIsSenderDropdownOpen(false); setIsReceiverDropdownOpen(false); setIsBillStatusDropdownOpen(false); setIsTypeDropdownOpen(false); setIsRouteDropdownOpen(false); setIsLastMileDropdownOpen(false); setIsRoleDropdownOpen(false); }}>
                             Дата: {formatDateFilterButtonLabel({

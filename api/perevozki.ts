@@ -1,3 +1,4 @@
+import { SERVICE_AUTH } from "../lib/oneCServiceAuth.js";
 import { annotateCargoPickupPhotos } from "../lib/pickup/cargoPhotoIndicator.js";
 import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
@@ -47,7 +48,7 @@ function parseCargoDateField(raw: unknown): CargoDateField {
 const BASE_URL =
   "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GetPerevozki";
 
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
+
 const CACHE_FRESH_MINUTES = 15;
 
 type PerevozkiMode = "Customer" | "Sender" | "Receiver";

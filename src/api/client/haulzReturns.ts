@@ -181,13 +181,16 @@ export async function getHaulzReturnsJob(
   const url = haulzReturnsApiUrl(`/api/haulz-returns/job?jobId=${encodeURIComponent(jobId)}`);
   let data: any;
   for(let attempt=0;attempt<2;attempt++) {
-    const res=await fetch(url,{headers:authHeaders(auth),cache:'no-store'});
+    const res=await fetch(url,{headers:authHeaders(auth),cache:'no-store',signal:AbortSignal.timeout(45000)});
     try { data=await res.json(); } catch { data=null; }
     if(!res.ok) throw new Error(`[загрузка сессии] ${parseJson(res,data)}`);
     if(data && typeof data==='object' && data.job && String(data.job.id)===String(jobId)
       && Array.isArray(data.files) && Object.prototype.hasOwnProperty.call(data,'workbook')
       && (data.workbook===null || Array.isArray(data.workbook?.sheets))) break;
-    if(attempt===1) throw new Error('[загрузка сессии] Сервер вернул неполные данные сессии. Повторите открытие.');
+    if(attempt===1) {
+      const fields=data && typeof data==='object' ? Object.keys(data).slice(0,12).join(', ') : 'невалидный JSON';
+      throw new Error(`[загрузка сессии ${jobId}] Неполный ответ API: HTTP ${res.status}, поля: ${fields}. Ожидались job, files, workbook.`);
+    }
   }
   type WorkbookWire = Omit<HaulzWorkbook, "itogControlKeys" | "excludedUlNumbers"> & {
     itogControlKeys?: string[] | { keys?: string[]; excludedUl?: string[] };
