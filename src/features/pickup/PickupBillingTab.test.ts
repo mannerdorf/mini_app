@@ -46,3 +46,16 @@ it('shows the order number even without a transport match',async()=>{
  await mount(vi.fn(async()=>({rows:[{...row,source:undefined}]})));
  expect(root.root.findByProps({'data-label':'№ заявки'}).children).toContain('000123');
 });
+it('opens a sandbox without sending and displays diagnostics after one explicit retry',async()=>{
+ const result={ok:false,error:'401',diagnostics:{curl:'curl example',status:401,response:'Unauthorized',elapsedMs:12}};
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:result);
+ await mount(call);
+ const button=(label:string)=>root.root.findAllByType('button').find(b=>b.children.includes(label))!;
+ await act(async()=>button('Выставить счёт · песочница').props.onClick());
+ expect(call.mock.calls).toHaveLength(1);
+ await act(async()=>button('Отправить повторно в 1С').props.onClick());
+ expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true});
+ expect(JSON.stringify(root.toJSON())).toContain('Unauthorized');
+ expect(JSON.stringify(root.toJSON())).toContain('curl example');
+ expect(button('Отправить повторно в 1С').props.disabled).toBe(true);
+});

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import type { DeliveryWriteResult } from '../../../lib/pickup/deliveryService';
 import type { Job, Route } from '../../../lib/pickup/model';
 import { cities } from '../../../lib/pickup/model';
 import type { PickupCall } from './client';
@@ -11,6 +12,7 @@ const labels: Record<string,string> = {not_issued:'Не выставлен',send
 export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof cities;date:string;jobs:Job[];routes:Route[];call:PickupCall}) {
   const [rows,setRows]=useState<Row[]>([]),[drafts,setDrafts]=useState<BillingDrafts>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState(''),[search,setSearch]=useState('');
+  const [sandbox,setSandbox]=useState<{row:Row;result?:DeliveryWriteResult;error?:string}|null>(null);
   const running=useRef(false);
   const generation=useRef(0);
   const load=useCallback(async(savedId?:string)=>{
@@ -20,7 +22,7 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
     setRows(result.rows);
     if(savedId) setDrafts(previous=>{const next={...previous};delete next[savedId];return next;});
   },[call,city,date]);
-  useEffect(()=>{setRows([]);setDrafts({});setMessage('');setBusy(true);void load().catch(e=>setMessage(e.message)).finally(()=>setBusy(false));return()=>{generation.current++;};},[load]);
+  useEffect(()=>{setRows([]);setDrafts({});setMessage('');setSandbox(null);setBusy(true);void load().catch(e=>setMessage(e.message)).finally(()=>setBusy(false));return()=>{generation.current++;};},[load]);
   const run=async(action:()=>Promise<void|false>,savedId?:string)=>{
     if(running.current) return;
     running.current=true;setBusy(true);setMessage('');
@@ -51,6 +53,29 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
     <div className="pk-actions">
       <label>Поиск <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Заказчик, отправитель, забор, перевозка, заявка" /></label>
     </div>
+    {sandbox&&<section className="pk-panel" aria-label="Песочница 1С">
+      <h3>Песочница 1С · {sandbox.row.jobNumber}</h3>
+      <p>Повторная передача стоимости: {sandbox.row.amount} ₽, перевозка {sandbox.row.source?.transportNumber}. Это реальный запрос в 1С методом SetPickupCost.</p>
+      {sandbox.row.status==='uncertain'&&<p>Предыдущая запись могла выполниться. Повторная отправка перезапишет стоимость.</p>}
+      <button disabled={busy||!!sandbox.result||!!sandbox.error} onClick={()=>void run(async()=>{
+        setSandbox({...sandbox,result:undefined,error:undefined});
+        try {
+          const result=await call<DeliveryWriteResult>({action:'billing_send',id:sandbox.row.jobId,version:sandbox.row.version,confirmed:true,retry:true});
+          setSandbox({...sandbox,result});
+        } catch(e) {setSandbox({...sandbox,error:(e as Error).message});}
+      })}>Отправить повторно в 1С</button>
+      <button disabled={busy} onClick={()=>setSandbox(null)}>Закрыть</button>
+      {sandbox.error&&<p role="alert">{sandbox.error}</p>}
+      {sandbox.result&&<>
+        <p role="status">{sandbox.result.ok?'Стоимость передана в 1С':sandbox.result.error}</p>
+        {sandbox.result.diagnostics&&<>
+          <h4>curl</h4><p>Учётные данные заменены переменными ONE_C_LOGIN и ONE_C_PASSWORD.</p>
+          <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result.diagnostics.curl}</pre>
+          <h4>Ответ 1С · HTTP {sandbox.result.diagnostics.status??'нет ответа'} · {sandbox.result.diagnostics.elapsedMs} мс</h4>
+          <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{sandbox.result.diagnostics.response||'Тело ответа не получено'}</pre>
+        </>}
+      </>}
+    </section>}
     {message&&<p role="status" style={{whiteSpace:'pre-wrap'}}>{message}</p>}
     {Object.entries(drafts).filter(([id])=>!rows.some(row=>row.jobId===id)).map(([id,draft])=><p role="alert" key={id}>Строка больше не доступна в журнале. Несохранённая сумма: {draft.value} ₽. Обновите список или проверьте забор.</p>)}
     {rows.length>0&&!filtered.length&&<p className="pk-empty" role="status">По запросу «{search}» ничего не найдено. <button onClick={()=>setSearch('')}>Очистить поиск</button></p>}
@@ -68,6 +93,7 @@ export function PickupBillingTab({city,date,call,jobs}: {city:keyof typeof citie
       </td>
       <td data-label="Статус"><strong style={{color:['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{labels[row.status||'']||'Нет данных'}</strong>{(row.error||row.last_error)&&<small style={{display:'block'}}>{row.error||row.last_error}</small>}</td>
       <td data-label="Действие">{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
+      {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>setSandbox({row})}>Выставить счёт · песочница</button>}
       {['manual','uncertain','sending'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(window.confirm(`Подтвердить: счёт по забору ${row.jobNumber} действительно выставлен в 1С?`))void run(async()=>{await call({action:'billing_mark_issued',id:row.jobId,version:row.version});});}}>Подтвердить ручное выставление</button>}</td>
     </tr>)}</tbody></table></div>}
   </section>;

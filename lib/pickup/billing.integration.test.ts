@@ -272,3 +272,16 @@ it('rounds unissued calculator amounts, including previously rejected amounts, b
   await db.query("UPDATE pickup_billing SET amount=2448.44,status='transmitted' WHERE job_id=$1",[id]);
   expect((await journal()).rows[0].amount).toBe(2448.44);
 });
+it('retries a rejected transfer only explicitly and rejects stale or completed retries',async()=>{
+  await seed();let row=(await journal()).rows[0];
+  vi.mocked(deliverySetter).mockResolvedValueOnce({ok:false,error:'401'});
+  await billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true});
+  row=(await journal()).rows[0];
+  await expect(billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true})).rejects.toThrow();
+  expect(await billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,retry:true})).toMatchObject({ok:true});
+  expect(deliverySetter).toHaveBeenLastCalledWith('SetPickupCost',expect.any(Object),true);
+  await expect(billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,retry:true})).rejects.toThrow();
+  row=(await journal()).rows[0];
+  await expect(billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,retry:true})).rejects.toThrow();
+  expect(deliverySetter).toHaveBeenCalledTimes(2);
+});
