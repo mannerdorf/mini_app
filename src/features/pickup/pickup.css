@@ -2843,3 +2843,40 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 }
 .pk-root .pk-pickup-facts button.pk-document-number:hover { text-decoration: underline; }
 .pk-root .pk-pickup-facts button.pk-order-edit { min-width: 32px; color: var(--pk-muted); }
+
+/* The dropdown is portalled to body, outside .pk-root. */
+.filter-dropdown-portal button.pk-city-option {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+}
+.filter-dropdown-portal button.pk-city-option[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--color-primary-blue, #2563eb) 16%, var(--color-bg-card));
+  font-weight: 600;
+}
+.filter-dropdown-portal button.pk-city-option:hover {
+  background: var(--color-bg-hover);
+}
+.filter-dropdown-portal button.pk-city-option:focus-visible {
+  outline: 2px solid var(--color-primary-blue, #2563eb);
+  outline-offset: -2px;
+}
+
+.pk-root .pk-toolbar--app-filters .filters-reset-button,
+.pk-root .pk-toolbar--app-filters .filters-reset-button:hover,
+.pk-root .pk-toolbar--app-filters .filters-reset-button:focus {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  outline: none;
+}
+.pk-root .pk-toolbar--app-filters .filters-reset-button:focus-visible {
+  outline: 2px solid var(--color-primary-blue, #2563eb);
+  outline-offset: 2px;
+}

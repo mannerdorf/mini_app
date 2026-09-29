@@ -9,7 +9,7 @@ export function PickupCityFilter({value,onChange}:{value:City;onChange:(city:Cit
   return <>
     <button type="button" ref={ref} className="filter-button" aria-expanded={open} onClick={()=>setOpen(!open)}>Город: {cities[value]} <ChevronDown size={16}/></button>
     <FilterDropdownPortal triggerRef={ref} isOpen={open} onClose={()=>setOpen(false)}>
-      {Object.entries(cities).map(([id,name])=><button type="button" className="dropdown-item" key={id} onClick={()=>{onChange(id as City);setOpen(false);}}>{name}</button>)}
+      {Object.entries(cities).map(([id,name])=><button type="button" className="dropdown-item pk-city-option" aria-pressed={value===id} key={id} onClick={()=>{onChange(id as City);setOpen(false);}}>{name}</button>)}
     </FilterDropdownPortal>
   </>;
 }

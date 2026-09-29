@@ -85,6 +85,7 @@ import { PickupBulkAssign } from "./PickupBulkAssign";
 import { PickupDayRow } from "./PickupDayRow";
 import { matchesDayFilter, matchesDaySearch, type DayFilter } from "./dayPlan";
 import { ListDateFilterControl, usePersistedDateFilter, useListDateRange } from "../listWorkspace";
+import { ResetAllFiltersButton } from "../../components/ui/ResetAllFiltersButton";
 import { PickupCityFilter, PickupDayFilter } from "./PickupToolbarFilters";
 import { PickupBillingTab } from "./PickupBillingTab";
 import { pickupJobOnBillingTab } from "../../../lib/pickup/pickupBillingJobs";
@@ -465,6 +466,7 @@ export function PickupPage({
         label={`${cities[city]} · ${date}`}
       >
         <div className="pk-toolbar pk-toolbar--app-filters">
+          {dispatch && tab === "billing" && <ResetAllFiltersButton onReset={()=>billingDates.setDateFilter('сегодня')} />}
           <PickupCityFilter
             value={city}
             onChange={(v) => {
@@ -474,7 +476,7 @@ export function PickupPage({
               setDate(today(v as City));
             }}
           />
-          {dispatch && tab === "billing" ? <ListDateFilterControl {...billingDates} apiDateRange={billingRange} onResetFilters={()=>billingDates.setDateFilter('сегодня')} /> : <PickupDayFilter
+          {dispatch && tab === "billing" ? <ListDateFilterControl {...billingDates} apiDateRange={billingRange} showReset={false} /> : <PickupDayFilter
             value={date}
             onChange={setDate}
           />}
@@ -833,13 +835,15 @@ export function PickupPage({
             }).format(new Date(date + "T12:00:00"))}
           </h2>
           <div className="pk-day-filters pk-day-filters--app">
-            <Field
-              label="Поиск заборов"
-              variant="app"
-              value={search}
-              onChange={setSearch}
-              placeholder="Адрес, заказчик, отправитель, № заявки, водитель"
-            />
+            <div className="pk-field pk-field--app">
+              <input
+                className="admin-form-input"
+                aria-label="Поиск заборов"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Адрес, заказчик, отправитель, № заявки, водитель"
+              />
+            </div>
             <Select
               label="Показать"
               variant="app"
@@ -854,17 +858,6 @@ export function PickupPage({
               ]}
             />
           </div>
-          <p className="pk-hint" role="status">
-            Найдено:{" "}
-            {
-              snapshot.jobs.filter(
-                (j) =>
-                  matchesDayFilter(j, dayFilter) &&
-                  matchesDaySearch(j, search, routes),
-              ).length
-            }
-            . Нажмите на строку, чтобы открыть подробности.
-          </p>
           {(search || dayFilter !== "all") && (
             <button
               className="pk-link-btn"

@@ -15,6 +15,7 @@ export type ListDateFilterControlProps = PersistedDateFilterControls & {
   apiDateRange: { dateFrom: string; dateTo: string };
   className?: string;
   onResetFilters?: () => void;
+  showReset?: boolean;
   /** Только выбор календарной недели (пн–вс), без месяца/года/произвольного периода. */
   weekOnly?: boolean;
 };
@@ -37,6 +38,7 @@ export function ListDateFilterControl({
   setSelectedWeekForFilter,
   className,
   onResetFilters,
+  showReset = true,
   weekOnly = false,
 }: ListDateFilterControlProps) {
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
@@ -54,7 +56,7 @@ export function ListDateFilterControl({
 
   return (
     <>
-      <ResetAllFiltersButton onReset={onResetFilters} />
+      {showReset && <ResetAllFiltersButton onReset={onResetFilters} />}
       <div className={className ?? "filter-group"} style={{ flexShrink: 0 }}>
         <div ref={dateButtonRef} style={{ display: "inline-flex" }}>
           <Button
