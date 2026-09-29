@@ -111,7 +111,7 @@ export function PickupDriverMobileRoute({
       <details className="pk-driver-itinerary">
         <summary>Все остановки · {total}</summary>
         <p className="pk-hint">Старт: {routeStartAddress(route) || "Склад HAULZ"}</p>
-        <ol>{routeJobs.map((job) => <li key={job.id}><strong>{job.data.senderName}</strong><span>{job.data.address}</span><span>{job.data.windowFrom}–{job.data.windowTo} · {statusLabels[job.status]}</span></li>)}</ol>
+        <ol>{routeJobs.map((job) => <li key={job.id}><strong>{job.data.senderName}</strong><span>Заказчик: {job.data.customerName || "Нет данных"}</span><span>{job.data.address}</span><span>{job.data.windowFrom}–{job.data.windowTo} · {statusLabels[job.status]}</span></li>)}</ol>
         <p><strong>Финиш: {route.snapshot.depot?.name || "Склад HAULZ"}</strong><br />{route.snapshot.depot?.data.address}</p>
         <PickupStopOrder route={route} jobs={routeJobs} busy={busy} error={error} disabled={blocked || draftDirty || stale || outboxCount > 0 || route.status === "completed"} onSave={async (ids, version) => Boolean(await act({ action: "reorder", id: route.id, version, ids, asDriver: true }, "Порядок точек сохранён"))} />
       </details>

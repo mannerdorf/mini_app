@@ -19,6 +19,9 @@ import {
 import type { CargoItem } from "../types";
 import { useAppRuntime } from "../contexts/AppRuntimeContext";
 
+type SortColumn = "customer" | "invoice" | "priority" | "unbilled" | "balance";
+type MonitorSort = { column: SortColumn; direction: "asc" | "desc" };
+
 type Props = {
   invoices: Record<string, unknown>[];
   cargoItems: CargoItem[];
@@ -157,6 +160,7 @@ export function UnpaidInvoicesPlanMonitor({
   const { showCustomerColumn, useServiceRequest } = useAppRuntime();
   const groupedByCustomer = showCustomerColumn && useServiceRequest;
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  const [sort, setSort] = useState<MonitorSort | null>(null);
 
   const rows = useMemo(
     () => computeUnpaidInvoicesByPlan(invoices, cargoItems),
@@ -177,6 +181,63 @@ export function UnpaidInvoicesPlanMonitor({
       groupUnbilledCargoByCustomer(unbilledRows),
     );
   }, [groupedByCustomer, customerGroups, unbilledRows]);
+
+  const sortedCustomerGroups = useMemo(() => {
+    if (!sort) return mergedCustomerGroups;
+    const direction = sort.direction === "asc" ? 1 : -1;
+    return [...mergedCustomerGroups].sort((a, b) => {
+      let comparison = 0;
+      switch (sort.column) {
+        case "customer":
+          comparison = stripOoo(a.customer).localeCompare(stripOoo(b.customer), "ru", { numeric: true });
+          break;
+        case "priority":
+          comparison = Number(a.priority === "high") - Number(b.priority === "high");
+          break;
+        case "unbilled":
+          comparison = showSums ? a.unbilledSum - b.unbilledSum : a.unbilledCount - b.unbilledCount;
+          break;
+        case "balance":
+          comparison = a.balance - b.balance;
+          break;
+      }
+      return comparison * direction;
+    });
+  }, [mergedCustomerGroups, sort, showSums]);
+
+  const sortedRows = useMemo(() => {
+    if (!sort) return rows;
+    const direction = sort.direction === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const comparison = sort.column === "invoice"
+        ? a.invoiceNumber.localeCompare(b.invoiceNumber, "ru", { numeric: true })
+        : sort.column === "priority"
+          ? Number(a.priority === "high") - Number(b.priority === "high")
+          : sort.column === "balance" ? a.balance - b.balance : 0;
+      return comparison * direction;
+    });
+  }, [rows, sort]);
+
+  const sortHeader = (column: SortColumn, label: string) => {
+    const active = sort?.column === column;
+    const nextDirection = active ? (sort.direction === "asc" ? "desc" : "asc")
+      : column === "customer" || column === "invoice" ? "asc" : "desc";
+    const description = column === "unbilled"
+      ? `${label}: по ${showSums ? "сумме" : "количеству перевозок"}` : label;
+    return (
+      <span>
+        <button
+          type="button"
+          className="unpaid-plan-monitor__sort"
+          onClick={() => setSort({ column, direction: nextDirection })}
+          title={`${description}: сортировать по ${nextDirection === "asc" ? "возрастанию" : "убыванию"}`}
+          aria-label={`${description}${active ? `, по ${sort.direction === "asc" ? "возрастанию" : "убыванию"}` : ""}. Сортировать по ${nextDirection === "asc" ? "возрастанию" : "убыванию"}`}
+        >
+          {label} <span aria-hidden="true">{active ? sort.direction === "asc" ? "↑" : "↓" : "↕"}</span>
+        </button>
+      </span>
+    );
+  };
 
   const highCount = rows.filter((r) => r.priority === "high").length;
   const totalBalance = rows.reduce((acc, r) => acc + r.balance, 0);
@@ -297,16 +358,16 @@ export function UnpaidInvoicesPlanMonitor({
             >
               {groupedByCustomer ? (
                 <>
-                  <span>Заказчик</span>
-                  <span>Приоритет</span>
-                  <span>Невыст.</span>
-                  {showSums && <span>К оплате</span>}
+                  {sortHeader("customer", "Заказчик")}
+                  {sortHeader("priority", "Приоритет")}
+                  {sortHeader("unbilled", "Невыст.")}
+                  {showSums && sortHeader("balance", "К оплате")}
                 </>
               ) : (
                 <>
-                  <span>Счёт</span>
-                  <span>Приоритет</span>
-                  {showSums && <span>К оплате</span>}
+                  {sortHeader("invoice", "Счёт")}
+                  {sortHeader("priority", "Приоритет")}
+                  {showSums && sortHeader("balance", "К оплате")}
                 </>
               )}
             </div>
@@ -314,7 +375,7 @@ export function UnpaidInvoicesPlanMonitor({
             {groupedByCustomer
               ? (
                 <>
-                  {mergedCustomerGroups.map((group) => {
+                  {sortedCustomerGroups.map((group) => {
                   const key = group.customer;
                   const isExpanded = expandedKey === key;
                   return (
@@ -446,7 +507,7 @@ export function UnpaidInvoicesPlanMonitor({
                   )}
                 </>
               )
-              : rows.map((row) => {
+              : sortedRows.map((row) => {
                   const key = `${row.invoiceNumber}-${row.cargoNumber ?? ""}`;
                   const isExpanded = expandedKey === key;
                   return (

@@ -1,49 +1,17 @@
-import { formatPerevozkaNumberForApi } from "../../../lib/perevozkaNumber";
-import { postSendingsPlanDate } from "../../../api/client/documents";
-
-type PlanDateActionSetters = {
-  setLoading: (loading: boolean) => void;
-  setError: (error: string | null) => void;
-  setInfo: (info: string | null) => void;
-  onClose?: () => void;
-};
-
-export async function applySendingsPlanDateForCargo(
-  dateValue: string,
-  cargoNumbers: string[],
-  { setLoading, setError, setInfo, onClose }: PlanDateActionSetters,
-): Promise<void> {
-  if (!dateValue) {
-    setError("Укажите плановую дату прибытия на терминал.");
-    return;
-  }
-  if (cargoNumbers.length === 0) {
-    setError("Не найдены номера перевозок.");
-    return;
-  }
-  setLoading(true);
-  setError(null);
-  setInfo(null);
-  try {
-    const data = await postSendingsPlanDate(dateValue, [...new Set(cargoNumbers.map(formatPerevozkaNumberForApi).filter(Boolean))]);
-    const updated = Number(data?.updated ?? 0);
-    const requested = Number(data?.requested ?? cargoNumbers.length);
-    const failed = Number(data?.failed ?? Math.max(0, requested - updated));
-    const firstError =
-      Array.isArray(data?.errors) && data.errors.length > 0
-        ? String(data.errors[0]?.error || "").trim()
-        : "";
-    if (failed > 0) {
-      setError(
-        `${updated === 0 ? "Плановая дата прибытия на терминал не записана" : "Плановая дата прибытия на терминал записана частично"}: ${updated} из ${requested}.${firstError ? ` Причина: ${firstError}` : ""}`,
-      );
-    } else {
-      setInfo(`Плановая дата прибытия на терминал ${dateValue} записана для ${updated} перевозок.`);
-      onClose?.();
-    }
-  } catch (e: unknown) {
-    setError(String((e as Error)?.message || "Не удалось записать плановую дату прибытия на терминал."));
-  } finally {
-    setLoading(false);
-  }
+import {postSendingsPlanDate} from '../../../api/client/documents';
+import type {DocumentsAuth} from '../../../api/client/documentsAuth';
+import {formatPerevozkaNumberForApi} from '../../../lib/perevozkaNumber';
+type Setters={setLoading:(value:boolean)=>void;setError:(value:string|null)=>void;setInfo:(value:string|null)=>void;onClose?:()=>void;auth?:DocumentsAuth};
+export async function applySendingsPlanDateForCargo(date:string,numbers:string[],setters:Setters) {
+ if(!date){setters.setError('Укажите плановую дату прибытия на терминал.');return;}
+ if(!numbers.length){setters.setError('Не найдены номера перевозок.');return;}
+ if(!setters.auth?.login){setters.setError('Войдите в приложение.');return;}
+ setters.setLoading(true);setters.setError(null);setters.setInfo(null);
+ try {
+   const result=await postSendingsPlanDate(date,[...new Set(numbers.map(formatPerevozkaNumberForApi).filter(Boolean))],setters.auth);
+   if(!Array.isArray(result.tasks))throw new Error('Обновите API для работы с очередью плановых дат.');
+   setters.setInfo(`В очереди обработки: ${result.queued}. Результат отображается в «Очереди плановых дат».`);
+   if(typeof window!=='undefined')window.dispatchEvent(new Event('haulz:plan-date-queued'));
+   setters.onClose?.();
+ }catch(e){setters.setError((e as Error).message);}finally{setters.setLoading(false);}
 }

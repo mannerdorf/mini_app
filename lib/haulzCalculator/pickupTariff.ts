@@ -36,9 +36,27 @@ export function calcPickupCityFee(
   const tierIndex = resolveTierIndex(chargeableWeightKg, volumeM3, tiers);
   const tier = tiers[tierIndex];
   const cityFee = Number(tier.city_fee) || 0;
-  const perKmRate = Number(tier.per_km) || 0;
+  let perKmRate = Number(tier.per_km) || 0;
   const km = Math.max(0, Number(kmBeyondRing) || 0);
-  const perKmFee = perKmRate * km;
+  let perKmFee = perKmRate * km;
+  if (tier.distance_rates?.length) {
+    let previousMax = 0;
+    perKmFee = 0;
+    for (const [index, band] of tier.distance_rates.entries()) {
+      const upper = band.max_km ?? Infinity;
+      if ((band.max_km != null && !Number.isFinite(upper)) || upper <= previousMax ||
+          !Number.isFinite(band.per_km) || band.per_km < 0 ||
+          (band.max_km == null && index !== tier.distance_rates.length - 1)) {
+        throw new Error("Некорректные диапазоны ставки за км");
+      }
+      const segmentKm = Math.max(0, Math.min(km, upper) - previousMax);
+      perKmFee += segmentKm * band.per_km;
+      previousMax = upper;
+    }
+    if (previousMax !== Infinity) throw new Error("Последний диапазон ставки за км должен быть без ограничения");
+    // For progressive tariffs this is the average rate, not the last band's rate.
+    perKmRate = km > 0 ? perKmFee / km : tier.distance_rates[0].per_km;
+  }
   return {
     tierIndex,
     cityFee,

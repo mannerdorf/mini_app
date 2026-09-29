@@ -126,15 +126,15 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
   const ringMoscow = await kmBeyondRing(
     pool,
     "moscow",
-    req.from.point,
-    pickupCity === "moscow" ? req.kmOverride?.moscow : undefined,
+    pickupCity === "moscow" ? req.from.point : req.to.point,
+    req.kmOverride?.moscow,
     routeKmMode,
   );
   const ringKaliningrad = await kmBeyondRing(
     pool,
     "kaliningrad",
-    req.to.point,
-    lastMileCity === "kaliningrad" ? req.kmOverride?.kaliningrad : undefined,
+    pickupCity === "kaliningrad" ? req.from.point : req.to.point,
+    req.kmOverride?.kaliningrad,
     routeKmMode,
   );
 
@@ -221,7 +221,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
       key: "pickup",
       label: `Забор (${pickupCity === "moscow" ? "МКАД" : "КАД"}, ${pickupKm.toFixed(1)} км)`,
       amountRub: Math.round(pickupCalc.total * 100) / 100,
-      meta: { tierIndex: pickupCalc.tierIndex, km: pickupKm },
+      meta: { tierIndex: pickupCalc.tierIndex, km: pickupKm, cityFee: pickupCalc.cityFee, outsideRingFee: pickupCalc.perKmFee },
     });
   }
 
@@ -243,7 +243,7 @@ export async function buildQuote(pool: Pool, req: QuoteRequest): Promise<QuoteRe
       key: "last_mile",
       label: `Последняя миля (${lastMileCity === "moscow" ? "МКАД" : "КАД"}, ${lastMileKm.toFixed(1)} км)`,
       amountRub: Math.round(lastMileCalc.total * 100) / 100,
-      meta: { tierIndex: lastMileCalc.tierIndex, km: lastMileKm },
+      meta: { tierIndex: lastMileCalc.tierIndex, km: lastMileKm, cityFee: lastMileCalc.cityFee, outsideRingFee: lastMileCalc.perKmFee },
     });
   }
 

@@ -41,6 +41,7 @@ export function PickupDriverGuide({
       {current && route.status === "started" && (
         <>
           <strong>{current.data.senderName}</strong>
+          <p>Заказчик: {current.data.customerName || "Нет данных"}</p>
           <p>{current.data.address}</p>
         </>
       )}
@@ -100,6 +101,7 @@ export function PickupDriverStop({
             {job.data.windowFrom}–{job.data.windowTo}
           </small>
           <strong>{job.data.senderName}</strong>
+          <span>Заказчик: {job.data.customerName || "Нет данных"}</span>
           <span>{job.data.address}</span>
           <small>
             {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг

@@ -45,7 +45,10 @@ function describePickupCity(city: CityCode, tiers: PickupTier[] | undefined): st
   const name = CITY_RU[city];
   if (!tiers?.length) return `${name}: тарифы не заданы`;
   const sample = tiers[0];
-  return `${name}: ${describeTierRange(tiers)} — от ${rub(sample.city_fee)} по городу, ${sample.per_km} ₽/км`;
+  const distance = sample.distance_rates?.length
+    ? `за кольцом по участкам: ${sample.distance_rates.map((band, index) => `${index === 0 ? "до" : "свыше"} ${index === 0 ? band.max_km : sample.distance_rates![index - 1].max_km}${index > 0 && band.max_km != null ? `–${band.max_km}` : ""} км — ${band.per_km} ₽/км`).join("; ")}`
+    : `${sample.per_km} ₽/км`;
+  return `${name}: ${describeTierRange(tiers)} — от ${rub(sample.city_fee)} по городу, ${distance}`;
 }
 
 function describeExtraService(s: ExtraServicePayload): string {

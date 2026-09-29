@@ -39,25 +39,21 @@ export async function postSendingsEorStatus(body: {
   if (!ok) throw new Error(String(data?.error || "HTTP error"));
 }
 
-export type SendingsPlanDateResult = {
-  updated?: number;
-  requested?: number;
-  failed?: number;
-  errors?: Array<{ error?: string }>;
-  error?: string;
-};
-
-export async function postSendingsPlanDate(
-  date: string,
-  cargoNumbers: string[]
-): Promise<SendingsPlanDateResult> {
-  const { ok, data } = await documentsFetchJson<SendingsPlanDateResult>("/api/sendings-plan-date", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ date, cargoNumbers }),
-  });
-  if (!ok) throw new Error(String(data?.error || "HTTP error"));
-  return data;
+export type PlanDateQueueTask = {cargo_number:string;target_date:string;state:string;last_error?:string;updated_at?:string};
+export type SendingsPlanDateResult = {queued:number;tasks:PlanDateQueueTask[];error?:string};
+export async function postSendingsPlanDate(date:string,cargoNumbers:string[],auth:DocumentsAuth):Promise<SendingsPlanDateResult> {
+ const {ok,data}=await documentsFetchJson<SendingsPlanDateResult>("/api/sendings-plan-date",{
+   method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),body:JSON.stringify({date,cargoNumbers})
+ });
+ if(!ok)throw new Error(data?.error||'Не удалось поставить дату в очередь');
+ return data;
+}
+export async function fetchPlanDateQueue(auth:DocumentsAuth):Promise<PlanDateQueueTask[]> {
+ const {ok,data}=await documentsFetchJson<{tasks:PlanDateQueueTask[];error?:string}>("/api/sendings-plan-date",{
+   method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),body:JSON.stringify({action:'status'})
+ });
+ if(!ok)throw new Error(data?.error||'Не удалось прочитать очередь');
+ return data.tasks;
 }
 
 export async function fetchMarinesiaShipEta(mmsi: string): Promise<string | null> {

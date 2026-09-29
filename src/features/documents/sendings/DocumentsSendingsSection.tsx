@@ -1,3 +1,4 @@
+import {PlanDateQueueStatus} from "./PlanDateQueueStatus";
 import React from "react";
 import { Typography } from "@maxhub/max-ui";
 import { SendingsInfographic } from "./SendingsInfographic";
@@ -68,6 +69,7 @@ export function DocumentsSendingsSection({
             deliveryStatusFilterSet={deliveryStatusFilterSet}
             setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
           />
+          {canEditPlanDate && sendingsSectionProps.auth && <PlanDateQueueStatus auth={sendingsSectionProps.auth} />}
           <SendingsPreface
             hasAnalytics={hasAnalytics}
             showSums={showSums}

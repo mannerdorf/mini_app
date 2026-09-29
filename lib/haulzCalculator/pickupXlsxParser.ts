@@ -1,5 +1,5 @@
 import XLSX from "xlsx";
-import type { CityCode, PickupTier } from "./types.js";
+import type { PickupTier } from "./types.js";
 
 function parseNumCell(v: unknown): number {
   if (typeof v === "number" && Number.isFinite(v)) return v;
@@ -27,81 +27,69 @@ function parseVolumeMax(label: unknown): number {
 
 type MatrixRows = (string | number)[][];
 
-function buildTiersFromHeader(rows: MatrixRows, cityStartRow: number): PickupTier[] {
-  const weightRow = rows[cityStartRow + 1];
-  const volumeRow = rows[cityStartRow + 2];
-  const cityFeeRow = rows[cityStartRow + 3];
-  const perKmRow = rows[cityStartRow + 4];
-  const loadRow = rows[cityStartRow + 5];
-  const overtimeRow = rows[cityStartRow + 6];
-  if (!weightRow || !volumeRow || !cityFeeRow || !perKmRow) return [];
-
-  const tiers: PickupTier[] = [];
-  for (let col = 2; col < weightRow.length; col++) {
-    const wLabel = weightRow[col];
-    const vLabel = volumeRow[col];
-    const wMax = parseWeightMax(wLabel);
-    const vMax = parseVolumeMax(vLabel);
-    if (wMax <= 0 && vMax <= 0) continue;
-    const tier: PickupTier = {
-      weight_max_kg: wMax || 99999,
-      volume_max_m3: vMax || 99999,
-      city_fee: parseNumCell(cityFeeRow[col]),
-      per_km: parseNumCell(perKmRow[col]),
-    };
-    const loadMin = parseNumCell(loadRow?.[col]);
-    const overtime = parseNumCell(overtimeRow?.[col]);
-    if (loadMin > 0) tier.load_minutes = loadMin;
-    if (overtime > 0) tier.overtime_rub_per_hour = overtime;
-    tiers.push(tier);
-  }
-  return tiers;
-}
-
-export function parsePickupXlsxFile(filePath: string): {
+/** Find rows by labels so additional distance bands do not shift city/load rows. */
+export function parsePickupMatrixRows(rows: MatrixRows): {
   moscow: PickupTier[];
   kaliningrad: PickupTier[];
   note?: string;
 } | null {
-  try {
-    const wb = XLSX.readFile(filePath);
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
-      header: 1,
-      defval: "",
-    }) as MatrixRows;
-    const note = String(rows[0]?.[0] ?? "").trim() || undefined;
-    const moscow = buildTiersFromHeader(rows, 0);
-    const kaliningrad = buildTiersFromHeader(rows, 7);
-    if (moscow.length === 0 && kaliningrad.length === 0) return null;
-    return {
-      moscow: moscow.length ? moscow : kaliningrad,
-      kaliningrad: kaliningrad.length ? kaliningrad : moscow,
-      note,
-    };
-  } catch {
-    return null;
-  }
+  const readCity = (cityName: string): PickupTier[] => {
+    const cityIndex = rows.findIndex(row => /автоэкспедирование/i.test(String(row[0])) && String(row[0]).toLowerCase().includes(cityName));
+    if (cityIndex < 0) return [];
+    const headerStart = rows.slice(0, cityIndex).map(row => String(row[1])).lastIndexOf("Вес (кг)");
+    if (headerStart < 0) return [];
+    const nextHeader = rows.findIndex((row, index) => index > cityIndex && /вес.*кг/i.test(String(row[1])));
+    const block = rows.slice(cityIndex, nextHeader < 0 ? undefined : nextHeader);
+    const weightRow = rows[headerStart];
+    const volumeRow = rows[headerStart + 1];
+    const rateRows = block.filter(row => /выезд за пределы/i.test(String(row[0])));
+    const loadRow = block.find(row => /^нормативное время/i.test(String(row[0])));
+    const overtimeRow = block.find(row => /^сверхнормативное время/i.test(String(row[0])));
+    if (!volumeRow || !rateRows.length || !loadRow || !overtimeRow) return [];
+    const tiers: PickupTier[] = [];
+    for (let col = 2; col < weightRow.length; col++) {
+      const weight = parseWeightMax(weightRow[col]);
+      const volume = parseVolumeMax(volumeRow[col]);
+      if (weight <= 0 || volume <= 0) continue;
+      const tier: PickupTier = {
+        weight_max_kg: weight,
+        volume_max_m3: volume,
+        city_fee: parseNumCell(rows[cityIndex][col]),
+        per_km: parseNumCell(rateRows[0][col]),
+        load_minutes: parseNumCell(loadRow[col]),
+        overtime_rub_per_hour: parseNumCell(overtimeRow[col]),
+      };
+      if (rateRows.length > 1) {
+        tier.distance_rates = rateRows.map(row => {
+          const label = String(row[0]);
+          const range = label.match(/(\d+)\s*[-–—]\s*(\d+)\s*км/i);
+          if (!range && !/от\s*\d+/i.test(label)) throw new Error('Неизвестный диапазон расстояния');
+          return { max_km: range ? Number(range[2]) : null, per_km: parseNumCell(row[col]) };
+        });
+      }
+      tiers.push(tier);
+    }
+    return tiers;
+  };
+  const moscow = readCity('москва');
+  const kaliningrad = readCity('калининград');
+  if (!moscow.length || !kaliningrad.length) return null;
+  return { moscow, kaliningrad, note: String(rows[0]?.[0] ?? '').trim() || undefined };
 }
 
-export function parsePickupXlsxBuffer(buffer: Buffer): ReturnType<typeof parsePickupXlsxFile> {
-  try {
-    const wb = XLSX.read(buffer, { type: "buffer" });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json<(string | number)[]>(sheet, {
-      header: 1,
-      defval: "",
-    }) as MatrixRows;
-    const note = String(rows[0]?.[0] ?? "").trim() || undefined;
-    const moscow = buildTiersFromHeader(rows, 0);
-    const kaliningrad = buildTiersFromHeader(rows, 7);
-    if (moscow.length === 0 && kaliningrad.length === 0) return null;
-    return {
-      moscow: moscow.length ? moscow : kaliningrad,
-      kaliningrad: kaliningrad.length ? kaliningrad : moscow,
-      note,
-    };
-  } catch {
-    return null;
+function parseWorkbook(wb: XLSX.WorkBook): ReturnType<typeof parsePickupMatrixRows> {
+  for (const name of wb.SheetNames) {
+    const rows = XLSX.utils.sheet_to_json<(string | number)[]>(wb.Sheets[name], { header: 1, defval: "" }) as MatrixRows;
+    const parsed = parsePickupMatrixRows(rows);
+    if (parsed) return parsed;
   }
+  return null;
+}
+
+export function parsePickupXlsxFile(filePath: string): ReturnType<typeof parsePickupMatrixRows> {
+  try { return parseWorkbook(XLSX.readFile(filePath)); } catch { return null; }
+}
+
+export function parsePickupXlsxBuffer(buffer: Buffer): ReturnType<typeof parsePickupMatrixRows> {
+  try { return parseWorkbook(XLSX.read(buffer, { type: "buffer" })); } catch { return null; }
 }

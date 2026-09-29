@@ -91,6 +91,8 @@ function mainlineDirectionFromSet(
 }
 
 function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: PickupTier[]) => void }) {
+  const distanceBands = tiers.find(tier => tier.distance_rates?.length)?.distance_rates ?? [];
+  const fields = ["weight_max_kg", "volume_max_m3", "city_fee", ...(!distanceBands.length ? ["per_km" as const] : []), "load_minutes", "overtime_rub_per_hour"] as const;
   return (
     <div className="hr-calc-admin-table-wrap">
       <table className="hr-calc-admin-table hr-calc-admin-table--numeric">
@@ -99,15 +101,18 @@ function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: Pic
             <th>Вес max</th>
             <th>Объём max</th>
             <th>По городу</th>
-            <th>₽/км</th>
+            {!distanceBands.length && <th>₽/км</th>}
             <th>Погрузка мин</th>
             <th>Сверхнорм ₽/ч</th>
+            {distanceBands.map((band, index) => (
+              <th key={index}>{band.max_km == null ? `Свыше ${distanceBands[index - 1]?.max_km ?? 0} км` : `${index === 0 ? 1 : Number(distanceBands[index - 1]?.max_km) + 1}–${band.max_km} км`} ₽/км</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {tiers.map((t, i) => (
             <tr key={i}>
-              {(["weight_max_kg", "volume_max_m3", "city_fee", "per_km", "load_minutes", "overtime_rub_per_hour"] as const).map(
+              {fields.map(
                 (field) => (
                   <td key={field}>
                     <input
@@ -124,6 +129,24 @@ function TierTable({ tiers, onChange }: { tiers: PickupTier[]; onChange: (t: Pic
                   </td>
                 ),
               )}
+              {distanceBands.map((band, index) => (
+                <td key={`distance-${index}`}>
+                  <input
+                    type="number"
+                    min="0"
+                    aria-label={`Ставка за км, вес до ${t.weight_max_kg} кг, ${band.max_km == null ? "последний диапазон" : `до ${band.max_km} км`}`}
+                    className="hr-calc-admin-input hr-calc-admin-input--num"
+                    value={t.distance_rates?.[index]?.per_km ?? t.per_km}
+                    onChange={(e) => {
+                      const rate = Number(e.target.value);
+                      const rates = distanceBands.map((entry, j) => ({ ...entry, per_km: j === index ? rate : t.distance_rates?.[j]?.per_km ?? t.per_km }));
+                      const next = [...tiers];
+                      next[i] = { ...t, distance_rates: rates, per_km: rates[0].per_km };
+                      onChange(next);
+                    }}
+                  />
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>

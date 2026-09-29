@@ -179,12 +179,13 @@ export function useSendingsBulkActions({
       return;
     }
     await applySendingsPlanDateForCargo(bulkPlanDateValue, cargoNumbers, {
+      auth: {login:auth?.login||'',password:auth?.password||''},
       setLoading: setBulkSendingActionLoading,
       setError: setBulkSendingActionError,
       setInfo: setBulkSendingActionInfo,
       onClose: () => setBulkPlanDateOpen(false),
     });
-  }, [canEditPlanDate, selectedSendingRowsMeta, bulkPlanDateValue]);
+  }, [canEditPlanDate, selectedSendingRowsMeta, bulkPlanDateValue, auth?.login, auth?.password]);
 
   const applyByCustomerPlanDate = useCallback(
     async (cargoNumbers: string[], groupBy: "customer" | "receiver") => {
@@ -199,13 +200,14 @@ export function useSendingsBulkActions({
         return;
       }
       await applySendingsPlanDateForCargo(byCustomerPlanDateValue, unique, {
+        auth: {login:auth?.login||'',password:auth?.password||''},
         setLoading: setByCustomerActionLoading,
         setError: setByCustomerActionError,
         setInfo: setByCustomerActionInfo,
         onClose: () => setByCustomerPlanDateOpen(false),
       });
     },
-    [canEditPlanDate, byCustomerPlanDateValue],
+    [auth?.login, auth?.password, canEditPlanDate, byCustomerPlanDateValue],
   );
 
   return {

@@ -309,3 +309,27 @@ button.unpaid-plan-monitor:hover {
         box-shadow: none;
     }
 }
+
+/* Column sorting keeps the compact monitor header borderless. */
+.unpaid-plan-monitor__sort {
+    appearance: none;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    background: transparent;
+    padding: 0;
+    min-height: 0;
+    font: inherit;
+    color: inherit;
+    text-align: inherit;
+    cursor: pointer;
+}
+
+.unpaid-plan-monitor__sort:hover {
+    color: var(--color-primary-blue);
+}
+
+.unpaid-plan-monitor__sort:focus-visible {
+    outline: 2px solid var(--color-primary-blue);
+    outline-offset: 3px;
+}

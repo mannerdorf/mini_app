@@ -53,11 +53,18 @@ export type RigidPackagingPayload = {
   pallet_types: PalletType[];
 };
 
+export type PickupDistanceRate = {
+  /** Верхняя граница расстояния включительно; null — без ограничения. */
+  max_km: number | null;
+  per_km: number;
+};
+
 export type PickupTier = {
   weight_max_kg: number;
   volume_max_m3: number;
   city_fee: number;
   per_km: number;
+  distance_rates?: PickupDistanceRate[];
   load_minutes?: number;
   overtime_rub_per_hour?: number;
 };

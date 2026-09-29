@@ -1,200 +1,34 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { notifyPartnerWebhooks } from "../lib/partnerWebhook.js";
-import { respondCorsPreflight } from "./_lib/cors.js";
-import { initRequestContext } from "./_lib/observability.js";
-import { getPool } from "./_db.js";
-import { dispatchPlannedDeliveryDatePush } from "../lib/dispatchPlannedDeliveryDatePush.js";
-const BASE_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
-
-const normalizeText = (value: unknown) => String(value ?? "").trim();
-
-function normalizeDateOnly(raw: unknown): string {
-  const s = String(raw ?? "").trim();
-  if (!s) return "";
-  const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (isoMatch) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
-  const ruMatch = s.match(/^(\d{2})\.(\d{2})\.(\d{4})(?:\D.*)?$/);
-  if (ruMatch) return `${ruMatch[3]}-${ruMatch[2]}-${ruMatch[1]}`;
-  const parsed = new Date(s);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toISOString().split("T")[0];
-}
-
-function parseCargoNumbers(input: unknown): string[] {
-  if (!Array.isArray(input)) return [];
-  const unique = new Set<string>();
-  for (const value of input) {
-    const number = normalizeText(value);
-    if (number) unique.add(number);
-  }
-  return Array.from(unique);
-}
-
-function buildCargoCandidates(rawCargoNumber: string): string[] {
-  const value = normalizeText(rawCargoNumber);
-  if (!value) return [];
-  const out = new Set<string>();
-  out.add(value);
-
-  // В 1С номер перевозки часто ожидается с ведущими нулями (например 000136334).
-  const digits = value.replace(/\D/g, "");
-  if (digits) {
-    out.add(digits);
-    if (digits.length < 9) out.add(digits.padStart(9, "0"));
-  }
-  return Array.from(out);
-}
-
-async function callSetPlanDate(
-  serviceLogin: string,
-  servicePassword: string,
-  cargoNumber: string,
-  date: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const url = new URL(BASE_URL);
-  url.searchParams.set("metod", "SetPlanDataDostavki");
-  url.searchParams.set("Perevozka", cargoNumber);
-  url.searchParams.set("Date", date);
-
-  try {
-    const upstream = await fetch(url.toString(), {
-      method: "GET",
-      headers: {
-        Auth: `Basic ${serviceLogin}:${servicePassword}`,
-        Authorization: SERVICE_AUTH,
-      },
-    });
-    const text = await upstream.text();
-    if (!upstream.ok) {
-      try {
-        const json = JSON.parse(text) as Record<string, unknown>;
-        const message = json?.Error ?? json?.error ?? json?.message;
-        return { ok: false, error: String(message || text || upstream.statusText || `HTTP ${upstream.status}`) };
-      } catch {
-        return { ok: false, error: text || upstream.statusText || `HTTP ${upstream.status}` };
-      }
-    }
-    try {
-      const json = JSON.parse(text) as Record<string, unknown>;
-      if (json && typeof json === "object" && json.Success === false) {
-        const message = json.Error ?? json.error ?? json.message;
-        return { ok: false, error: String(message || "Ошибка записи даты в 1С") };
-      }
-    } catch {
-      // Non-JSON ответ считаем успешным, если HTTP 2xx
-    }
-    return { ok: true };
-  } catch (e: any) {
-    return { ok: false, error: String(e?.message || "Network error") };
-  }
-}
-
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  if (respondCorsPreflight(req, res)) return;
-  const ctx = initRequestContext(req, res, "sendings-plan-date");
-  if (req.method !== "POST") {
-    res.setHeader("Allow", "POST");
-    return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
-  }
-
-  let body: any = req.body;
-  if (typeof body === "string") {
-    try {
-      body = JSON.parse(body);
-    } catch {
-      return res.status(400).json({ error: "Invalid JSON body", request_id: ctx.requestId });
-    }
-  }
-
-  const date = normalizeDateOnly(body?.date);
-  if (!date) {
-    return res.status(400).json({ error: "date is required (YYYY-MM-DD)", request_id: ctx.requestId });
-  }
-
-  const cargoNumbers = parseCargoNumbers(body?.cargoNumbers);
-  if (cargoNumbers.length === 0) {
-    return res.status(400).json({ error: "cargoNumbers is required", request_id: ctx.requestId });
-  }
-
-  const serviceLogin = String(
-    process.env.PLAN_DATE_SERVICE_LOGIN ||
-    process.env.HAULZ_1C_SERVICE_LOGIN ||
-    process.env.PEREVOZKI_SERVICE_LOGIN ||
-    ""
-  ).trim();
-  const servicePassword = String(
-    process.env.PLAN_DATE_SERVICE_PASSWORD ||
-    process.env.HAULZ_1C_SERVICE_PASSWORD ||
-    process.env.PEREVOZKI_SERVICE_PASSWORD ||
-    ""
-  ).trim();
-  if (!serviceLogin || !servicePassword) {
-    return res.status(503).json({
-      error:
-        "Set PLAN_DATE_SERVICE_LOGIN/PASSWORD or HAULZ_1C_SERVICE_LOGIN/PASSWORD or PEREVOZKI_SERVICE_LOGIN/PASSWORD in Vercel.",
-      request_id: ctx.requestId,
-    });
-  }
-
-  const results = await Promise.all(
-    cargoNumbers.map(async (cargoNumber) => {
-      const candidates = buildCargoCandidates(cargoNumber);
-      let lastError = "Ошибка записи даты в 1С";
-      let appliedCargoNumber = cargoNumber;
-      let ok = false;
-
-      for (const candidate of candidates) {
-        const result = await callSetPlanDate(serviceLogin, servicePassword, candidate, date);
-        if (result.ok === true) {
-          ok = true;
-          appliedCargoNumber = candidate;
-          break;
-        }
-        lastError = result.error;
-      }
-
-      return {
-        cargoNumber: appliedCargoNumber,
-        ok,
-        error: ok ? null : lastError,
-      };
-    })
-  );
-
-  const okCount = results.filter((r) => r.ok).length;
-  const errorItems = results.filter((r) => !r.ok);
-  if (okCount > 0) {
-    void notifyPartnerWebhooks({
-      event: "cargo.plan_date_batch_updated",
-      payload: {
-        date,
-        requested: cargoNumbers.length,
-        updated: okCount,
-        failed: errorItems.length,
-        results: results.map((r) => ({ cargoNumber: r.cargoNumber, ok: r.ok })),
-      },
-    }).catch(() => undefined);
-
-    const updatedNumbers = results.filter((r) => r.ok).map((r) => r.cargoNumber);
-    try {
-      const pool = getPool();
-      void dispatchPlannedDeliveryDatePush({
-        pool,
-        date,
-        cargoNumbers: updatedNumbers,
-      }).catch(() => undefined);
-    } catch {
-      // push is best-effort
-    }
-  }
-  return res.status(200).json({
-    ok: errorItems.length === 0,
-    date,
-    requested: cargoNumbers.length,
-    updated: okCount,
-    failed: errorItems.length,
-    errors: errorItems,
-    request_id: ctx.requestId,
-  });
+import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { getPool } from './_db.js';
+import { respondCorsPreflight } from './_lib/cors.js';
+import { verifyRegisteredUser } from '../lib/verifyRegisteredUser.js';
+import { enqueuePlanDates } from '../lib/planDateQueue.js';
+import { getSuperAdminRequestContext, isVerifiedSuperAdmin } from '../lib/adminDocumentCacheAccess.js';
+export default async function handler(req:VercelRequest,res:VercelResponse) {
+ if(respondCorsPreflight(req,res)) return;
+ res.setHeader('Cache-Control','no-store');
+ if(req.method!=='POST') return res.status(405).json({error:'Method not allowed'});
+ let body:any=req.body;
+ try {if(typeof body==='string') body=JSON.parse(body);}catch{return res.status(400).json({error:'Invalid JSON'});}
+ const pool=getPool();
+ const login=String(body?.login||req.headers['x-login']||'').trim().toLowerCase();
+ try {
+   const superAdmin=isVerifiedSuperAdmin(getSuperAdminRequestContext(req,body));
+   if(!superAdmin) {
+     const verified=await verifyRegisteredUser(pool,login,String(body?.password||req.headers['x-password']||''));
+     if(!verified) return res.status(401).json({error:'Войдите в приложение'});
+     const user=(await pool.query('SELECT permissions FROM registered_users WHERE login=$1 AND active=true',[login])).rows[0];
+     if(user?.permissions?.eor!==true && user?.permissions?.supervisor!==true) return res.status(403).json({error:'Нет права изменять плановую дату'});
+   }
+   if(body?.action==='status') {
+     const tasks=(await pool.query(`SELECT cargo_number,target_date,state,last_error,updated_at FROM plan_date_queue ORDER BY (state IN ('pending','sending','verifying','uncertain')) DESC,updated_at DESC LIMIT 100`)).rows;
+     return res.status(200).json({tasks});
+   }
+   if(!Array.isArray(body?.cargoNumbers)) return res.status(400).json({error:'Выберите перевозки'});
+   const tasks=await enqueuePlanDates(pool,body.cargoNumbers,body.date,login||'superadmin');
+   return res.status(202).json({ok:true,queued:tasks.length,tasks});
+ } catch(e) {
+   if((e as {code?:string}).code==='42P01') return res.status(503).json({error:'Примените миграцию 120 — очередь плановых дат'});
+   return res.status(400).json({error:(e as Error).message});
+ }
 }

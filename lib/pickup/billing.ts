@@ -148,7 +148,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
         : record?.amount == null
           ? null
           : Number(record.amount);
-    return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,
+    return { jobId:job.id,jobNumber:job.job_number,date,customer:job.data.customerName,sender:job.data.senderName,
       ...record, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];

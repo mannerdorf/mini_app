@@ -86,6 +86,7 @@ export function PickupDriverJobFlow({
         Точка {stopIndex + 1} из {stopTotal} · {job.data.windowFrom}–{job.data.windowTo}
       </p>
       <h2 className="pk-driver-mobile-step__title">{job.data.senderName}</h2>
+      <p>Заказчик: {job.data.customerName || "Нет данных"}</p>
       <p className="pk-driver-mobile-step__address">{job.data.address}</p>
 
       {store.storageError && <p className="pk-warning" role="alert">{store.storageError}</p>}

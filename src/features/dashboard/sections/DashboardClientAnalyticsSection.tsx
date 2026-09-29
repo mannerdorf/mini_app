@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Loader2, ArrowDown, ArrowUp } from "lucide-react";
 import { Button, Flex, Panel, Typography } from "@maxhub/max-ui";
@@ -20,6 +20,26 @@ type Props = { page: DashboardPageState };
 
 export function DashboardClientAnalyticsSection({ page }: Props) {
     const { customerLtv, rfmSegments, customerMargin, clientSeasonality, avgCheckTrend } = page;
+    const [revenueSort, setRevenueSort] = useState<{ column: "perKg" | "sum"; direction: "asc" | "desc" }>({ column: "sum", direction: "desc" });
+    const sortedCustomerMargin = useMemo(() => [...(customerMargin ?? [])].sort((a, b) =>
+        (a[revenueSort.column] - b[revenueSort.column]) * (revenueSort.direction === "asc" ? 1 : -1),
+    ), [customerMargin, revenueSort]);
+    const maxPerKg = useMemo(() => Math.max(...(customerMargin ?? []).map(c => c.perKg), 1), [customerMargin]);
+    const revenueSortHeader = (column: "perKg" | "sum", label: string) => {
+        const active = revenueSort.column === column;
+        const nextDirection = active && revenueSort.direction === "desc" ? "asc" : "desc";
+        return (
+            <button
+                type="button"
+                onClick={() => setRevenueSort({ column, direction: nextDirection })}
+                title={`Сортировать по ${nextDirection === "asc" ? "возрастанию" : "убыванию"}`}
+                aria-label={`${label}${active ? `, по ${revenueSort.direction === "asc" ? "возрастанию" : "убыванию"}` : ""}. Сортировать по ${nextDirection === "asc" ? "возрастанию" : "убыванию"}`}
+                style={{ width: column === "perKg" ? 75 : 90, flexShrink: 0, padding: 0, border: 0, background: 'transparent', boxShadow: 'none', font: 'inherit', color: 'inherit', textAlign: 'right', cursor: 'pointer' }}
+            >
+                {label} <span aria-hidden="true">{active ? revenueSort.direction === "asc" ? "↑" : "↓" : "↕"}</span>
+            </button>
+        );
+    };
     const isMobileLayout = useMobileLayout();
     const hideClientSeasonality = page.useServiceRequest && (isMobileLayout || isCapacitorNative());
 
@@ -181,8 +201,13 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                         Стоимость перевозки на 1 кг платного веса. Чем выше — тем выгоднее клиент.
                     </Typography.Body>
                     <div style={{ maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                        {customerMargin.map((c, i) => {
-                            const maxPerKg = Math.max(...customerMargin.map(x => x.perKg), 1);
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', position: 'sticky', top: 0, zIndex: 1, background: 'var(--color-bg-card)', fontSize: '0.72rem', color: 'var(--color-text-secondary)', paddingBottom: '0.25rem' }}>
+                            <span style={{ flex: 1, minWidth: 0 }}>Клиент</span>
+                            <span style={{ width: '25%', flexShrink: 0 }} aria-hidden="true" />
+                            {revenueSortHeader("perKg", "За 1 кг")}
+                            {revenueSortHeader("sum", "Итого")}
+                        </div>
+                        {sortedCustomerMargin.map((c, i) => {
                             return (
                                 <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <Typography.Body style={{ fontSize: '0.75rem', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c.name}>{c.name}</Typography.Body>
@@ -191,8 +216,8 @@ export function DashboardClientAnalyticsSection({ page }: Props) {
                                             <DashboardChartBarH enabled={page.chartBarFillEnabled} widthPercent={Math.round((c.perKg / maxPerKg) * 100)} delay={i * 0.025} style={{ background: i < 3 ? '#10b981' : '#3b82f6', borderRadius: 4 }} />
                                         </div>
                                     </div>
-                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, minWidth: 55, textAlign: 'right' }}>{c.perKg.toFixed(1)} ₽/кг</Typography.Body>
-                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', minWidth: 60, textAlign: 'right' }}>{Math.round(c.sum).toLocaleString('ru-RU')} ₽</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.72rem', fontWeight: 600, width: 75, flexShrink: 0, textAlign: 'right' }}>{c.perKg.toFixed(1)} ₽/кг</Typography.Body>
+                                    <Typography.Body style={{ fontSize: '0.65rem', color: 'var(--color-text-secondary)', width: 90, flexShrink: 0, textAlign: 'right' }}>{Math.round(c.sum).toLocaleString('ru-RU')} ₽</Typography.Body>
                                 </div>
                             );
                         })}
