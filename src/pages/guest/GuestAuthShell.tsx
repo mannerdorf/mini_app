@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
 import { ForgotPasswordPage } from "../ForgotPasswordPage";
@@ -28,6 +28,8 @@ import {
   useGuestDocumentMeta,
   type GuestMetaConfig,
 } from "../../hooks/useGuestDocumentMeta";
+
+import { trackPublicPage, stopPublicMetrika } from "../../lib/publicMetrika";
 
 function readRouteState() {
   if (typeof window === "undefined") {
@@ -136,6 +138,15 @@ export function GuestAuthShell() {
   }, [routeLanding, routeState]);
 
   useGuestDocumentMeta(metaConfig);
+
+  useEffect(() => {
+    // AppShell appends its remembered tab even to guest URLs. This component
+    // is mounted only for unauthenticated public content; never send that tab.
+    const pageUrl = new URL(window.location.href);
+    if (pageUrl.searchParams.get("tab") !== "cms") pageUrl.searchParams.delete("tab");
+    trackPublicPage(pageUrl.href, metaConfig?.title || "HAULZ");
+  }, [routeState, metaConfig]);
+  useEffect(() => () => stopPublicMetrika(), []);
 
   if (routeState.screen === "login") {
     return (
