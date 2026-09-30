@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-30",
+  "counterId": 113218465,
+  "domain": "haulz.space",
+  "method": "Yandex official debugger _ym_debug=2; captured browser console from tag_debug.js",
+  "verifiedPageViews": [
+    {
+      "url": "https://haulz.space/",
+      "referer": ""
+    },
+    {
+      "url": "https://haulz.space/faq",
+      "referer": "https://haulz.space/"
+    },
+    {
+      "url": "https://haulz.space/",
+      "referer": "https://haulz.space/faq"
+    }
+  ],
+  "loginPageViewObserved": false,
+  "reportReceiptConfirmed": false,
+  "reportObservation": "Overview loaded with no data, subsequent navigation returned blank page. No inference about organic traffic volume.",
+  "testTraffic": "Controlled checks; not customer visits or leads."
+}
