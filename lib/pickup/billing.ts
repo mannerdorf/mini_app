@@ -278,12 +278,14 @@ export async function billingMatchInvoice(pool: Pool, actor: string, body: any) 
       JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
     if(!row || row.job_status!=='deposited' || !row.data.issueCustomerBill) throw new PickupError('Забор недоступен',404);
     if(row.status==='sending' && Date.now()-new Date(row.updated_at).getTime()<5*60*1000) throw new PickupError('Дождитесь завершения передачи в 1С',409);
+    const inn=text(row.data.customerInn);
+    if(!inn) throw new PickupError('Не указан ИНН заказчика');
     const {rows}=await db.query(`SELECT i.doc_number AS number,to_char(i.doc_date,'YYYY-MM-DD') AS date,
       i.payload->>'Customer' AS customer,coalesce(i.customer_inn,'') AS inn,
       jsonb_build_object('Sum',coalesce(i.payload->'Sum',i.payload->'sum',i.payload->'Сумма',i.payload->'Amount',i.payload->'SumDoc',i.payload->'SumInvoice',i.payload->'SumBill',i.payload->'СуммаДокумента',i.payload->'СуммаСчета',i.payload->'СуммаСчёта',i.payload->'Total',i.payload->'TotalSum',i.payload->'SumTotal',i.payload->'DocumentSum',i.payload->'СуммаСНДС',i.payload->'SumWithVAT'),
         'List',i.payload->'List','CargoNumber',i.payload->'CargoNumber','NumberCargo',i.payload->'NumberCargo',
         'Perevozka',i.payload->'Perevozka','НомерПеревозки',i.payload->'НомерПеревозки') AS invoice
-      FROM cache_invoices_rows i ORDER BY i.doc_date DESC,i.doc_number`);
+      FROM cache_invoices_rows i WHERE i.customer_inn=$1 ORDER BY i.doc_date DESC,i.doc_number`,[inn]);
     const invoices=rows.map(item=>({
       number:item.number,date:item.date,customer:item.customer,inn:item.inn,
       amount:invoiceDocSum(item.invoice),transportNumbers:invoiceTransportNumbers(item.invoice),

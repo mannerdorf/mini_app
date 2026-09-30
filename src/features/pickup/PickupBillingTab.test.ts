@@ -157,3 +157,12 @@ it.each(['CreatePickupInvoice','SetPickupCost'])('distinguishes an existing invo
  expect(status.findByType('strong').children.join('')).toContain(invoiceRequestMethod==='CreatePickupInvoice'?'Счёт за забор уже есть':'отклонила изменение стоимости');
  expect(root.root.findAllByType('button').some(b=>b.children.includes('Повторить передачу в 1С'))).toBe(invoiceRequestMethod!=='CreatePickupInvoice');
 });
+
+it.each(['manual','uncertain','not_issued'])('hides obsolete transmission actions and errors when an invoice exists (%s)',async(status)=>{
+ await mount(vi.fn(async()=>({rows:[{...row,status,invoiceNumber:'4053',last_error:'Ошибка записи счета',source:{mode:'manual'}}]})),vi.fn());
+ const buttons=root.root.findAllByType('button');
+ expect(buttons.some(b=>b.children.includes('Повторить передачу в 1С')||b.children.includes('Выставить счёт'))).toBe(false);
+ expect(JSON.stringify(root.toJSON())).not.toContain('Ошибка записи счета');
+ expect(JSON.stringify(root.toJSON())).not.toContain('Не выставлен — ручной расчёт');
+ expect(root.root.findByProps({'data-label':'Статус'}).findByType('button')).toBeTruthy();
+});

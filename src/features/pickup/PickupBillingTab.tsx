@@ -15,7 +15,7 @@ type Row = {invoiceCustomer?:string;invoiceRequestMethod?:string;invoiceReferenc
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Стоимость передана — ожидается счёт',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставление подтверждено вручную — счёт не найден',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
 const duplicateInvoice = (row:Row) => /сч[её]т уже выставлен/i.test(row.last_error||'');
 const duplicateInvoiceLabel = (row:Row) => row.invoiceRequestMethod==='CreatePickupInvoice'?'Счёт за забор уже есть в 1С — сопоставьте счёт':'1С отклонила изменение стоимости: счёт уже выставлен';
-const isManualCalculationPending = (row: Row) => row.status === 'not_issued' && row.source?.mode === 'manual';
+const isManualCalculationPending = (row: Row) => !row.invoiceNumber && row.status === 'not_issued' && row.source?.mode === 'manual';
 const missingTransport = (row: Row) => row.error?.startsWith('Перевозка не найдена:') === true;
 const billingExplanation = (row: Row) => missingTransport(row)
   ? `Груз сдан, ${row.orderNumber || row.source?.orderNumber ? 'заявка есть, ' : ''}перевозка ещё не найдена в данных 1С.`
@@ -133,12 +133,12 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
           <button disabled={busy} onClick={()=>setDrafts(previous=>({...previous,[row.jobId]:{...previous[row.jobId],baseVersion:row.version}}))}>Оставить мой ввод</button>
         </div>}
       </td>
-      <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber?'var(--pk-success-text)':['manual','uncertain','transmitted','issued'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.invoiceCustomer||row.customer,_invoiceReferenceDate:row.invoiceReferenceDate || row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : duplicateInvoice(row) ? duplicateInvoiceLabel(row) : labels[row.status||'']||'Нет данных'}</strong>{row.status==='transmitted'&&!row.invoiceNumber&&<small style={{display:'block'}}>Номер счёта ещё не получен из 1С.</small>}{!row.error&&!duplicateInvoice(row)&&row.last_error&&['manual','uncertain'].includes(row.status||'')&&<small style={{display:'block'}}>{row.last_error}</small>}{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
+      <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber?'var(--pk-success-text)':['manual','uncertain','transmitted','issued'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.invoiceCustomer||row.customer,_invoiceReferenceDate:row.invoiceReferenceDate || row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : duplicateInvoice(row) ? duplicateInvoiceLabel(row) : labels[row.status||'']||'Нет данных'}</strong>{row.status==='transmitted'&&!row.invoiceNumber&&<small style={{display:'block'}}>Номер счёта ещё не получен из 1С.</small>}{!row.invoiceNumber&&!row.error&&!duplicateInvoice(row)&&row.last_error&&['manual','uncertain'].includes(row.status||'')&&<small style={{display:'block'}}>{row.last_error}</small>}{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
       <td data-label="Действие">{(!row.source?.transportNumber||missingTransport(row))&&<button disabled={busy} onClick={()=>void run(()=>findTransport(row))}>Сопоставить перевозку</button>}{!row.invoiceNumber&&<button disabled={busy} onClick={()=>void run(async()=>{
         const result=await call<{invoices:InvoiceCandidate[]}>({action:'billing_invoice_candidates',id:row.jobId});
         setMatching({row,invoices:result.invoices});setInvoiceChoice('');return false;
-      })}>Сопоставить счёт</button>}{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
-      {['manual','uncertain'].includes(row.status||'')&&!(duplicateInvoice(row)&&row.invoiceRequestMethod==='CreatePickupInvoice')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Проверьте наличие счёта в 1С. Повторить запрос создания счёта?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
+      })}>Сопоставить счёт</button>}{!row.invoiceNumber&&row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
+      {!row.invoiceNumber&&['manual','uncertain'].includes(row.status||'')&&!(duplicateInvoice(row)&&row.invoiceRequestMethod==='CreatePickupInvoice')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Проверьте наличие счёта в 1С. Повторить запрос создания счёта?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
       </td>
     </tr>)}</tbody></table></div>}
     {transportMatch&&<div ref={transportPanel} className="pk-card" role="dialog" aria-label="Сопоставить перевозку">
@@ -160,7 +160,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     </div>}
     {matching&&<div ref={matchingPanel} role="dialog" aria-modal="false" aria-label="Сопоставить счёт" className="pk-card">
       <h3>Сопоставить счёт · {matching.row.jobNumber}</h3>
-      <p>Все счета из журнала. Проверьте выбранный документ перед сопоставлением.</p>
+      <p>Все счета этого заказчика из журнала. Проверьте выбранный документ перед сопоставлением.</p>
       {matching.invoices.length ? <>
         <label>Счёт <select value={invoiceChoice} disabled={busy} onChange={e=>setInvoiceChoice(e.target.value)}>
           <option value="">Выберите счёт</option>
@@ -173,7 +173,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
           await call({action:'billing_match_invoice',id:matching.row.jobId,version:matching.row.version,invoiceNumber:invoice.number,invoiceDate:invoice.date,invoiceInn:invoice.inn});
           setMatching(null);setMessage('Счёт сопоставлен');
         })}>Сопоставить</button>
-      </>:<p>В журнале пока нет счетов.</p>}
+      </>:<p>В журнале пока нет счетов этого заказчика.</p>}
       <button disabled={busy} onClick={()=>setMatching(null)}>Закрыть</button>
     </div>}
   </section>;
