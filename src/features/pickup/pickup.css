@@ -412,16 +412,24 @@
 }
 .pk-root .pk-billing-table tbody tr { background: var(--color-bg-card, var(--color-bg-secondary)); }
 .pk-root .pk-billing-table tbody tr:nth-child(even) { background: var(--color-bg-hover); }
+/* Amounts share the plain table typography used by cargo and invoices. */
 .pk-root .pk-billing-table input {
   padding: 6px 8px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-border) !important;
   border-radius: 8px;
-  background: var(--color-bg-primary);
+  background: var(--color-bg-input, var(--color-bg-primary)) !important;
+  box-shadow: none;
   color: var(--color-text-primary);
   font: inherit;
   text-align: right;
 }
-.pk-root .pk-billing-table input:disabled { opacity: 1; color: var(--color-text-secondary); }
+.pk-root .pk-billing-table input:focus-visible {
+  outline: 2px solid var(--color-primary-blue);
+  outline-offset: 3px;
+}
+.pk-root .pk-billing-table input:disabled { opacity: 1; color: var(--color-text-primary); }
+.pk-billing-amount-value { width: 100%; text-align: right; }
+.pk-root .pk-billing-table th:nth-child(11) { text-align: right; }
 .pk-root .pk-billing-table small { color: var(--color-text-secondary); font-size: 0.75rem; }
 /* Keep every column, including actions, inside the panel. */
 .pk-root .pk-billing-table th:nth-child(1) { width: 6%; }
@@ -2934,3 +2942,49 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-root .pk-billing-calculate { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); }
 .pk-root .pk-billing-calculate:hover { color: var(--color-primary-blue); }
 .pk-root .pk-billing-calculate:disabled { opacity: .45; cursor: not-allowed; }
+
+.pk-root .pk-billing-table .pk-billing-amount-edit {
+  flex: 1;
+  padding: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
+  color: var(--color-text-primary);
+  text-align: right;
+  font: inherit;
+}
+
+.pk-root .pk-billing-table .pk-billing-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  overflow-wrap: normal;
+}
+.pk-billing-sort svg { flex-shrink: 0; }
+.pk-root .pk-billing-table .pk-billing-sort:focus-visible {
+  outline: 2px solid var(--color-primary-blue);
+  outline-offset: 3px;
+}
+
+/* Attention remains red while there are unresolved items, including when selected. */
+.pk-root .pk-tabs button.pk-tab-attention {
+  background: #b91c1c !important;
+  border-color: #b91c1c !important;
+  color: #fff !important;
+  box-shadow: none;
+}
+.pk-root .pk-tabs button.pk-tab-attention:hover:not(:disabled) {
+  background: #991b1b !important;
+  border-color: #991b1b !important;
+}
+.pk-root .pk-tabs button.pk-tab-attention.pk-selected {
+  box-shadow: 0 0 0 2px var(--pk-panel), 0 0 0 4px #ef4444;
+}

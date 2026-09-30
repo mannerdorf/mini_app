@@ -600,7 +600,8 @@ export function PickupPage({
               ).map(([id, label]) => (
                 <button
                   key={id}
-                  className={tab === id ? "pk-selected" : ""}
+                  className={[tab === id ? "pk-selected" : "", id === "attention" && attention.length > 0 ? "pk-tab-attention" : ""].filter(Boolean).join(" ")}
+                  aria-current={tab === id ? "page" : undefined}
                   onClick={() => setTab(id)}
                 >
                   {label}

@@ -139,6 +139,7 @@ export async function readRegisteredInvoicesFromCache(
   dateFrom: string,
   dateTo: string,
   inn: unknown,
+  invoiceNumber?: string,
 ): Promise<any[]> {
   try {
     let filterInns: Set<string> | null = null;
@@ -165,6 +166,7 @@ export async function readRegisteredInvoicesFromCache(
 
     const { items, fromNormalized } = await readDocumentsFromCacheByPeriod(pool, "invoices", dateFrom, dateTo, {
       inns: finalInns,
+      invoiceNumber,
     });
     if (fromNormalized) return items;
     return filterInvoicesForRegisteredUser(pool, verified, login, inn, dateFrom, dateTo, items);
@@ -229,7 +231,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (isVerifiedSuperAdmin(superAdminCtx)) {
     try {
       const pool = getPool();
-      const items = await readSuperAdminDocumentsFromCache(pool, "invoices", dateFrom, dateTo);
+      const items = await readSuperAdminDocumentsFromCache(pool, "invoices", dateFrom, dateTo, { invoiceNumber: responseOptions.invoiceNumber });
       const filtered = items.filter((item) => {
         const d = invoiceDate(item);
         return d >= dateFrom && d <= dateTo;
@@ -288,6 +290,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
           requestedDateFrom,
           requestedDateTo,
           inn,
+          responseOptions.invoiceNumber,
         );
         return res.status(200).json(finalizeInvoiceList(filtered, responseOptions));
       }
@@ -301,7 +304,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (useDocumentCache) try {
     const pool = getPool();
     if (serviceMode) {
-      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", requestedDateFrom, requestedDateTo);
+      const { items } = await readDocumentsFromCacheByPeriod(pool, "invoices", requestedDateFrom, requestedDateTo, { invoiceNumber: responseOptions.invoiceNumber });
       const filtered = items.filter((item) => {
         const d = invoiceDate(item);
         return d >= requestedDateFrom && d <= requestedDateTo;
@@ -329,6 +332,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         requestedDateTo,
         {
           inns: filterInns,
+          invoiceNumber: responseOptions.invoiceNumber,
         },
       );
       const filtered = fromNormalized

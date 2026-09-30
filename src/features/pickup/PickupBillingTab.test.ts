@@ -10,6 +10,7 @@ const issue=()=>root.root.findAllByType('button').find(b=>b.children.includes('�
 it('saves the edited amount before sending with the returned version',async()=>{
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[row]}:b.action==='billing_save'?{ok:true,version:5}:{ok:true,status:'transmitted'});
  await mount(call);
+ await act(async()=>root.root.findByProps({'aria-label':'Изменить сумму ZB-1'}).props.onClick());
  await act(async()=>root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.onChange({target:{value:'250,50'}}));
  await act(async()=>issue().props.onClick());
  expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal','billing_save','billing_send','billing_journal']);
@@ -81,8 +82,38 @@ it('fills a calculator draft and allows a manual correction before sending',asyn
 it('preserves the entered amount when calculation fails',async()=>{
  const call=vi.fn(async(b:any)=>{if(b.action==='billing_quote')throw new Error('Нет координат');return {rows:[row]};});
  await mount(call);
+ await act(async()=>root.root.findByProps({'aria-label':'Изменить сумму ZB-1'}).props.onClick());
  await act(async()=>root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.onChange({target:{value:'1700'}}));
  await act(async()=>root.root.findByProps({'aria-label':'Рассчитать сумму ZB-1'}).props.onClick());
  expect(root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.value).toBe('1700');
  expect(JSON.stringify(root.toJSON())).toContain('Нет координат');
+});
+
+it('shows an existing amount as text and an empty amount as an input',async()=>{
+ await mount(vi.fn(async()=>({rows:[row,{...row,jobId:'2',jobNumber:'ZB-2',amount:null}]})));
+ expect(root.root.findAllByProps({'aria-label':'Сумма ZB-1'})).toHaveLength(0);
+ expect(root.root.findByProps({'aria-label':'Сумма ZB-2'}).props.value).toBe('');
+ await act(async()=>root.root.findByProps({'aria-label':'Изменить сумму ZB-1'}).props.onClick());
+ expect(root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.value).toBe('100');
+ await act(async()=>root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.onBlur());
+ expect(root.root.findAllByProps({'aria-label':'Сумма ZB-1'})).toHaveLength(0);
+});
+it('sorts amounts numerically in both directions with missing values last',async()=>{
+ await mount(vi.fn(async()=>({rows:[{...row,jobId:'a',amount:100},{...row,jobId:'b',amount:20},{...row,jobId:'c',amount:null}]})));
+ const amounts=()=>root.root.findByType('tbody').findAllByProps({'data-label':'Сумма, ₽'}).map(cell=>cell.findAllByProps({className:'pk-billing-amount-edit'})[0]?.children.join('')??'input');
+ const click=()=>root.root.findByProps({'aria-label':'Сортировать: Сумма, ₽'}).props.onClick();
+ await act(async()=>click());
+ expect(amounts()[0]).toContain('20,00');
+ expect(root.root.findAllByType('th')[10].props['aria-sort']).toBe('ascending');
+ await act(async()=>click());
+ expect(amounts()[0]).toContain('100,00');
+ expect(amounts()[2]).toContain('input');
+ expect(root.root.findAllByType('th')[10].props['aria-sort']).toBe('descending');
+});
+it('sorts customer names and document numbers naturally',async()=>{
+ await mount(vi.fn(async()=>({rows:[{...row,jobId:'a',customer:'Я',jobNumber:'ZB-10'},{...row,jobId:'b',customer:'А',jobNumber:'ZB-2'}]})));
+ await act(async()=>root.root.findByProps({'aria-label':'Сортировать: Заказчик'}).props.onClick());
+ expect(root.root.findByType('tbody').findAllByProps({'data-label':'Заказчик'})[0].children).toEqual(['А']);
+ await act(async()=>root.root.findByProps({'aria-label':'Сортировать: № забора'}).props.onClick());
+ expect(root.root.findByType('tbody').findAllByProps({'data-label':'№ забора'})[0].findByType('strong').children).toEqual(['ZB-2']);
 });

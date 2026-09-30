@@ -1,3 +1,4 @@
+import { invoiceLookupNumber } from "./invoiceLookup.js";
 import type { Pool, PoolClient } from "pg";
 import type { CargoDateField } from "./cargoDateFilter.js";
 import { cargoItemDateForField } from "./cargoDateFilter.js";
@@ -34,6 +35,7 @@ const ROWS_TABLE: Record<NormalizedDocumentKind, string> = {
 export type InnFilterColumn = "customer" | "sender" | "receiver" | "any";
 
 export type NormalizedReadOptions = {
+  invoiceNumber?: string;
   dateField?: CargoDateField;
   inns?: Set<string> | null;
   innColumn?: InnFilterColumn;
@@ -440,6 +442,13 @@ export async function readNormalizedByDateRange(
   } else {
     where = `(doc_date is null or (doc_date >= $1::date and doc_date <= $2::date))`;
   }
+
+  if (kind === "invoices" && options.invoiceNumber) {
+    params.push(invoiceLookupNumber(options.invoiceNumber));
+    where += ` and upper(regexp_replace(regexp_replace(trim(doc_number), '^0000-', ''), '^0+', '')) = $${params.length}`;
+  }
+  // An explicitly empty access scope must never become an unrestricted read.
+  if (options.inns && options.inns.size === 0) return [];
 
   if (options.inns && options.inns.size > 0) {
     params.push(Array.from(options.inns));

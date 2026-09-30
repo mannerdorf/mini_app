@@ -19,6 +19,7 @@ const BLOB_TABLE: Record<NormalizedDocumentKind, string> = {
 };
 
 export type DocumentCacheReadOptions = {
+  invoiceNumber?: string;
   dateField?: CargoDateField;
   inns?: Set<string> | null;
   innColumn?: InnFilterColumn;
@@ -63,6 +64,7 @@ export async function readDocumentsFromCacheByPeriod(
   try {
     if (await isNormalizedCacheReady(pool, kind)) {
       const items = await readNormalizedByDateRange(pool, kind, dateFrom, dateTo, {
+        invoiceNumber: options.invoiceNumber,
         dateField: options.dateField,
         inns: options.inns,
         innColumn: options.innColumn,
