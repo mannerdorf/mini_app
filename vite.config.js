@@ -1,3 +1,4 @@
+import { publicCanonicalShells } from './scripts/public-canonical-shells-plugin.mjs';
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import { viteSingleFile } from "vite-plugin-singlefile";
@@ -65,7 +66,7 @@ export default defineConfig(({ command }) => ({
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
     "import.meta.env.VITE_BUILD_INFO": JSON.stringify(buildInfo),
   },
-  plugins: [react(), buildIdentity(), ...(useSingleFilePlugin() ? [viteSingleFile()] : [staticRouteAnalytics()]), adminRewrite()],
+  plugins: [react(), buildIdentity(), ...(useSingleFilePlugin() ? [viteSingleFile()] : [staticRouteAnalytics(), publicCanonicalShells()]), adminRewrite()],
   server: {
     // Guest/CMS fetch('/api/...') same-origin → local API (api:dev on :3000)
     proxy: {

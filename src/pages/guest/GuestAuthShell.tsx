@@ -100,8 +100,10 @@ export function GuestAuthShell() {
           title: "Калькулятор перевозки Москва ↔ Калининград | HAULZ",
           description:
             "Онлайн-калькулятор B2B-перевозки между Москвой и Калининградом: вес, объём, паром, авто, авиа.",
-          path: guestPathForScreen("calculator", routeState.direction),
+          path: "/kalkulyator",
         };
+      case "app":
+        return { title: "Приложение HAULZ", description: "Приложение HAULZ для управления перевозками.", path: "/app" };
       case "faq":
         return {
           title: "FAQ — перевозки HAULZ Москва ↔ Калининград",
