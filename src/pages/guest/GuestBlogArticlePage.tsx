@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Calculator } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
+import { NotFoundPage } from "../NotFoundPage";
 import { markdownToSafeHtml } from "../../lib/markdownToSafeHtml";
 
 type Article = {
@@ -20,6 +21,7 @@ type Props = {
 
 export function GuestBlogArticlePage({ slug, onBack, onCalculator }: Props) {
   const [article, setArticle] = useState<Article | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -28,8 +30,11 @@ export function GuestBlogArticlePage({ slug, onBack, onCalculator }: Props) {
     (async () => {
       setLoading(true);
       setError(null);
+      setArticle(null);
+      setNotFound(false);
       try {
         const res = await fetch(`/api/public-blog?slug=${encodeURIComponent(slug)}`);
+        if (res.status === 404) { if (!cancelled) setNotFound(true); return; }
         const data = await res.json();
         if (!res.ok) throw new Error(data?.error || "Статья не найдена");
         if (!cancelled) setArticle(data.article as Article);
@@ -45,6 +50,8 @@ export function GuestBlogArticlePage({ slug, onBack, onCalculator }: Props) {
   }, [slug]);
 
   const html = useMemo(() => markdownToSafeHtml(article?.body_markdown || ""), [article?.body_markdown]);
+
+  if (notFound) return <NotFoundPage />;
 
   return (
     <div className="guest-shell min-h-[100dvh] bg-[#f8fafc]">

@@ -19,6 +19,7 @@ export function staticRouteAnalytics() {
     },
     writeBundle(output) {
       const script = `${config.base}${this.getFileName(entry)}`;
+      writeFileSync(resolve(output.dir, "public-analytics.js"), `import ${JSON.stringify(script)};\n`);
       for (const route of routes) {
         const file = resolve(output.dir, route, 'index.html');
         const html = readFileSync(file, 'utf8');
