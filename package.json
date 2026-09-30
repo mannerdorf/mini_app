@@ -15,7 +15,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/generate-route-seo-html.mjs && vite build",
+    "build": "node scripts/generate-route-seo-html.mjs && node --import tsx scripts/generate-not-found-html.tsx && vite build",
     "build:android": "VITE_API_ORIGIN=https://haulz.space vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:release": "bash scripts/build-android-release-apk.sh",
