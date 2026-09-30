@@ -367,6 +367,12 @@
   margin-top: 8px;
 }
 .pk-root .pk-billing {
+  --pk-ink: var(--color-text-primary);
+  --pk-muted: var(--color-text-secondary);
+  --pk-panel: var(--color-bg-card, var(--color-bg-secondary));
+  --pk-border: var(--color-border);
+  background: var(--color-bg-card, var(--color-bg-secondary));
+  color: var(--color-text-primary);
   container-type: inline-size;
   container-name: pickup-billing;
   min-width: 0;
@@ -376,30 +382,47 @@
   min-width: 0;
   box-sizing: border-box;
   margin-top: 12px;
-  border: 1px solid var(--pk-border);
-  border-radius: 12px;
-  background: var(--pk-panel);
+  border: 0;
+  border-radius: 0;
+  background: var(--color-bg-card, var(--color-bg-secondary));
 }
 .pk-root .pk-billing-table {
   width: 100%;
   min-width: 0;
   table-layout: fixed;
   border-collapse: collapse;
-  font-size: 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
 }
 .pk-root .pk-billing-table th,
 .pk-root .pk-billing-table td {
-  padding: 10px 6px;
+  padding: 0.5rem 0.4rem;
   overflow-wrap: anywhere;
   text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--pk-border);
+  vertical-align: middle;
+  border-bottom: 1px solid var(--color-border);
 }
 .pk-root .pk-billing-table th {
   font-weight: 600;
-  background: var(--pk-panel);
+  background: var(--color-bg-hover);
   white-space: normal;
+  overflow-wrap: normal;
 }
+.pk-root .pk-billing-table tbody tr { background: var(--color-bg-card, var(--color-bg-secondary)); }
+.pk-root .pk-billing-table tbody tr:nth-child(even) { background: var(--color-bg-hover); }
+.pk-root .pk-billing-table input {
+  padding: 6px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font: inherit;
+  text-align: right;
+}
+.pk-root .pk-billing-table input:disabled { opacity: 1; color: var(--color-text-secondary); }
+.pk-root .pk-billing-table small { color: var(--color-text-secondary); font-size: 0.75rem; }
 /* Keep every column, including actions, inside the panel. */
 .pk-root .pk-billing-table th:nth-child(1) { width: 6%; }
 .pk-root .pk-billing-table th:nth-child(2),
@@ -415,7 +438,8 @@
 .pk-root .pk-billing-table th:nth-child(12),
 .pk-root .pk-billing-table th:nth-child(13) { width: 12%; }
 .pk-root .pk-billing-table :is(input, button) { min-width: 0; max-width: 100%; box-sizing: border-box; }
-.pk-root .pk-billing-table button { white-space: normal; overflow-wrap: anywhere; padding: 8px 6px; }
+.pk-root .pk-billing-table button { white-space: normal; overflow-wrap: anywhere; padding: 6px; font-size: inherit; }
+.pk-root .pk-billing-table .pk-billing-calculate { padding: 0; }
 .pk-root .pk-billing-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -2845,6 +2869,30 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-root .pk-pickup-facts button.pk-order-edit { min-width: 32px; color: var(--pk-muted); }
 
 /* The dropdown is portalled to body, outside .pk-root. */
+.filter-dropdown-portal .pk-day-filter-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  color: var(--color-text-primary);
+}
+.filter-dropdown-portal .pk-day-filter-field input[type="date"] {
+  min-width: 0;
+  /* Override the shared dropdown input surface in both themes. */
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
+  color: inherit !important;
+  font: inherit;
+  color-scheme: light;
+}
+.dark-mode .filter-dropdown-portal .pk-day-filter-field input[type="date"] {
+  color-scheme: dark;
+}
+.filter-dropdown-portal .pk-day-filter-field input[type="date"]:focus-visible {
+  outline: 2px solid var(--color-primary-blue, #2563eb);
+  outline-offset: 2px;
+}
 .filter-dropdown-portal button.pk-city-option {
   display: block;
   width: 100%;
@@ -2880,3 +2928,9 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   outline: 2px solid var(--color-primary-blue, #2563eb);
   outline-offset: 2px;
 }
+
+.pk-billing-amount { display: flex; align-items: center; gap: 4px; }
+.pk-billing-amount input { min-width: 0; flex: 1; }
+.pk-root .pk-billing-calculate { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 32px; padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); }
+.pk-root .pk-billing-calculate:hover { color: var(--color-primary-blue); }
+.pk-root .pk-billing-calculate:disabled { opacity: .45; cursor: not-allowed; }

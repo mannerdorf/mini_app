@@ -1,3 +1,4 @@
+import { invoiceLookupNumber } from "../lib/invoiceLookup.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyRegisteredUser, type VerifiedRegisteredUser } from "../lib/verifyRegisteredUser.js";
@@ -107,6 +108,7 @@ function normalizeDateOnly(raw: unknown): string {
 }
 
 type InvoiceResponseOptions = {
+  invoiceNumber?: string;
   monitor?: string;
   unpaidOnly?: boolean;
   /** Только для точечной выдачи вложений; в списке по умолчанию всегда strip. */
@@ -117,6 +119,7 @@ function finalizeInvoiceList(items: unknown[], options: InvoiceResponseOptions):
   let rows = (Array.isArray(items) ? items : []).map((item) =>
     item && typeof item === "object" ? (item as Record<string, unknown>) : {},
   );
+  if (options.invoiceNumber) rows = rows.filter(row => invoiceLookupNumber(row.Number ?? row.number) === invoiceLookupNumber(options.invoiceNumber));
   if (options.unpaidOnly) {
     rows = filterUnpaidInvoices(rows);
   }
@@ -209,6 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   let dateFrom = String(rawDateFrom ?? "").trim();
   let dateTo = String(rawDateTo ?? "").trim();
   const responseOptions: InvoiceResponseOptions = {
+    invoiceNumber: typeof body?.invoiceNumber === "string" ? body.invoiceNumber.trim() : undefined,
     monitor: typeof monitor === "string" ? monitor.trim() : undefined,
     unpaidOnly: unpaidOnly === true || unpaidOnly === "true" || unpaidOnly === 1,
     includeFiles: body?.includeFiles === true || body?.includeFiles === "true",

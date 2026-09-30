@@ -94,6 +94,7 @@ export function DocumentsPage(props: DocumentsPageProps) {
             {page.docSection === 'ЭДО' && (
                 <DocumentsEdoSection
                     active={page.docSection === 'ЭДО'}
+                    effectiveServiceMode={page.effectiveServiceMode}
                     auth={page.auth}
                     loading={page.loading}
                     error={page.error}

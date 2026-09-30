@@ -93,6 +93,22 @@ function sourceFor(job: Job, row: any) {
     orderNumber: job.data.zayavkaNumber, ...transportMetrics(row), mode: job.data.customerBillMode,
     city: job.city, km: job.data.mkadKm, latitude: job.data.latitude ?? null, longitude: job.data.longitude ?? null };
 }
+/** Calculate a draft amount only; does not save billing state or call 1C. */
+export async function billingQuote(pool: Pool, body: any) {
+  const job = (await pool.query<Job>("SELECT * FROM pickup_jobs WHERE id=$1", [body.id])).rows[0];
+  const billing = (await pool.query("SELECT status,version FROM pickup_billing WHERE job_id=$1", [body.id])).rows[0];
+  if (!job || job.status !== 'deposited' || !job.data.issueCustomerBill || !billing || billing.status !== 'not_issued' || billing.version !== body.version) {
+    throw new PickupError('Данные изменились. Обновите журнал перед расчётом.', 409);
+  }
+  const source = sourceFor(job, matchBillingTransport(job, await transports(pool, [job])));
+  if (source.weight == null || source.volume == null || source.chargeableWeight == null) throw new PickupError('В перевозке нет веса, объёма или платного веса для расчёта');
+  const coords = await resolvePickupPointCoords(pool, job.city, job.data);
+  const quote = await buildPickupCustomerQuote(pool, {city:job.city, weightKg:source.weight, volumeM3:source.volume,
+    chargeableWeightKg:source.chargeableWeight, kmOverride:job.data.mkadKm,
+    latitude:coords?.latitude ?? job.data.latitude ?? null, longitude:coords?.longitude ?? job.data.longitude ?? null});
+  return {amount:Math.round(quote.totalRub)};
+}
+
 export async function billingJournal(pool: Pool, city: string, date: string, actor: string, onlyJobId?: string, dateTo: string = date) {
   if (!['moscow','kaliningrad'].includes(city) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo) || dateTo < date) throw new PickupError('Укажите город и дату');
   const { rows: jobs } = await pool.query<Job>(`SELECT *,to_char(date,'YYYY-MM-DD') AS billing_date FROM pickup_jobs WHERE city=$1 AND date BETWEEN $2::date AND $4::date AND status='deposited' AND data->>'issueCustomerBill'='true' AND ($3::uuid IS NULL OR id=$3) ORDER BY date DESC,job_number`,[city,date,onlyJobId ?? null,dateTo]);

@@ -335,6 +335,7 @@ export function AppNavigationProvider({ children, setSearchText, useServiceReque
         >
           <InvoiceDetailModal
             item={overlayInvoice}
+            useServiceRequest={useServiceRequest}
             isOpen
             onClose={() => setOverlayInvoice(null)}
             onOpenCargo={(cargoNumber) => openCargoInPlace(cargoNumber)}

@@ -64,6 +64,25 @@ it('opens the invoice when its number is clicked',async()=>{
  const status=root.root.findByProps({'data-label':'Статус'});
  const stopPropagation=vi.fn();
  await act(async()=>status.findByType('button').props.onClick({stopPropagation}));
- expect(open).toHaveBeenCalledWith({Number:'000001529',Customer:'Тест'});
+ expect(open).toHaveBeenCalledWith({Number:'000001529',Customer:'Тест',_invoiceReferenceDate:row.date});
  expect(stopPropagation).toHaveBeenCalledOnce();
+});
+
+it('fills a calculator draft and allows a manual correction before sending',async()=>{
+ const call=vi.fn(async(b:any)=>b.action==='billing_quote'?{amount:2448.44}:{rows:[row]});
+ await mount(call);
+ await act(async()=>root.root.findByProps({'aria-label':'Рассчитать сумму ZB-1'}).props.onClick());
+ const amount=()=>root.root.findByProps({'aria-label':'Сумма ZB-1'});
+ expect(amount().props.value).toBe('2448');
+ await act(async()=>amount().props.onChange({target:{value:'2500'}}));
+ expect(amount().props.value).toBe('2500');
+ expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal','billing_quote']);
+});
+it('preserves the entered amount when calculation fails',async()=>{
+ const call=vi.fn(async(b:any)=>{if(b.action==='billing_quote')throw new Error('Нет координат');return {rows:[row]};});
+ await mount(call);
+ await act(async()=>root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.onChange({target:{value:'1700'}}));
+ await act(async()=>root.root.findByProps({'aria-label':'Рассчитать сумму ZB-1'}).props.onClick());
+ expect(root.root.findByProps({'aria-label':'Сумма ZB-1'}).props.value).toBe('1700');
+ expect(JSON.stringify(root.toJSON())).toContain('Нет координат');
 });

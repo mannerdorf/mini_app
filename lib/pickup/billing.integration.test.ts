@@ -5,7 +5,7 @@ import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
-import {billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
+import {billingQuote,billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {processPickupAutoBilling} from './autoBilling.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
@@ -308,4 +308,14 @@ it('includes both ends of the billing period and returns each job date',async()=
   expect(result.rows.map(row=>[row.jobNumber,row.date])).toEqual([['ZB-002','2026-09-18'],['ZB-001','2026-09-17']]);
   expect((await journal()).rows).toHaveLength(1);
   await expect(billingJournal(pool,'moscow','2026-09-18','dispatcher',undefined,'2026-09-17')).rejects.toThrow();
+});
+
+it('calculates a manual billing draft without saving it or sending to 1C',async()=>{
+ await seed('manual'); const {rows:[row]}=await journal();
+ const result=await billingQuote(pool,{id,version:row.version});
+ expect(result.amount).toBe(540);
+ const stored=(await db.query('SELECT amount,status,amount_manual FROM pickup_billing WHERE job_id=$1',[id])).rows[0];
+ expect(stored).toMatchObject({amount:null,status:'not_issued',amount_manual:false});
+ expect(deliverySetter).not.toHaveBeenCalled();
+ await expect(billingQuote(pool,{id,version:row.version-1})).rejects.toThrow('Данные изменились');
 });

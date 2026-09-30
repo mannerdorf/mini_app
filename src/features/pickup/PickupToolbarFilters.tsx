@@ -20,7 +20,7 @@ export function PickupDayFilter({value,onChange}:{value:string;onChange:(date:st
   return <>
     <button type="button" ref={ref} className="filter-button" aria-expanded={open} onClick={()=>setOpen(!open)}>Дата: {value.split('-').reverse().join('.')} <ChevronDown size={16}/></button>
     <FilterDropdownPortal triggerRef={ref} isOpen={open} onClose={()=>setOpen(false)}>
-      <label style={{display:'block',padding:12}}>Дата <input aria-label="Дата" type="date" value={value} onChange={e=>{if(e.target.value){onChange(e.target.value);setOpen(false);}}}/></label>
+      <label className="pk-day-filter-field">Дата <input aria-label="Дата" type="date" value={value} onChange={e=>{if(e.target.value){onChange(e.target.value);setOpen(false);}}}/></label>
     </FilterDropdownPortal>
   </>;
 }

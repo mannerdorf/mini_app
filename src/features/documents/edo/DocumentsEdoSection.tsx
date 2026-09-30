@@ -14,6 +14,7 @@ import type { AuthData } from "../../../types";
 type Props = {
   active: boolean;
   auth: AuthData;
+  effectiveServiceMode?: boolean;
   loading: boolean;
   error: string | null;
   perevozkiLoading: boolean;
@@ -46,6 +47,7 @@ type Props = {
 export function DocumentsEdoSection({
   active,
   auth,
+  effectiveServiceMode = false,
   loading,
   error,
   perevozkiLoading,
@@ -179,6 +181,7 @@ export function DocumentsEdoSection({
       {selectedInvoice && (
         <InvoiceDetailModal
           item={selectedInvoice}
+          useServiceRequest={effectiveServiceMode}
           isOpen={!!selectedInvoice}
           onClose={() => setSelectedInvoice(null)}
           onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}

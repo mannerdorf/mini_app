@@ -1,3 +1,4 @@
+import { Calculator } from 'lucide-react';
 import { ClickableInvoiceNumber } from '../../components/ui/EntityLinks';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Job, Route } from '../../../lib/pickup/model';
@@ -9,6 +10,11 @@ type Row = {invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:str
   source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Передано в 1С',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставлен',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
+const isManualCalculationPending = (row: Row) => row.status === 'not_issued' && row.source?.mode === 'manual';
+const missingTransport = (row: Row) => row.error?.startsWith('Перевозка не найдена:') === true;
+const billingExplanation = (row: Row) => missingTransport(row)
+  ? `Груз сдан, ${row.orderNumber || row.source?.orderNumber ? 'заявка есть, ' : ''}перевозка ещё не найдена в данных 1С.`
+  : row.error;
 export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpenInvoice}: {city:keyof typeof cities;date:string;dateTo?:string;onCount?:(count:number)=>void;onOpenInvoice?:(invoice:Record<string,unknown>)=>void;jobs:Job[];routes:Route[];call:PickupCall}) {
   const [rows,setRows]=useState<Row[]>([]),[drafts,setDrafts]=useState<BillingDrafts>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
@@ -29,6 +35,18 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     try{if(await action()!==false) await load(savedId);}
     catch(e){setMessage((e as Error).message);}
     finally{running.current=false;setBusy(false);}
+  };
+  const calculate=async(row:Row)=>{
+    if(running.current) return;
+    const ticket=generation.current;
+    running.current=true;setBusy(true);setMessage('');
+    try {
+      const result=await call<{amount:number}>({action:'billing_quote',id:row.jobId,version:row.version});
+      if(ticket!==generation.current) return;
+      if(!Number.isFinite(result.amount)||result.amount<0) throw new Error('Калькулятор вернул некорректную сумму');
+      setDrafts(old=>editBillingAmount(old,row,String(Math.round(result.amount))));
+    } catch(e) {if(ticket===generation.current) setMessage((e as Error).message);}
+    finally {running.current=false;if(ticket===generation.current)setBusy(false);}
   };
   const save=async(row:Row)=>{
     const draft=drafts[row.jobId];
@@ -61,16 +79,16 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     {!rows.length&&!busy?<p className="pk-empty">Нет сданных на склад заборов с включённым выставлением счёта за этот день.</p>:<div className="pk-billing-table-wrap"><table className="pk-billing-table"><thead><tr>
       {['Дата','Заказчик','Отправитель','Места','Вес, кг','Объём, м³','Платный вес, кг','№ забора','№ перевозки','№ заявки','Сумма, ₽','Статус','Действие'].map(t=><th key={t}>{t}</th>)}
     </tr></thead><tbody>{rows.map(row=><tr key={row.jobId}>
-      <td data-label="Дата">{row.date}</td><td data-label="Заказчик">{row.customer}</td><td data-label="Отправитель">{senderName(row) || "—"}</td><td data-label="Места">{row.source?.places??'—'}</td><td data-label="Вес, кг">{row.source?.weight??'—'}</td><td data-label="Объём, м³">{row.source?.volume??'—'}</td><td data-label="Платный вес, кг">{row.source?.chargeableWeight??'—'}</td>
+      <td data-label="Дата"><time dateTime={row.date} title={row.date}>{/^\d{4}-\d{2}-\d{2}$/.test(row.date)?`${row.date.slice(8,10)}.${row.date.slice(5,7)}`:row.date}</time></td><td data-label="Заказчик">{row.customer}</td><td data-label="Отправитель">{senderName(row) || "—"}</td><td data-label="Места">{row.source?.places??'—'}</td><td data-label="Вес, кг">{row.source?.weight??'—'}</td><td data-label="Объём, м³">{row.source?.volume??'—'}</td><td data-label="Платный вес, кг">{row.source?.chargeableWeight??'—'}</td>
       <td data-label="№ забора"><strong>{row.jobNumber}</strong>{row.numberSync?.state==='error'&&<small title={row.numberSync.last_error}> · номер не передан в 1С</small>}</td>
       <td data-label="№ перевозки">{row.source?.transportNumber||'—'}</td><td data-label="№ заявки">{row.orderNumber||row.source?.orderNumber||'—'}</td>
-      <td data-label="Сумма, ₽"><input aria-label={`Сумма ${row.jobNumber}`} inputMode="decimal" style={{width:110}} value={drafts[row.jobId]?.value??billingAmountText(row)} placeholder={row.source?.mode==='manual'?'Ввести сумму':'Нет расчёта'} disabled={busy||row.status!=='not_issued'} onChange={e=>setDrafts(old=>editBillingAmount(old,row,e.target.value))}/>
+      <td data-label="Сумма, ₽"><div className="pk-billing-amount"><input aria-label={`Сумма ${row.jobNumber}`} inputMode="decimal" style={{width:110}} value={drafts[row.jobId]?.value??billingAmountText(row)} placeholder={missingTransport(row)?'Нет данных':row.source?.mode==='manual'?'Ввести сумму':'Нет расчёта'} disabled={busy||row.status!=='not_issued'} onChange={e=>setDrafts(old=>editBillingAmount(old,row,e.target.value))}/>{row.status==='not_issued'&&<button type="button" className="pk-billing-calculate" title="Рассчитать стоимость забора" aria-label={`Рассчитать сумму ${row.jobNumber}`} disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void calculate(row)}><Calculator size={16}/></button>}</div>
         {billingDraftConflicts(row,drafts[row.jobId])&&<div role="alert">Данные изменились. В БД: {row.amount??'—'} ₽. Ваш ввод сохранён.
           <button disabled={busy} onClick={()=>setDrafts(previous=>{const next={...previous};delete next[row.jobId];return next;})}>Принять сумму из БД</button>
           <button disabled={busy} onClick={()=>setDrafts(previous=>({...previous,[row.jobId]:{...previous[row.jobId],baseVersion:row.version}}))}>Оставить мой ввод</button>
         </div>}
       </td>
-      <td data-label="Статус"><strong style={{color:row.invoiceNumber||['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.customer}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : labels[row.status||'']||'Нет данных'}</strong>{row.error&&<small style={{display:'block'}}>{row.error}</small>}</td>
+      <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber||['issued','transmitted'].includes(row.status||'')?'var(--pk-success-text)':['manual','uncertain'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.customer,_invoiceReferenceDate:row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : labels[row.status||'']||'Нет данных'}</strong>{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
       <td data-label="Действие">{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
       {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Повторно записать стоимость в 1С?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
       {['manual','uncertain','sending'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(window.confirm(`Подтвердить: счёт по забору ${row.jobNumber} действительно выставлен в 1С?`))void run(async()=>{await call({action:'billing_mark_issued',id:row.jobId,version:row.version});});}}>Подтвердить ручное выставление</button>}</td>

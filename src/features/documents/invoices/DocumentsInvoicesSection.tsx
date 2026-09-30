@@ -427,6 +427,7 @@ export function DocumentsInvoicesSection({
     {selectedInvoice && (
         <InvoiceDetailModal
             item={selectedInvoice}
+            useServiceRequest={effectiveServiceMode}
             isOpen={!!selectedInvoice}
             onClose={() => setSelectedInvoice(null)}
             onOpenCargo={(cargoNumber) => onOpenCargo?.(cargoNumber)}

@@ -1,4 +1,7 @@
-import React, { useState } from "react";
+import { apiFetchJson } from "../../../utils";
+import { PROXY_API_INVOICES_URL } from "../../../constants/config";
+import { selectInvoiceDetail } from "../../../../lib/invoiceLookup";
+import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Flex, Typography } from "@maxhub/max-ui";
 import { Download, Loader2 } from "lucide-react";
@@ -25,6 +28,7 @@ type InvoiceDetailModalProps = {
     onClose: () => void;
     onOpenCargo?: (cargoNumber: string) => void;
     auth?: AuthData | null;
+    useServiceRequest?: boolean;
     cargoStateByNumber?: Map<string, string>;
     cargoRouteByNumber?: Map<string, string>;
     cargoSumPaidByNumber?: Map<string, number>;
@@ -35,11 +39,12 @@ type InvoiceDetailModalProps = {
 };
 
 export function InvoiceDetailModal({
-    item,
+    item: reference,
     isOpen,
     onClose,
     onOpenCargo,
     auth,
+    useServiceRequest = false,
     cargoStateByNumber,
     cargoRouteByNumber,
     cargoSumPaidByNumber,
@@ -50,6 +55,39 @@ export function InvoiceDetailModal({
 }: InvoiceDetailModalProps) {
     const [downloading, setDownloading] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
+
+    const [detail, setDetail] = useState<{ reference: any; value: any } | null>(null);
+    const [detailError, setDetailError] = useState<string | null>(null);
+    const [retry, setRetry] = useState(0);
+    const needsDetail = !Array.isArray(reference?.List);
+    const resolved = detail && detail.reference === reference ? detail.value : null;
+    const item = needsDetail ? resolved ?? reference : reference;
+    const detailPending = needsDetail && !resolved;
+    useEffect(() => {
+        if (!isOpen || !needsDetail) return;
+        let cancelled = false;
+        setDetailError(null);
+        const load = async () => {
+            if (!auth?.login || !auth?.password) throw new Error("Требуется авторизация для загрузки счёта");
+            const rawDate = String(reference?.DateDoc ?? reference?.Date ?? reference?._invoiceReferenceDate ?? "");
+            const year = /^\d{4}-/.test(rawDate) ? rawDate.slice(0, 4) : String(new Date().getFullYear());
+            const data = await apiFetchJson<any>(PROXY_API_INVOICES_URL, {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ login: auth.login, password: auth.password,
+                    ...(auth.isRegisteredUser ? { isRegisteredUser: true } : {}),
+                    ...(useServiceRequest ? {} : auth.inn ? { inn: auth.inn } : {}),
+                    serviceMode: useServiceRequest, cacheOnly: true,
+                    invoiceNumber: String(reference?.Number ?? reference?.number ?? ""),
+                    dateFrom: `${year}-01-01`, dateTo: `${year}-12-31` }),
+            });
+            const rows = Array.isArray(data) ? data : data?.items ?? data?.Invoices ?? data?.invoices;
+            if (!Array.isArray(rows)) throw new Error("Некорректный ответ при загрузке счёта");
+            const invoice = selectInvoiceDetail(rows, reference, year);
+            if (!cancelled) setDetail({ reference, value: invoice });
+        };
+        void load().catch(error => { if (!cancelled) setDetailError(error?.message || "Не удалось загрузить счёт"); });
+        return () => { cancelled = true; };
+    }, [reference, isOpen, needsDetail, auth?.login, auth?.password, auth?.inn, auth?.isRegisteredUser, useServiceRequest, retry]);
 
     if (!isOpen) return null;
     const list: Array<{ Name?: string; Operation?: string; Quantity?: string | number; Price?: string | number; Sum?: string | number }> = Array.isArray(item?.List) ? item.List : [];
@@ -196,7 +234,7 @@ export function InvoiceDetailModal({
                     </Flex>
                 )}
 
-                {auth && (
+                {auth && !detailPending && (
                     <div className="document-buttons">
                         {DOC_BUTTONS.map((label) => {
                             const isReestr = label === "Реестр";
@@ -233,7 +271,7 @@ export function InvoiceDetailModal({
                         {downloadError}
                     </Typography.Body>
                 )}
-                {auth && !isPaid && (
+                {auth && !detailPending && !isPaid && (
                     <InvoicePaymentQrBlock
                         invoice={item}
                         auth={auth}
@@ -241,7 +279,12 @@ export function InvoiceDetailModal({
                         cargoStateBillByNumber={cargoStateBillByNumber}
                     />
                 )}
-                {list.length > 0 ? (
+                {detailPending ? (
+                    <div role={detailError ? "alert" : "status"} style={{color: "var(--color-text-secondary)", marginTop: 16}}>
+                        {detailError || "Загружаем счёт…"}
+                        {detailError && <button type="button" className="filter-button" onClick={() => {setDetailError(null); setRetry(value => value + 1);}}>Повторить загрузку</button>}
+                    </div>
+                ) : list.length > 0 ? (
                     <DocumentDetailLineCards
                         rows={list}
                         perevozkiLoading={perevozkiLoading}
