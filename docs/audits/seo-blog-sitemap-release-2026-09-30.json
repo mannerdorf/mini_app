@@ -1,0 +1,50 @@
+{
+  "commit": "f7a55250",
+  "builtAt": "2026-09-30T18:38:28.155Z",
+  "checks": [
+    {
+      "path": "/sitemap.xml",
+      "status": 200
+    },
+    {
+      "path": "/api/sitemap",
+      "status": 200
+    },
+    {
+      "path": "/api/sitemap?page=0",
+      "status": 200
+    },
+    {
+      "path": "/api/sitemap?page=1",
+      "status": 200
+    },
+    {
+      "path": "/api/sitemap?page=-1",
+      "status": 400
+    },
+    {
+      "path": "/blog/seo-missing-20260930",
+      "status": 404
+    },
+    {
+      "path": "/blog/seo-missing-20260930/",
+      "status": 404
+    },
+    {
+      "path": "/public-analytics.js",
+      "status": 200
+    },
+    {
+      "path": "/cms",
+      "status": 200
+    },
+    {
+      "path": "/kalkulyator",
+      "status": 200
+    },
+    {
+      "path": "/",
+      "status": 200
+    }
+  ]
+}
