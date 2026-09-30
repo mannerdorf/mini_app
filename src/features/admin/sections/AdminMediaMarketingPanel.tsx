@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
-import { Loader2, Sparkles, CheckCircle2, Circle, Megaphone, ListChecks, CalendarDays } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, Circle, Megaphone, ListChecks, CalendarDays, Network } from "lucide-react";
 import {
   createMediaAdPlacement,
   createMediaPlan,
@@ -26,7 +26,22 @@ import {
   type MediaPublishChannel,
 } from "../../../../lib/mediaMarketing/channels";
 
-type SubTab = "checklist" | "mediaplan" | "ads";
+const AdminGrowthProgramPanel = React.lazy(() => import("./AdminGrowthProgramPanel").then((module) => ({ default: module.AdminGrowthProgramPanel })));
+
+type SubTab = "program" | "checklist" | "mediaplan" | "ads";
+const MEDIA_SUB_KEY = "haulz.admin.media.section";
+
+function initialSubTab(): SubTab {
+  try {
+    const query = new URL(window.location.href).searchParams;
+    const section = query.get("media_section");
+    if (["program", "checklist", "mediaplan", "ads"].includes(section || "")) return section as SubTab;
+    if (query.has("media_view") || query.has("program_task")) return "program";
+    const saved = localStorage.getItem(MEDIA_SUB_KEY);
+    if (["program", "checklist", "mediaplan", "ads"].includes(saved || "")) return saved as SubTab;
+  } catch { /* Storage can be unavailable in a private browser. */ }
+  return "program";
+}
 
 const CATEGORY_LABELS: Record<string, string> = {
   tech: "Техника",
@@ -40,7 +55,20 @@ const CATEGORY_LABELS: Record<string, string> = {
 type Props = { adminToken: string };
 
 export function AdminMediaMarketingPanel({ adminToken }: Props) {
-  const [sub, setSub] = useState<SubTab>("checklist");
+  const [sub, setSubState] = useState<SubTab>(initialSubTab);
+  const setSub = useCallback((next: SubTab) => {
+    setSubState(next);
+    try {
+      localStorage.setItem(MEDIA_SUB_KEY, next);
+      const url = new URL(window.location.href);
+      url.searchParams.set("media_section", next);
+      if (next !== "program") {
+        url.searchParams.delete("media_view");
+        url.searchParams.delete("program_task");
+      }
+      window.history.replaceState(null, "", url);
+    } catch { /* Navigation remains functional without browser storage. */ }
+  }, []);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -114,6 +142,12 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
   useEffect(() => {
     reload();
   }, [reload]);
+
+  useEffect(() => {
+    const onPopState = () => setSubState(initialSubTab());
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
 
   useEffect(() => {
     if (!selectedPlanId) {
@@ -226,14 +260,11 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
 
   return (
     <div style={{ padding: "0.25rem 0 2rem" }}>
-      <Typography.Headline style={{ fontSize: "1.1rem", marginBottom: "0.35rem" }}>
-        Медиа и SEO
-      </Typography.Headline>
-      <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "1rem" }}>
-        Чек-лист SEO, медиаплан с генерацией статей (GPT, ключ OPENAI_API_KEY на сервере), учёт рекламных интеграций.
-      </Typography.Body>
-
       <Flex gap="0.5rem" style={{ marginBottom: "1rem", flexWrap: "wrap" }}>
+        <Button className="filter-button" style={{ background: sub === "program" ? "var(--color-primary-blue)" : undefined, color: sub === "program" ? "#fff" : undefined }} onClick={() => setSub("program")}>
+          <Network className="w-4 h-4" style={{ marginRight: 6 }} />
+          SEO / AEO / GEO
+        </Button>
         <Button className="filter-button" style={{ background: sub === "checklist" ? "var(--color-primary-blue)" : undefined, color: sub === "checklist" ? "#fff" : undefined }} onClick={() => setSub("checklist")}>
           <ListChecks className="w-4 h-4" style={{ marginRight: 6 }} />
           SEO чек-лист
@@ -248,13 +279,15 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
         </Button>
       </Flex>
 
-      {error && (
+      {sub === "program" && <React.Suspense fallback={<p role="status">Загружаем центр программы…</p>}><AdminGrowthProgramPanel adminToken={adminToken} onNavigateMedia={setSub} /></React.Suspense>}
+
+      {sub !== "program" && error && (
         <Typography.Body style={{ color: "var(--color-error)", marginBottom: "0.75rem", fontSize: "0.88rem" }}>
           {error}
         </Typography.Body>
       )}
 
-      {loading && (
+      {sub !== "program" && loading && (
         <Flex align="center" gap="0.5rem" style={{ marginBottom: "0.75rem" }}>
           <Loader2 className="w-4 h-4 animate-spin" />
           <Typography.Body style={{ fontSize: "0.85rem" }}>Загрузка…</Typography.Body>

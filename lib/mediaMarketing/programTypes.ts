@@ -1,0 +1,55 @@
+export type ProgramTaskStatus = "planned" | "in_progress" | "review" | "blocked" | "done";
+export type ProgramTrack = "foundation" | "seo" | "aeo" | "geo" | "factory" | "distribution";
+export type ProgramChannelStatus = "not_connected" | "configuring" | "connected" | "attention";
+export type ProgramLink = { label: string; url: string };
+export type ProgramTask = {
+  id: string;
+  title: string;
+  description: string;
+  track: ProgramTrack;
+  priority: "P0" | "P1" | "P2" | "P3";
+  phase: number;
+  dependencies: string[];
+  acceptance: string;
+  files: string[];
+  links: ProgramLink[];
+  status: ProgramTaskStatus;
+  owner: string;
+  notes: string;
+  evidence: string;
+  updated_at: string | null;
+  updated_by: string | null;
+};
+export type ProgramChannel = {
+  id: string;
+  name: string;
+  description: string;
+  status: ProgramChannelStatus;
+  url: string;
+  notes: string;
+  updated_at: string | null;
+  updated_by: string | null;
+};
+export type ProgramActivity = {
+  id: string;
+  entity_type: "task" | "channel";
+  entity_id: string;
+  title: string;
+  from_status: string | null;
+  to_status: string;
+  note: string;
+  created_at: string;
+  created_by: string;
+};
+export type ProgramMetric = { key: string; label: string; value: number | null; note: string };
+export type ProgramDashboard = {
+  tasks: ProgramTask[];
+  channels: ProgramChannel[];
+  activity: ProgramActivity[];
+  metrics: ProgramMetric[];
+  storage_ready: boolean;
+  setup_message?: string;
+  updated_at: string;
+};
+export type ProgramTaskPatch = Pick<ProgramTask, "id" | "status" | "owner" | "notes" | "evidence">;
+export type ProgramChannelPatch = Pick<ProgramChannel, "id" | "status" | "url" | "notes">;
