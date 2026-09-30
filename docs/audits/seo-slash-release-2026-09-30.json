@@ -1,0 +1,32 @@
+[
+  {
+    "url": "https://haulz.space/perevozka-moskva-kaliningrad",
+    "status": 200,
+    "location": null
+  },
+  {
+    "url": "https://haulz.space/perevozka-moskva-kaliningrad/",
+    "status": 301,
+    "location": "https://haulz.space/perevozka-moskva-kaliningrad"
+  },
+  {
+    "url": "https://haulz.space/perevozka-moskva-kaliningrad/?utm_source=check",
+    "status": 301,
+    "location": "https://haulz.space/perevozka-moskva-kaliningrad?utm_source=check"
+  },
+  {
+    "url": "https://haulz.space/perevozka-kaliningrad-moskva",
+    "status": 200,
+    "location": null
+  },
+  {
+    "url": "https://haulz.space/perevozka-kaliningrad-moskva/",
+    "status": 301,
+    "location": "https://haulz.space/perevozka-kaliningrad-moskva"
+  },
+  {
+    "url": "https://haulz.space/perevozka-kaliningrad-moskva/?utm_source=check",
+    "status": 301,
+    "location": "https://haulz.space/perevozka-kaliningrad-moskva?utm_source=check"
+  }
+]
