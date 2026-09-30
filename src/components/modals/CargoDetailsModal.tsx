@@ -188,7 +188,7 @@ export function CargoDetailsModal({
         }
     };
 
-    const EXCLUDED_KEYS = ['pickupHasDriverPhotos', '_cacheUpdatedAt', 'PickupCost', 'ZayavkaNumber', 'zayavkaNumber', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
+    const EXCLUDED_KEYS = ['PickupNumber','pickupHasDriverPhotos', '_cacheUpdatedAt', 'PickupCost', 'ZayavkaNumber', 'zayavkaNumber', 'Number', 'DatePrih', 'DateVr', 'State', 'Mest', 'PW', 'W', 'Value', 'Sum', 'Sum_paid', 'SumPaid', 'sum_paid', 'sumPaid', 'StateBill', 'Sender', 'Customer', 'Receiver', 'AK', 'DateDoc', 'OG', 'TypeOfTranzit', 'TypeOfTransit', 'INN', 'Inn', 'inn', 'SenderINN', 'ReceiverINN', 'PZV_Sender', 'PZV_Receiver', 'PZV_Sender_Id', 'PZV_Receiver_Id', '_role', '_roles', 'Driver', 'DriverTel', 'AutoType', 'AutoReg', 'DateArrival', 'Order', 'LMAutoReg', 'LMAutoType', 'LMDriver', 'LMDriverTel', 'CitySender', 'CityReceiver', 'UPD', 'upd', 'BillNum', 'Bill_Number', 'billnum', 'bill_number', 'Success', 'success', 'Statuses', 'statuses', 'error', 'request_id'];
     const zayavkaNumberDisplay =
         String((item as any).ZayavkaNumber ?? (item as any).zayavkaNumber ?? "").trim() || "-";
     const parseAmount = (val: unknown): number => {
@@ -203,6 +203,7 @@ export function CargoDetailsModal({
     const roleLabel = getCargoDisplayRoleLabel(item);
     const selfPickup = cargoLastMileIsSelfPickup(item);
     const FIELD_LABELS: Record<string, string> = {
+        PickupNumber: 'Номер пикапа',
         ZayavkaNumber: 'Номер заявки',
         CitySender: 'Место отправления',
         CityReceiver: 'Место получения',
@@ -402,30 +403,31 @@ export function CargoDetailsModal({
                     </div>
                 )}
 
-                {useServiceRequest && customerDisplay && (
-                    <div className="cargo-details-customer-chip" aria-label={`Заказчик ${customerDisplay}`}>
-                        <span className="cargo-details-customer-chip__label">Заказчик</span>
-                        <span className="cargo-details-customer-chip__value">{customerDisplay}</span>
-                    </div>
-                )}
-
                 <div className="cargo-details-modal-main">
                     <div className="cargo-details-modal-rows">
-                        <div className="cargo-details-tiles-row">
-                            <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? "").trim() || "-"} />
-                            <DetailItem label="Поступление" value={<DateText value={item.DatePrih} />} />
-                            <DetailItem label="Доставка" value={deliveryValue} />
-                            <DetailItem
-                                label={PLANNED_TERMINAL_ARRIVAL_LABEL}
-                                value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : "-"}
-                            />
-                        </div>
-                        <div className="cargo-details-tiles-row">
-                            <DetailItem label="Отправитель" value={stripOoo(item.Sender) || "-"} />
-                            <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || "-"} />
-                            <DetailItem label="Место отправления" value={citySenderDisplay || "-"} />
-                            <DetailItem label="Место получения" value={cityReceiverDisplay || "-"} />
-                        </div>
+                        <section className="cargo-details-group" aria-label="Заявка и участники">
+                            <h3>Заявка и участники</h3>
+                            <div className="cargo-details-tiles-row cargo-details-tiles-row--parties">
+                                {useServiceRequest && <DetailItem label="Заказчик" value={customerDisplay || "-"} />}
+                                <DetailItem label="Отправитель" value={stripOoo(item.Sender) || "-"} />
+                                <DetailItem label="Получатель" value={stripOoo(item.Receiver ?? (item as any).receiver) || "-"} />
+                                <DetailItem label="Номер заявки" value={zayavkaNumberDisplay} />
+                                <DetailItem label="Номер заявки заказчика" value={String((item as any).Order ?? "").trim() || "-"} />
+                            </div>
+                        </section>
+                        <section className="cargo-details-group" aria-label="Маршрут и даты">
+                            <h3>Маршрут и даты</h3>
+                            <div className="cargo-details-tiles-row cargo-details-tiles-row--route-dates">
+                                <DetailItem label="Место отправления" value={citySenderDisplay || "-"} />
+                                <DetailItem label="Место получения" value={cityReceiverDisplay || "-"} />
+                                <DetailItem label="Последняя миля" value={<span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>{selfPickup ? "Самовывоз" : "Доставка"}</span>} />
+                                <DetailItem label="Поступление" value={<DateText value={item.DatePrih} />} />
+                                <DetailItem label={PLANNED_TERMINAL_ARRIVAL_LABEL} value={plannedDeliveryDate ? <DateText value={plannedDeliveryDate} /> : "-"} />
+                                <DetailItem label="Доставка" value={deliveryValue} />
+                            </div>
+                        </section>
+                        <section className="cargo-details-group" aria-label="Параметры груза">
+                            <h3>Параметры груза</h3>
                         <div className="cargo-details-tiles-row cargo-details-tiles-row--metrics">
                             <DetailItem label="Мест" value={renderValue(item.Mest)} icon={<Layers className="w-4 h-4 mr-1 text-theme-primary" />} />
                             <DetailItem
@@ -449,7 +451,25 @@ export function CargoDetailsModal({
                                 </>
                             )}
                         </div>
+                        </section>
+                        <section className="cargo-details-group" aria-label="Забор груза">
+                            <h3>Забор груза</h3>
+                        <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
+                            <DetailItem label="Заборная логистика" value={
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                    <CargoPickupLogisticsBadge item={item} />
+                                    {item.pickupHasDriverPhotos === true && (
+                                        <CargoPickupPhotos key={String(item.Number)} item={item} auth={auth} />
+                                    )}
+                                </span>
+                            } />
+                            <DetailItem label="Номер пикапа" value={String((item as any).PickupNumber ?? "").trim() || "-"} />
+                            <DetailItem label="Стоимость пикапа" value={renderValue((item as any).PickupCost, "₽")} />
+                        </div>
+                        </section>
                         {isCustomerRole && showSums && (
+                            <section className="cargo-details-group" aria-label="Оплата">
+                            <h3>Оплата</h3>
                             <div className="cargo-details-tiles-row cargo-details-tiles-row--finance">
                                 <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
                                 <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
@@ -460,33 +480,7 @@ export function CargoDetailsModal({
                                 />
                                 <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
                             </div>
-                        )}
-                        <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
-                            <DetailItem label="Заборная логистика" value={
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    <CargoPickupLogisticsBadge item={item} />
-                                    {item.pickupHasDriverPhotos === true && (
-                                        <CargoPickupPhotos key={String(item.Number)} item={item} auth={auth} />
-                                    )}
-                                </span>
-                            } />
-                            <DetailItem
-                                label="Последняя миля"
-                                value={
-                                    <span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>
-                                        {selfPickup ? "Самовывоз" : "Доставка"}
-                                    </span>
-                                }
-                            />
-                            <DetailItem label="Стоимость пикапа" value={renderValue((item as any).PickupCost, "₽")} />
-                            <DetailItem label="Номер заявки" value={zayavkaNumberDisplay} />
-                        </div>
-                        {useServiceRequest && (
-                            <div className="cargo-details-tiles-row cargo-details-tiles-row--service">
-                                <div className="cargo-details-customer-tile-grid">
-                                    <DetailItem label="Заказчик" value={customerDisplay || "-"} />
-                                </div>
-                            </div>
+                            </section>
                         )}
                     </div>
                     {!hideShipmentStatuses &&

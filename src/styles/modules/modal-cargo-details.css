@@ -620,12 +620,6 @@
         grid-column: auto;
     }
 
-    /* Города уже в route-chip — не дублируем в сетке */
-    .cargo-details-modal-rows .cargo-details-tiles-row:nth-child(2) .details-item-modal:nth-child(3),
-    .cargo-details-modal-rows .cargo-details-tiles-row:nth-child(2) .details-item-modal:nth-child(4) {
-        display: none;
-    }
-
     .modal-content--cargo-details .details-item-modal,
     .modal-content--cargo-details .details-item-modal--compact {
         min-height: 0;
@@ -900,3 +894,26 @@
 .cargo-pickup-photo-button:focus-visible { outline: 2px solid var(--color-primary, #2563eb); outline-offset: 2px; }
 .cargo-pickup-photo-gallery { display: grid; gap: 8px; width: 100%; min-width: 0; }
 .cargo-pickup-photo-gallery img { display: block; width: 100%; height: auto; border-radius: 8px; }
+
+/* Semantic groups keep related fields together at every viewport width. */
+.cargo-details-group { min-width: 0; width: 100%; }
+.cargo-details-group > h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+}
+.cargo-details-group .cargo-details-tiles-row--parties,
+.cargo-details-group .cargo-details-tiles-row--route-dates,
+.cargo-details-group .cargo-details-tiles-row--logistics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+@media (max-width: 768px) {
+    .cargo-details-group { grid-column: 1 / -1; margin-bottom: 0.6rem; }
+    .cargo-details-modal-rows .cargo-details-group .cargo-details-tiles-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.35rem;
+    }
+    .cargo-details-group > h3 { margin-bottom: 0.4rem; font-size: 0.8rem; }
+}
