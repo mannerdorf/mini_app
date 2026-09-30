@@ -18,7 +18,7 @@
     }
   ],
   "loginPageViewObserved": false,
-  "reportReceiptConfirmed": false,
-  "reportObservation": "Overview loaded with no data, subsequent navigation returned blank page. No inference about organic traffic volume.",
+  "reportReceiptConfirmed": true,
+  "reportObservation": "30.09.2026: overview for counter 113218465 displayed 1 pageview, 1 visit, FAQ URL and page title. Confirms receipt; not a business baseline.",
   "testTraffic": "Controlled checks; not customer visits or leads."
 }

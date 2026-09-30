@@ -40,6 +40,7 @@ import { formatPhoneMask } from "../lib/formatPhoneMask";
 import { GUEST_CALCULATOR_AUTH } from "../constants/guestCalculatorAuth";
 import { LegalModal } from "../components/modals/LegalModal";
 import { PERSONAL_DATA_CONSENT_TEXT, PUBLIC_OFFER_TEXT } from "../constants/legalTexts";
+import { trackGuestOrderSuccess } from "../lib/publicMetrika";
 import { fetchLegalPublic } from "../api/client/legal";
 
 type Props = {
@@ -660,6 +661,7 @@ export function HaulzCalculatorPage({
       });
       setQuote(result.quote);
       setRegisteredNomerZayavki(result.nomerZayavki);
+      trackGuestOrderSuccess(result.nomerZayavki);
       setGuestOrderCompleted(true);
       setGuestOrderModalOpen(false);
       setOrderMessage(`${result.message} КП отправлено на ${email}.`);

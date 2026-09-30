@@ -60,3 +60,15 @@ function safeReferrer(raw: string): string {
   if (!raw) return '';
   try { const u = new URL(raw); return u.hostname === 'haulz.space' ? (publicAnalyticsUrl(raw) || '') : u.origin + '/'; } catch { return ''; }
 }
+
+// IDs remain in memory solely for duplicate suppression; never send them to analytics.
+const recordedGuestOrders = new Set<string>();
+export function trackGuestOrderSuccess(orderId: string) {
+  if (!active || window.location.pathname !== '/kalkulyator' || !lastUrl || !orderId || recordedGuestOrders.has(orderId)) return;
+  try {
+    command('reachGoal', 'guest_order_success');
+    recordedGuestOrders.add(orderId);
+  } catch {
+    // Analytics must not turn a successfully created order into a UI error.
+  }
+}

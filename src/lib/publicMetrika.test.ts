@@ -19,7 +19,7 @@ describe('public analytics boundaries', () => {
 });
 
 import { afterEach, vi } from 'vitest';
-import { METRIKA_COUNTER_ID, stopPublicMetrika, trackPublicPage } from './publicMetrika';
+import { METRIKA_COUNTER_ID, stopPublicMetrika, trackPublicPage, trackGuestOrderSuccess } from './publicMetrika';
 afterEach(() => { stopPublicMetrika(); vi.unstubAllGlobals(); });
 describe('public counter lifecycle', () => {
   it('sends one hit per page, tracks SPA navigation, and stops before private pages', () => {
@@ -36,5 +36,41 @@ describe('public counter lifecycle', () => {
     trackPublicPage('https://haulz.space/login?token=hidden', 'Login');
     expect(ym).toHaveBeenLastCalledWith(METRIKA_COUNTER_ID, 'destruct');
     expect(JSON.stringify(ym.mock.calls)).not.toContain('hidden');
+  });
+});
+
+describe('successful guest order goal', () => {
+  function setup() {
+    const ym = vi.fn();
+    vi.stubGlobal('window', { ym, location: { hash: '', pathname: '/kalkulyator' } });
+    vi.stubGlobal('navigator', { userAgent: 'test' });
+    vi.stubGlobal('document', { referrer: '', getElementById: () => ({}) });
+    return ym;
+  }
+  it('counts a confirmed order once without transmitting its identifier', () => {
+    const ym = setup();
+    trackPublicPage('https://haulz.space/kalkulyator', 'Calculator');
+    trackGuestOrderSuccess('private-order-1');
+    trackGuestOrderSuccess('private-order-1');
+    expect(ym.mock.calls.filter(c => c[1] === 'reachGoal')).toEqual([[METRIKA_COUNTER_ID, 'reachGoal', 'guest_order_success']]);
+    expect(JSON.stringify(ym.mock.calls)).not.toContain('private-order-1');
+  });
+  it('ignores results arriving after leaving the public calculator', () => {
+    const ym = setup();
+    trackGuestOrderSuccess('private-order-2');
+    trackPublicPage('https://haulz.space/kalkulyator', 'Calculator');
+    window.location.pathname = '/login';
+    trackGuestOrderSuccess('private-order-2');
+    stopPublicMetrika();
+    window.location.pathname = '/kalkulyator';
+    trackGuestOrderSuccess('private-order-2');
+    expect(ym.mock.calls.filter(c => c[1] === 'reachGoal')).toHaveLength(0);
+  });
+  it('does not fail successful order handling when analytics throws', () => {
+    const ym = setup();
+    trackPublicPage('https://haulz.space/kalkulyator', 'Calculator');
+    ym.mockImplementation(() => { throw new Error('analytics unavailable'); });
+    expect(() => trackGuestOrderSuccess('private-order-3')).not.toThrow();
+    ym.mockReset();
   });
 });
