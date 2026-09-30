@@ -117,3 +117,33 @@ it('sorts customer names and document numbers naturally',async()=>{
  await act(async()=>root.root.findByProps({'aria-label':'Сортировать: № забора'}).props.onClick());
  expect(root.root.findByType('tbody').findAllByProps({'data-label':'№ забора'})[0].findByType('strong').children).toEqual(['ZB-2']);
 });
+
+it('selects a journal invoice and saves its number and date with the reviewed row version',async()=>{
+ const open=vi.fn();
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'issued'}]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Услуги по забору груза'}]}:{ok:true});
+ await mount(call,open);
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить счёт'))!.props.onClick());
+ await act(async()=>root.root.findByType('select').props.onChange({target:{value:'0'}}));
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Открыть счёт'))!.props.onClick());
+ expect(open).toHaveBeenCalledWith({Number:'4200',Customer:'Тест',_invoiceReferenceDate:'2026-09-18'});
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить'))!.props.onClick());
+ expect(call).toHaveBeenCalledWith({action:'billing_match_invoice',id:'1',version:4,invoiceNumber:'4200',invoiceDate:'2026-09-18'});
+ expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
+});
+
+it.each(['manual','uncertain','sending'])('uses invoice matching instead of blind manual confirmation for %s',async(status)=>{
+ await mount(vi.fn(async()=>({rows:[{...row,status}]})));
+ const buttons=root.root.findAllByType('button');
+ expect(buttons.some(b=>b.children.includes('Сопоставить счёт'))).toBe(true);
+ expect(buttons.some(b=>b.children.includes('Подтвердить ручное выставление'))).toBe(false);
+});
+
+it('searches and matches a missing transport with the job version returned by the server',async()=>{
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,source:undefined,error:'Перевозка не найдена: нет связи'}]}:b.action==='billing_transport_candidates'?{version:8,transports:[{number:'000123',orderNumber:'000999',date:'2026-09-20',sender:'Отправитель',receiver:'Получатель',places:2,weight:30,volume:1}]}:{ok:true});
+ await mount(call);
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить перевозку'))!.props.onClick());
+ await act(async()=>root.root.findByProps({'aria-label':'Выбор перевозки'}).props.onChange({target:{value:'0'}}));
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сохранить сопоставление'))!.props.onClick());
+ expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumber:'000123'});
+ expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
+});

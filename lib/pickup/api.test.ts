@@ -12,9 +12,11 @@ import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { hashPassword } from "../passwordUtils";
 
+vi.mock('../documentCacheRefreshCore.js',()=>({fetchServiceJson:vi.fn(async()=>[])}));
 const state = vi.hoisted(() => ({ db: null as any }));
 vi.mock("../../api/_db.js", () => ({
   getPool: () => ({
+    query: (sql: string, params?: any[]) => state.db.query(sql, params),
     connect: async () => ({
       query: (sql: string, params?: any[]) => state.db.query(sql, params),
       release: () => {},
@@ -163,6 +165,9 @@ beforeAll(async () => {
   state.db = new PGlite();
   await state.db
     .exec(`CREATE TABLE registered_users(id serial PRIMARY KEY,login text,password_hash text,active boolean,permissions jsonb);
+    CREATE TABLE document_cache_normalized_state(kind text primary key,row_count bigint);
+    CREATE TABLE cache_perevozki(id int primary key,data jsonb);
+    INSERT INTO cache_perevozki VALUES(1,'[]');
     CREATE TABLE cache_customers(inn text PRIMARY KEY,customer_name text);
     CREATE TABLE cache_suppliers(inn text PRIMARY KEY,supplier_name text);`);
   await state.db.exec(
@@ -172,6 +177,7 @@ beforeAll(async () => {
     ),
   );
   for (const file of [
+    "030_cache_orders.sql",
     "105_pickup_jobs_search_columns.sql",
     "106_pickup_job_cancelled.sql",
     "107_pickup_supplier_contacts.sql",
@@ -202,6 +208,7 @@ afterAll(async () => {
   await state.db?.close();
 });
 beforeEach(async () => {
+  await state.db.query('UPDATE cache_orders SET data=$1 WHERE id=1',[JSON.stringify(['З-001','З-002','З-1'].map(Номер=>({Номер,ЗаказчикИНН:'100',Ссылка:Номер})))]);
   await state.db.exec(
     "TRUNCATE pickup_receipts,pickup_events,pickup_photos,pickup_jobs,pickup_routes,pickup_resources,pickup_supplier_contacts,registered_users CASCADE",
   );
@@ -1392,4 +1399,25 @@ it("exposes billing lock state to dispatcher, hides it from driver and rejects l
   expect((await snapshot('driver')).jobs.find((j:any)=>j.id===job.id)).not.toHaveProperty('billing_status');
   const response=await request('dispatch',{action:'set_job_billing',id:job.id,version:current.version,data:{...current.data,issueCustomerBill:true,customerBillMode:'manual',priceRub:600}});
   expect(response.status).toBe(400);
+});
+
+it('validates driver orders only on their own route and for the assigned customer',async()=>{
+ const ids=await setup();await publishAndStart();const s=await snapshot();
+ const body={action:'validate_pickup_order',id:ids.job.id,version:s.jobs[0].version,number:'З-001'};
+ expect((await ok('driver',body)).number).toBe('З-001');
+ expect((await request('other',body)).status).toBe(403);
+ expect((await request('driver',{...body,version:0})).status).toBe(409);
+});
+
+it('rejects depot handoff when the entered order belongs only to another customer',async()=>{
+ vi.stubEnv('PEREVOZKI_SERVICE_LOGIN','fixture');vi.stubEnv('PEREVOZKI_SERVICE_PASSWORD','fixture');
+ try {
+   const ids=await setup();await publishAndStart();
+   await state.db.query("UPDATE pickup_jobs SET status='picked_up',data=jsonb_set(data,'{zayavkaNumber}','\"\"') WHERE id=$1",[ids.job.id]);
+   await state.db.query('UPDATE cache_orders SET data=$1',[JSON.stringify([{Номер:'OTHER-ORDER',ЗаказчикИНН:'999'}])]);
+   const s=await snapshot();
+   const response=await request('driver',{action:'deposit',id:ids.route.id,version:s.routes[0].version,zayavka_numbers:[{id:ids.job.id,version:s.jobs[0].version,number:'OTHER-ORDER'}]});
+   expect(response.status).toBe(400);expect(response.body.error).toBe('Заявка не найдена');
+   const after=await snapshot();expect(after.jobs[0].status).toBe('picked_up');expect(after.jobs[0].data.zayavkaNumber).toBe('');
+ } finally {vi.unstubAllEnvs();}
 });

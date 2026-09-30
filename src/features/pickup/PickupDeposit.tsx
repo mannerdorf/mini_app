@@ -1,4 +1,4 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { pickupJobNeedsZayavka, type Job } from "../../../lib/pickup/model";
 
 export type DepositZayavka = { id: string; version: number; number: string };
@@ -11,7 +11,9 @@ export function PickupDeposit({
   onConfirm,
   autoOpen = false,
   onDraftChange,
+  validateOrder,
 }: {
+  validateOrder?: (job:Job,number:string)=>Promise<{number:string}>;
   onDraftChange?: (dirty: boolean) => void;
   jobs: Job[];
   busy: boolean;
@@ -25,9 +27,21 @@ export function PickupDeposit({
   const [values, setValues] = useState<Record<string, string>>({});
   useEffect(() => { onDraftChange?.(Object.values(values).some(Boolean)); }, [values, onDraftChange]);
   useEffect(() => () => onDraftChange?.(false), [onDraftChange]);
+  const [checks,setChecks]=useState<Record<string,{value:string;status:string;error?:string}>>({});
+  const tickets=useRef<Record<string,number>>({});
+  const check=async(job:Job)=>{
+    const value=values[job.id]?.trim();
+    if(!validateOrder||!value)return;
+    const ticket=(tickets.current[job.id]||0)+1;tickets.current[job.id]=ticket;
+    setChecks(old=>({...old,[job.id]:{value,status:'checking'}}));
+    try {
+      await validateOrder(job,value);
+      if(tickets.current[job.id]===ticket)setChecks(old=>({...old,[job.id]:{value,status:'found'}}));
+    } catch(e) {if(tickets.current[job.id]===ticket)setChecks(old=>({...old,[job.id]:{value,status:'error',error:(e as Error).message}}));}
+  };
   const prefix = useId();
   const missing = jobs.filter(pickupJobNeedsZayavka);
-  const ready = missing.every((job) => values[job.id]?.trim());
+  const ready = missing.every((job) => values[job.id]?.trim() && (!validateOrder || (checks[job.id]?.value===values[job.id].trim()&&checks[job.id]?.status==='found')));
   if (!open)
     return (
       <button type="button" disabled={disabled} onClick={() => setOpen(true)}>
@@ -83,10 +97,17 @@ export function PickupDeposit({
                 autoComplete="off"
                 placeholder="Введите номер заявки"
                 value={values[job.id] ?? ""}
-                onChange={(e) =>
-                  setValues((prev) => ({ ...prev, [job.id]: e.target.value }))
-                }
+                onBlur={()=>void check(job)}
+                onChange={(e) => {
+                  tickets.current[job.id]=(tickets.current[job.id]||0)+1;
+                  setValues((prev) => ({ ...prev, [job.id]: e.target.value }));
+                  setChecks(old=>({...old,[job.id]:{value:'',status:''}}));
+                }}
               />
+              {validateOrder&&<button type="button" disabled={busy||!values[job.id]?.trim()||checks[job.id]?.status==='checking'} onClick={()=>void check(job)}>Проверить заявку</button>}
+              {checks[job.id]?.status==='checking'&&<p role="status">Проверяем заявку в БД и 1С…</p>}
+              {checks[job.id]?.status==='found'&&<p role="status">Заявка найдена у заказчика</p>}
+              {checks[job.id]?.error&&<p className="pk-error" role="alert">{checks[job.id].error}</p>}
             </div>
           ))}
         </>

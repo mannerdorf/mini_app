@@ -191,6 +191,7 @@ export function PickupDriverMobileRoute({
           <p>{route.snapshot.depot?.data.address}</p>
           <a className="pk-driver-mobile-nav" href={`https://yandex.ru/maps/?rtext=~${encodeURIComponent(route.snapshot.depot?.data.address || "")}&rtt=auto`} target="_blank" rel="noreferrer">Навигация до склада</a>
           <PickupDeposit
+            validateOrder={(job,number)=>call<{number:string}>({action:"validate_pickup_order",id:job.id,version:job.version,number})}
             onDraftChange={onDraftChange}
             key={route.id}
             jobs={routeJobs}

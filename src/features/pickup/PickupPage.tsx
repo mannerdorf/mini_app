@@ -1729,6 +1729,7 @@ export function PickupPage({
                         : "Сначала завершите заборы и дождитесь решений по проблемам."}
                     </p>
                     <PickupDeposit
+            validateOrder={(job,number)=>call<{number:string}>({action:"validate_pickup_order",id:job.id,version:job.version,number})}
                         key={route.id}
                         jobs={routeJobs}
                         busy={busy}

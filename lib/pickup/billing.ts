@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { Job } from './model.js';
 import { PickupError } from './model.js';
@@ -166,7 +167,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
     }
     if (record?.status === 'issued') {
-      const receipt = (await pool.query(`SELECT detail->>'invoiceNumber' AS number,to_char(created_at,'YYYY-MM-DD') AS date FROM pickup_billing_events
+      const receipt = (await pool.query(`SELECT detail->>'invoiceNumber' AS number,coalesce(detail->>'invoiceDate',to_char(created_at,'YYYY-MM-DD')) AS date FROM pickup_billing_events
         WHERE job_id=$1 AND action='issued' AND detail->>'ok'='true' AND COALESCE(detail->>'invoiceNumber','')<>''
         ORDER BY created_at DESC LIMIT 1`,[job.id])).rows[0];
       if (receipt?.number) { invoiceNumber=receipt.number; invoiceReferenceDate=receipt.date; }
@@ -258,4 +259,86 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
     await finish.query('COMMIT');
   } catch(e) { await finish.query('ROLLBACK'); throw e; } finally { finish.release(); }
   return {...outcome,status,number:claimed.transport_number};
+}
+
+/** Manual reconciliation uses cached invoice service lines; it never creates a 1C document. */
+export async function billingMatchInvoice(pool: Pool, actor: string, body: any) {
+  const db=await pool.connect();
+  try {
+    await db.query('BEGIN');
+    const row=(await db.query(`SELECT b.*,j.data,j.date,j.status AS job_status FROM pickup_billing b
+      JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
+    if(!row || row.job_status!=='deposited' || !row.data.issueCustomerBill) throw new PickupError('Забор недоступен',404);
+    if(row.status==='sending' && Date.now()-new Date(row.updated_at).getTime()<5*60*1000) throw new PickupError('Дождитесь завершения передачи в 1С',409);
+    const inn=text(row.data.customerInn);
+    if(!inn) throw new PickupError('Не указан ИНН заказчика');
+    const {rows}=await db.query(`SELECT i.doc_number AS number,to_char(i.doc_date,'YYYY-MM-DD') AS date,
+      i.payload->>'Customer' AS customer,l.line
+      FROM cache_invoices_rows i CROSS JOIN LATERAL jsonb_array_elements(
+        CASE WHEN jsonb_typeof(i.payload->'List')='array' THEN i.payload->'List' ELSE '[]'::jsonb END) AS l(line)
+      WHERE i.customer_inn=$1 AND concat(l.line->>'Name',' ',l.line->>'Operation') ~* 'забор'
+      ORDER BY i.doc_date DESC,i.doc_number`,[inn]);
+    const candidates=rows.filter(item=>{
+      const description=`${item.line.Name||''} ${item.line.Operation||''}`;
+      const numbers=[...description.matchAll(/перевозк[аи]\s*№?\s*(\d+)/gi)].map(m=>m[1]);
+      return !numbers.length || numbers.some(n=>sameDocumentNumber(n,row.transport_number));
+    });
+    const invoices=Array.from(new Map(candidates.map(item=>[`${item.date}:${item.number}`,{
+      number:item.number,date:item.date,customer:item.customer,description:candidates.filter(i=>i.number===item.number&&i.date===item.date).map(i=>text(i.line.Name)||text(i.line.Operation)).join('; ')
+    }])).values());
+    if(body.action==='billing_invoice_candidates') { await db.query('COMMIT');return {invoices}; }
+    if(!Number.isInteger(body.version)||row.version!==body.version) throw new PickupError('Запись изменилась. Обновите журнал.',409);
+    const invoice=invoices.find(i=>i.number===body.invoiceNumber&&i.date===body.invoiceDate);
+    if(!invoice) throw new PickupError('Счёт не найден или не соответствует заказчику и услуге забора');
+    await db.query("UPDATE pickup_billing SET status='issued',last_error=NULL,version=version+1,updated_by=$2,updated_at=now() WHERE job_id=$1",[body.id,actor]);
+    await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',
+      [body.id,actor,'issued',JSON.stringify({ok:true,invoiceNumber:invoice.number,invoiceDate:invoice.date,manualMatch:true,previousStatus:row.status,transportNumber:row.transport_number})]);
+    await db.query('COMMIT');return {ok:true};
+  } catch(e) {await db.query('ROLLBACK');throw e;} finally {db.release();}
+}
+
+export async function billingMatchTransport(pool: Pool, actor: string, body: any) {
+  const db=await pool.connect();
+  try {
+    await db.query('BEGIN');
+    const job=(await db.query<Job>('SELECT * FROM pickup_jobs WHERE id=$1 FOR UPDATE',[body.id])).rows[0];
+    if(!job || job.status!=='deposited' || !job.data.issueCustomerBill) throw new PickupError('Забор недоступен',404);
+    const billing=(await db.query('SELECT * FROM pickup_billing WHERE job_id=$1 FOR UPDATE',[body.id])).rows[0];
+    if(billing && billing.status!=='not_issued') throw new PickupError('Перевозку нельзя менять после передачи стоимости. Требуется сверка.',409);
+    const inn=text(job.data.customerInn);
+    if(!inn) throw new PickupError('У забора не указан ИНН заказчика');
+    if(body.action==='billing_transport_candidates') {
+      const search=text(body.search).slice(0,100).toLowerCase();
+      let rows:any[];
+      if(await isNormalizedCacheReady(pool,'perevozki')) {
+        rows=(await db.query(`SELECT payload FROM cache_perevozki_rows
+          WHERE coalesce(payload->>'ЗаказчикИНН',payload->>'INN',payload->>'CustomerINN')=$1
+          AND (coalesce(payload->>'НомерПикапа',payload->>'PickupNumber','')='' OR coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=$2)
+          AND strpos(lower(concat_ws(' ',payload->>'Number',payload->>'rawNumber',payload->>'НомерПеревозки',payload->>'ZayavkaNumber',payload->>'Sender',payload->>'Receiver')),$3)>0
+          ORDER BY coalesce(payload->>'DatePrih','') DESC LIMIT 100`,[inn,job.job_number,search])).rows.map(r=>r.payload);
+      } else rows=await transports(pool,[job]);
+      const candidates=rows.filter(r=>text(r.ЗаказчикИНН??r.INN??r.CustomerINN)===inn &&
+        (!text(r.НомерПикапа??r.PickupNumber)||text(r.НомерПикапа??r.PickupNumber)===job.job_number) &&
+        [transportNumber(r),transportOrderNumber(r),r.Sender,r.Receiver].join(' ').toLowerCase().includes(search))
+        .slice(0,100).map(r=>({number:transportNumber(r),orderNumber:transportOrderNumber(r),date:text(r.DatePrih),sender:text(r.Sender),receiver:text(r.Receiver),...transportMetrics(r)}));
+      await db.query('COMMIT');return {version:job.version,transports:candidates};
+    }
+    if(!Number.isInteger(body.jobVersion)||body.jobVersion!==job.version) throw new PickupError('Забор изменился. Повторите поиск.',409);
+    const number=text(body.transportNumber);
+    if(!number) throw new PickupError('Выберите перевозку');
+    const proposed={...job,data:{...job.data,cargoNumber:number,zayavkaNumber:''}};
+    const all=await transports(pool,[proposed]);
+    const exact=all.filter(r=>transportNumber(r)===number);
+    if(exact.length!==1) throw new PickupError('Перевозка не найдена или её номер неоднозначен');
+    proposed.data.zayavkaNumber=transportOrderNumber(exact[0]) || job.data.zayavkaNumber;
+    matchBillingTransport(proposed,all);
+    await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`pickup-transport:${number}`]);
+    const conflict=await db.query(`SELECT id FROM pickup_jobs WHERE id<>$1 AND data->>'cargoNumber'=$2
+      UNION ALL SELECT job_id FROM pickup_billing WHERE job_id<>$1 AND transport_number=$2`,[job.id,number]);
+    if(conflict.rows.length) throw new PickupError('Перевозка уже сопоставлена с другим забором',409);
+    await db.query('UPDATE pickup_jobs SET data=$2,version=version+1,updated_at=now() WHERE id=$1',[job.id,JSON.stringify(proposed.data)]);
+    await db.query('INSERT INTO pickup_events(id,job_id,actor,action,data) VALUES($1,$2,$3,$4,$5)',
+      [randomUUID(),job.id,actor,'transport_matched',JSON.stringify({previousCargoNumber:job.data.cargoNumber,previousOrderNumber:job.data.zayavkaNumber,cargoNumber:number,orderNumber:proposed.data.zayavkaNumber})]);
+    await db.query('COMMIT');return {ok:true};
+  } catch(e) {await db.query('ROLLBACK');throw e;} finally {db.release();}
 }

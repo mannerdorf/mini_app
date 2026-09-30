@@ -5,7 +5,7 @@ import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
 import {deliverySetter} from './deliveryService.js';
-import {billingQuote,billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
+import {billingMatchTransport,billingMatchInvoice,billingQuote,billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {processPickupAutoBilling} from './autoBilling.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
@@ -20,7 +20,8 @@ async function seed(mode='auto') {
 const journal=()=>billingJournal(pool,'moscow','2026-09-17','dispatcher');
 beforeAll(async()=>{
   db=new PGlite();
-  await db.exec(`CREATE TABLE pickup_jobs(id uuid PRIMARY KEY,job_number text,city text,date date,status text,data jsonb);
+  await db.exec(`CREATE TABLE pickup_jobs(id uuid PRIMARY KEY,job_number text,city text,date date,status text,data jsonb,version integer default 1,updated_at timestamptz default now());
+    CREATE TABLE pickup_events(id uuid,job_id uuid,actor text,action text,data jsonb);
     CREATE TABLE cache_invoices_rows(doc_number text,doc_date date,customer_inn text,payload jsonb); CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
   const migration=readFileSync(new URL('../../migrations/114_pickup_1c_integration.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);
@@ -371,4 +372,40 @@ it.each([
  expect((await journal()).rows[0]).toMatchObject({last_error:outcome.error});
  await processPickupAutoBilling(pool);
  expect(deliverySetter).toHaveBeenCalledTimes(2);
+});
+
+it('matches a cached pickup invoice, persists its original date and rejects unrelated invoices',async()=>{
+ await seed();const row=(await journal()).rows[0];
+ const insert=async(number:string,inn:string,name:string)=>db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',[number,'2026-09-18',inn,JSON.stringify({Customer:'Заказчик',List:[{Name:name}]})]);
+ await insert('4200','7701234567','Услуги по забору груза. Перевозка № 000001');
+ await insert('4201','7701234567','Услуги по перевозке груза. Перевозка № 000001');
+ await insert('4202','7701234567','Услуги по забору груза. Перевозка № 999999');
+ await insert('4203','other','Услуги по забору груза. Перевозка № 000001');
+ const candidates=await billingMatchInvoice(pool,'dispatcher',{id,action:'billing_invoice_candidates'});
+ expect(candidates.invoices?.map(i=>i.number)).toEqual(['4200']);
+ for(const invoiceNumber of ['4201','4202','4203']) await expect(billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber,invoiceDate:'2026-09-18'})).rejects.toThrow('не соответствует');
+ await expect(billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:0,invoiceNumber:'4200',invoiceDate:'2026-09-18'})).rejects.toThrow('изменилась');
+ await billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber:'4200',invoiceDate:'2026-09-18'});
+ expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'4200',invoiceReferenceDate:'2026-09-18'});
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+
+it('matches a transport from the same customer and replaces a placeholder order with its real order',async()=>{
+ await seed();
+ await db.query("UPDATE pickup_jobs SET data=data||$2::jsonb WHERE id=$1",[id,JSON.stringify({zayavkaNumber:'ZB-001'})]);
+ await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([{...cargo(),НомерПикапа:'',ZayavkaNumber:'000999',Sender:'Отправитель'}])]);
+ const candidates=await billingMatchTransport(pool,'dispatcher',{action:'billing_transport_candidates',id,search:'000001'});
+ expect(candidates.transports).toHaveLength(1);
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:candidates.version,transportNumber:'000001'});
+ const updated=(await db.query('SELECT * FROM pickup_jobs WHERE id=$1',[id])).rows[0] as any;
+ expect(updated.data).toMatchObject({cargoNumber:'000001',zayavkaNumber:'000999'});
+ expect((await journal()).rows[0].source.transportNumber).toBe('000001');
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+it('rejects a transport belonging to another customer and a stale selection',async()=>{
+ await seed();
+ await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([{...cargo(),INN:'other'}])]);
+ await expect(billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumber:'000001'})).rejects.toThrow();
+ await expect(billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:0,transportNumber:'000001'})).rejects.toThrow('изменился');
+ expect((await db.query('SELECT data FROM pickup_jobs WHERE id=$1',[id])).rows[0].data).toMatchObject({cargoNumber:''});
 });
