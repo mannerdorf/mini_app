@@ -1,0 +1,42 @@
+{
+  "commit": "beebf15f",
+  "builtAt": "2026-09-30T18:28:37.114Z",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200
+    },
+    {
+      "path": "/cms",
+      "status": 200
+    },
+    {
+      "path": "/login",
+      "status": 200
+    },
+    {
+      "path": "/kalkulyator",
+      "status": 200
+    },
+    {
+      "path": "/perevozka-moskva-kaliningrad",
+      "status": 200
+    },
+    {
+      "path": "/404",
+      "status": 404
+    },
+    {
+      "path": "/missing/nested-page",
+      "status": 404
+    },
+    {
+      "path": "/assets/definitely-missing.js",
+      "status": 404
+    },
+    {
+      "path": "/api/public/v1/routes",
+      "status": 200
+    }
+  ]
+}
