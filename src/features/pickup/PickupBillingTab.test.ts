@@ -15,7 +15,7 @@ it('saves the edited amount before sending with the returned version',async()=>{
  await act(async()=>issue().props.onClick());
  expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal','billing_save','billing_send','billing_journal']);
  expect(call).toHaveBeenCalledWith({action:'billing_save',id:'1',version:4,amount:250.5});
- expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:5,confirmed:true});
+ expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:5,confirmed:true,createInvoice:true});
  expect(JSON.stringify(root.toJSON())).not.toContain('Передать стоимость в 1С (');
  expect(root.root.findAllByProps({type:'checkbox'})).toHaveLength(0);
 });
@@ -53,7 +53,7 @@ it('offers an explicit retry without a sandbox or a preview request',async()=>{
  expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal']);
  const retry=root.root.findAllByType('button').find(b=>b.children.includes('Повторить передачу в 1С'))!;
  await act(async()=>retry.props.onClick());
- expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true});
+ expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true,createInvoice:true});
  expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(1);
  expect(call.mock.calls.some(([b])=>b.action==='billing_preview')).toBe(false);
  expect(JSON.stringify(root.toJSON())).not.toContain('Песочница');

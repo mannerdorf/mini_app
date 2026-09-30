@@ -7,7 +7,7 @@ import { cities } from '../../../lib/pickup/model';
 import type { PickupCall } from './client';
 import { billingAmountText, billingDraftConflicts, editBillingAmount, type BillingDrafts } from './billingDrafts';
 
-type Row = {invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
+type Row = {invoiceReferenceDate?:string;invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
   source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Стоимость передана — ожидается счёт',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставление подтверждено вручную — счёт не найден',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
@@ -56,21 +56,21 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     const draft=drafts[row.jobId];
     if(billingDraftConflicts(row,draft)) throw new Error(`Забор ${row.jobNumber}: данные изменились. Сначала сравните суммы.`);
     const value=(draft?.value??billingAmountText(row)).trim().replace(',','.');
-    if(!value || !Number.isFinite(Number(value)) || Number(value)<0) throw new Error(`Забор ${row.jobNumber}: введите сумму`);
+    if(!value || !Number.isFinite(Number(value)) || Number(value)<=0) throw new Error(`Забор ${row.jobNumber}: введите сумму`);
     const saved=await call<{ok:boolean;version?:number}>({action:'billing_save',id:row.jobId,version:row.version,amount:Number(value)});
     if(!saved.ok || !Number.isInteger(saved.version)) throw new Error('Сумма не передана: обновите API и откройте журнал заново.');
-    setMessage('Передаём стоимость в 1С…');
+    setMessage('Создаём счёт в 1С…');
     try {
-      const result=await call<{ok:boolean;error?:string;uncertain?:boolean;status?:string}>({action:'billing_send',id:row.jobId,version:saved.version,confirmed:true});
-      setMessage(result.ok ? `Забор ${row.jobNumber}: стоимость передана в 1С для выставления счёта.`
+      const result=await call<{ok:boolean;error?:string;uncertain?:boolean;status?:string;invoiceNumber?:string}>({action:'billing_send',id:row.jobId,version:saved.version,confirmed:true,createInvoice:true});
+      setMessage(result.ok && result.invoiceNumber ? `Забор ${row.jobNumber}: счёт № ${result.invoiceNumber} создан в 1С.`
         : `${row.jobNumber}: ${result.uncertain || result.status==='uncertain' ? 'Результат неизвестен — сверьте данные в 1С' : 'Не передано — требуется ручное выставление'}. ${result.error || ''}`);
     } catch(e) {
       setMessage(`${row.jobNumber}: передача не подтверждена — сверьте данные в 1С. ${(e as Error).message}`);
     }
   };
   const retry=async(row:Row)=>{
-    const result=await call<{ok:boolean;error?:string}>({action:'billing_send',id:row.jobId,version:row.version,confirmed:true,retry:true});
-    setMessage(result.ok ? `Забор ${row.jobNumber}: стоимость передана в 1С.` : `${row.jobNumber}: ${result.error || 'Передача не подтверждена — сверьте данные в 1С.'}`);
+    const result=await call<{ok:boolean;error?:string;invoiceNumber?:string}>({action:'billing_send',id:row.jobId,version:row.version,confirmed:true,retry:true,createInvoice:true});
+    setMessage(result.ok && result.invoiceNumber ? `Забор ${row.jobNumber}: счёт № ${result.invoiceNumber} создан в 1С.` : `${row.jobNumber}: ${result.error || 'Передача не подтверждена — сверьте данные в 1С.'}`);
   };
   const senderName=(row:Row)=>row.sender || jobs.find(job=>job.id===row.jobId)?.data.senderName || "";
   const sortValue=(row:Row,column:number):string|number|null|undefined=>{
@@ -115,9 +115,9 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
           <button disabled={busy} onClick={()=>setDrafts(previous=>({...previous,[row.jobId]:{...previous[row.jobId],baseVersion:row.version}}))}>Оставить мой ввод</button>
         </div>}
       </td>
-      <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber?'var(--pk-success-text)':['manual','uncertain','transmitted','issued'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.customer,_invoiceReferenceDate:row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : labels[row.status||'']||'Нет данных'}</strong>{row.status==='transmitted'&&!row.invoiceNumber&&<small style={{display:'block'}}>Номер счёта ещё не получен из 1С.</small>}{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
+      <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber?'var(--pk-success-text)':['manual','uncertain','transmitted','issued'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.customer,_invoiceReferenceDate:row.invoiceReferenceDate || row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : labels[row.status||'']||'Нет данных'}</strong>{row.status==='transmitted'&&!row.invoiceNumber&&<small style={{display:'block'}}>Номер счёта ещё не получен из 1С.</small>}{!row.error&&row.last_error&&['manual','uncertain'].includes(row.status||'')&&<small style={{display:'block'}}>{row.last_error}</small>}{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
       <td data-label="Действие">{row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
-      {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Повторно записать стоимость в 1С?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
+      {['manual','uncertain'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Проверьте наличие счёта в 1С. Повторить запрос создания счёта?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
       {['manual','uncertain','sending'].includes(row.status||'')&&<button disabled={busy} onClick={()=>{if(window.confirm(`Подтвердить: счёт по забору ${row.jobNumber} действительно выставлен в 1С?`))void run(async()=>{await call({action:'billing_mark_issued',id:row.jobId,version:row.version});});}}>Подтвердить ручное выставление</button>}</td>
     </tr>)}</tbody></table></div>}
   </section>;

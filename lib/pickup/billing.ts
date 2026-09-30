@@ -117,6 +117,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
   async function prepareRow(job: Job) {
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
     let invoiceNumber = '';
+    let invoiceReferenceDate: string | undefined;
     try {
       const transport = matchBillingTransport(job,cargos);
       invoiceNumber = pickupInvoiceForTransport(invoiceLines,transportNumber(transport),(job as Job & {billing_date:string}).billing_date.slice(0,4),text(job.data.customerInn));
@@ -164,6 +165,12 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
     if(record?.amount_manual && source && JSON.stringify(source)!==JSON.stringify(Object.fromEntries(Object.keys(source).map(key=>[key,record.source[key]])))) {
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
     }
+    if (record?.status === 'issued') {
+      const receipt = (await pool.query(`SELECT detail->>'invoiceNumber' AS number,to_char(created_at,'YYYY-MM-DD') AS date FROM pickup_billing_events
+        WHERE job_id=$1 AND action='issued' AND detail->>'ok'='true' AND COALESCE(detail->>'invoiceNumber','')<>''
+        ORDER BY created_at DESC LIMIT 1`,[job.id])).rows[0];
+      if (receipt?.number) { invoiceNumber=receipt.number; invoiceReferenceDate=receipt.date; }
+    }
     const sync = (await pool.query('SELECT state,last_error FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows[0];
     const amountManual = Boolean(record?.amount_manual);
     const displayAmount =
@@ -173,7 +180,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
           ? null
           : Number(record.amount);
     return { jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
-      ...record, invoiceNumber, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
+      ...record, invoiceNumber, invoiceReferenceDate, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));
@@ -210,6 +217,7 @@ export async function billingPreview(pool:Pool, id:string) {
 export async function billingSend(pool: Pool, actor: string, body: any, automatic = false) {
   if(body.confirmed !== true) throw new PickupError("Подтвердите передачу стоимости в 1С");
   const retry = !automatic && body.retry === true;
+  const createInvoice = !automatic && body.createInvoice === true;
   // One row per HTTP request; the UI performs a bounded sequential batch.
   const db = await pool.connect();
   let claimed: any;
@@ -217,6 +225,7 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
     await db.query('BEGIN');
     const selected = (await db.query(`SELECT b.*,j.data,j.status AS job_status,j.job_number,j.city FROM pickup_billing b JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
     if (!selected || selected.version !== body.version || !(selected.status === 'not_issued' || (retry && ['manual','uncertain'].includes(selected.status))) || selected.amount == null || selected.job_status !== 'deposited' || !selected.data.issueCustomerBill) throw new PickupError('Обновите журнал: строка изменилась или уже обработана',409);
+    if (createInvoice && (!Number.isFinite(Number(selected.amount)) || Number(selected.amount)<=0)) throw new PickupError('Сумма счёта должна быть больше нуля');
     if (automatic && (selected.data.customerBillMode !== 'auto' || !text(selected.data.zayavkaNumber) || selected.amount_manual || selected.last_error)) {
       throw new PickupError('Автоматическая передача недоступна: проверьте расчёт и номер заявки',409);
     }
@@ -224,13 +233,22 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
     const actual = sourceFor(job,matchBillingTransport(job,await transports(pool,[job])));
     if (JSON.stringify(actual) !== JSON.stringify(Object.fromEntries(Object.keys(actual).map(key=>[key,selected.source[key]])))) throw new PickupError('Данные перевозки изменились. Обновите журнал и проверьте сумму.',409);
     await db.query("UPDATE pickup_billing SET status='sending',version=version+1,updated_by=$2,updated_at=now() WHERE job_id=$1",[body.id,actor]);
-    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number,automatic,retry})]);
+    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number,automatic,retry,createInvoice})]);
     claimed=selected;
     await db.query('COMMIT');
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
-  const payload = {Номер:claimed.transport_number,СтоимостьПикапа:Number(claimed.amount)};
-  const outcome = retry ? await deliverySetter('SetPickupCost',payload,true) : await deliverySetter('SetPickupCost',payload);
-  const status=outcome.ok?'transmitted':outcome.uncertain?'uncertain':'manual';
+  const method = createInvoice ? 'CreatePickupInvoice' : 'SetPickupCost';
+  const payload = createInvoice ? {Номер:claimed.transport_number,Сумма:Number(claimed.amount)} : {Номер:claimed.transport_number,СтоимостьПикапа:Number(claimed.amount)};
+  let outcome = retry ? await deliverySetter(method,payload,true) : await deliverySetter(method,payload);
+  let invoiceRequested = createInvoice;
+  // Only an explicit rejection permits fallback; a timeout or ambiguous response requires reconciliation.
+  if (automatic && !outcome.ok && outcome.rejectedByService && !outcome.uncertain && Number(claimed.amount)>0) {
+    await pool.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',
+      [body.id,actor,'invoice_fallback_started',JSON.stringify({method:'SetPickupCost',outcome,amount:Number(claimed.amount),transportNumber:claimed.transport_number})]);
+    invoiceRequested = true;
+    outcome = await deliverySetter('CreatePickupInvoice',{Номер:claimed.transport_number,Сумма:Number(claimed.amount)});
+  }
+  const status=outcome.ok?(invoiceRequested?'issued':'transmitted'):outcome.uncertain?'uncertain':'manual';
   // If the process stops after the network call, 'sending' is intentionally not retried.
   const finish=await pool.connect();
   try {

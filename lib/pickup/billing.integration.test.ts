@@ -321,3 +321,54 @@ it('calculates a manual billing draft without saving it or sending to 1C',async(
  expect(deliverySetter).not.toHaveBeenCalled();
  await expect(billingQuote(pool,{id,version:row.version-1})).rejects.toThrow('Данные изменились');
 });
+
+it('creates an invoice on explicit button request and restores the returned number before cache refresh',async()=>{
+ await seed();const row=(await journal()).rows[0];
+ vi.mocked(deliverySetter).mockResolvedValue({ok:true,invoiceNumber:'000004200',invoiceId:'invoice-uuid'});
+ expect(await billingSend(pool,'dispatcher',{confirmed:true,createInvoice:true,id,version:row.version})).toMatchObject({status:'issued',invoiceNumber:'000004200'});
+ expect(deliverySetter).toHaveBeenCalledWith('CreatePickupInvoice',{Номер:'000001',Сумма:540});
+ expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'000004200'});
+ await expect(billingSend(pool,'dispatcher',{confirmed:true,createInvoice:true,id,version:row.version})).rejects.toThrow();
+ expect(deliverySetter).toHaveBeenCalledTimes(1);
+});
+it('rejects zero invoice amounts before contacting 1C',async()=>{
+ await seed('manual');let row=(await journal()).rows[0];
+ await billingEdit(pool,'dispatcher',{id,version:row.version,amount:0,action:'billing_save'});
+ row=(await journal()).rows[0];
+ await expect(billingSend(pool,'dispatcher',{confirmed:true,createInvoice:true,id,version:row.version})).rejects.toThrow('больше нуля');
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+
+it('automatically creates a pickup invoice after an explicit cost rejection and retains both results',async()=>{
+ await seed();
+ vi.mocked(deliverySetter).mockResolvedValueOnce({ok:false,rejectedByService:true,uncertain:false,error:'Счет уже выставлен на перевозку'})
+   .mockResolvedValueOnce({ok:true,invoiceNumber:'000004201',invoiceId:'receipt-id'});
+ expect(await processPickupAutoBilling(pool)).toMatchObject({processed:1,status:'issued'});
+ expect(deliverySetter).toHaveBeenNthCalledWith(1,'SetPickupCost',{Номер:'000001',СтоимостьПикапа:540});
+ expect(deliverySetter).toHaveBeenNthCalledWith(2,'CreatePickupInvoice',{Номер:'000001',Сумма:540});
+ expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'000004201'});
+ const audit=await db.query("SELECT detail FROM pickup_billing_events WHERE job_id=$1 AND action='invoice_fallback_started'",[id]);
+ expect(audit.rows[0].detail).toMatchObject({outcome:{error:'Счет уже выставлен на перевозку'}});
+ await processPickupAutoBilling(pool);
+ expect(deliverySetter).toHaveBeenCalledTimes(2);
+});
+it.each([
+ {ok:false,uncertain:true,error:'timeout'},
+ {ok:false,uncertain:false,error:'Unauthorized'},
+ {ok:true},
+])('does not start invoice fallback for an unconfirmed rejection or success: %j',async(outcome)=>{
+ await seed();vi.mocked(deliverySetter).mockResolvedValue(outcome);
+ await processPickupAutoBilling(pool);
+ expect(deliverySetter).toHaveBeenCalledTimes(1);
+});
+it.each([
+ {ok:false,uncertain:false,error:'счет уже выставлен'},
+ {ok:false,uncertain:true,error:'timeout'},
+])('stops after invoice fallback failure without looping: %j',async(outcome)=>{
+ await seed();
+ vi.mocked(deliverySetter).mockResolvedValueOnce({ok:false,rejectedByService:true,uncertain:false,error:'Запись запрещена'}).mockResolvedValueOnce(outcome);
+ expect(await processPickupAutoBilling(pool)).toMatchObject({status:outcome.uncertain?'uncertain':'manual'});
+ expect((await journal()).rows[0]).toMatchObject({last_error:outcome.error});
+ await processPickupAutoBilling(pool);
+ expect(deliverySetter).toHaveBeenCalledTimes(2);
+});

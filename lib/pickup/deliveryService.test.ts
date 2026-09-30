@@ -42,3 +42,28 @@ it('includes service authorization in curl while hiding it from the response',as
  expect(result.diagnostics?.response).toBe('[REDACTED]');
  expect(JSON.stringify(result)).not.toContain('fixture-service-token');
 });
+
+it('creates a pickup invoice using the shared authentication and preserves its identifiers',async()=>{
+ vi.mocked(requestFetch).mockResolvedValue(new Response(JSON.stringify({Success:true,Error:'',Номер:'000004200',Ссылка:'invoice-uuid'})));
+ expect(await deliverySetter('CreatePickupInvoice',{Номер:'000142748',Сумма:1350})).toMatchObject({ok:true,invoiceNumber:'000004200',invoiceId:'invoice-uuid'});
+ expect(requestFetch).toHaveBeenCalledWith(expect.stringContaining('/CreatePickupInvoice/'),expect.objectContaining({body:JSON.stringify({Номер:'000142748',Сумма:1350}),headers:expect.objectContaining({Auth:'Basic perevozki-fixture:secret-fixture-password',Authorization:'Basic fixture-service-token'})}));
+});
+it('requires reconciliation for success without an invoice number',async()=>{
+ vi.mocked(requestFetch).mockResolvedValue(new Response('{"Success":true}'));
+ expect(await deliverySetter('CreatePickupInvoice',{})).toMatchObject({ok:false,uncertain:true});
+ expect(requestFetch).toHaveBeenCalledTimes(1);
+});
+it('preserves an existing-invoice error without retrying creation',async()=>{
+ vi.mocked(requestFetch).mockResolvedValue(new Response(JSON.stringify({Success:false,Error:'счет уже выставлен'}),{status:400}));
+ expect(await deliverySetter('CreatePickupInvoice',{})).toMatchObject({ok:false,uncertain:false,error:'счет уже выставлен'});
+ expect(requestFetch).toHaveBeenCalledTimes(1);
+});
+
+it.each([200,400])('identifies an explicit service rejection (HTTP %s) for automatic invoice fallback',async(status)=>{
+ vi.mocked(requestFetch).mockResolvedValue(new Response(JSON.stringify({Success:false,Error:'Запись запрещена'}),{status}));
+ expect(await deliverySetter('SetPickupCost',{})).toMatchObject({ok:false,rejectedByService:true,uncertain:false});
+});
+it('does not treat an ambiguous server failure as a safe rejection',async()=>{
+ vi.mocked(requestFetch).mockResolvedValue(new Response(JSON.stringify({Success:false,Error:'Ошибка записи'}),{status:500}));
+ expect(await deliverySetter('SetPickupCost',{})).toMatchObject({ok:false,rejectedByService:false,uncertain:true});
+});
