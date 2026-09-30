@@ -120,9 +120,11 @@ it('sorts customer names and document numbers naturally',async()=>{
 
 it('selects a journal invoice and saves its number and date with the reviewed row version',async()=>{
  const open=vi.fn();
- const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'issued'}]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Услуги по забору груза'}]}:{ok:true});
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'issued'}]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Услуги по забору груза',amount:1350,transportNumbers:['000142649']}]}:{ok:true});
  await mount(call,open);
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить счёт'))!.props.onClick());
+ expect(root.root.findAllByType('option')[1].children.join('')).toContain('000142649');
+ expect(root.root.findAllByType('option')[1].children.join('')).toContain('₽');
  await act(async()=>root.root.findByType('select').props.onChange({target:{value:'0'}}));
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Открыть счёт'))!.props.onClick());
  expect(open).toHaveBeenCalledWith({Number:'4200',Customer:'Тест',_invoiceReferenceDate:'2026-09-18'});
@@ -146,4 +148,12 @@ it('searches and matches a missing transport with the job version returned by th
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сохранить сопоставление'))!.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumber:'000123'});
  expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
+});
+
+it.each(['CreatePickupInvoice','SetPickupCost'])('distinguishes an existing invoice response from %s',async(invoiceRequestMethod)=>{
+ await mount(vi.fn(async()=>({rows:[{...row,status:'manual',last_error:'счет уже выставлен',invoiceRequestMethod}]})));
+ const status=root.root.findByProps({'data-label':'Статус'});
+ expect(status.findByType('strong').children.join('')).not.toContain('требуется ручное выставление');
+ expect(status.findByType('strong').children.join('')).toContain(invoiceRequestMethod==='CreatePickupInvoice'?'Счёт за забор уже есть':'отклонила изменение стоимости');
+ expect(root.root.findAllByType('button').some(b=>b.children.includes('Повторить передачу в 1С'))).toBe(invoiceRequestMethod!=='CreatePickupInvoice');
 });

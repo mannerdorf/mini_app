@@ -374,19 +374,20 @@ it.each([
  expect(deliverySetter).toHaveBeenCalledTimes(2);
 });
 
-it('matches a cached pickup invoice, persists its original date and rejects unrelated invoices',async()=>{
+it('lists all journal invoices and lets the dispatcher match a different customer or service',async()=>{
  await seed();const row=(await journal()).rows[0];
- const insert=async(number:string,inn:string,name:string)=>db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',[number,'2026-09-18',inn,JSON.stringify({Customer:'Заказчик',List:[{Name:name}]})]);
+ const insert=async(number:string,inn:string,name:string)=>db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',[number,'2026-09-18',inn,JSON.stringify({Customer:'Заказчик',Sum:1350,List:[{Name:name,Sum:1350}]})]);
  await insert('4200','7701234567','Услуги по забору груза. Перевозка № 000001');
  await insert('4201','7701234567','Услуги по перевозке груза. Перевозка № 000001');
  await insert('4202','7701234567','Услуги по забору груза. Перевозка № 999999');
  await insert('4203','other','Услуги по забору груза. Перевозка № 000001');
  const candidates=await billingMatchInvoice(pool,'dispatcher',{id,action:'billing_invoice_candidates'});
- expect(candidates.invoices?.map(i=>i.number)).toEqual(['4200']);
- for(const invoiceNumber of ['4201','4202','4203']) await expect(billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber,invoiceDate:'2026-09-18'})).rejects.toThrow('не соответствует');
+ expect(candidates.invoices?.map(i=>i.number)).toEqual(['4200','4201','4202','4203']);
+ expect(candidates.invoices?.[0]).toMatchObject({amount:1350,transportNumbers:['000001']});
+ await expect(billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber:'absent',invoiceDate:'2026-09-18'})).rejects.toThrow('не найден');
  await expect(billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:0,invoiceNumber:'4200',invoiceDate:'2026-09-18'})).rejects.toThrow('изменилась');
- await billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber:'4200',invoiceDate:'2026-09-18'});
- expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'4200',invoiceReferenceDate:'2026-09-18'});
+ await billingMatchInvoice(pool,'dispatcher',{id,action:'billing_match_invoice',version:row.version,invoiceNumber:'4203',invoiceDate:'2026-09-18',invoiceInn:'other'});
+ expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'4203',invoiceReferenceDate:'2026-09-18'});
  expect(deliverySetter).not.toHaveBeenCalled();
 });
 

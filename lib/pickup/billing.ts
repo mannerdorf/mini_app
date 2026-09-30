@@ -1,3 +1,4 @@
+import { invoiceDocSum } from '../invoiceAmounts.js';
 import { randomUUID } from 'node:crypto';
 import type { Pool } from 'pg';
 import type { Job } from './model.js';
@@ -119,6 +120,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
     let invoiceNumber = '';
     let invoiceReferenceDate: string | undefined;
+    let invoiceCustomer: string | undefined;
     try {
       const transport = matchBillingTransport(job,cargos);
       invoiceNumber = pickupInvoiceForTransport(invoiceLines,transportNumber(transport),(job as Job & {billing_date:string}).billing_date.slice(0,4),text(job.data.customerInn));
@@ -167,12 +169,18 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       error='Данные перевозки изменились. Проверьте и сохраните сумму заново.';
     }
     if (record?.status === 'issued') {
-      const receipt = (await pool.query(`SELECT detail->>'invoiceNumber' AS number,coalesce(detail->>'invoiceDate',to_char(created_at,'YYYY-MM-DD')) AS date FROM pickup_billing_events
+      const receipt = (await pool.query(`SELECT detail->>'invoiceNumber' AS number,detail->>'invoiceCustomer' AS customer,coalesce(detail->>'invoiceDate',to_char(created_at,'YYYY-MM-DD')) AS date FROM pickup_billing_events
         WHERE job_id=$1 AND action='issued' AND detail->>'ok'='true' AND COALESCE(detail->>'invoiceNumber','')<>''
         ORDER BY created_at DESC LIMIT 1`,[job.id])).rows[0];
-      if (receipt?.number) { invoiceNumber=receipt.number; invoiceReferenceDate=receipt.date; }
+      if (receipt?.number) { invoiceNumber=receipt.number; invoiceReferenceDate=receipt.date; invoiceCustomer=receipt.customer; }
     }
     const sync = (await pool.query('SELECT state,last_error FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows[0];
+    let invoiceRequestMethod: string | undefined;
+    if (/сч[её]т уже выставлен/i.test(record?.last_error||'')) {
+      const attempt=(await pool.query(`SELECT action,detail FROM pickup_billing_events WHERE job_id=$1
+        AND action IN ('send_started','invoice_fallback_started') ORDER BY created_at DESC,id DESC LIMIT 1`,[job.id])).rows[0];
+      if(attempt) invoiceRequestMethod=attempt.action==='invoice_fallback_started'||attempt.detail?.createInvoice===true?'CreatePickupInvoice':'SetPickupCost';
+    }
     const amountManual = Boolean(record?.amount_manual);
     const displayAmount =
       error && !amountManual
@@ -181,7 +189,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
           ? null
           : Number(record.amount);
     return { jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
-      ...record, invoiceNumber, invoiceReferenceDate, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
+      ...record, invoiceNumber, invoiceReferenceDate, invoiceCustomer, invoiceRequestMethod, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));
@@ -270,29 +278,25 @@ export async function billingMatchInvoice(pool: Pool, actor: string, body: any) 
       JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
     if(!row || row.job_status!=='deposited' || !row.data.issueCustomerBill) throw new PickupError('Забор недоступен',404);
     if(row.status==='sending' && Date.now()-new Date(row.updated_at).getTime()<5*60*1000) throw new PickupError('Дождитесь завершения передачи в 1С',409);
-    const inn=text(row.data.customerInn);
-    if(!inn) throw new PickupError('Не указан ИНН заказчика');
     const {rows}=await db.query(`SELECT i.doc_number AS number,to_char(i.doc_date,'YYYY-MM-DD') AS date,
-      i.payload->>'Customer' AS customer,l.line
-      FROM cache_invoices_rows i CROSS JOIN LATERAL jsonb_array_elements(
-        CASE WHEN jsonb_typeof(i.payload->'List')='array' THEN i.payload->'List' ELSE '[]'::jsonb END) AS l(line)
-      WHERE i.customer_inn=$1 AND concat(l.line->>'Name',' ',l.line->>'Operation') ~* 'забор'
-      ORDER BY i.doc_date DESC,i.doc_number`,[inn]);
-    const candidates=rows.filter(item=>{
-      const description=`${item.line.Name||''} ${item.line.Operation||''}`;
-      const numbers=[...description.matchAll(/перевозк[аи]\s*№?\s*(\d+)/gi)].map(m=>m[1]);
-      return !numbers.length || numbers.some(n=>sameDocumentNumber(n,row.transport_number));
-    });
-    const invoices=Array.from(new Map(candidates.map(item=>[`${item.date}:${item.number}`,{
-      number:item.number,date:item.date,customer:item.customer,description:candidates.filter(i=>i.number===item.number&&i.date===item.date).map(i=>text(i.line.Name)||text(i.line.Operation)).join('; ')
-    }])).values());
+      i.payload->>'Customer' AS customer,coalesce(i.customer_inn,'') AS inn,
+      jsonb_build_object('Sum',coalesce(i.payload->'Sum',i.payload->'sum',i.payload->'Сумма',i.payload->'Amount',i.payload->'SumDoc',i.payload->'SumInvoice',i.payload->'SumBill',i.payload->'СуммаДокумента',i.payload->'СуммаСчета',i.payload->'СуммаСчёта',i.payload->'Total',i.payload->'TotalSum',i.payload->'SumTotal',i.payload->'DocumentSum',i.payload->'СуммаСНДС',i.payload->'SumWithVAT'),
+        'List',i.payload->'List','CargoNumber',i.payload->'CargoNumber','NumberCargo',i.payload->'NumberCargo',
+        'Perevozka',i.payload->'Perevozka','НомерПеревозки',i.payload->'НомерПеревозки') AS invoice
+      FROM cache_invoices_rows i ORDER BY i.doc_date DESC,i.doc_number`);
+    const invoices=rows.map(item=>({
+      number:item.number,date:item.date,customer:item.customer,inn:item.inn,
+      amount:invoiceDocSum(item.invoice),transportNumbers:invoiceTransportNumbers(item.invoice),
+      description:(Array.isArray(item.invoice.List)?item.invoice.List:[]).map((line:any)=>text(line.Name)||text(line.Operation)).join('; ')
+    }));
     if(body.action==='billing_invoice_candidates') { await db.query('COMMIT');return {invoices}; }
     if(!Number.isInteger(body.version)||row.version!==body.version) throw new PickupError('Запись изменилась. Обновите журнал.',409);
-    const invoice=invoices.find(i=>i.number===body.invoiceNumber&&i.date===body.invoiceDate);
-    if(!invoice) throw new PickupError('Счёт не найден или не соответствует заказчику и услуге забора');
+    const selected=invoices.filter(i=>i.number===body.invoiceNumber&&i.date===body.invoiceDate&&(body.invoiceInn===undefined||i.inn===body.invoiceInn));
+    if(selected.length!==1) throw new PickupError('Счёт не найден или неоднозначен. Обновите список.');
+    const invoice=selected[0];
     await db.query("UPDATE pickup_billing SET status='issued',last_error=NULL,version=version+1,updated_by=$2,updated_at=now() WHERE job_id=$1",[body.id,actor]);
     await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',
-      [body.id,actor,'issued',JSON.stringify({ok:true,invoiceNumber:invoice.number,invoiceDate:invoice.date,manualMatch:true,previousStatus:row.status,transportNumber:row.transport_number})]);
+      [body.id,actor,'issued',JSON.stringify({ok:true,invoiceNumber:invoice.number,invoiceDate:invoice.date,invoiceCustomer:invoice.customer,invoiceInn:invoice.inn,manualMatch:true,previousStatus:row.status,transportNumber:row.transport_number})]);
     await db.query('COMMIT');return {ok:true};
   } catch(e) {await db.query('ROLLBACK');throw e;} finally {db.release();}
 }
@@ -341,4 +345,17 @@ export async function billingMatchTransport(pool: Pool, actor: string, body: any
       [randomUUID(),job.id,actor,'transport_matched',JSON.stringify({previousCargoNumber:job.data.cargoNumber,previousOrderNumber:job.data.zayavkaNumber,cargoNumber:number,orderNumber:proposed.data.zayavkaNumber})]);
     await db.query('COMMIT');return {ok:true};
   } catch(e) {await db.query('ROLLBACK');throw e;} finally {db.release();}
+}
+
+function invoiceTransportNumbers(invoice:Record<string,any>):string[] {
+  const numbers=new Set<string>();
+  for(const entry of [invoice,...(Array.isArray(invoice.List)?invoice.List:[])]) {
+    for(const key of ['CargoNumber','NumberCargo','Perevozka','НомерПеревозки']) {
+      const value=text(entry[key]);if(/^\d+$/.test(value))numbers.add(value);
+    }
+    for(const key of ['Name','Operation']) {
+      for(const match of text(entry[key]).matchAll(/перевозк[аи]\s*№?\s*(\d+)/gi))numbers.add(match[1]);
+    }
+  }
+  return [...numbers];
 }
