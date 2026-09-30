@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-09-30T18:11:24.457004+00:00",
+  "commit": "74ba6e05",
+  "checks": [
+    {
+      "url": "https://haulz.space/",
+      "status": "HTTP/2 200 ",
+      "location": null
+    },
+    {
+      "url": "https://haulz.ru/",
+      "status": "HTTP/2 301 ",
+      "location": "https://haulz.space/"
+    },
+    {
+      "url": "https://haulz.pro/",
+      "status": "HTTP/2 301 ",
+      "location": "https://haulz.space/"
+    },
+    {
+      "url": "https://haulz.ru/faq",
+      "status": "HTTP/2 301 ",
+      "location": "https://haulz.space/faq"
+    },
+    {
+      "url": "https://haulz.pro/kalkulyator?direction=mow_kgd&utm_source=check",
+      "status": "HTTP/2 301 ",
+      "location": "https://haulz.space/kalkulyator?direction=mow_kgd&utm_source=check"
+    },
+    {
+      "url": "https://haulz.ru/?tab=admin",
+      "status": "HTTP/2 200 ",
+      "location": null
+    },
+    {
+      "url": "https://haulz.pro/login",
+      "status": "HTTP/2 200 ",
+      "location": null
+    }
+  ]
+}
