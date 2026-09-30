@@ -4,6 +4,7 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 import { readFileSync } from "fs";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { staticRouteAnalytics } from "./scripts/static-route-analytics-plugin.mjs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 const builtAt = new Date().toISOString();
@@ -64,7 +65,7 @@ export default defineConfig(({ command }) => ({
     "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
     "import.meta.env.VITE_BUILD_INFO": JSON.stringify(buildInfo),
   },
-  plugins: [react(), buildIdentity(), ...(useSingleFilePlugin() ? [viteSingleFile()] : []), adminRewrite()],
+  plugins: [react(), buildIdentity(), ...(useSingleFilePlugin() ? [viteSingleFile()] : [staticRouteAnalytics()]), adminRewrite()],
   server: {
     // Guest/CMS fetch('/api/...') same-origin → local API (api:dev on :3000)
     proxy: {

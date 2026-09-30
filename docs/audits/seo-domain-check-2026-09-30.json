@@ -1,0 +1,164 @@
+[
+  {
+    "url": "http://haulz.space/",
+    "final": "https://haulz.space/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/",
+    "final": "https://haulz.space/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.ru/",
+    "final": "https://haulz.ru/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://www.haulz.ru/",
+    "error": "<urlopen error [SSL: TLSV1_ALERT_INTERNAL_ERROR] tlsv1 alert internal error (_ssl.c:1081)>"
+  },
+  {
+    "url": "https://haulz.pro/",
+    "final": "https://haulz.pro/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/robots.txt",
+    "final": "https://haulz.space/robots.txt",
+    "status": 200,
+    "type": "text/plain; charset=utf-8",
+    "title": [],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": "User-agent: *\nAllow: /\nAllow: /perevozka-moskva-kaliningrad\nAllow: /perevozka-kaliningrad-moskva\nAllow: /kalkulyator\nAllow: /faq\nAllow: /sklady\nAllow: /blog\nDisallow: /admin\nDisallow: /cms\nDisallow: /wildberries\nDisallow: /red-returns\n\nSitemap: https://haulz.space/api/sitemap\nSitemap: https://haulz.space/sitemap.xml\n"
+  },
+  {
+    "url": "https://haulz.space/sitemap.xml",
+    "final": "https://haulz.space/sitemap.xml",
+    "status": 200,
+    "type": "text/xml; charset=utf-8",
+    "title": [],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [
+      "https://haulz.space/",
+      "https://haulz.space/perevozka-moskva-kaliningrad",
+      "https://haulz.space/perevozka-kaliningrad-moskva",
+      "https://haulz.space/kalkulyator",
+      "https://haulz.space/kalkulyator?direction=mow_kgd",
+      "https://haulz.space/kalkulyator?direction=kgd_mow",
+      "https://haulz.space/faq",
+      "https://haulz.space/sklady",
+      "https://haulz.space/blog",
+      "https://haulz.space/o-kompanii"
+    ],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/api/sitemap",
+    "final": "https://haulz.space/api/sitemap",
+    "status": 200,
+    "type": "application/xml; charset=utf-8",
+    "title": [],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [
+      "https://haulz.space/",
+      "https://haulz.space/perevozka-moskva-kaliningrad",
+      "https://haulz.space/perevozka-kaliningrad-moskva",
+      "https://haulz.space/kalkulyator",
+      "https://haulz.space/faq",
+      "https://haulz.space/sklady",
+      "https://haulz.space/o-kompanii",
+      "https://haulz.space/blog"
+    ],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/perevozka-moskva-kaliningrad",
+    "final": "https://haulz.space/perevozka-moskva-kaliningrad/",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "Перевозка грузов Москва — Калининград | HAULZ"
+    ],
+    "canonical": [
+      "<link rel=\"canonical\" href=\"https://haulz.space/perevozka-moskva-kaliningrad\" />"
+    ],
+    "h1": [
+      "Перевозка грузов Москва — Калининград"
+    ],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/faq",
+    "final": "https://haulz.space/faq",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  },
+  {
+    "url": "https://haulz.space/seo-check-missing-20260930",
+    "final": "https://haulz.space/seo-check-missing-20260930",
+    "status": 200,
+    "type": "text/html; charset=utf-8",
+    "title": [
+      "HAULZ — перевозка грузов Москва ↔ Калининград"
+    ],
+    "canonical": [],
+    "h1": [],
+    "xrobots": null,
+    "loc": [],
+    "robots": null
+  }
+]
