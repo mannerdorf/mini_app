@@ -1,7 +1,7 @@
 import type { Pool } from 'pg';
 import type { Job } from './model.js';
 import { PickupError } from './model.js';
-import { pickBillNumber } from '../notificationPoll.js';
+import { pickupInvoiceForTransport, readPickupInvoiceLines } from './pickupInvoices.js';
 import { isNormalizedCacheReady } from '../documentCacheNormalized.js';
 import { buildPickupCustomerQuote } from './customerQuote.js';
 import { persistResolvedPickupCoords, resolvePickupPointCoords } from './pvzCoords.js';
@@ -113,12 +113,13 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
   if (!['moscow','kaliningrad'].includes(city) || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{4}-\d{2}-\d{2}$/.test(dateTo) || dateTo < date) throw new PickupError('Укажите город и дату');
   const { rows: jobs } = await pool.query<Job>(`SELECT *,to_char(date,'YYYY-MM-DD') AS billing_date FROM pickup_jobs WHERE city=$1 AND date BETWEEN $2::date AND $4::date AND status='deposited' AND data->>'issueCustomerBill'='true' AND ($3::uuid IS NULL OR id=$3) ORDER BY date DESC,job_number`,[city,date,onlyJobId ?? null,dateTo]);
   const cargos = jobs.length ? await transports(pool,jobs) : [];
+  const invoiceLines = jobs.length ? await readPickupInvoiceLines(pool,`${date.slice(0,4)}-01-01`,`${dateTo.slice(0,4)}-12-31`) : [];
   async function prepareRow(job: Job) {
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
     let invoiceNumber = '';
     try {
       const transport = matchBillingTransport(job,cargos);
-      invoiceNumber = pickBillNumber(transport);
+      invoiceNumber = pickupInvoiceForTransport(invoiceLines,transportNumber(transport),(job as Job & {billing_date:string}).billing_date.slice(0,4),text(job.data.customerInn));
       source = sourceFor(job, transport);
       if (job.data.customerBillMode === 'auto') {
         if (source.weight == null || source.volume == null || source.chargeableWeight == null || source.places == null) throw new Error('В перевозке отсутствуют места, вес, объём или платный вес');

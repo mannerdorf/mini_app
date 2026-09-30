@@ -103,10 +103,10 @@ it('sorts amounts numerically in both directions with missing values last',async
  const amounts=()=>root.root.findByType('tbody').findAllByProps({'data-label':'Сумма, ₽'}).map(cell=>cell.findAllByProps({className:'pk-billing-amount-edit'})[0]?.children.join('')??'input');
  const click=()=>root.root.findByProps({'aria-label':'Сортировать: Сумма, ₽'}).props.onClick();
  await act(async()=>click());
- expect(amounts()[0]).toContain('20,00');
+ expect(amounts()[0]).toContain('20 ₽');
  expect(root.root.findAllByType('th')[10].props['aria-sort']).toBe('ascending');
  await act(async()=>click());
- expect(amounts()[0]).toContain('100,00');
+ expect(amounts()[0]).toContain('100 ₽');
  expect(amounts()[2]).toContain('input');
  expect(root.root.findAllByType('th')[10].props['aria-sort']).toBe('descending');
 });

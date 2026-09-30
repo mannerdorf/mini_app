@@ -2988,3 +2988,12 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 .pk-root .pk-tabs button.pk-tab-attention.pk-selected {
   box-shadow: 0 0 0 2px var(--pk-panel), 0 0 0 4px #ef4444;
 }
+
+.pk-root .pk-billing-table td[data-label="№ забора"] > strong,
+.pk-root .pk-billing-table .pk-billing-amount-value,
+.pk-root .pk-billing-table .pk-billing-amount-edit {
+  font-size: 0.75rem;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}

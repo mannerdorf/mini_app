@@ -21,13 +21,13 @@ const journal=()=>billingJournal(pool,'moscow','2026-09-17','dispatcher');
 beforeAll(async()=>{
   db=new PGlite();
   await db.exec(`CREATE TABLE pickup_jobs(id uuid PRIMARY KEY,job_number text,city text,date date,status text,data jsonb);
-    CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
+    CREATE TABLE cache_invoices_rows(doc_number text,doc_date date,customer_inn text,payload jsonb); CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
   const migration=readFileSync(new URL('../../migrations/114_pickup_1c_integration.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);
   await db.exec(readFileSync(new URL('../../migrations/119_pickup_auto_billing.sql',import.meta.url),'utf8'));
 },30000);
 afterAll(()=>db.close());
-beforeEach(async()=>{await db.exec('TRUNCATE pickup_jobs,cache_perevozki,cache_perevozki_rows,document_cache_normalized_state,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
+beforeEach(async()=>{await db.exec('TRUNCATE cache_invoices_rows,pickup_jobs,cache_perevozki,cache_perevozki_rows,document_cache_normalized_state,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
 describe('pickup billing and durable outbox',()=>{
   it('restores a ten-row batch after database restart without retrying transmitted or uncertain writes', async()=>{
     const transports=[];
@@ -286,14 +286,16 @@ it('retries a rejected transfer only explicitly and rejects stale or completed r
   expect(deliverySetter).toHaveBeenCalledTimes(2);
 });
 
-it('reads a newly issued invoice from the current transport without changing the sent billing record',async()=>{
+it('reads the pickup invoice service instead of the transport invoice without changing sent billing',async()=>{
   await seed();
   await processPickupAutoBilling(pool);
   const before=(await journal()).rows[0];
   expect(before.invoiceNumber).toBe('');
   await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([{...cargo(),BillNum:'000001529'}])]);
+  expect((await journal()).rows[0].invoiceNumber).toBe('');
+  await db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)', ['000004062','2026-09-17','7701234567',JSON.stringify({List:[{Name:'Заборная логистика',Operation:'Заборная логистика, перевозка 000001 от 17.09.2026'}]})]);
   const after=(await journal()).rows[0];
-  expect(after.invoiceNumber).toBe('000001529');
+  expect(after.invoiceNumber).toBe('000004062');
   expect(after.status).toBe('transmitted');
   expect(after.version).toBe(before.version);
   expect(deliverySetter).toHaveBeenCalledTimes(1);
