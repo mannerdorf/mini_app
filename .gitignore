@@ -22,3 +22,5 @@ ios/App/App/GoogleService-Info.plist
 .cursor/mcp.local.json
 test-results/
 playwright-report/
+
+/public/content-source-manifest.json
