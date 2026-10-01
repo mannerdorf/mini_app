@@ -1,0 +1,88 @@
+{
+  "build": {
+    "id": "unknown-dc984b47",
+    "commit": "unknown",
+    "builtAt": "2026-10-01T03:52:29.683Z"
+  },
+  "checks": [
+    {
+      "path": "/",
+      "h1": 1,
+      "canonical": "https://haulz.space/",
+      "description": "B2B-логистика между Москвой и Калининградом: перевозки, калькулятор, документы и отслеживание. LTL, FTL, паром и авто.",
+      "phrase": "Отправить груз между Москвой и Калининградом",
+      "links": 29,
+      "passed": true
+    },
+    {
+      "path": "/faq",
+      "h1": 1,
+      "canonical": "https://haulz.space/faq",
+      "description": "Ответы о расчёте, отслеживании и документах HAULZ на маршруте Москва — Калининград.",
+      "phrase": "Как отправить груз через HAULZ?",
+      "links": 10,
+      "passed": true
+    },
+    {
+      "path": "/sklady",
+      "h1": 1,
+      "canonical": "https://haulz.space/sklady",
+      "description": "Адреса и контакты складов HAULZ в Московской области и Калининграде.",
+      "phrase": "Где забрать и куда привезти",
+      "links": 15,
+      "passed": true
+    },
+    {
+      "path": "/o-kompanii",
+      "h1": 1,
+      "canonical": "https://haulz.space/o-kompanii",
+      "description": "B2B-логистика между Москвой и Калининградом: перевозки, документы, калькулятор.",
+      "phrase": "Соединяем бизнес Москвы и Калининграда",
+      "links": 9,
+      "passed": true
+    },
+    {
+      "path": "/app",
+      "h1": 1,
+      "canonical": "https://haulz.space/app",
+      "description": "Приложение HAULZ для управления перевозками.",
+      "phrase": "Управляйте логистикой прямо со смартфона",
+      "links": 12,
+      "passed": true
+    },
+    {
+      "path": "/kalkulyator",
+      "h1": 1,
+      "canonical": "https://haulz.space/kalkulyator",
+      "description": "Онлайн-калькулятор B2B-перевозки между Москвой и Калининградом: вес, объём, паром, авто, авиа.",
+      "phrase": "Можно указать адрес забора и доставки",
+      "links": 9,
+      "passed": true
+    },
+    {
+      "path": "/blog",
+      "h1": 1,
+      "canonical": "https://haulz.space/blog",
+      "description": "Статьи о перевозках, тарифах и B2B-логистике между Москвой и Калининградом.",
+      "phrase": "Пока нет опубликованных материалов",
+      "links": 5,
+      "passed": true
+    },
+    {
+      "path": "/blog?page=2",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "path": "/blog?page=0",
+      "status": 400,
+      "passed": true
+    },
+    {
+      "path": "/missing-t03-20261001",
+      "status": 404,
+      "passed": true
+    }
+  ],
+  "passed": 10
+}
