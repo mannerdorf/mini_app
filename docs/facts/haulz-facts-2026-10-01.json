@@ -1,0 +1,648 @@
+{
+  "version": 1,
+  "as_of": "2026-10-01",
+  "policy_status": "draft_pending_owner_approval",
+  "automatic_publication_enabled": false,
+  "owner": "Владелец HAULZ — пользователь текущей задачи",
+  "note": "Сроки перепроверки предложены для согласования. Извлечение из кода и подтверждение владельцем различаются. Реестр пока не подключён к генератору/публикатору.",
+  "facts": [
+    {
+      "id": "service.route",
+      "claim": "Перевозки Москва → Калининград и Калининград → Москва доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.groupage",
+      "claim": "Сборные перевозки доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.full_load",
+      "claim": "Перевозки с полной загрузкой доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.road",
+      "claim": "Автомобильные перевозки доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.ferry",
+      "claim": "Паромные перевозки доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.air",
+      "claim": "Авиаперевозки доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.door",
+      "claim": "Забор у отправителя и доставка до адреса доступны",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.warehouse",
+      "claim": "Складская обработка доступна",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "service.customs",
+      "claim": "Таможенное сопровождение доступно",
+      "value": null,
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "sha256": null
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/faq",
+        "/kalkulyator",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Подтверждение доступности не устанавливает тариф, гарантированный срок, допустимость конкретного груза или точный состав услуги.",
+      "publication_use": "Подтверждённая доступность, без числовых обещаний"
+    },
+    {
+      "id": "product.estimate_scope",
+      "claim": "Открытый Public API рассчитывает ориентир склад—склад без забора и последней мили",
+      "value": null,
+      "status": "code_verified",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/publicEstimate.ts",
+          "sha256": "708fad1d16e50346e26c67bab7ecf578a26a227a14f3624aa467eb94231a3191"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/faq",
+        "/kalkulyator",
+        "/api/public/v1/estimate"
+      ],
+      "limits": "Не распространять это ограничение на полный адресный калькулятор.",
+      "publication_use": "Описание проверенного поведения продукта"
+    },
+    {
+      "id": "product.calculator_scope",
+      "claim": "Полный калькулятор предусматривает адреса забора и доставки и режим склад—склад",
+      "value": null,
+      "status": "code_verified",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "sha256": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "sha256": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/faq",
+        "/kalkulyator"
+      ],
+      "limits": "Результат предварительный; не обещать окончательную цену без проверки условий.",
+      "publication_use": "Описание проверенного поведения продукта"
+    },
+    {
+      "id": "warehouse.msk.address",
+      "claim": "Адрес склада — Москва",
+      "value": "территория Индустриальный парк Андреевское, вл14А, деревня Андреевское, Ленинский городской округ, Московская область",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "warehouse.msk.hours",
+      "claim": "График склада — Москва",
+      "value": "ежедневно 09:00–18:00",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "warehouse.msk.phone",
+      "claim": "Телефон склада — Москва",
+      "value": "+7 (958) 538-42-22",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "warehouse.kgd.address",
+      "claim": "Адрес склада — Калининград",
+      "value": "Железнодорожная улица, 12к4, Калининград, 236039",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "warehouse.kgd.hours",
+      "claim": "График склада — Калининград",
+      "value": "ежедневно 09:00–18:00",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "warehouse.kgd.phone",
+      "claim": "Телефон склада — Калининград",
+      "value": "+7 (401) 227-95-55",
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/warehouses.ts",
+          "sha256": "43dba29b1f93f64bda3a50ba4e130674df34d2a5c36709796d7b50cfab892820"
+        },
+        {
+          "reference": "src/pages/guest/guestWarehouseContent.ts",
+          "sha256": "5b4f8f674308343eecfcbe50d8dde6ecacffd6ce0670027c0cae7173d7daebd5"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/sklady",
+        "/faq"
+      ],
+      "limits": "Извлечено из текущего кода; коммерческая актуальность не подтверждена.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "price.example",
+      "claim": "Числовые примеры цен требуют снимка действующих тарифов и полного набора параметров",
+      "value": null,
+      "status": "not_approved",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/quoteEngine.ts",
+          "sha256": "721a6572b0cd88d8db465781d45cfa4c8ef87088971a2964e4b963b9d8bc3357"
+        },
+        {
+          "reference": "lib/haulzCalculator/tariffStore.ts",
+          "sha256": "e4bc315450018271ea846a769e4b3edd9dc995e1298bd192924172411ef35bb0"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 1,
+      "valid_until_proposed": "2026-10-02",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/blog",
+        "/kalkulyator"
+      ],
+      "limits": "Не использовать цену тестовой заявки как общий тариф. Сохранять направление, режим, дату, вес, объём, платный вес, минимум, адресный состав, допуслуги, налоги и версию тарифов. Новая версия тарифов немедленно отменяет актуальность примера.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "delivery.days",
+      "claim": "Сроки из калькулятора являются расчётными и требуют подтверждения условий",
+      "value": null,
+      "status": "not_approved",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/quoteEngine.ts",
+          "sha256": "721a6572b0cd88d8db465781d45cfa4c8ef87088971a2964e4b963b9d8bc3357"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 1,
+      "valid_until_proposed": "2026-10-02",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/blog",
+        "/faq",
+        "/kalkulyator"
+      ],
+      "limits": "Не превращать deliveryDays в гарантированный срок. Нужны календарь, границы отсчёта и исключения.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "cargo.special",
+      "claim": "Опасные, режимные, акцизные и санкционные грузы упомянуты в каталоге",
+      "value": null,
+      "status": "needs_expert_review",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "sha256": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931"
+        },
+        {
+          "reference": "src/pages/guest/guestFaqContent.ts",
+          "sha256": "256f0555637f84a2581907cafbf4232298341e710604f282a90cb09015f8d74e"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 7,
+      "valid_until_proposed": "2026-10-08",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/faq",
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva"
+      ],
+      "limits": "Не выводить общую допустимость. Требуются конкретный груз, ограничения и решение специалиста; никаких автоматических юридических выводов.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "legal.identity",
+      "claim": "Реквизиты ООО «Холз» записаны в источнике сайта",
+      "value": {
+        "name": "ООО «Холз»",
+        "inn": "9706037094",
+        "ogrn": "1237700687180"
+      },
+      "status": "needs_owner_confirmation",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "lib/haulzLegal.ts",
+          "sha256": "bc5292537f141eb180c79460c8005f19096a5f4b77baf31fa62f49f1ebab475e"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 90,
+      "valid_until_proposed": "2026-12-30",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/o-kompanii"
+      ],
+      "limits": "Проверка содержимого кода не является проверкой государственного реестра.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    },
+    {
+      "id": "claims.proof",
+      "claim": "Количественные обещания, гарантии, логотипы партнёров и кейсы требуют отдельных доказательств",
+      "value": null,
+      "status": "needs_expert_review",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "src/pages/guest/guestPartnersContent.ts",
+          "sha256": "e528c0654dec0e43a923f10f1370f75b28798593d1d74e7ca094568b3870d6ca"
+        },
+        {
+          "reference": "src/pages/guest/guestWhyChooseContent.ts",
+          "sha256": "f0e8ce99165d3c7f01dfe0cc5396f4862aa902a040afb22725c4650a430967f4"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": null,
+      "review_interval_days_proposed": 30,
+      "valid_until_proposed": "2026-10-31",
+      "recheck_on": "Изменение исходника/условий, сообщение владельца или конфликт источников — немедленно",
+      "used_on": [
+        "/",
+        "/blog"
+      ],
+      "limits": "Текущая публикация не доказывает факт, разрешение клиента на кейс или право использовать логотип.",
+      "publication_use": "Удерживать новые утверждения до подтверждения"
+    }
+  ]
+}
