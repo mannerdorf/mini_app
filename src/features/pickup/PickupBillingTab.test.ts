@@ -195,3 +195,12 @@ it('keeps checked transports across search and submits multiple numbers in billi
  expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumbers:['000002','000001']});
  expect(call.mock.calls.some(([b])=>b.action==='billing_send')).toBe(false);
 });
+
+it('shows saved cURL and 1C response without retrying the write',async()=>{
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'uncertain'}]}:{attempts:[{id:'1',createdAt:'2026-10-01T10:00:00Z',method:'CreatePickupInvoice',error:'Ошибка записи счета',diagnostics:{curl:'curl masked',status:500,response:'actual response',elapsedMs:123}}]});
+ await mount(call);
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Диагностика 1С'))!.props.onClick());
+ expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal','billing_diagnostics']);
+ const rendered=JSON.stringify(root.toJSON());
+ expect(rendered).toContain('curl masked');expect(rendered).toContain('actual response');
+});

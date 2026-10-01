@@ -1,5 +1,5 @@
 import { validatePickupOrder } from '../../lib/pickup/validateOrder.js';
-import { billingMatchTransport, billingMatchInvoice, billingQuote, billingPreview, billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
+import { billingDiagnostics, billingMatchTransport, billingMatchInvoice, billingQuote, billingPreview, billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
 import { backfillPickupJobCoordinates } from "../../lib/pickup/backfillJobCoords.js";
 import { uuid } from "../../lib/pickup/model.js";
 import {
@@ -1620,11 +1620,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
       return res.status(200).json(result);
     }
-    if (["billing_transport_candidates", "billing_match_transport", "billing_invoice_candidates", "billing_match_invoice", "billing_quote", "billing_preview", "billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
+    if (["billing_diagnostics", "billing_transport_candidates", "billing_match_transport", "billing_invoice_candidates", "billing_match_invoice", "billing_quote", "billing_preview", "billing_journal", "billing_save", "billing_send", "billing_mark_issued"].includes(body.action)) {
       dispatcherOnly(actor);
       db.release(); db = undefined;
       const pool = getPool();
-      const result = ["billing_transport_candidates","billing_match_transport"].includes(body.action) ? await billingMatchTransport(pool,login,body) : ["billing_invoice_candidates","billing_match_invoice"].includes(body.action) ? await billingMatchInvoice(pool,login,body) : body.action === "billing_quote" ? await billingQuote(pool,body) : body.action === "billing_preview" ? await billingPreview(pool,body.id) : body.action === "billing_journal" ? await billingJournal(pool,body.city,body.dateFrom ?? body.date,login,undefined,body.dateTo ?? body.dateFrom ?? body.date)
+      const result = body.action === "billing_diagnostics" ? await billingDiagnostics(pool,body.id) : ["billing_transport_candidates","billing_match_transport"].includes(body.action) ? await billingMatchTransport(pool,login,body) : ["billing_invoice_candidates","billing_match_invoice"].includes(body.action) ? await billingMatchInvoice(pool,login,body) : body.action === "billing_quote" ? await billingQuote(pool,body) : body.action === "billing_preview" ? await billingPreview(pool,body.id) : body.action === "billing_journal" ? await billingJournal(pool,body.city,body.dateFrom ?? body.date,login,undefined,body.dateTo ?? body.dateFrom ?? body.date)
         : body.action === "billing_send" ? await billingSend(pool,login,body) : await billingEdit(pool,login,body);
       return res.status(200).json(result);
     }

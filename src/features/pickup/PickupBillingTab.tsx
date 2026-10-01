@@ -7,6 +7,7 @@ import { cities } from '../../../lib/pickup/model';
 import type { PickupCall } from './client';
 import { billingAmountText, billingDraftConflicts, editBillingAmount, type BillingDrafts } from './billingDrafts';
 
+type BillingAttempt = {id:string;createdAt:string;method:string;action:string;error:string|null;diagnostics:{curl:string;status:number|null;response:string;elapsedMs:number}|null};
 type InvoiceCandidate = {customer?:string;inn?:string;number:string;date:string;description:string;amount?:number|null;transportNumbers?:string[]};
 type TransportCandidate = {number:string;orderNumber:string;date:string;sender:string;receiver:string;places:number|null;weight:number|null;volume:number|null};
 type Row = {matchedTransportNumbers?:string[];invoiceCustomer?:string;invoiceRequestMethod?:string;invoiceReferenceDate?:string;invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
@@ -21,6 +22,9 @@ const billingExplanation = (row: Row) => missingTransport(row)
   ? `Груз сдан, ${row.orderNumber || row.source?.orderNumber ? 'заявка есть, ' : ''}перевозка ещё не найдена в данных 1С.`
   : row.error;
 export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpenInvoice}: {city:keyof typeof cities;date:string;dateTo?:string;onCount?:(count:number)=>void;onOpenInvoice?:(invoice:Record<string,unknown>)=>void;jobs:Job[];routes:Route[];call:PickupCall}) {
+  const [diagnosticView,setDiagnosticView]=useState<{row:Row;attempts:BillingAttempt[]}|null>(null);
+  const diagnosticPanel=useRef<HTMLDivElement>(null);
+  useEffect(()=>{if(diagnosticView)diagnosticPanel.current?.scrollIntoView?.({behavior:'smooth',block:'center'});},[diagnosticView]);
   const [transportMatch,setTransportMatch]=useState<{row:Row;version:number;transports:TransportCandidate[]}|null>(null);
   const transportPanel=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(transportMatch)transportPanel.current?.scrollIntoView?.({behavior:'smooth',block:'center'});},[transportMatch]);
@@ -30,7 +34,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
   const [invoiceChoice,setInvoiceChoice]=useState('');
   const matchingPanel=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(matching)matchingPanel.current?.scrollIntoView?.({behavior:'smooth',block:'center'});},[matching]);
-  useEffect(()=>{setMatching(null);setTransportMatch(null);},[city,date,dateTo]);
+  useEffect(()=>{setMatching(null);setTransportMatch(null);setDiagnosticView(null);},[city,date,dateTo]);
   const [rows,setRows]=useState<Row[]>([]),[drafts,setDrafts]=useState<BillingDrafts>({});
   const [busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const [editingAmount,setEditingAmount]=useState<string|null>(null);
@@ -58,11 +62,12 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     const ticket=generation.current;
     running.current=true;setBusy(true);setMessage('');
     try {
-      const result=await call<{amount:number}>({action:'billing_quote',id:row.jobId,version:row.version});
+      const result=await call<{amount:number;breakdown?:{transportNumber:string;amount:number}[]}>({action:'billing_quote',id:row.jobId,version:row.version});
       if(ticket!==generation.current) return;
       if(!Number.isFinite(result.amount)||result.amount<0) throw new Error('Калькулятор вернул некорректную сумму');
       setDrafts(old=>editBillingAmount(old,row,String(Math.round(result.amount))));
       setEditingAmount(row.jobId);
+      if(result.breakdown && result.breakdown.length>1) setMessage(result.breakdown.map(item=>`Перевозка № ${item.transportNumber}: ${formatCurrency(item.amount,true)}`).join('\n')+`\nИтого: ${formatCurrency(result.amount,true)}`);
     } catch(e) {if(ticket===generation.current) setMessage((e as Error).message);}
     finally {running.current=false;if(ticket===generation.current)setBusy(false);}
   };
@@ -144,8 +149,31 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
         setInvoiceChoice(current<0?'':String(current));return false;
       })}>{row.invoiceNumber?<><Link2 size={16} aria-hidden="true"/> Изменить сопоставление</>:'Сопоставить счёт'}</button>{!row.invoiceNumber&&row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
       {!row.invoiceNumber&&['manual','uncertain'].includes(row.status||'')&&!(duplicateInvoice(row)&&row.invoiceRequestMethod==='CreatePickupInvoice')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Проверьте наличие счёта в 1С. Повторить запрос создания счёта?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
+      {['manual','uncertain','sending','transmitted','issued'].includes(row.status||'')&&<button disabled={busy} onClick={()=>void run(async()=>{
+        const ticket=generation.current;
+        const result=await call<{attempts:BillingAttempt[]}>({action:'billing_diagnostics',id:row.jobId});
+        if(ticket===generation.current)setDiagnosticView({row,attempts:result.attempts});
+        return false;
+      })}>Диагностика 1С</button>}
       </td>
     </tr>)}</tbody></table></div>}
+    {diagnosticView&&<div ref={diagnosticPanel} className="pk-card" role="dialog" aria-label="Диагностика 1С">
+      <h3>Диагностика 1С · {diagnosticView.row.jobNumber}</h3>
+      <p>История фактических запросов. Пароли заменены переменными окружения. Открытие этого окна не отправляет запросы.</p>
+      {!diagnosticView.attempts.length&&<p>Сохранённых ответов 1С пока нет.</p>}
+      {diagnosticView.attempts.map(attempt=><article key={attempt.id}>
+        <h4>{attempt.method||'Метод не сохранён'} · {new Date(attempt.createdAt).toLocaleString('ru-RU')}</h4>
+        {attempt.error&&<p>{attempt.error}</p>}
+        {attempt.diagnostics?<>
+          <p>HTTP: {attempt.diagnostics.status??'ответ не получен'} · {attempt.diagnostics.elapsedMs} мс</p>
+          <h4>Наш запрос cURL</h4>
+          <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:320,overflow:'auto'}}>{attempt.diagnostics.curl}</pre>
+          <h4>Ответ 1С</h4>
+          <pre style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere',maxHeight:320,overflow:'auto'}}>{attempt.diagnostics.response||'Тело ответа отсутствует'}</pre>
+        </>:<p>Для этой попытки cURL и ответ 1С не были сохранены.</p>}
+      </article>)}
+      <button onClick={()=>setDiagnosticView(null)}>Закрыть</button>
+    </div>}
     {transportMatch&&<div ref={transportPanel} className="pk-card" role="dialog" aria-label="Сопоставить перевозку">
       <h3>Сопоставить перевозку · {transportMatch.row.jobNumber}</h3>
       <p>Выберите одну или несколько перевозок этого заказчика. Места, вес и объём будут суммированы для расчёта забора.</p>

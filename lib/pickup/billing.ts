@@ -112,9 +112,22 @@ function sourceFor(job: Job, rows: any[]) {
   const sum = (key: keyof ReturnType<typeof transportMetrics>) => metrics.length === 1 ? metrics[0][key] : metrics.some(m => m[key] == null) ? null : Number(metrics.reduce((total,m) => total + m[key]!,0).toFixed(6));
   return { transportNumber: transportNumber(rows[0]), pickupNumber: job.job_number, customerInn: job.data.customerInn,
     orderNumber: job.data.zayavkaNumber,
-    ...(rows.length > 1 ? {transportNumbers:rows.map(transportNumber),orderNumbers:rows.map(transportOrderNumber)} : {}),
+    ...(rows.length > 1 ? {transportNumbers:rows.map(transportNumber),orderNumbers:rows.map(transportOrderNumber),transportMetrics:rows.map(row=>{const m=transportMetrics(row);return [transportNumber(row),m.places,m.weight,m.volume,m.chargeableWeight];})} : {}),
     places:sum('places'),weight:sum('weight'),volume:sum('volume'),chargeableWeight:sum('chargeableWeight'),mode: job.data.customerBillMode,
     city: job.city, km: job.data.mkadKm, latitude: job.data.latitude ?? null, longitude: job.data.longitude ?? null };
+}
+/** Apply tariff minima and rounding to each transport before adding the pickup total. */
+async function quoteTransports(pool:Pool, job:Job, rows:any[], coords?:{latitude:number;longitude:number}|null) {
+  const breakdown = [];
+  for (const row of rows) {
+    const metrics = transportMetrics(row);
+    if(metrics.weight==null || metrics.volume==null || metrics.chargeableWeight==null) throw new PickupError('В перевозке нет веса, объёма или платного веса для расчёта');
+    const quote = await buildPickupCustomerQuote(pool,{city:job.city,weightKg:metrics.weight,volumeM3:metrics.volume,
+      chargeableWeightKg:metrics.chargeableWeight,kmOverride:job.data.mkadKm,
+      latitude:coords?.latitude??job.data.latitude??null,longitude:coords?.longitude??job.data.longitude??null});
+    breakdown.push({transportNumber:transportNumber(row),amount:Math.round(quote.totalRub)});
+  }
+  return {amount:breakdown.reduce((sum,item)=>sum+item.amount,0),breakdown};
 }
 /** Calculate a draft amount only; does not save billing state or call 1C. */
 export async function billingQuote(pool: Pool, body: any) {
@@ -123,13 +136,9 @@ export async function billingQuote(pool: Pool, body: any) {
   if (!job || job.status !== 'deposited' || !job.data.issueCustomerBill || !billing || billing.status !== 'not_issued' || billing.version !== body.version) {
     throw new PickupError('Данные изменились. Обновите журнал перед расчётом.', 409);
   }
-  const source = sourceFor(job, matchBillingTransports(job, await transports(pool, [job])));
-  if (source.weight == null || source.volume == null || source.chargeableWeight == null) throw new PickupError('В перевозке нет веса, объёма или платного веса для расчёта');
+  const rows = matchBillingTransports(job, await transports(pool, [job]));
   const coords = await resolvePickupPointCoords(pool, job.city, job.data);
-  const quote = await buildPickupCustomerQuote(pool, {city:job.city, weightKg:source.weight, volumeM3:source.volume,
-    chargeableWeightKg:source.chargeableWeight, kmOverride:job.data.mkadKm,
-    latitude:coords?.latitude ?? job.data.latitude ?? null, longitude:coords?.longitude ?? job.data.longitude ?? null});
-  return {amount:Math.round(quote.totalRub)};
+  return quoteTransports(pool,job,rows,coords);
 }
 
 export async function billingJournal(pool: Pool, city: string, date: string, actor: string, onlyJobId?: string, dateTo: string = date) {
@@ -160,9 +169,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
             longitude: job.data.longitude as number,
           };
         }
-        amount = (await buildPickupCustomerQuote(pool, {city:job.city,weightKg:source.weight,volumeM3:source.volume,
-          chargeableWeightKg:source.chargeableWeight,kmOverride:job.data.mkadKm,
-          latitude: resolved?.latitude ?? job.data.latitude,longitude: resolved?.longitude ?? job.data.longitude})).totalRub;
+        amount = (await quoteTransports(pool,job,matchedTransports,resolved)).amount;
       }
     } catch (e) { error = (e as Error).message; }
     if (source) {
@@ -245,6 +252,25 @@ export async function billingEdit(pool: Pool, actor: string, body: any) {
     await db.query('COMMIT'); return {ok:true, version:rows.rows[0].version};
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
 }
+/** Read persisted attempts only. Opening this view never contacts 1C. */
+export async function billingDiagnostics(pool:Pool,id:string) {
+  if(!(await pool.query('SELECT id FROM pickup_jobs WHERE id=$1',[id])).rows.length) throw new PickupError('Забор не найден',404);
+  const events=(await pool.query(`SELECT id,created_at,action,detail FROM pickup_billing_events
+    WHERE job_id=$1 AND action IN ('send_started','invoice_fallback_started','manual','uncertain','transmitted','issued')
+    ORDER BY created_at,id`,[id])).rows;
+  let method='';
+  const attempts=[];
+  for(const event of events) {
+    const detail=event.detail??{};
+    if(event.action==='send_started') { method=detail.createInvoice?'CreatePickupInvoice':'SetPickupCost'; continue; }
+    if(detail.manualMatch) continue;
+    const outcome=event.action==='invoice_fallback_started'?detail.outcome??{}:detail;
+    attempts.push({id:String(event.id),createdAt:event.created_at,method:event.action==='invoice_fallback_started'?'SetPickupCost':method,
+      action:event.action,error:outcome.error??null,diagnostics:outcome.diagnostics??null});
+    if(event.action==='invoice_fallback_started') method='CreatePickupInvoice';
+  }
+  return {attempts:attempts.reverse()};
+}
 export async function billingPreview(pool:Pool, id:string) {
   const record=(await pool.query('SELECT job_id,amount,transport_number,version,status FROM pickup_billing WHERE job_id=$1',[id])).rows[0];
   if(!record) throw new PickupError('Запись не найдена',404);
@@ -281,14 +307,14 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
   const method = createInvoice ? 'CreatePickupInvoice' : 'SetPickupCost';
   const payload = createInvoice ? {Номер:claimed.transport_number,Сумма:Number(claimed.amount)} : {Номер:claimed.transport_number,СтоимостьПикапа:Number(claimed.amount)};
-  let outcome = retry ? await deliverySetter(method,payload,true) : await deliverySetter(method,payload);
+  let outcome = await deliverySetter(method,payload,true);
   let invoiceRequested = createInvoice;
   // Only an explicit rejection permits fallback; a timeout or ambiguous response requires reconciliation.
   if (automatic && !outcome.ok && outcome.rejectedByService && !outcome.uncertain && Number(claimed.amount)>0) {
     await pool.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',
       [body.id,actor,'invoice_fallback_started',JSON.stringify({method:'SetPickupCost',outcome,amount:Number(claimed.amount),transportNumber:claimed.transport_number})]);
     invoiceRequested = true;
-    outcome = await deliverySetter('CreatePickupInvoice',{Номер:claimed.transport_number,Сумма:Number(claimed.amount)});
+    outcome = await deliverySetter('CreatePickupInvoice',{Номер:claimed.transport_number,Сумма:Number(claimed.amount)},true);
   }
   const status=outcome.ok?(invoiceRequested?'issued':'transmitted'):outcome.uncertain?'uncertain':'manual';
   // If the process stops after the network call, 'sending' is intentionally not retried.

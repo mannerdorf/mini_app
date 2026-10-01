@@ -4,8 +4,9 @@ import {readFileSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 vi.mock('./deliveryService.js',()=>({deliverySetter:vi.fn()}));
 vi.mock('./customerQuote.js',()=>({buildPickupCustomerQuote:vi.fn(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}))}));
+import {buildPickupCustomerQuote} from './customerQuote.js';
 import {deliverySetter} from './deliveryService.js';
-import {billingMatchTransport,billingMatchInvoice,billingQuote,billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
+import {billingDiagnostics,billingMatchTransport,billingMatchInvoice,billingQuote,billingJournal,billingEdit,billingSend,resolvePickupTransportNumbers,matchBillingTransport,transportMetrics,transportNumber} from './billing.js';
 import {processPickupAutoBilling} from './autoBilling.js';
 import {resolveOrderNumber,syncPickupNumbers} from './numberSync.js';
 let db:PGlite;
@@ -73,7 +74,7 @@ describe('pickup billing and durable outbox',()=>{
   it('passes raw leading zeros to 1C once and records transmitted, not issued',async()=>{
     await seed();const row=(await journal()).rows[0];
     expect(await billingSend(pool,'dispatcher',{confirmed:true,id,version:row.version})).toMatchObject({ok:true,status:'transmitted'});
-    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:540});
+    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:540},true);
     await expect(billingSend(pool,'dispatcher',{confirmed:true,id,version:row.version})).rejects.toThrow();
     expect(deliverySetter).toHaveBeenCalledTimes(1);
     const next=(await journal()).rows[0];
@@ -167,7 +168,7 @@ describe('billing transport joined by order number',()=>{
     await billingEdit(pool,'dispatcher',{id,version:bill.version,amount:600,action:'billing_save'});
     const saved=(await journal()).rows[0];
     await billingSend(pool,'dispatcher',{confirmed:true,id,version:saved.version});
-    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:600});
+    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:600},true);
   });
   it('shows the job order number even when no transportation is found',async()=>{
     await seed();await db.query("UPDATE cache_perevozki SET data='[]'");
@@ -196,7 +197,7 @@ describe('automatic pickup billing',()=>{
   it('sends calculated cost after eligible handoff and never sends twice',async()=>{
     await seed();
     expect(await processPickupAutoBilling(pool)).toMatchObject({processed:1,status:'transmitted'});
-    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:540});
+    expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:'000001',СтоимостьПикапа:540},true);
     expect(await processPickupAutoBilling(pool)).toEqual({processed:0});
     expect(deliverySetter).toHaveBeenCalledTimes(1);
   });
@@ -269,7 +270,7 @@ it('rounds unissued calculator amounts, including previously rejected amounts, b
   const row=(await journal()).rows[0];
   const saved=await billingEdit(pool,'dispatcher',{action:'billing_save',id,version:row.version,amount:2448.5});
   await billingSend(pool,'dispatcher',{id,version:saved.version,confirmed:true});
-  expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:initial.source.transportNumber,СтоимостьПикапа:2449});
+  expect(deliverySetter).toHaveBeenCalledWith('SetPickupCost',{Номер:initial.source.transportNumber,СтоимостьПикапа:2449},true);
   await db.query("UPDATE pickup_billing SET amount=2448.44,status='transmitted' WHERE job_id=$1",[id]);
   expect((await journal()).rows[0].amount).toBe(2448.44);
 });
@@ -327,7 +328,7 @@ it('creates an invoice on explicit button request and restores the returned numb
  await seed();const row=(await journal()).rows[0];
  vi.mocked(deliverySetter).mockResolvedValue({ok:true,invoiceNumber:'000004200',invoiceId:'invoice-uuid'});
  expect(await billingSend(pool,'dispatcher',{confirmed:true,createInvoice:true,id,version:row.version})).toMatchObject({status:'issued',invoiceNumber:'000004200'});
- expect(deliverySetter).toHaveBeenCalledWith('CreatePickupInvoice',{Номер:'000001',Сумма:540});
+ expect(deliverySetter).toHaveBeenCalledWith('CreatePickupInvoice',{Номер:'000001',Сумма:540},true);
  expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'000004200'});
  await expect(billingSend(pool,'dispatcher',{confirmed:true,createInvoice:true,id,version:row.version})).rejects.toThrow();
  expect(deliverySetter).toHaveBeenCalledTimes(1);
@@ -345,8 +346,8 @@ it('automatically creates a pickup invoice after an explicit cost rejection and 
  vi.mocked(deliverySetter).mockResolvedValueOnce({ok:false,rejectedByService:true,uncertain:false,error:'Счет уже выставлен на перевозку'})
    .mockResolvedValueOnce({ok:true,invoiceNumber:'000004201',invoiceId:'receipt-id'});
  expect(await processPickupAutoBilling(pool)).toMatchObject({processed:1,status:'issued'});
- expect(deliverySetter).toHaveBeenNthCalledWith(1,'SetPickupCost',{Номер:'000001',СтоимостьПикапа:540});
- expect(deliverySetter).toHaveBeenNthCalledWith(2,'CreatePickupInvoice',{Номер:'000001',Сумма:540});
+ expect(deliverySetter).toHaveBeenNthCalledWith(1,'SetPickupCost',{Номер:'000001',СтоимостьПикапа:540},true);
+ expect(deliverySetter).toHaveBeenNthCalledWith(2,'CreatePickupInvoice',{Номер:'000001',Сумма:540},true);
  expect((await journal()).rows[0]).toMatchObject({status:'issued',invoiceNumber:'000004201'});
  const audit=await db.query("SELECT detail FROM pickup_billing_events WHERE job_id=$1 AND action='invoice_fallback_started'",[id]);
  expect(audit.rows[0].detail).toMatchObject({outcome:{error:'Счет уже выставлен на перевозку'}});
@@ -428,7 +429,7 @@ it('persists multiple transports, aggregates metrics and sends the pickup total 
  await expect(billingSend(pool,'cron',{id,version:row.version,confirmed:true},true)).rejects.toThrow('Автоматическая');
  expect(deliverySetter).not.toHaveBeenCalled();
  await billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,createInvoice:true});
- expect(deliverySetter).toHaveBeenCalledExactlyOnceWith('CreatePickupInvoice',{Номер:'000002',Сумма:740});
+ expect(deliverySetter).toHaveBeenCalledExactlyOnceWith('CreatePickupInvoice',{Номер:'000002',Сумма:740},true);
 });
 it('can remove a selected transport and rejects stale billing drafts after rematching',async()=>{
  await seedMultipleTransports();
@@ -501,7 +502,34 @@ it('quotes a manual pickup using both selected transports without saving or send
  await db.query("UPDATE pickup_jobs SET data=data||'{\"customerBillMode\":\"manual\"}'::jsonb WHERE id=$1",[id]);
  await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
  const row=(await journal()).rows[0];
- expect(await billingQuote(pool,{id,version:row.version})).toEqual({amount:740});
+ expect(await billingQuote(pool,{id,version:row.version})).toMatchObject({amount:740});
  expect((await db.query('SELECT amount,status FROM pickup_billing WHERE job_id=$1',[id])).rows[0]).toMatchObject({amount:null,status:'not_issued'});
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+
+it('applies minimum tariff and rounding per transport before summing',async()=>{
+ await seedMultipleTransports();
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ vi.mocked(buildPickupCustomerQuote).mockImplementation(async(_pool,input)=>({totalRub:Math.max(1350,input.chargeableWeightKg*10)+0.4}) as any);
+ try {
+   const row=(await journal()).rows[0];
+   expect(row.amount).toBe(2700);
+   const result=await billingQuote(pool,{id,version:row.version});
+   expect(result).toEqual({amount:2700,breakdown:[{transportNumber:'000001',amount:1350},{transportNumber:'000002',amount:1350}]});
+ } finally { vi.mocked(buildPickupCustomerQuote).mockImplementation(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}) as any); }
+});
+it('reads actual fallback diagnostics without sending another request',async()=>{
+ await seed();
+ await journal();
+ const diagnostic={curl:'curl masked',status:500,response:'{"Error":"Ошибка записи счета"}',elapsedMs:123};
+ for(const [action,detail] of [
+   ['send_started',{createInvoice:false}],
+   ['invoice_fallback_started',{outcome:{error:'rejected',diagnostics:{...diagnostic,status:400}}}],
+   ['uncertain',{error:'Ошибка записи счета',diagnostics:diagnostic}]
+ ] as const) await db.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',[id,'test',action,JSON.stringify(detail)]);
+ const result=await billingDiagnostics(pool,id);
+ expect(result.attempts).toHaveLength(2);
+ expect(result.attempts[0]).toMatchObject({method:'CreatePickupInvoice',diagnostics:diagnostic});
+ expect(result.attempts[1]).toMatchObject({method:'SetPickupCost',diagnostics:{status:400}});
  expect(deliverySetter).not.toHaveBeenCalled();
 });

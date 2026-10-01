@@ -23,7 +23,7 @@ export function deliveryRequestPreview(method: 'SetPickupNumber' | 'SetPickupCos
   const authVariables = '${PEREVOZKI_SERVICE_LOGIN}:${PEREVOZKI_SERVICE_PASSWORD}';
   const authorizationCurl = '\n  --header "Authorization: ${SERVICE_AUTH}"';
   const diagnostics: DeliveryDiagnostics = {
-    curl: `curl --request POST --max-time 20 ${quote(redact(url))} \\\n  --header 'Content-Type: application/json' \\\n  --header "Auth: Basic ${authVariables}" \\\n${authorizationCurl ? authorizationCurl.trimStart() + " \\\n  " : ""}--data-raw ${quote(redact(body))}`,
+    curl: `curl --request POST --max-time 20 ${quote(redact(url))} \\\n  --header 'Content-Type: application/json; charset=utf-8' \\\n  --header "Auth: Basic ${authVariables}" \\\n${authorizationCurl ? authorizationCurl.trimStart() + " \\\n  " : ""}--data-raw ${quote(redact(body))}`,
     status: null, response: '', elapsedMs: 0,
   };
   return {url,body,redact,diagnostics};
