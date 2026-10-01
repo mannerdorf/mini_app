@@ -1,3 +1,5 @@
+import { pilotByPath } from "../../../lib/mediaMarketing/approvedPilotContent";
+import { GuestPilotBody } from "./GuestPilotBody";
 import { GuestLink } from "./GuestLink";
 import React from "react";
 import {
@@ -29,13 +31,14 @@ export function GuestFaqPage({ onBack }: Props) {
       </div>
 
       <GuestPageHero
-        title="Всё, что вы хотели спросить о перевозке"
-        lead="Коротко отвечаем на частые вопросы. Потому что груз может быть сложным, а объяснение — нет."
+        title={pilotByPath("/faq")!.title}
+        lead={pilotByPath("/faq")!.answer}
         imageSrc={GUEST_ILLUSTRATIONS.faqVisual}
         imageAlt="Поддержка и ответы HAULZ"
       />
 
       <main className="mx-auto max-w-guest px-4 pb-8 pt-2 sm:px-6 lg:px-8">
+        <GuestPilotBody path="/faq" questions={false} />
         <section className="py-6">
           <div className="mb-5">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#2563eb]">Частые вопросы</p>

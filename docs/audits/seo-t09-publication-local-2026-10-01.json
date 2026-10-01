@@ -1,0 +1,121 @@
+{
+  "checked_at": "2026-10-01T12:05:03.526Z",
+  "pages": [
+    {
+      "id": "P01",
+      "path": "/perevozka-moskva-kaliningrad",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P02",
+      "path": "/perevozka-kaliningrad-moskva",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P03",
+      "path": "/uslugi/sbornye-gruzy",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P04",
+      "path": "/uslugi/paromnye-perevozki",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P05",
+      "path": "/uslugi/aviaperevozki",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P06",
+      "path": "/uslugi/polnaya-zagruzka",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P07",
+      "path": "/faq",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    },
+    {
+      "id": "P08",
+      "path": "/kalkulyator",
+      "checks": {
+        "one_h1": true,
+        "canonical": true,
+        "title": true,
+        "intro": true,
+        "all_sections": true,
+        "all_questions": true,
+        "related": true,
+        "no_editorial": true
+      }
+    }
+  ],
+  "unit_tests": 18,
+  "frontend_typecheck": "passed",
+  "production_build": "passed",
+  "browser_visual_check": "not performed"
+}

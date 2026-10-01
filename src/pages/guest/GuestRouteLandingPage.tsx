@@ -1,3 +1,5 @@
+import { GuestLink } from "./GuestLink";
+import { GuestPilotBody } from "./GuestPilotBody";
 import React from "react";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { Button } from "../../components/shadcn/button";
@@ -50,59 +52,19 @@ export function GuestRouteLandingPage({
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <Button size="lg" onClick={() => onCalculator(route.direction)}>
+          <Button size="lg" asChild><GuestLink href={publicRouteCalculatorUrl(route.direction)} onNavigate={() => onCalculator(route.direction)}>
             Рассчитать перевозку
             <ArrowRight className="h-4 w-4" />
-          </Button>
-          <Button size="lg" variant="outline" onClick={() => onOtherRoute(otherRoutePath)}>
+          </GuestLink></Button>
+          <Button size="lg" variant="outline" asChild><GuestLink href={otherRoutePath} onNavigate={() => onOtherRoute(otherRoutePath)}>
             {otherRouteLabel}
-          </Button>
+          </GuestLink></Button>
         </div>
 
-        <section className="mt-10" aria-labelledby="route-stages-title">
-          <h2 id="route-stages-title" className="text-xl font-semibold text-[#111827]">
-            Этапы перевозки {route.from} — {route.to}
-          </h2>
-          <ol className="mt-4 space-y-4">
-            {route.stages.map((stage, index) => (
-              <li key={stage.id} className="rounded-2xl border border-[#e5e7eb] bg-white p-4">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
-                  {String(index + 1).padStart(2, "0")}
-                </p>
-                <h3 className="mt-1 text-lg font-semibold text-[#111827]">{stage.title}</h3>
-                <p className="mt-1 text-sm text-[#4b5563]">{stage.detail}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
-
-        <section className="mt-10" aria-labelledby="route-features-title">
-          <h2 id="route-features-title" className="text-xl font-semibold text-[#111827]">
-            Что входит в сервис
-          </h2>
-          <ul className="mt-4 list-disc space-y-2 pl-5 text-[#374151]">
-            {route.features.map((feature) => (
-              <li key={feature}>{feature}</li>
-            ))}
-          </ul>
-        </section>
-
-        <section className="mt-10" aria-labelledby="route-faq-title">
-          <h2 id="route-faq-title" className="text-xl font-semibold text-[#111827]">
-            Частые вопросы
-          </h2>
-          <dl className="mt-4 space-y-4">
-            {route.faq.map((item) => (
-              <div key={item.q} className="rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-4">
-                <dt className="font-semibold text-[#111827]">{item.q}</dt>
-                <dd className="mt-2 text-sm leading-relaxed text-[#4b5563]">{item.a}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
+        <GuestPilotBody path={route.path} />
 
         <p className="mt-8 text-sm text-[#6b7280]">
-          Точный расчёт с адресами забора и доставки — в{" "}
+          Предварительный расчёт с адресами забора и доставки — в{" "}
           <a href={publicRouteCalculatorUrl(route.direction)} className="font-medium text-[#2563eb] underline">
             калькуляторе HAULZ
           </a>

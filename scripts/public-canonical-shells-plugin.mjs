@@ -16,9 +16,12 @@ export function publicCanonicalShells(){
    const name=Object.keys(publicShells).find(k=>publicShells[k]===meta.path);
    const canonical='https://haulz.space'+meta.path;
    const clean=html.replace(/<title>[^]*?<\/title>/gi,'').replace(/<link\b[^>]*rel=["']canonical["'][^>]*>/gi,'').replace(/<meta\b[^>]*(?:name=["'](?:description|robots|googlebot|yandex)["']|property=["']og:[^"']+["'])[^>]*>/gi,'');
-   const head=`<title>${escape(meta.title)}</title><meta name="description" content="${escape(meta.description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escape(meta.title)}"><meta property="og:description" content="${escape(meta.description)}"><meta property="og:url" content="${canonical}"><meta property="og:type" content="website">`;
+   const structured=meta.jsonLd ? `<script id="haulz-guest-jsonld" type="application/ld+json">${JSON.stringify(meta.jsonLd).replace(/</g,'\\u003c')}</script>` : '';
+   const head=`${structured}<title>${escape(meta.title)}</title><meta name="description" content="${escape(meta.description)}"><meta name="robots" content="index, follow"><link rel="canonical" href="${canonical}"><meta property="og:title" content="${escape(meta.title)}"><meta property="og:description" content="${escape(meta.description)}"><meta property="og:url" content="${canonical}"><meta property="og:type" content="website">`;
    if(!clean.includes('<div id="root"></div>'))throw Error('Public prerender: root placeholder missing');
-   writeFileSync(resolve(output.dir,'seo-shells',name+'.html'),clean.replace('</head>',head+'\n</head>').replace('<div id="root"></div>',`<div id="root">${body}</div>`).replace('<html lang="ru">','<html lang="ru" class="guest-mode light-mode" data-public-prerender="true">'));
+   const destination=name ? resolve(output.dir,'seo-shells',name+'.html') : resolve(output.dir,meta.path.slice(1),'index.html');
+   mkdirSync(resolve(destination,'..'),{recursive:true});
+   writeFileSync(destination,clean.replace('</head>',head+'\n</head>').replace('<div id="root"></div>',`<div id="root">${body}</div>`).replace('<html lang="ru">','<html lang="ru" class="guest-mode light-mode" data-public-prerender="true">'));
   }
  }};
 }

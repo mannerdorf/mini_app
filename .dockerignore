@@ -32,3 +32,5 @@ docs/*
 !docs/facts/
 docs/facts/*
 !docs/facts/haulz-facts-2026-10-01.json
+
+!docs/facts/owner-b2b-scope-2026-10-01.txt

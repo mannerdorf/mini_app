@@ -1,3 +1,4 @@
+import {verifiedServicePaths} from "../lib/mediaMarketing/servicePublication.js";
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool } from './_db.js';
 import { countSitemapArticles, sitemapArticlePaths, sitemapIndex, sitemapXml, staticSitemapPaths } from '../lib/mediaMarketing/editorPublicSitemap.js';
@@ -7,7 +8,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
  const page = req.query.page;
  if (page !== undefined && (typeof page !== 'string' || !/^(0|[1-9]\d{0,6})$/.test(page))) return res.status(400).send('Invalid sitemap page');
  try {
-  const body = page === '0' ? sitemapXml(staticSitemapPaths()) : page === undefined ? sitemapIndex(await countSitemapArticles(getPool())) : sitemapXml(await sitemapArticlePaths(getPool(),Number(page)));
+  const body = page === '0' ? sitemapXml([...staticSitemapPaths().filter(path=>!path.startsWith('/uslugi/')), ...await verifiedServicePaths()]) : page === undefined ? sitemapIndex(await countSitemapArticles(getPool())) : sitemapXml(await sitemapArticlePaths(getPool(),Number(page)));
   res.setHeader('Content-Type','application/xml; charset=utf-8');
   res.setHeader('Cache-Control','public, max-age=300');
   return req.method === 'HEAD' ? res.status(200).end() : res.status(200).send(body);

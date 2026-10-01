@@ -1,6 +1,6 @@
 /** Public-site analytics only. Never pass form values, account data or arbitrary URL parameters. */
 export const METRIKA_COUNTER_ID = 113218465;
-const PUBLIC_PATHS = new Set(['/', '/kalkulyator', '/faq', '/sklady', '/o-kompanii', '/about', '/app', '/blog', '/perevozka-moskva-kaliningrad', '/perevozka-kaliningrad-moskva', '/uslugi/sbornye-gruzy']);
+const PUBLIC_PATHS = new Set(['/', '/kalkulyator', '/faq', '/sklady', '/o-kompanii', '/about', '/app', '/blog', '/perevozka-moskva-kaliningrad', '/perevozka-kaliningrad-moskva', '/uslugi/sbornye-gruzy', '/uslugi/paromnye-perevozki', '/uslugi/aviaperevozki', '/uslugi/polnaya-zagruzka']);
 type Ym = ((id: number, method: string, ...args: unknown[]) => void) & { a?: unknown[][]; l?: number };
 declare global { interface Window { ym?: Ym } }
 

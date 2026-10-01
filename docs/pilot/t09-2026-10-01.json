@@ -1,8 +1,8 @@
 {
   "version": 3,
   "created_at": "2026-10-01",
-  "status": "owner_review_required",
-  "owner_approved": false,
+  "status": "owner_approved",
+  "owner_approved": true,
   "author_name": "Редакция HAULZ",
   "scope": "3 new service URLs and 5 updates to existing URLs from T05",
   "paid_generation_calls": 0,
@@ -104,7 +104,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -208,7 +208,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -308,7 +308,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -407,7 +407,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -505,7 +505,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -604,7 +604,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -735,7 +735,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -834,7 +834,7 @@
         "service.b2b_only"
       ],
       "editorial_change": "Редакция 3: только B2B; заголовок и прямой ответ соответствуют поисковой группе; частные посылки исключены. Требуется приёмка текста владельцем.",
-      "status": "draft",
+      "status": "approved",
       "author_name": "Редакция HAULZ",
       "reviewed_at": "2026-10-01",
       "valid_until": "2026-10-31",
@@ -852,7 +852,8 @@
       ]
     }
   ],
-  "author_status": "proposed_pending_owner_review",
+  "author_status": "owner_approved",
   "editorial_direction": "Собственный голос HAULZ: ясные объяснения, связный рассказ, условные практические примеры без выдуманных клиентских историй.",
-  "audience": "B2B only, owner confirmed 2026-10-01"
+  "audience": "B2B only, owner confirmed 2026-10-01",
+  "owner_approved_at": "2026-10-01"
 }

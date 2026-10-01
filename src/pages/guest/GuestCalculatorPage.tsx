@@ -1,3 +1,4 @@
+import { GuestPilotBody } from "./GuestPilotBody";
 import React from "react";
 import { GuestCalculatorIntro } from "./GuestCalculatorIntro";
 import { AppRuntimeProvider } from "../../contexts/AppRuntimeContext";
@@ -53,6 +54,7 @@ export function GuestCalculatorPage({ onBack, onLogin, initialDirection = null }
           />
         </ErrorBoundary>
       </AppRuntimeProvider>
+      <div className="mx-auto max-w-guest px-4 sm:px-6 lg:px-8"><GuestPilotBody path="/kalkulyator" /></div>
     </div>
   );
 }
