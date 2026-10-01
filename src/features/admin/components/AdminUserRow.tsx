@@ -1,6 +1,7 @@
 import "../../../components/shared/tableControls.css";
 import React, { useRef, useState } from "react";
 import { Flex, Typography } from "@maxhub/max-ui";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { TapSwitch } from "../../../components/TapSwitch";
 import { formatDisplayDate, formatDisplayDateFromDate } from "../../../lib/dateUtils";
 import type { User } from "../types/adminUsers";
@@ -10,6 +11,7 @@ export type AdminUserRowProps = {
   onToggleActive: () => Promise<void>;
   onEditPermissions: (user: User) => void;
   rank?: number;
+  expanded?: boolean;
 };
 
 export function AdminUserRow({
@@ -17,6 +19,7 @@ export function AdminUserRow({
   onToggleActive,
   onEditPermissions,
   rank,
+  expanded = false,
 }: AdminUserRowProps) {
   const [loading, setLoading] = useState(false);
   const pending = useRef(false);
@@ -56,6 +59,7 @@ export function AdminUserRow({
   };
   return (
     <div
+      onClick={() => onEditPermissions(user)}
       style={{
         padding: "0.65rem 0.75rem",
         border: "1px solid var(--color-border)",
@@ -96,7 +100,7 @@ export function AdminUserRow({
                 {rank + 1}
               </span>
             )}
-            <button type="button" className="table-control" aria-label={`Права пользователя ${user.login || ''}`} onClick={() => onEditPermissions(user)}>{user.login ?? "—"}</button>
+            <button type="button" className="table-control" aria-label={`Права пользователя ${user.login || ''}`} aria-expanded={expanded} onClick={(event) => { event.stopPropagation(); onEditPermissions(user); }} style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem" }}>{user.login ?? "—"}{expanded ? <ChevronUp size={16} aria-hidden="true" /> : <ChevronDown size={16} aria-hidden="true" />}</button>
           </Typography.Body>
           <Flex gap="0.35rem" align="center" wrap="wrap" style={{ marginTop: "0.35rem" }}>
             <Typography.Body

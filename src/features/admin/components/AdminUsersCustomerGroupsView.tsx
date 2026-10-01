@@ -112,6 +112,7 @@ export function AdminUsersCustomerGroupsView(props: Props) {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "0.5rem", minWidth: 0 }}>
         <AdminUserRow
           user={u}
+          expanded={selectedUser?.id === u.id}
           rank={rank}
           onToggleActive={async () => {
             const next = !u.active;
