@@ -1,0 +1,70 @@
+{
+  "date": "2026-10-01",
+  "commit": "d0d749f1",
+  "build_id": "unknown-85792eee",
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/uslugi/sbornye-gruzy",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/public-blog",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/sitemap?page=0",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "path": "/blog/dannye-dlya-rascheta-perevozki",
+      "status": 404,
+      "expected": 404,
+      "passed": true
+    },
+    {
+      "path": "/api/admin-content-editor",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    },
+    {
+      "path": "/api/admin-content-setup",
+      "status": 401,
+      "expected": 401,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "cms_bundle": {
+    "asset": "/assets/CMSStandalonePage-CEz_TjCN.js",
+    "editor_endpoint": true,
+    "preview": true,
+    "restore": true,
+    "review": true
+  },
+  "authenticated_editor": {
+    "status": 200,
+    "revision": 2,
+    "history_count": 2,
+    "publication": null
+  },
+  "production_ui": "Native browser interrupted; UI publish/edit/restore verified locally, deployed bundle and authenticated API verified remotely."
+}
