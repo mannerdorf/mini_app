@@ -515,7 +515,7 @@ it('applies minimum tariff and rounding per transport before summing',async()=>{
    const row=(await journal()).rows[0];
    expect(row.amount).toBe(2700);
    const result=await billingQuote(pool,{id,version:row.version});
-   expect(result).toEqual({amount:2700,breakdown:[{transportNumber:'000001',amount:1350},{transportNumber:'000002',amount:1350}]});
+   expect(result).toMatchObject({amount:2700,breakdown:[{transportNumber:'000001',amount:1350},{transportNumber:'000002',amount:1350}]});
  } finally { vi.mocked(buildPickupCustomerQuote).mockImplementation(async(_pool,input)=>({totalRub:input.chargeableWeightKg*10}) as any); }
 });
 it('reads actual fallback diagnostics without sending another request',async()=>{
@@ -532,4 +532,15 @@ it('reads actual fallback diagnostics without sending another request',async()=>
  expect(result.attempts[0]).toMatchObject({method:'CreatePickupInvoice',diagnostics:diagnostic});
  expect(result.attempts[1]).toMatchObject({method:'SetPickupCost',diagnostics:{status:400}});
  expect(deliverySetter).not.toHaveBeenCalled();
+});
+
+it('selects each transport date separately for historical tariffs',async()=>{
+ await seedMultipleTransports();
+ await db.query("UPDATE cache_perevozki SET data=jsonb_set(jsonb_set(data,'{0,DatePrih}','\"2026-08-31T00:00:00\"'),'{1,DatePrih}','\"2026-09-01T00:00:00\"')");
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ const row=(await journal()).rows[0];
+ vi.mocked(buildPickupCustomerQuote).mockClear();
+ const result=await billingQuote(pool,{id,version:row.version});
+ expect(vi.mocked(buildPickupCustomerQuote).mock.calls.map(call=>call[1].asOfDate)).toEqual(['2026-08-31','2026-09-01']);
+ expect(result.breakdown.map(item=>item.asOfDate)).toEqual(['2026-08-31','2026-09-01']);
 });

@@ -204,3 +204,14 @@ it('shows saved cURL and 1C response without retrying the write',async()=>{
  const rendered=JSON.stringify(root.toJSON());
  expect(rendered).toContain('curl masked');expect(rendered).toContain('actual response');
 });
+it('shows each transport and its total inside the amount cell',async()=>{
+ const call=vi.fn(async()=>({rows:[{...row,amount:3000,matchedTransportNumbers:['000001','000002'],breakdown:[{transportNumber:'000001',amount:1350},{transportNumber:'000002',amount:1650}]}]}));
+ await mount(call);
+ const cell=root.root.findAllByType('td').find(item=>item.props['data-label']==='Сумма, ₽')!;
+ const textOf=(node:any):string=>typeof node==='string'?node:(node.children??[]).map(textOf).join('');
+ const content=textOf(cell).replace(/\s/g,' ');
+ expect(content).toContain('000001');expect(content).toContain('000002');
+ expect(content).toContain('Итого по расчёту: 3 000 ₽');
+ expect(content).toContain('1 350 ₽');expect(content).toContain('1 650 ₽');
+ expect(root.root.findByProps({'aria-label':'Расчёт перевозок ZB-1'})).toBeTruthy();
+});

@@ -107,11 +107,18 @@ export async function resolvePickupTransportNumbers(pool: Pool, jobs: Job[]): Pr
   }
 }
 
+function transportTariffDate(job:Job,row:any):string {
+  const value=row.DatePrih || job.date;
+  const day=value instanceof Date ? new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Moscow',year:'numeric',month:'2-digit',day:'2-digit'}).format(value) : text(value).slice(0,10);
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Number.isFinite(Date.parse(day)) || new Date(day).toISOString().slice(0,10)!==day) throw new PickupError('Не указана корректная дата перевозки для выбора тарифа');
+  return day;
+}
 function sourceFor(job: Job, rows: any[]) {
   const metrics = rows.map(transportMetrics);
   const sum = (key: keyof ReturnType<typeof transportMetrics>) => metrics.length === 1 ? metrics[0][key] : metrics.some(m => m[key] == null) ? null : Number(metrics.reduce((total,m) => total + m[key]!,0).toFixed(6));
   return { transportNumber: transportNumber(rows[0]), pickupNumber: job.job_number, customerInn: job.data.customerInn,
     orderNumber: job.data.zayavkaNumber,
+    tariffDates:rows.map(row=>transportTariffDate(job,row)),
     ...(rows.length > 1 ? {transportNumbers:rows.map(transportNumber),orderNumbers:rows.map(transportOrderNumber),transportMetrics:rows.map(row=>{const m=transportMetrics(row);return [transportNumber(row),m.places,m.weight,m.volume,m.chargeableWeight];})} : {}),
     places:sum('places'),weight:sum('weight'),volume:sum('volume'),chargeableWeight:sum('chargeableWeight'),mode: job.data.customerBillMode,
     city: job.city, km: job.data.mkadKm, latitude: job.data.latitude ?? null, longitude: job.data.longitude ?? null };
@@ -122,10 +129,11 @@ async function quoteTransports(pool:Pool, job:Job, rows:any[], coords?:{latitude
   for (const row of rows) {
     const metrics = transportMetrics(row);
     if(metrics.weight==null || metrics.volume==null || metrics.chargeableWeight==null) throw new PickupError('В перевозке нет веса, объёма или платного веса для расчёта');
-    const quote = await buildPickupCustomerQuote(pool,{city:job.city,weightKg:metrics.weight,volumeM3:metrics.volume,
+    const asOfDate=transportTariffDate(job,row);
+    const quote = await buildPickupCustomerQuote(pool,{asOfDate,city:job.city,weightKg:metrics.weight,volumeM3:metrics.volume,
       chargeableWeightKg:metrics.chargeableWeight,kmOverride:job.data.mkadKm,
       latitude:coords?.latitude??job.data.latitude??null,longitude:coords?.longitude??job.data.longitude??null});
-    breakdown.push({transportNumber:transportNumber(row),amount:Math.round(quote.totalRub)});
+    breakdown.push({transportNumber:transportNumber(row),amount:Math.round(quote.totalRub),asOfDate,tariffVersionId:quote.tariffVersionId,tariffEffectiveFrom:quote.tariffEffectiveFrom});
   }
   return {amount:breakdown.reduce((sum,item)=>sum+item.amount,0),breakdown};
 }
@@ -148,6 +156,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
   const invoiceLines = jobs.length ? await readPickupInvoiceLines(pool,`${date.slice(0,4)}-01-01`,`${dateTo.slice(0,4)}-12-31`) : [];
   async function prepareRow(job: Job) {
     let error: string | null = null, source: ReturnType<typeof sourceFor> | null = null, amount: number | null = null;
+    let breakdown: {transportNumber:string;amount:number}[] = [];
     let invoiceNumber = '';
     let invoiceConflict = false;
     let invoiceReferenceDate: string | undefined;
@@ -169,7 +178,9 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
             longitude: job.data.longitude as number,
           };
         }
-        amount = (await quoteTransports(pool,job,matchedTransports,resolved)).amount;
+        const quote = await quoteTransports(pool,job,matchedTransports,resolved);
+        amount = quote.amount;
+        breakdown = quote.breakdown;
       }
     } catch (e) { error = (e as Error).message; }
     if (source) {
@@ -216,6 +227,12 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
         AND action IN ('send_started','invoice_fallback_started') ORDER BY created_at DESC,id DESC LIMIT 1`,[job.id])).rows[0];
       if(attempt) invoiceRequestMethod=attempt.action==='invoice_fallback_started'||attempt.detail?.createInvoice===true?'CreatePickupInvoice':'SetPickupCost';
     }
+    if (!error && record?.status==='not_issued' && !breakdown.length && (source?.transportNumbers?.length??0)>1) {
+      try {
+        const coords=await resolvePickupPointCoords(pool,job.city,job.data);
+        breakdown=(await quoteTransports(pool,job,matchBillingTransports(job,cargos),coords)).breakdown;
+      } catch { /* A missing tariff must not block manual invoice entry. */ }
+    }
     const amountManual = Boolean(record?.amount_manual);
     const displayAmount =
       error && !amountManual
@@ -224,7 +241,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
           ? null
           : Number(record.amount);
     return { jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
-      ...record, matchedTransportNumbers:job.data.cargoNumbers ?? (job.data.cargoNumber?[job.data.cargoNumber]:[]), invoiceNumber, invoiceReferenceDate, invoiceCustomer, invoiceRequestMethod, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
+      ...record, breakdown, matchedTransportNumbers:job.data.cargoNumbers ?? (job.data.cargoNumber?[job.data.cargoNumber]:[]), invoiceNumber, invoiceReferenceDate, invoiceCustomer, invoiceRequestMethod, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
   for(let index=0;index<jobs.length;index+=3) result.push(...await Promise.all(jobs.slice(index,index+3).map(prepareRow)));

@@ -7,6 +7,7 @@ import type { CityCode } from "../haulzCalculator/types.js";
 
 export type PickupCustomerQuoteInput = {
   city: CityCode;
+  asOfDate?: string;
   weightKg: number | null;
   volumeM3: number | null;
   latitude: number | null;
@@ -16,6 +17,9 @@ export type PickupCustomerQuoteInput = {
 };
 
 export type PickupCustomerQuoteResult = {
+  asOfDate: string;
+  tariffVersionId?: number;
+  tariffEffectiveFrom?: string;
   totalRub: number;
   km: number;
   chargeableWeightKg: number;
@@ -33,10 +37,11 @@ export async function buildPickupCustomerQuote(
   pool: Pool,
   input: PickupCustomerQuoteInput,
 ): Promise<PickupCustomerQuoteResult> {
-  const tariffs = await loadCalculatorTariffs(pool);
+  if(input.asOfDate && (!/^\d{4}-\d{2}-\d{2}$/.test(input.asOfDate) || !Number.isFinite(Date.parse(input.asOfDate)) || new Date(input.asOfDate).toISOString().slice(0,10)!==input.asOfDate)) throw new Error('Некорректная дата тарифа');
+  const tariffs = await loadCalculatorTariffs(pool,input.asOfDate);
   if (!tariffs.pickup?.cities?.[input.city]?.tiers?.length) {
     throw new Error(
-      "Тарифы забора не настроены. Загрузите матрицу в админке HAULZ → Калькулятор → Забор.",
+      `Тарифы забора не настроены${input.asOfDate ? ` на ${input.asOfDate}` : ""}. Загрузите матрицу в админке HAULZ → Калькулятор → Забор.`,
     );
   }
 
@@ -82,6 +87,9 @@ export async function buildPickupCustomerQuote(
   ].join(" · ");
 
   return {
+    asOfDate:tariffs.asOfDate,
+    tariffVersionId:tariffs.byCode.pickup_matrix?.version?.id,
+    tariffEffectiveFrom:tariffs.byCode.pickup_matrix?.version?.effective_from,
     totalRub,
     km,
     chargeableWeightKg,
