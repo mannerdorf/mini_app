@@ -495,3 +495,13 @@ it('allows explicit invoice reconciliation when selected cargos have different c
  await billingMatchInvoice(pool,'dispatcher',{action:'billing_match_invoice',id,version:row.version,invoiceNumber:'4701',invoiceDate:'2026-09-18'});
  expect((await journal()).rows[0]).toMatchObject({invoiceNumber:'4701',error:null,status:'issued'});
 });
+
+it('quotes a manual pickup using both selected transports without saving or sending the amount',async()=>{
+ await seedMultipleTransports();
+ await db.query("UPDATE pickup_jobs SET data=data||'{\"customerBillMode\":\"manual\"}'::jsonb WHERE id=$1",[id]);
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ const row=(await journal()).rows[0];
+ expect(await billingQuote(pool,{id,version:row.version})).toEqual({amount:740});
+ expect((await db.query('SELECT amount,status FROM pickup_billing WHERE job_id=$1',[id])).rows[0]).toMatchObject({amount:null,status:'not_issued'});
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
