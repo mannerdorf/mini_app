@@ -1,0 +1,753 @@
+{
+  "date": "2026-10-01",
+  "checks": [
+    {
+      "url": "https://haulz.space/",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/kalkulyator",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/kalkulyator"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/kalkulyator",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/kalkulyator",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/kalkulyator",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/faq",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/faq"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/faq",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/faq",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/faq",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/sklady",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/sklady"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/sklady",
+      "status": "301",
+      "location": [
+        "https://haulz.space/sklady"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/sklady",
+      "status": "301",
+      "location": [
+        "https://haulz.space/sklady"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/sklady",
+      "status": "301",
+      "location": [
+        "https://haulz.space/sklady"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/o-kompanii",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/o-kompanii",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/o-kompanii",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/o-kompanii",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/app",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/app"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/app",
+      "status": "301",
+      "location": [
+        "https://haulz.space/app"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/app",
+      "status": "301",
+      "location": [
+        "https://haulz.space/app"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/app",
+      "status": "301",
+      "location": [
+        "https://haulz.space/app"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/blog",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/blog"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/blog",
+      "status": "301",
+      "location": [
+        "https://haulz.space/blog"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/blog",
+      "status": "301",
+      "location": [
+        "https://haulz.space/blog"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/blog",
+      "status": "301",
+      "location": [
+        "https://haulz.space/blog"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/perevozka-moskva-kaliningrad",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/perevozka-moskva-kaliningrad"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/perevozka-moskva-kaliningrad",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-moskva-kaliningrad"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/perevozka-moskva-kaliningrad",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-moskva-kaliningrad"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/perevozka-moskva-kaliningrad",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-moskva-kaliningrad"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/perevozka-kaliningrad-moskva",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/perevozka-kaliningrad-moskva"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/perevozka-kaliningrad-moskva",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-kaliningrad-moskva"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/perevozka-kaliningrad-moskva",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-kaliningrad-moskva"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/perevozka-kaliningrad-moskva",
+      "status": "301",
+      "location": [
+        "https://haulz.space/perevozka-kaliningrad-moskva"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/faq/?utm_source=verify",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq?utm_source=verify"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/about",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/index.html",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/kalkulyator/?direction=msk-kgd",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator?direction=msk-kgd"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/cms",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/login",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/?tab=orders",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/faq?token=verification",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/faq"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/health",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/faq/?utm_source=verify",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq?utm_source=verify"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/about",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/index.html",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/kalkulyator/?direction=msk-kgd",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator?direction=msk-kgd"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/cms",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/login",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/?tab=orders",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/faq?token=verification",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/faq"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.ru/health",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/faq/?utm_source=verify",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq?utm_source=verify"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/about",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/index.html",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/kalkulyator/?direction=msk-kgd",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator?direction=msk-kgd"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/cms",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/login",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/?tab=orders",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/faq?token=verification",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/faq"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.pro/health",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/faq/?utm_source=verify",
+      "status": "301",
+      "location": [
+        "https://haulz.space/faq?utm_source=verify"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/about",
+      "status": "301",
+      "location": [
+        "https://haulz.space/o-kompanii"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/index.html",
+      "status": "301",
+      "location": [
+        "https://haulz.space/"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/kalkulyator/?direction=msk-kgd",
+      "status": "301",
+      "location": [
+        "https://haulz.space/kalkulyator?direction=msk-kgd"
+      ],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/cms",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/login",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/?tab=orders",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/faq?token=verification",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/faq"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://www.haulz.ru/health",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/kalkulyator?direction=msk-kgd",
+      "status": "200",
+      "location": [],
+      "canonical": [
+        "https://haulz.space/kalkulyator"
+      ],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/404",
+      "status": "404",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/seo-shells/home.html",
+      "status": "404",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/blog/t02-missing-20261001",
+      "status": "404",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/api/sitemap?page=0",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/sitemap.xml",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    },
+    {
+      "url": "https://haulz.space/public-analytics.js",
+      "status": "200",
+      "location": [],
+      "canonical": [],
+      "passed": true,
+      "error": ""
+    }
+  ],
+  "passed": 79,
+  "total": 79
+}
