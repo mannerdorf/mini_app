@@ -1,0 +1,353 @@
+{
+  "date": "2026-10-01",
+  "materials": [
+    {
+      "id": "P01",
+      "path": "/perevozka-moskva-kaliningrad",
+      "mode": "update",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "product.calculator_scope",
+        "service.door",
+        "service.groupage",
+        "service.full_load",
+        "service.road",
+        "service.ferry",
+        "service.air"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 249,
+      "title_length": 40,
+      "description_length": 135
+    },
+    {
+      "id": "P02",
+      "path": "/perevozka-kaliningrad-moskva",
+      "mode": "update",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.door",
+        "product.calculator_scope",
+        "service.groupage",
+        "service.full_load"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 245,
+      "title_length": 41,
+      "description_length": 112
+    },
+    {
+      "id": "P03",
+      "path": "/uslugi/sbornye-gruzy",
+      "mode": "update",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.groupage",
+        "service.door",
+        "product.calculator_scope"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 229,
+      "title_length": 43,
+      "description_length": 120
+    },
+    {
+      "id": "P04",
+      "path": "/uslugi/paromnye-perevozki",
+      "mode": "new",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.ferry",
+        "service.door",
+        "product.calculator_scope"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 226,
+      "title_length": 46,
+      "description_length": 124
+    },
+    {
+      "id": "P05",
+      "path": "/uslugi/aviaperevozki",
+      "mode": "new",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.air",
+        "service.door",
+        "product.calculator_scope"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 229,
+      "title_length": 41,
+      "description_length": 110
+    },
+    {
+      "id": "P06",
+      "path": "/uslugi/polnaya-zagruzka",
+      "mode": "new",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.full_load",
+        "service.groupage",
+        "service.door",
+        "product.calculator_scope"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 236,
+      "title_length": 49,
+      "description_length": 124
+    },
+    {
+      "id": "P07",
+      "path": "/faq",
+      "mode": "update",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "service.groupage",
+        "service.full_load",
+        "service.road",
+        "service.ferry",
+        "service.air",
+        "service.door",
+        "product.calculator_scope"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 237,
+      "title_length": 30,
+      "description_length": 114
+    },
+    {
+      "id": "P08",
+      "path": "/kalkulyator",
+      "mode": "update",
+      "errors": [],
+      "fact_ids": [
+        "service.route",
+        "product.calculator_scope",
+        "service.door"
+      ],
+      "sources": [
+        {
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "state": "verified"
+        },
+        {
+          "reference": "src/pages/HaulzCalculatorPage.tsx",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "state": "verified"
+        },
+        {
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
+          "expected": null,
+          "actual": null,
+          "state": "owner_confirmation"
+        },
+        {
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "state": "verified"
+        }
+      ],
+      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
+      "word_count": 209,
+      "title_length": 42,
+      "description_length": 112
+    }
+  ],
+  "paid_generation_calls": 0,
+  "provider_cost_usd": 0,
+  "owner_approved": false
+}

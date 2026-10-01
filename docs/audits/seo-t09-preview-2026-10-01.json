@@ -1,0 +1,44 @@
+{
+  "browser": {
+    "pages": 8,
+    "one_h1_each": true,
+    "overflow": false,
+    "robots": "noindex,nofollow",
+    "scripts": 0,
+    "note": "Checked at actual Codex panel width; no mobile-width claim."
+  },
+  "links": [
+    {
+      "path": "/kalkulyator",
+      "status": 200
+    },
+    {
+      "path": "/sklady",
+      "status": 200
+    },
+    {
+      "path": "/perevozka-moskva-kaliningrad",
+      "status": 200
+    },
+    {
+      "path": "/perevozka-kaliningrad-moskva",
+      "status": 200
+    },
+    {
+      "path": "/uslugi/sbornye-gruzy",
+      "status": 200
+    },
+    {
+      "path": "/faq",
+      "status": 200
+    }
+  ],
+  "overlap_max": {
+    "a": "P03",
+    "b": "P04",
+    "five_word_overlap": 0.0136
+  },
+  "overlap_note": "Lexical diagnostic only; not a semantic quality score. Shared route and logistics vocabulary expected.",
+  "author_status": "proposed_pending_owner_review",
+  "production_publication": false
+}
