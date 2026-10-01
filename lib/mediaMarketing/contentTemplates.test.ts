@@ -1,4 +1,4 @@
-import {describe,it,expect,vi,afterEach} from 'vitest';
+import {describe,it,expect,vi,afterEach,beforeEach} from 'vitest';
 import {SERVICE_CONTENT,isPublishedService,publishedServicePaths} from './serviceContent';
 import {publicServiceHtml} from './publicServiceHtml';
 import {publicBlogHtml} from './publicBlogHtml';
@@ -6,7 +6,9 @@ import handler from '../../api/public-service-page';
 import {staticSitemapPaths} from './sitemapDocuments';
 const date = new Date('2026-10-02T12:00:00Z');
 function response(){return {code:200,headers:{} as Record<string,string>,body:'',setHeader(k:string,v:string){this.headers[k]=v;},status(n:number){this.code=n;return this;},send(v:string){this.body=v;return this;},end(){return this;}};}
-afterEach(()=>vi.useRealTimers());
+const originalService = SERVICE_CONTENT[0];
+beforeEach(()=>{SERVICE_CONTENT[0]={...originalService,status:'draft',approvedAt:undefined};});
+afterEach(()=>{SERVICE_CONTENT[0]=originalService;vi.useRealTimers();});
 describe('service publication boundary',()=>{
  it('drafts are absent from route and sitemap even with preview query',()=>{
   expect(publishedServicePaths(date)).toEqual([]);expect(staticSitemapPaths(date)).not.toContain('/uslugi/sbornye-gruzy');

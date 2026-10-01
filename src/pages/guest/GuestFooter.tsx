@@ -74,6 +74,7 @@ export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator,
             <div>
               <h2 className="guest-footer__heading">Разделы</h2>
               <ul className="guest-footer__links">
+                <li><a href="/uslugi/sbornye-gruzy">Сборные грузы</a></li>
                 {NAV_LINKS.map((item) => (
                   <li key={item.label}>
                     <GuestLink href={{onAbout:"/o-kompanii",onWarehouses:"/sklady",onFaq:"/faq",onApp:"/app",onCalculator:"/kalkulyator",onLogin:"/login"}[item.onClick]} onNavigate={handlers[item.onClick]}>
