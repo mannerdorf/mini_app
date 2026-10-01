@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-01",
+  "counter": 113218465,
+  "goal": "guest_order_success",
+  "pageView": {
+    "url": "https://haulz.space/faq",
+    "debugMessage": "PageView. Counter 113218465. URL: https://haulz.space/faq. Referrer:",
+    "confirmed": true
+  },
+  "testOrder": {
+    "submittedOnce": true,
+    "uiSuccess": true,
+    "goalReceiptConfirmed": false
+  },
+  "report": "Conversion report repeatedly renders blank after reload. Last readable today report contained no goal data.",
+  "qualification": "Existing request journal contains operational statuses; separate qualification field not found."
+}
