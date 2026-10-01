@@ -1,6 +1,8 @@
+import { publishedServicePaths } from './serviceContent.js';
 import type { Pool } from 'pg';
 export const SITEMAP_PAGE_SIZE = 1000;
 export const STATIC_SITEMAP_PATHS = ['/', '/perevozka-moskva-kaliningrad', '/perevozka-kaliningrad-moskva', '/kalkulyator', '/faq', '/sklady', '/o-kompanii', '/blog'];
+export function staticSitemapPaths(now = new Date()): string[] { return [...STATIC_SITEMAP_PATHS, ...publishedServicePaths(now)]; }
 const published = `select distinct lower(article_slug) as slug from media_content_plans
  where status = 'published' and article_slug ~* '^[a-z0-9][a-z0-9_-]{0,120}$'
  and nullif(trim(coalesce(body_markdown, '')), '') is not null`;

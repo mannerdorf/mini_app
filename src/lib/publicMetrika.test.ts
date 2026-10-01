@@ -74,3 +74,8 @@ describe('successful guest order goal', () => {
     ym.mockReset();
   });
 });
+
+it('tracks only the registered service URL and removes request details', () => {
+  expect(publicAnalyticsUrl('https://haulz.space/uslugi/sbornye-gruzy?phone=private')).toBe('https://haulz.space/uslugi/sbornye-gruzy');
+  expect(publicAnalyticsUrl('https://haulz.space/uslugi/private-customer')).toBeNull();
+});
