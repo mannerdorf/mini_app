@@ -1,0 +1,40 @@
+{
+  "as_of": "2026-10-01",
+  "queries": 36,
+  "groups": 12,
+  "unique_primary_urls": 11,
+  "checks": [
+    "every query assigned exactly once",
+    "every group has demand source region intent and one URL",
+    "every referenced fact confirmed or code verified",
+    "no frequency sums",
+    "planned URLs not published by T05"
+  ],
+  "live_existing_pages": [
+    {
+      "url": "https://haulz.space/",
+      "status": 200,
+      "final_url": "https://haulz.space/"
+    },
+    {
+      "url": "https://haulz.space/faq",
+      "status": 200,
+      "final_url": "https://haulz.space/faq"
+    },
+    {
+      "url": "https://haulz.space/kalkulyator",
+      "status": 200,
+      "final_url": "https://haulz.space/kalkulyator"
+    },
+    {
+      "url": "https://haulz.space/perevozka-kaliningrad-moskva",
+      "status": 200,
+      "final_url": "https://haulz.space/perevozka-kaliningrad-moskva"
+    },
+    {
+      "url": "https://haulz.space/perevozka-moskva-kaliningrad",
+      "status": 200,
+      "final_url": "https://haulz.space/perevozka-moskva-kaliningrad"
+    }
+  ]
+}

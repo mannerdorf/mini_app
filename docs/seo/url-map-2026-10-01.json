@@ -1,0 +1,307 @@
+{
+  "as_of": "2026-10-01",
+  "scope": "Первое измеренное ядро по подтверждённым услугам; не исчерпывающая семантика отрасли",
+  "source_dataset": "docs/seo/wordstat-2026-10-01.json",
+  "fact_registry": "docs/facts/haulz-facts-2026-10-01.json",
+  "groups": [
+    {
+      "id": "G01",
+      "title": "Доставка Москва → Калининград",
+      "queries": [
+        "Q001",
+        "Q003",
+        "Q004",
+        "Q005",
+        "Q009",
+        "Q013",
+        "Q021",
+        "Q022",
+        "Q032"
+      ],
+      "fact_ids": [
+        "service.route"
+      ],
+      "primary_url": "https://haulz.space/perevozka-moskva-kaliningrad",
+      "page_state": "existing",
+      "intent": "commercial",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Без направления в фразе явно уточнять отправку из Москвы; не обещать всю Россию. Синонимы дополнить на существующей странице."
+    },
+    {
+      "id": "G02",
+      "title": "Выбор направления Москва ↔ Калининград",
+      "queries": [
+        "Q002"
+      ],
+      "fact_ids": [
+        "service.route"
+      ],
+      "primary_url": "https://haulz.space/",
+      "page_state": "existing",
+      "intent": "commercial_ambiguous_direction",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Без операторов Wordstat не различает порядок городов. На главной дать выбор двух направлений; 372 нельзя приписать одному направлению."
+    },
+    {
+      "id": "G03",
+      "title": "Отправка из Калининграда",
+      "queries": [
+        "Q007",
+        "Q018",
+        "Q020",
+        "Q030"
+      ],
+      "fact_ids": [
+        "service.route"
+      ],
+      "primary_url": "https://haulz.space/perevozka-kaliningrad-moskva",
+      "page_state": "existing",
+      "intent": "commercial",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Широкий спрос на Россию обслуживать только подтверждённым направлением в Москву; другие города не обещать. Частоту всего направления в Москву из этих чисел не выводить."
+    },
+    {
+      "id": "G04",
+      "title": "Сборный груз в Калининград",
+      "queries": [
+        "Q010",
+        "Q019"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.groupage"
+      ],
+      "primary_url": "https://haulz.space/uslugi/sbornye-gruzy",
+      "page_state": "planned",
+      "intent": "commercial",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Общая страница услуги с двумя направлениями; отдельно от маршрутной страницы объяснить консолидацию, параметры расчёта и порядок передачи груза."
+    },
+    {
+      "id": "G05",
+      "title": "Сборный груз из Калининграда",
+      "queries": [
+        "Q031"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.groupage"
+      ],
+      "primary_url": "https://haulz.space/uslugi/sbornye-gruzy",
+      "page_state": "planned",
+      "intent": "commercial",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Раздел обратного направления на той же странице G04. Не создавать отдельный дубль ради одной фразы."
+    },
+    {
+      "id": "G06",
+      "title": "Паромная доставка",
+      "queries": [
+        "Q006",
+        "Q008",
+        "Q015",
+        "Q025",
+        "Q036"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.ferry"
+      ],
+      "primary_url": "https://haulz.space/uslugi/paromnye-perevozki",
+      "page_state": "planned",
+      "intent": "commercial_mixed",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Грузовая доставка в рамках Москва ↔ Калининград. Не обещать продажу билетов, место на пароме, расписание и отдельную перевозку чужой фуры без проверки."
+    },
+    {
+      "id": "G07",
+      "title": "Авиадоставка грузов",
+      "queries": [
+        "Q016"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.air"
+      ],
+      "primary_url": "https://haulz.space/uslugi/aviaperevozki",
+      "page_state": "planned",
+      "intent": "commercial",
+      "priority": "P2",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Услуга подтверждена; точные сроки, тарифы и допуск конкретного груза не подтверждены."
+    },
+    {
+      "id": "G08",
+      "title": "Документы, доверенность и идентификация груза",
+      "queries": [
+        "Q012",
+        "Q014",
+        "Q023",
+        "Q029"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.customs"
+      ],
+      "primary_url": "https://haulz.space/blog/dokumenty-dlya-otpravki-gruza-v-kaliningrad",
+      "page_state": "planned",
+      "intent": "informational",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "План статьи. Перед текстом и публикацией проверить актуальные официальные требования и применимость к маршруту с экспертом. Не выдавать эту карту за юридический чек-лист."
+    },
+    {
+      "id": "G09",
+      "title": "Как отправить и как доставляют",
+      "queries": [
+        "Q011",
+        "Q017",
+        "Q024",
+        "Q026",
+        "Q027",
+        "Q028"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.road",
+        "service.ferry",
+        "service.air",
+        "service.door"
+      ],
+      "primary_url": "https://haulz.space/faq",
+      "page_state": "existing",
+      "intent": "informational",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Порядок обращения, необходимые параметры, варианты доставки и адресный забор. Актуальные ограничения/сроки не выводить из частотности. Запрос «сейчас» требует даты обновления."
+    },
+    {
+      "id": "G10",
+      "title": "Расчёт стоимости",
+      "queries": [
+        "Q033"
+      ],
+      "fact_ids": [
+        "service.route",
+        "product.calculator_scope"
+      ],
+      "primary_url": "https://haulz.space/kalkulyator",
+      "page_state": "existing",
+      "intent": "transactional",
+      "priority": "P1",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Предварительный расчёт с параметрами; цена на странице маршрута — краткое пояснение и ссылка сюда. Не использовать цены конкурентов или гарантированные числа."
+    },
+    {
+      "id": "G11",
+      "title": "Таможенное сопровождение",
+      "queries": [
+        "Q034"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.customs"
+      ],
+      "primary_url": "https://haulz.space/uslugi/tamozhennoe-soprovozhdenie",
+      "page_state": "planned",
+      "intent": "commercial_mixed",
+      "priority": "P2",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Спрос смешанный: может включать импорт, авто и сторонние маршруты. HAULZ предлагает только подтверждённое сопровождение своих перевозок; статус таможенного представителя не заявлять."
+    },
+    {
+      "id": "G12",
+      "title": "Полная загрузка",
+      "queries": [
+        "Q035"
+      ],
+      "fact_ids": [
+        "service.route",
+        "service.full_load",
+        "service.road"
+      ],
+      "primary_url": "https://haulz.space/uslugi/polnaya-zagruzka",
+      "page_state": "planned",
+      "intent": "commercial_mixed",
+      "priority": "P2",
+      "target_regions": [
+        "Москва и область",
+        "Калининградская область"
+      ],
+      "audience": "B2B приоритет; состав аудитории Wordstat не установлен",
+      "editorial_limits": "Фраза не доказывает, что все искали аренду машины. Описать перевозку с полной загрузкой; тоннаж, собственный парк, доступность и тариф рейса требуют подтверждения."
+    }
+  ],
+  "research_backlog": [
+    {
+      "topic": "Складская обработка и адресная доставка как самостоятельные страницы",
+      "fact_ids": [
+        "service.warehouse",
+        "service.door"
+      ],
+      "status": "Не выделять новые URL до отдельного измерения спроса; пока разделы существующих страниц"
+    },
+    {
+      "topic": "Частные переезды, личные вещи, мотоциклы, спецгрузы",
+      "status": "Не выбраны: нужны отдельное подтверждение условий и исследование"
+    },
+    {
+      "topic": "Точные частоты с операторами, сезонность, регионы для W05/W06",
+      "status": "Следующий проход исследования; текущие данные широкие, один период, для W05/W06 только Калининградская область"
+    },
+    {
+      "topic": "Search Console, Вебмастер и вопросы реальных клиентов",
+      "status": "Данные не получены; не приписывать этим источникам запросы"
+    }
+  ]
+}

@@ -1,0 +1,467 @@
+{
+  "as_of": "2026-10-01",
+  "source_name": "Яндекс Wordstat",
+  "source_url": "https://wordstat.yandex.ru/",
+  "method": "Ручная транскрипция видимых строк интерфейса; отобранные релевантные строки, не полный экспорт. Топы запросов / Популярные; без операторов; все устройства.",
+  "period": {
+    "from": "2026-08-30",
+    "to": "2026-09-28"
+  },
+  "regions": {
+    "all": "Все регионы",
+    "moscow_oblast": "Москва и область",
+    "kaliningrad_oblast": "Калининградская область"
+  },
+  "notes": [
+    "Числа — поисковые запросы, не люди, лиды, прогноз трафика или точная частота фразы.",
+    "Широкое соответствие: словоформы и вложенные формулировки пересекаются. Ничего не суммировать между фразами, регионами и направлениями.",
+    "null означает: строка не зафиксирована в просмотренной выборке, НЕ ноль.",
+    "Регион — местоположение поиска, не направление перевозки. Нельзя автоматически считать москвича отправителем или калининградца получателем.",
+    "B2B — редакционный приоритет HAULZ; Wordstat не разделяет пользователей на бизнес и частных."
+  ],
+  "queries": [
+    {
+      "id": "W01",
+      "seed": "груз москва калининград",
+      "region": "all",
+      "broad_total": 372,
+      "source_url": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B3%D1%80%D1%83%D0%B7+%D0%BC%D0%BE%D1%81%D0%BA%D0%B2%D0%B0+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    },
+    {
+      "id": "W02",
+      "seed": "грузоперевозки калининград",
+      "region": "all",
+      "broad_total": 818,
+      "observed_route_phrase": {
+        "phrase": "грузоперевозки москва калининград",
+        "count": 59
+      },
+      "source_url": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B3%D1%80%D1%83%D0%B7%D0%BE%D0%BF%D0%B5%D1%80%D0%B5%D0%B2%D0%BE%D0%B7%D0%BA%D0%B8+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    },
+    {
+      "id": "W03",
+      "seed": "сборный груз калининград",
+      "region": "all",
+      "broad_total": 101,
+      "source_url": "https://wordstat.yandex.ru/?region=all&view=table&words=%D1%81%D0%B1%D0%BE%D1%80%D0%BD%D1%8B%D0%B9+%D0%B3%D1%80%D1%83%D0%B7+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    },
+    {
+      "id": "W04",
+      "seed": "груз калининград",
+      "broad_totals": {
+        "all": 3519,
+        "moscow_oblast": 634,
+        "kaliningrad_oblast": 1245
+      },
+      "source_url": "https://wordstat.yandex.ru/?region=all&view=table&words=%D0%B3%D1%80%D1%83%D0%B7+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    },
+    {
+      "id": "W05",
+      "seed": "таможенное оформление калининград",
+      "region": "kaliningrad_oblast",
+      "broad_total": 10,
+      "source_url": "https://wordstat.yandex.ru/?region=10857&view=table&words=%D1%82%D0%B0%D0%BC%D0%BE%D0%B6%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5+%D0%BE%D1%84%D0%BE%D1%80%D0%BC%D0%BB%D0%B5%D0%BD%D0%B8%D0%B5+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    },
+    {
+      "id": "W06",
+      "seed": "фура калининград",
+      "region": "kaliningrad_oblast",
+      "broad_total": 79,
+      "source_url": "https://wordstat.yandex.ru/?region=10857&view=table&words=%D1%84%D1%83%D1%80%D0%B0+%D0%BA%D0%B0%D0%BB%D0%B8%D0%BD%D0%B8%D0%BD%D0%B3%D1%80%D0%B0%D0%B4"
+    }
+  ],
+  "rows": [
+    {
+      "id": "Q001",
+      "phrase": "доставка груза в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 436,
+        "moscow_oblast": 89,
+        "kaliningrad_oblast": 132
+      }
+    },
+    {
+      "id": "Q002",
+      "phrase": "грузы калининград москва",
+      "source": "W04",
+      "counts": {
+        "all": 372,
+        "moscow_oblast": 159,
+        "kaliningrad_oblast": 107
+      }
+    },
+    {
+      "id": "Q003",
+      "phrase": "перевозка грузов в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 302,
+        "moscow_oblast": 52,
+        "kaliningrad_oblast": 108
+      }
+    },
+    {
+      "id": "Q004",
+      "phrase": "отправить груз в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 242,
+        "moscow_oblast": 79,
+        "kaliningrad_oblast": 46
+      }
+    },
+    {
+      "id": "Q005",
+      "phrase": "отправка груза в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 217,
+        "moscow_oblast": 78,
+        "kaliningrad_oblast": 14
+      }
+    },
+    {
+      "id": "Q006",
+      "phrase": "паром калининград грузы",
+      "source": "W04",
+      "counts": {
+        "all": 136,
+        "moscow_oblast": 18,
+        "kaliningrad_oblast": 62
+      }
+    },
+    {
+      "id": "Q007",
+      "phrase": "грузы из калининграда в россию",
+      "source": "W04",
+      "counts": {
+        "all": 105,
+        "moscow_oblast": 19,
+        "kaliningrad_oblast": 33
+      }
+    },
+    {
+      "id": "Q008",
+      "phrase": "груз в калининград паромом",
+      "source": "W04",
+      "counts": {
+        "all": 101,
+        "moscow_oblast": 13,
+        "kaliningrad_oblast": 55
+      }
+    },
+    {
+      "id": "Q009",
+      "phrase": "доставка груза в калининград из москвы",
+      "source": "W04",
+      "counts": {
+        "all": 90,
+        "moscow_oblast": 45,
+        "kaliningrad_oblast": 25
+      }
+    },
+    {
+      "id": "Q010",
+      "phrase": "сборные грузы в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 77,
+        "moscow_oblast": 14,
+        "kaliningrad_oblast": 33
+      }
+    },
+    {
+      "id": "Q011",
+      "phrase": "как доставить груз в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 74,
+        "moscow_oblast": 21,
+        "kaliningrad_oblast": 8
+      }
+    },
+    {
+      "id": "Q012",
+      "phrase": "калининград документы для груза документы",
+      "source": "W04",
+      "counts": {
+        "all": 68,
+        "moscow_oblast": 17,
+        "kaliningrad_oblast": 3
+      }
+    },
+    {
+      "id": "Q013",
+      "phrase": "перевозка грузов москва калининград",
+      "source": "W04",
+      "counts": {
+        "all": 52,
+        "moscow_oblast": 16,
+        "kaliningrad_oblast": 8
+      }
+    },
+    {
+      "id": "Q014",
+      "phrase": "отправка груза в калининград документы",
+      "source": "W04",
+      "counts": {
+        "all": 47,
+        "moscow_oblast": 15,
+        "kaliningrad_oblast": 2
+      }
+    },
+    {
+      "id": "Q015",
+      "phrase": "перевозка грузов паромом в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 40,
+        "moscow_oblast": 2,
+        "kaliningrad_oblast": 37
+      }
+    },
+    {
+      "id": "Q016",
+      "phrase": "авиа грузы калининград",
+      "source": "W04",
+      "counts": {
+        "all": 34,
+        "moscow_oblast": 11,
+        "kaliningrad_oblast": 12
+      }
+    },
+    {
+      "id": "Q017",
+      "phrase": "грузы в калининград сейчас",
+      "source": "W04",
+      "counts": {
+        "all": 33,
+        "moscow_oblast": 7,
+        "kaliningrad_oblast": 4
+      }
+    },
+    {
+      "id": "Q018",
+      "phrase": "доставка грузов из калининграда в россию",
+      "source": "W04",
+      "counts": {
+        "all": 31,
+        "moscow_oblast": 2,
+        "kaliningrad_oblast": 3
+      }
+    },
+    {
+      "id": "Q019",
+      "phrase": "доставка сборных грузов в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 27,
+        "moscow_oblast": 2,
+        "kaliningrad_oblast": 15
+      }
+    },
+    {
+      "id": "Q020",
+      "phrase": "перевозка грузов из калининграда в россию",
+      "source": "W04",
+      "counts": {
+        "all": 22,
+        "moscow_oblast": 11,
+        "kaliningrad_oblast": 8
+      }
+    },
+    {
+      "id": "Q021",
+      "phrase": "отправить груз в калининград транспортной компанией",
+      "source": "W04",
+      "counts": {
+        "all": 22,
+        "moscow_oblast": 3,
+        "kaliningrad_oblast": 6
+      }
+    },
+    {
+      "id": "Q022",
+      "phrase": "отправка груза в калининград из москвы",
+      "source": "W04",
+      "counts": {
+        "all": 19,
+        "moscow_oblast": 14,
+        "kaliningrad_oblast": 4
+      }
+    },
+    {
+      "id": "Q023",
+      "phrase": "идентификация груза в калининграде это",
+      "source": "W04",
+      "counts": {
+        "all": 17,
+        "moscow_oblast": 3,
+        "kaliningrad_oblast": 1
+      }
+    },
+    {
+      "id": "Q024",
+      "phrase": "как перевезти груз в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 16,
+        "moscow_oblast": 4,
+        "kaliningrad_oblast": null
+      }
+    },
+    {
+      "id": "Q025",
+      "phrase": "доставка грузов паромом калининград",
+      "source": "W04",
+      "counts": {
+        "all": 15,
+        "moscow_oblast": 1,
+        "kaliningrad_oblast": 7
+      }
+    },
+    {
+      "id": "Q026",
+      "phrase": "как доставляются грузы в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 14,
+        "moscow_oblast": 3,
+        "kaliningrad_oblast": 1
+      }
+    },
+    {
+      "id": "Q027",
+      "phrase": "как отправить груз в калининград из москвы",
+      "source": "W04",
+      "counts": {
+        "all": 13,
+        "moscow_oblast": 9,
+        "kaliningrad_oblast": 1
+      }
+    },
+    {
+      "id": "Q028",
+      "phrase": "как возят грузы в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 13,
+        "moscow_oblast": 3,
+        "kaliningrad_oblast": 2
+      }
+    },
+    {
+      "id": "Q029",
+      "phrase": "доверенность на провоз груза в калининград",
+      "source": "W04",
+      "counts": {
+        "all": 12,
+        "moscow_oblast": 12,
+        "kaliningrad_oblast": null
+      }
+    },
+    {
+      "id": "Q030",
+      "phrase": "как привезти груз из калининграда",
+      "source": "W04",
+      "counts": {
+        "all": 11,
+        "moscow_oblast": 3,
+        "kaliningrad_oblast": null
+      }
+    },
+    {
+      "id": "Q031",
+      "phrase": "отправка сборных грузов из калининграда",
+      "source": "W04",
+      "counts": {
+        "all": 10,
+        "moscow_oblast": 2,
+        "kaliningrad_oblast": 8
+      }
+    },
+    {
+      "id": "Q032",
+      "phrase": "доставить груз москва калининград",
+      "source": "W04",
+      "counts": {
+        "all": 9,
+        "moscow_oblast": 2,
+        "kaliningrad_oblast": 2
+      }
+    },
+    {
+      "id": "Q033",
+      "phrase": "доставка грузов в калининград из москвы стоимость",
+      "source": "W04",
+      "counts": {
+        "all": 8,
+        "moscow_oblast": 4,
+        "kaliningrad_oblast": 3
+      }
+    },
+    {
+      "id": "Q034",
+      "phrase": "таможенное оформление калининград",
+      "source": "W05",
+      "counts": {
+        "all": null,
+        "moscow_oblast": null,
+        "kaliningrad_oblast": 10
+      }
+    },
+    {
+      "id": "Q035",
+      "phrase": "фуры калининград москва",
+      "source": "W06",
+      "counts": {
+        "all": null,
+        "moscow_oblast": null,
+        "kaliningrad_oblast": 6
+      }
+    },
+    {
+      "id": "Q036",
+      "phrase": "фура паром в калининград",
+      "source": "W06",
+      "counts": {
+        "all": null,
+        "moscow_oblast": null,
+        "kaliningrad_oblast": 3
+      }
+    }
+  ],
+  "excluded": [
+    {
+      "phrase": "мой груз калининград",
+      "all_count": 575,
+      "reason": "Чужой бренд и навигационный спрос"
+    },
+    {
+      "phrase": "отслеживание грузов калининград",
+      "all_count": 120,
+      "reason": "Смешанный сервисный/чужой брендовый спрос; не привлекать обещанием универсального трекинга"
+    },
+    {
+      "phrase": "грузы санкт петербург калининград",
+      "all_count": 147,
+      "reason": "Отдельный маршрут не подтверждён"
+    },
+    {
+      "phrase": "перевозка опасных грузов калининград",
+      "all_count": 19,
+      "reason": "Специальные условия не подтверждены T04"
+    },
+    {
+      "phrase": "груз 200 калининград",
+      "all_count": 25,
+      "reason": "Неподтверждённая специальная услуга"
+    },
+    {
+      "phrase": "доставка сборного груза из китая в калининград",
+      "all_count": 7,
+      "reason": "Маршрут не подтверждён"
+    }
+  ]
+}
