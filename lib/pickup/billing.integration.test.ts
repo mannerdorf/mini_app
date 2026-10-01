@@ -411,3 +411,87 @@ it('rejects a transport belonging to another customer and a stale selection',asy
  await expect(billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:0,transportNumber:'000001'})).rejects.toThrow('изменился');
  expect((await db.query('SELECT data FROM pickup_jobs WHERE id=$1',[id])).rows[0].data).toMatchObject({cargoNumber:''});
 });
+
+async function seedMultipleTransports() {
+ await seed();
+ await db.query('UPDATE cache_perevozki SET data=$1',[JSON.stringify([
+  {...cargo(),НомерПикапа:'',ZayavkaNumber:'000123'},
+  {...cargo(),Number:'000002',НомерПикапа:'',ZayavkaNumber:'000124',Mest:3,W:10,Value:0.1,PW:20}
+ ])]);
+}
+it('persists multiple transports, aggregates metrics and sends the pickup total only once to the selected anchor',async()=>{
+ await seedMultipleTransports();
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000002','000001']});
+ const row=(await journal()).rows[0];
+ expect(row.source).toMatchObject({transportNumber:'000002',transportNumbers:['000002','000001'],orderNumbers:['000124','000123'],places:5,weight:47,volume:0.37,chargeableWeight:74});
+ expect(row.amount).toBe(740);
+ await expect(billingSend(pool,'cron',{id,version:row.version,confirmed:true},true)).rejects.toThrow('Автоматическая');
+ expect(deliverySetter).not.toHaveBeenCalled();
+ await billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,createInvoice:true});
+ expect(deliverySetter).toHaveBeenCalledExactlyOnceWith('CreatePickupInvoice',{Номер:'000002',Сумма:740});
+});
+it('can remove a selected transport and rejects stale billing drafts after rematching',async()=>{
+ await seedMultipleTransports();
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ const row=(await journal()).rows[0];
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:2,transportNumber:'000002'});
+ await expect(billingEdit(pool,'dispatcher',{action:'billing_save',id,version:row.version,amount:740})).rejects.toThrow('изменилась');
+ expect((await journal()).rows[0]).toMatchObject({matchedTransportNumbers:['000002'],amount:200});
+});
+it('rejects an entire multi-selection if a secondary cargo belongs to another customer',async()=>{
+ await seedMultipleTransports();
+ await db.query("UPDATE cache_perevozki SET data=jsonb_set(data,'{1,INN}','\"other\"')");
+ await expect(billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']})).rejects.toThrow('другого заказчика');
+ expect((await db.query('SELECT data FROM pickup_jobs WHERE id=$1',[id])).rows[0].data.cargoNumber).toBe('');
+});
+it('rejects a secondary cargo that is already assigned to another pickup',async()=>{
+ await seedMultipleTransports();
+ const other=randomUUID();
+ await db.query("INSERT INTO pickup_jobs(id,job_number,city,date,status,data) VALUES($1,'ZB-OTHER','moscow','2026-09-17','deposited',$2)",[other,JSON.stringify({cargoNumber:'999',cargoNumbers:['999','000002']})]);
+ await expect(billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']})).rejects.toThrow('другим забором');
+});
+it('recognizes an invoice on a secondary cargo and blocks duplicate manual sending',async()=>{
+ await seedMultipleTransports();
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ const row=(await journal()).rows[0];
+ await db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',['4500','2026-09-18','7701234567',JSON.stringify({List:[{Name:'Забор груза. Перевозка № 000002'}]})]);
+ expect((await journal()).rows[0].invoiceNumber).toBe('4500');
+ await expect(billingSend(pool,'dispatcher',{id,version:row.version,confirmed:true,createInvoice:true})).rejects.toThrow('уже есть счёт');
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+it('replaces an existing manual invoice association and retains the audit history',async()=>{
+ await seed();let row=(await journal()).rows[0];
+ for(const number of ['4600','4601']) await db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',[number,'2026-09-18','7701234567',JSON.stringify({Customer:'Заказчик',List:[]})]);
+ for(const number of ['4600','4601']) {
+  await billingMatchInvoice(pool,'dispatcher',{action:'billing_match_invoice',id,version:row.version,invoiceNumber:number,invoiceDate:'2026-09-18'});
+  row=(await journal()).rows[0];expect(row.invoiceNumber).toBe(number);
+ }
+ expect((await db.query("SELECT * FROM pickup_billing_events WHERE job_id=$1 AND detail->>'manualMatch'='true'",[id])).rows).toHaveLength(2);
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+
+it('loads every explicitly selected transport from the normalized cache',async()=>{
+ await seedMultipleTransports();
+ const data=(await db.query('SELECT data FROM cache_perevozki')).rows[0].data as any[];
+ for(const payload of data) await db.query('INSERT INTO cache_perevozki_rows VALUES($1)',[JSON.stringify(payload)]);
+ await db.query("INSERT INTO document_cache_normalized_state VALUES('perevozki',2)");
+ await db.query('DELETE FROM cache_perevozki');
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ expect((await journal()).rows[0].source).toMatchObject({transportNumbers:['000001','000002'],weight:47});
+});
+it('does not calculate with a missing metric on a secondary transport',async()=>{
+ await seedMultipleTransports();
+ await db.query("UPDATE cache_perevozki SET data=jsonb_set(data,'{1,W}','null')");
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ const row=(await journal()).rows[0];
+ expect(row.amount).toBeNull();expect(row.error).toContain('отсутствуют');
+ expect(deliverySetter).not.toHaveBeenCalled();
+});
+it('allows explicit invoice reconciliation when selected cargos have different cached invoices',async()=>{
+ await seedMultipleTransports();
+ await billingMatchTransport(pool,'dispatcher',{action:'billing_match_transport',id,jobVersion:1,transportNumbers:['000001','000002']});
+ for(const [invoice,transport] of [['4700','000001'],['4701','000002']]) await db.query('INSERT INTO cache_invoices_rows VALUES($1,$2,$3,$4)',[invoice,'2026-09-18','7701234567',JSON.stringify({List:[{Name:`Забор груза. Перевозка № ${transport}`}]})]);
+ const row=(await journal()).rows[0];expect(row.error).toContain('разные счета');expect(row.version).toBeDefined();
+ await billingMatchInvoice(pool,'dispatcher',{action:'billing_match_invoice',id,version:row.version,invoiceNumber:'4701',invoiceDate:'2026-09-18'});
+ expect((await journal()).rows[0]).toMatchObject({invoiceNumber:'4701',error:null,status:'issued'});
+});

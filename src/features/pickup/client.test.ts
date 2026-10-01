@@ -17,7 +17,7 @@ describe("pickup request delivery", () => {
           fail = false;
           throw new TypeError("offline");
         }
-        return { ok: true, json: async () => ({ id: "saved" }) };
+        return new Response(JSON.stringify({ id: "saved" }), { status: 200 });
       }),
     );
     const call = pickupClient({ login: "driver", password: "test" } as Account);
@@ -38,15 +38,11 @@ describe("pickup request delivery", () => {
   it("does not treat an authorization denial as an offline success", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () => ({
-        ok: false,
-        status: 403,
-        json: async () => ({ error: "Нет доступа" }),
-      })),
+      vi.fn(async () => new Response(JSON.stringify({ error: "Нет доступа" }), { status: 403 })),
     );
     const call = pickupClient({ login: "driver", password: "test" } as Account);
     await expect(call({ action: "snapshot" })).rejects.toEqual(
-      new ApiError("Нет доступа", 403),
+      new ApiError("Нет доступа", 403, JSON.stringify({ error: "Нет доступа" })),
     );
   });
 });

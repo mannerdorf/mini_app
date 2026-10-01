@@ -48,6 +48,8 @@ export type JobData = {
   /** Номер заявки в 1С / документы (не путать с номером перевозки). */
   zayavkaNumber: string;
   cargoNumber: string;
+  /** Explicitly reconciled transports; cargoNumber remains the billing anchor. */
+  cargoNumbers?: string[];
   priceRub: number | null;
   payment: string;
   mkadKm: number | null;

@@ -144,7 +144,7 @@ it('searches and matches a missing transport with the job version returned by th
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,source:undefined,error:'Перевозка не найдена: нет связи'}]}:b.action==='billing_transport_candidates'?{version:8,transports:[{number:'000123',orderNumber:'000999',date:'2026-09-20',sender:'Отправитель',receiver:'Получатель',places:2,weight:30,volume:1}]}:{ok:true});
  await mount(call);
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить перевозку'))!.props.onClick());
- await act(async()=>root.root.findByProps({'aria-label':'Выбор перевозки'}).props.onChange({target:{value:'0'}}));
+ await act(async()=>root.root.findByProps({'aria-label':'Перевозка 000123'}).props.onChange({target:{checked:true}}));
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сохранить сопоставление'))!.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumber:'000123'});
  expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
@@ -165,4 +165,33 @@ it.each(['manual','uncertain','not_issued'])('hides obsolete transmission action
  expect(JSON.stringify(root.toJSON())).not.toContain('Ошибка записи счета');
  expect(JSON.stringify(root.toJSON())).not.toContain('Не выставлен — ручной расчёт');
  expect(root.root.findByProps({'data-label':'Статус'}).findByType('button')).toBeTruthy();
+});
+
+it('keeps matching available for an existing invoice and replaces it without issuing another invoice',async()=>{
+ const matched={...row,status:'issued',invoiceNumber:'4200',invoiceReferenceDate:'2026-09-18'};
+ const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[matched]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Первый'},{number:'4201',date:'2026-09-19',description:'Второй'}]}:{ok:true});
+ await mount(call);
+ await act(async()=>root.root.findByProps({'aria-label':'Изменить сопоставление счёта ZB-1'}).props.onClick());
+ expect(root.root.findByType('select').props.value).toBe('0');
+ await act(async()=>root.root.findByType('select').props.onChange({target:{value:'1'}}));
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить'))!.props.onClick());
+ expect(call).toHaveBeenCalledWith({action:'billing_match_invoice',id:'1',version:4,invoiceNumber:'4201',invoiceDate:'2026-09-19'});
+ expect(call.mock.calls.some(([b])=>b.action==='billing_send'||b.action==='billing_save')).toBe(false);
+ expect(root.root.findByProps({'aria-label':'Изменить сопоставление счёта ZB-1'})).toBeTruthy();
+});
+
+it('keeps checked transports across search and submits multiple numbers in billing-anchor order',async()=>{
+ const a={number:'000001',date:'2026-09-18',orderNumber:'1',sender:'A',receiver:'B'},b={...a,number:'000002'};
+ const call=vi.fn(async(x:any)=>x.action==='billing_journal'?{rows:[row]}:x.action==='billing_transport_candidates'?{version:8,transports:x.search?[b]:[a]}:{ok:true});
+ await mount(call);
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить перевозку'))!.props.onClick());
+ await act(async()=>root.root.findByProps({'aria-label':'Перевозка 000001'}).props.onChange({target:{checked:true}}));
+ await act(async()=>root.root.findByProps({'aria-label':'Поиск перевозки'}).props.onChange({target:{value:'000002'}}));
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Найти'))!.props.onClick());
+ expect(root.root.findByProps({'aria-label':'Перевозка 000001'}).props.checked).toBe(true);
+ await act(async()=>root.root.findByProps({'aria-label':'Перевозка 000002'}).props.onChange({target:{checked:true}}));
+ await act(async()=>root.root.findByProps({'aria-label':'Перевозка для счёта'}).props.onChange({target:{value:'000002'}}));
+ await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сохранить сопоставление'))!.props.onClick());
+ expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumbers:['000002','000001']});
+ expect(call.mock.calls.some(([b])=>b.action==='billing_send')).toBe(false);
 });

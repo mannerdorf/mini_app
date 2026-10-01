@@ -1,5 +1,5 @@
 import { formatCurrency } from "../../lib/formatUtils";
-import { ArrowDown, ArrowUp, Calculator } from 'lucide-react';
+import { ArrowDown, ArrowUp, Calculator, Link2 } from 'lucide-react';
 import { ClickableInvoiceNumber } from '../../components/ui/EntityLinks';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import type { Job, Route } from '../../../lib/pickup/model';
@@ -9,8 +9,8 @@ import { billingAmountText, billingDraftConflicts, editBillingAmount, type Billi
 
 type InvoiceCandidate = {customer?:string;inn?:string;number:string;date:string;description:string;amount?:number|null;transportNumbers?:string[]};
 type TransportCandidate = {number:string;orderNumber:string;date:string;sender:string;receiver:string;places:number|null;weight:number|null;volume:number|null};
-type Row = {invoiceCustomer?:string;invoiceRequestMethod?:string;invoiceReferenceDate?:string;invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
-  source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;orderNumber:string;mode:string};
+type Row = {matchedTransportNumbers?:string[];invoiceCustomer?:string;invoiceRequestMethod?:string;invoiceReferenceDate?:string;invoiceNumber?:string;orderNumber?:string;jobId:string;jobNumber:string;date:string;customer:string;sender?:string;version?:number;amount:number|null;status?:string;error?:string;last_error?:string;
+  source?:{places:number|null;weight:number|null;volume:number|null;chargeableWeight:number|null;transportNumber:string;transportNumbers?:string[];orderNumbers?:string[];orderNumber:string;mode:string};
   numberSync?:{state:string;last_error?:string}};
 const labels: Record<string,string> = {not_issued:'Не выставлен',sending:'Отправляется / требуется сверка',transmitted:'Стоимость передана — ожидается счёт',manual:'Не передано в 1С — требуется ручное выставление',issued:'Выставление подтверждено вручную — счёт не найден',uncertain:'Передача в 1С не подтверждена — требуется сверка'};
 const duplicateInvoice = (row:Row) => /сч[её]т уже выставлен/i.test(row.last_error||'');
@@ -25,7 +25,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
   const transportPanel=useRef<HTMLDivElement>(null);
   useEffect(()=>{if(transportMatch)transportPanel.current?.scrollIntoView?.({behavior:'smooth',block:'center'});},[transportMatch]);
   const [transportSearch,setTransportSearch]=useState('');
-  const [transportChoice,setTransportChoice]=useState('');
+  const [transportChoices,setTransportChoices]=useState<string[]>([]);
   const [matching,setMatching]=useState<{row:Row;invoices:InvoiceCandidate[]}|null>(null);
   const [invoiceChoice,setInvoiceChoice]=useState('');
   const matchingPanel=useRef<HTMLDivElement>(null);
@@ -84,7 +84,10 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
   };
   const findTransport=async(row:Row,search='')=>{
     const result=await call<{version:number;transports:TransportCandidate[]}>({action:'billing_transport_candidates',id:row.jobId,search});
-    setTransportMatch({row,...result});setTransportSearch(search);setTransportChoice('');return false as const;
+    const keep=transportMatch?.row.jobId===row.jobId;
+    const selected=keep?transportChoices:(row.matchedTransportNumbers?.length?row.matchedTransportNumbers:row.source?.transportNumbers??(row.source?.transportNumber?[row.source.transportNumber]:[]));
+    const candidates=[...(keep?transportMatch.transports.filter(t=>selected.includes(t.number)):[]),...result.transports];
+    setTransportMatch({row,version:result.version,transports:[...new Map(candidates.map(t=>[t.number,t])).values()]});setTransportSearch(search);setTransportChoices(selected);return false as const;
   };
   const retry=async(row:Row)=>{
     const result=await call<{ok:boolean;error?:string;invoiceNumber?:string}>({action:'billing_send',id:row.jobId,version:row.version,confirmed:true,retry:true,createInvoice:true});
@@ -126,7 +129,7 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
     </tr></thead><tbody>{sortedRows.map(row=><tr key={row.jobId}>
       <td data-label="Дата"><time dateTime={row.date} title={row.date}>{/^\d{4}-\d{2}-\d{2}$/.test(row.date)?`${row.date.slice(8,10)}.${row.date.slice(5,7)}`:row.date}</time></td><td data-label="Заказчик">{row.customer}</td><td data-label="Отправитель">{senderName(row) || "—"}</td><td data-label="Места">{row.source?.places??'—'}</td><td data-label="Вес, кг">{row.source?.weight??'—'}</td><td data-label="Объём, м³">{row.source?.volume??'—'}</td><td data-label="Платный вес, кг">{row.source?.chargeableWeight??'—'}</td>
       <td data-label="№ забора"><strong>{row.jobNumber}</strong>{row.numberSync?.state==='error'&&<small title={row.numberSync.last_error}> · номер не передан в 1С</small>}</td>
-      <td data-label="№ перевозки">{row.source?.transportNumber||'—'}</td><td data-label="№ заявки">{row.orderNumber||row.source?.orderNumber||'—'}</td>
+      <td data-label="№ перевозки">{(row.matchedTransportNumbers?.length?row.matchedTransportNumbers:row.source?.transportNumbers)?.join(', ')||row.source?.transportNumber||'—'}</td><td data-label="№ заявки">{row.source?.orderNumbers?.filter(Boolean).join(', ')||row.orderNumber||row.source?.orderNumber||'—'}</td>
       <td data-label="Сумма, ₽"><div className="pk-billing-amount">{row.status!=='not_issued'?<span className="pk-billing-amount-value">{row.amount==null?(missingTransport(row)?'Нет данных':'—'):formatCurrency(row.amount,true)}</span>:((drafts[row.jobId]?.value??billingAmountText(row)).trim()!==''&&editingAmount!==row.jobId)?<button type="button" className="pk-billing-amount-edit" aria-label={`Изменить сумму ${row.jobNumber}`} title="Изменить сумму" disabled={busy} onClick={()=>setEditingAmount(row.jobId)}>{formatCurrency(Number((drafts[row.jobId]?.value??billingAmountText(row)).replace(',','.')),true)}</button>:<input autoFocus={editingAmount===row.jobId} onFocus={()=>setEditingAmount(row.jobId)} onBlur={()=>setEditingAmount(null)} onKeyDown={e=>{if(e.key==='Enter')e.currentTarget.blur();}} aria-label={`Сумма ${row.jobNumber}`} inputMode="decimal" style={{width:110}} value={drafts[row.jobId]?.value??billingAmountText(row)} placeholder={missingTransport(row)?'Нет данных':row.source?.mode==='manual'?'Ввести сумму':'Нет расчёта'} disabled={busy||row.status!=='not_issued'} onChange={e=>setDrafts(old=>editBillingAmount(old,row,e.target.value))}/>}{row.status==='not_issued'&&<button type="button" className="pk-billing-calculate" title="Рассчитать стоимость забора" aria-label={`Рассчитать сумму ${row.jobNumber}`} disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void calculate(row)}><Calculator size={16}/></button>}</div>
         {billingDraftConflicts(row,drafts[row.jobId])&&<div role="alert">Данные изменились. В БД: {row.amount??'—'} ₽. Ваш ввод сохранён.
           <button disabled={busy} onClick={()=>setDrafts(previous=>{const next={...previous};delete next[row.jobId];return next;})}>Принять сумму из БД</button>
@@ -134,32 +137,35 @@ export function PickupBillingTab({city,date,dateTo=date,call,jobs,onCount,onOpen
         </div>}
       </td>
       <td data-label="Статус"><strong style={{color:isManualCalculationPending(row)?'var(--pk-warning-text)':row.invoiceNumber?'var(--pk-success-text)':['manual','uncertain','transmitted','issued'].includes(row.status||'')?'var(--pk-warning-text)':'inherit'}}>{isManualCalculationPending(row) ? 'Не выставлен — ручной расчёт' : row.invoiceNumber ? <>Счёт № <ClickableInvoiceNumber number={row.invoiceNumber} invoice={{Number:row.invoiceNumber,Customer:row.invoiceCustomer||row.customer,_invoiceReferenceDate:row.invoiceReferenceDate || row.date}} onOpen={onOpenInvoice} style={{color:'inherit',fontWeight:'inherit'}} /></> : duplicateInvoice(row) ? duplicateInvoiceLabel(row) : labels[row.status||'']||'Нет данных'}</strong>{row.status==='transmitted'&&!row.invoiceNumber&&<small style={{display:'block'}}>Номер счёта ещё не получен из 1С.</small>}{!row.invoiceNumber&&!row.error&&!duplicateInvoice(row)&&row.last_error&&['manual','uncertain'].includes(row.status||'')&&<small style={{display:'block'}}>{row.last_error}</small>}{row.error&&<small style={{display:'block'}}>{billingExplanation(row)}</small>}</td>
-      <td data-label="Действие">{(!row.source?.transportNumber||missingTransport(row))&&<button disabled={busy} onClick={()=>void run(()=>findTransport(row))}>Сопоставить перевозку</button>}{!row.invoiceNumber&&<button disabled={busy} onClick={()=>void run(async()=>{
+      <td data-label="Действие">{(row.source?.transportNumbers?.length??0)>1&&<small style={{display:'block'}}>Счёт за весь забор: перевозка № {row.source?.transportNumber}</small>}{(!row.status||row.status==='not_issued')&&<button disabled={busy} onClick={()=>void run(()=>findTransport(row))}>{row.matchedTransportNumbers?.length?'Изменить перевозки':'Сопоставить перевозку'}</button>}<button disabled={busy} title={row.invoiceNumber?'Изменить сопоставление счёта':undefined} aria-label={row.invoiceNumber?`Изменить сопоставление счёта ${row.jobNumber}`:undefined} onClick={()=>void run(async()=>{
         const result=await call<{invoices:InvoiceCandidate[]}>({action:'billing_invoice_candidates',id:row.jobId});
-        setMatching({row,invoices:result.invoices});setInvoiceChoice('');return false;
-      })}>Сопоставить счёт</button>}{!row.invoiceNumber&&row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
+        setMatching({row,invoices:result.invoices});
+        const current=result.invoices.findIndex(i=>i.number===row.invoiceNumber&&i.date===(row.invoiceReferenceDate||row.date));
+        setInvoiceChoice(current<0?'':String(current));return false;
+      })}>{row.invoiceNumber?<><Link2 size={16} aria-hidden="true"/> Изменить сопоставление</>:'Сопоставить счёт'}</button>{!row.invoiceNumber&&row.status==='not_issued'&&<button disabled={busy||billingDraftConflicts(row,drafts[row.jobId])} onClick={()=>void run(()=>save(row),row.jobId)}>Выставить счёт</button>}
       {!row.invoiceNumber&&['manual','uncertain'].includes(row.status||'')&&!(duplicateInvoice(row)&&row.invoiceRequestMethod==='CreatePickupInvoice')&&<button disabled={busy} onClick={()=>{if(row.status!=='uncertain'||window.confirm(`Предыдущая передача по забору ${row.jobNumber} могла выполниться. Проверьте наличие счёта в 1С. Повторить запрос создания счёта?`))void run(()=>retry(row));}}>Повторить передачу в 1С</button>}
       </td>
     </tr>)}</tbody></table></div>}
     {transportMatch&&<div ref={transportPanel} className="pk-card" role="dialog" aria-label="Сопоставить перевозку">
       <h3>Сопоставить перевозку · {transportMatch.row.jobNumber}</h3>
-      <p>Перевозки этого заказчика из БД. При сопоставлении номер заявки будет взят из выбранной перевозки.</p>
+      <p>Выберите одну или несколько перевозок этого заказчика. Места, вес и объём будут суммированы для расчёта забора.</p>
       <input aria-label="Поиск перевозки" placeholder="Номер перевозки, заявки, отправитель или получатель" value={transportSearch} onChange={e=>setTransportSearch(e.target.value)} />
       <button disabled={busy} onClick={()=>void run(()=>findTransport(transportMatch.row,transportSearch))}>Найти</button>
-      <label>Перевозка <select aria-label="Выбор перевозки" disabled={busy} value={transportChoice} onChange={e=>setTransportChoice(e.target.value)}>
-        <option value="">Выберите перевозку</option>
-        {transportMatch.transports.map((t,index)=><option key={`${t.number}:${index}`} value={String(index)}>№ {t.number} · {t.date.slice(0,10)} · {t.sender} → {t.receiver} · заявка {t.orderNumber||'—'}</option>)}
-      </select></label>
+      <fieldset disabled={busy}><legend>Перевозки · выбрано {transportChoices.length}</legend>
+        {transportMatch.transports.map(t=><label key={t.number} style={{display:'block',padding:'8px 0'}}><input type="checkbox" aria-label={`Перевозка ${t.number}`} checked={transportChoices.includes(t.number)} onChange={e=>setTransportChoices(old=>e.target.checked?[...old,t.number]:old.filter(n=>n!==t.number))}/> № {t.number} · {t.date.slice(0,10)} · {t.sender} → {t.receiver} · заявка {t.orderNumber||'—'} · мест: {t.places??'—'} · {t.weight??'—'} кг · {t.volume??'—'} м³</label>)}
+      </fieldset>
       {!transportMatch.transports.length&&<p>Перевозки не найдены. Измените поиск или обновите журнал перевозок.</p>}
-      {transportChoice!==''&&<p>Мест: {transportMatch.transports[Number(transportChoice)].places??'—'} · Вес: {transportMatch.transports[Number(transportChoice)].weight??'—'} кг · Объём: {transportMatch.transports[Number(transportChoice)].volume??'—'} м³</p>}
-      <button disabled={busy||transportChoice===''} onClick={()=>void run(async()=>{
-        await call({action:'billing_match_transport',id:transportMatch.row.jobId,jobVersion:transportMatch.version,transportNumber:transportMatch.transports[Number(transportChoice)].number});
-        setTransportMatch(null);setMessage('Перевозка сопоставлена');
+      {transportChoices.length>0&&<div>Выбраны: {transportChoices.map(n=><button type="button" key={n} disabled={busy} aria-label={`Убрать перевозку ${n}`} onClick={()=>setTransportChoices(old=>old.filter(x=>x!==n))}>{n} ×</button>)}</div>}
+      {transportChoices.length>1&&<label>Перевозка для счёта <select aria-label="Перевозка для счёта" disabled={busy} value={transportChoices[0]} onChange={e=>setTransportChoices(old=>[e.target.value,...old.filter(n=>n!==e.target.value)])}>{transportChoices.map(n=><option key={n} value={n}>№ {n}</option>)}</select><p>Общая стоимость забора будет передана в 1С один раз по этой перевозке. Автоматическая отправка для нескольких перевозок отключена — сумму нужно проверить и выставить вручную.</p></label>}
+      <button disabled={busy||!transportChoices.length} onClick={()=>void run(async()=>{
+        await call({action:'billing_match_transport',id:transportMatch.row.jobId,jobVersion:transportMatch.version,...(transportChoices.length===1?{transportNumber:transportChoices[0]}:{transportNumbers:transportChoices})});
+        setTransportMatch(null);setTransportChoices([]);setMessage('Перевозки сопоставлены');
       })}>Сохранить сопоставление</button>
       <button disabled={busy} onClick={()=>setTransportMatch(null)}>Закрыть</button>
     </div>}
     {matching&&<div ref={matchingPanel} role="dialog" aria-modal="false" aria-label="Сопоставить счёт" className="pk-card">
-      <h3>Сопоставить счёт · {matching.row.jobNumber}</h3>
+      <h3>{matching.row.invoiceNumber?'Изменить сопоставление счёта':'Сопоставить счёт'} · {matching.row.jobNumber}</h3>
+      {matching.row.invoiceNumber&&<p>Сейчас сопоставлен счёт № {matching.row.invoiceNumber}. Выберите другой счёт для замены.</p>}
       <p>Все счета этого заказчика из журнала. Проверьте выбранный документ перед сопоставлением.</p>
       {matching.invoices.length ? <>
         <label>Счёт <select value={invoiceChoice} disabled={busy} onChange={e=>setInvoiceChoice(e.target.value)}>
