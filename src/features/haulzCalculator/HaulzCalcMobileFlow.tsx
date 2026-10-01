@@ -47,6 +47,7 @@ type ChargeableHint = {
 };
 
 export type HaulzCalcMobileFlowProps = {
+  pageHasHeading?: boolean;
   auth: AuthData;
   route: HaulzCalcMobileRoute;
   setRoute: (route: HaulzCalcMobileRoute) => void;
@@ -242,6 +243,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
     canSendQuoteEmail,
     guestOrderCompleted = false,
     hideQuotePreview = false,
+    pageHasHeading = false,
   } = props;
 
   const [summaryExpanded, setSummaryExpanded] = useState(false);
@@ -508,7 +510,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
         <button type="button" className="haulz-calc-header__back" onClick={onBackFromCalc} aria-label="Назад">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h1 className="haulz-calc-header__title">Расчёт доставки</h1>
+        {pageHasHeading ? <h2 className="haulz-calc-header__title">Расчёт доставки</h2> : <h1 className="haulz-calc-header__title">Расчёт доставки</h1>}
         <button
           type="button"
           className="haulz-calc-btn-secondary haulz-calc-header__save-draft"

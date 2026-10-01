@@ -1,3 +1,4 @@
+import { GUEST_PUBLIC_PATHS } from "../lib/guestRoutes";
 /**
  * Интеграция Wildberries в основное приложение: маршрут /wildberries,
  * пользователь «только WB», синхронизация URL, сброс глобального поиска, шапка.
@@ -60,6 +61,9 @@ export function syncAppUrlWithActiveTab(activeTab: Tab): void {
   if (typeof window === "undefined") return;
   try {
     const url = new URL(window.location.href);
+    // Public pages must not acquire private app navigation parameters.
+    const path = url.pathname.replace(/\/+$/, "") || "/";
+    if (GUEST_PUBLIC_PATHS.includes(path) && !["/", "/login", "/forgot"].includes(path)) return;
     const tabInUrl = url.searchParams.get("tab");
     if (tabInUrl === "cms") return;
     if (activeTab === WB_TAB) {

@@ -878,6 +878,7 @@ export function HaulzCalculatorPage({
 
   const mobileFlowProps = {
     auth: calcAuth,
+    pageHasHeading: guestMode,
     route: mobileRoute,
     setRoute: setMobileRoute,
     onBackFromCalc: onBack,
@@ -958,7 +959,7 @@ export function HaulzCalculatorPage({
           <button type="button" className="haulz-calc-header__back" onClick={onBack} aria-label="Назад">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="haulz-calc-header__title">Расчёт доставки</h1>
+          {guestMode ? <h2 className="haulz-calc-header__title">Расчёт доставки</h2> : <h1 className="haulz-calc-header__title">Расчёт доставки</h1>}
           {!needsAccount ? (
           <button
             type="button"
