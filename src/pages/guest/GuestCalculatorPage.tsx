@@ -1,4 +1,5 @@
 import React from "react";
+import { GuestCalculatorIntro } from "./GuestCalculatorIntro";
 import { AppRuntimeProvider } from "../../contexts/AppRuntimeContext";
 import { ErrorBoundary } from "../../components/ErrorBoundary";
 import { HaulzCalculatorPage } from "../HaulzCalculatorPage";
@@ -32,6 +33,7 @@ function GuestCalculatorErrorFallback() {
 export function GuestCalculatorPage({ onBack, onLogin, initialDirection = null }: Props) {
   return (
     <div className="guest-shell guest-shell--calc light-mode min-h-[100dvh]">
+      <GuestCalculatorIntro />
       <AppRuntimeProvider
         value={{
           useServiceRequest: false,

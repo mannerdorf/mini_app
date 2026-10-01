@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { cn } from "../../lib/cn";
@@ -80,10 +81,10 @@ export function GuestWhyChooseSection({ onCalculator }: Props) {
               <p className="guest-why__panel-text">{active.detail}</p>
               <p className="guest-why__panel-summary">{active.text}</p>
               {onCalculator ? (
-                <button type="button" className="guest-why__cta" onClick={onCalculator}>
+                <GuestLink href="/kalkulyator" className="guest-why__cta" onNavigate={onCalculator}>
                   Рассчитать перевозку
                   <ArrowRight className="h-4 w-4" />
-                </button>
+                </GuestLink>
               ) : null}
             </div>
           </div>

@@ -1,3 +1,4 @@
+import { GUEST_PUBLIC_META } from "./guestPublicMeta";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { LoginScreen } from "../../components/LoginScreen";
 import { AboutCompanyPage } from "../AboutCompanyPage";
@@ -95,45 +96,18 @@ export function GuestAuthShell() {
     switch (routeState.screen) {
       case "home":
         return GUEST_HOME_META;
-      case "calculator":
-        return {
-          title: "Калькулятор перевозки Москва ↔ Калининград | HAULZ",
-          description:
-            "Онлайн-калькулятор B2B-перевозки между Москвой и Калининградом: вес, объём, паром, авто, авиа.",
-          path: "/kalkulyator",
-        };
-      case "app":
-        return { title: "Приложение HAULZ", description: "Приложение HAULZ для управления перевозками.", path: "/app" };
-      case "faq":
-        return {
-          title: "FAQ — перевозки HAULZ Москва ↔ Калининград",
-          description: "Ответы о расчёте, отслеживании и документах HAULZ на маршруте Москва — Калининград.",
-          path: "/faq",
-        };
-      case "blog":
-        return {
-          title: "Блог HAULZ — логистика Москва ↔ Калининград",
-          description: "Статьи о перевозках, тарифах и B2B-логистике между Москвой и Калининградом.",
-          path: "/blog",
-        };
+      case "calculator": return GUEST_PUBLIC_META.calculator;
+      case "app": return GUEST_PUBLIC_META.app;
+      case "faq": return GUEST_PUBLIC_META.faq;
+      case "blog": return GUEST_PUBLIC_META.blog;
       case "blog-article":
         return {
           title: "Статья HAULZ",
           description: "Материал блога HAULZ о перевозках Москва — Калининград.",
           path: routeState.blogSlug ? `/blog/${routeState.blogSlug}` : "/blog",
         };
-      case "warehouses":
-        return {
-          title: "Склады HAULZ — Москва и Калининград",
-          description: "Адреса и контакты складов HAULZ в Московской области и Калининграде.",
-          path: "/sklady",
-        };
-      case "about":
-        return {
-          title: "О компании HAULZ",
-          description: "B2B-логистика между Москвой и Калининградом: перевозки, документы, калькулятор.",
-          path: "/o-kompanii",
-        };
+      case "warehouses": return GUEST_PUBLIC_META.warehouses;
+      case "about": return GUEST_PUBLIC_META.about;
       default:
         return { ...GUEST_HOME_META, noindex: true };
     }

@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import {
   ArrowLeft,
@@ -23,9 +24,7 @@ export function GuestFaqPage({ onBack }: Props) {
   return (
     <div className="guest-shell min-h-[100dvh]">
       <div className="guest-page-back mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-        <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <Button variant="outline" size="icon" aria-label="Назад"  className="bg-white" asChild><GuestLink href="/" onNavigate={onBack}><ArrowLeft className="h-5 w-5" /></GuestLink></Button>
         <span className="text-sm font-semibold text-[#374151]">Вопросы и ответы</span>
       </div>
 
@@ -81,13 +80,13 @@ export function GuestFaqPage({ onBack }: Props) {
                 Ничего страшного — логистика любит индивидуальный подход. Напишите в чате поддержки.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={onBack}
+            <GuestLink
+              href="/"
+              onNavigate={onBack}
               className="rounded-xl bg-[#2563eb] px-5 py-3 text-sm font-bold text-white hover:bg-[#1d4ed8] sm:justify-self-end"
             >
               Вернуться на главную
-            </button>
+            </GuestLink>
           </div>
         </section>
       </main>

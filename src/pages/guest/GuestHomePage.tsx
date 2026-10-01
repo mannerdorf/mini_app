@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import {
   ArrowRight,
@@ -140,10 +141,10 @@ export function GuestHomePage({
               variant="outline"
               size="sm"
               className="hidden border-white/30 bg-white/10 text-white hover:bg-white/20 sm:inline-flex"
-              onClick={onLogin}
-            >
+
+             asChild><GuestLink href="/login" onNavigate={onLogin}>
               Войти
-            </Button>
+            </GuestLink></Button>
             <Button
               variant="outline"
               size="icon"
@@ -175,18 +176,18 @@ export function GuestHomePage({
               B2B-логистика с расчётом, статусами и документами онлайн.
             </p>
             <div className="guest-home-hero__actions">
-              <Button size="lg" onClick={onLogin}>
+              <Button size="lg"  asChild><GuestLink href="/login" onNavigate={onLogin}>
                 Войти и оформить
                 <ArrowRight className="h-4 w-4" />
-              </Button>
+              </GuestLink></Button>
               <Button
                 size="lg"
                 variant="outline"
                 className="border-white/40 bg-white/10 text-white hover:bg-white/20"
-                onClick={onCalculator}
-              >
+
+               asChild><GuestLink href="/kalkulyator" onNavigate={onCalculator}>
                 Рассчитать доставку
-              </Button>
+              </GuestLink></Button>
             </div>
           </div>
         </div>
@@ -195,11 +196,11 @@ export function GuestHomePage({
       <main className="mx-auto max-w-guest px-4 pb-16 pt-8 sm:px-6 lg:px-8">
         <section className="guest-home-actions" aria-label="Быстрые действия">
           {quickActions.map((action) => (
-            <button
+            <GuestLink
               key={action.id}
-              type="button"
+              href={{calculator:"/kalkulyator",faq:"/faq",app:"/app",about:"/o-kompanii",warehouses:"/sklady",blog:"/blog"}[action.action]}
               className="guest-home-action"
-              onClick={() => runQuickAction(action.action)}
+              onNavigate={action.action === "blog" ? undefined : () => runQuickAction(action.action)}
             >
               <span className="guest-home-action__visual">
                 <img src={action.image} alt="" loading="lazy" />
@@ -209,7 +210,7 @@ export function GuestHomePage({
                 <span className="guest-home-action__hint">{action.hint}</span>
               </span>
               <ChevronRight className="guest-home-action__chevron h-4 w-4" />
-            </button>
+            </GuestLink>
           ))}
         </section>
 

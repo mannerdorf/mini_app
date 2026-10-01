@@ -24,3 +24,21 @@ it('serves complete article HTML without JS and only returns 404 for missing/unp
 it('does not turn database failures into 404 or incomplete successful sitemaps',async()=>{state.pool={query:()=>Promise.reject(new Error('offline'))};try{for(const handler of [blogHandler,sitemapHandler]){const r=response();await handler({method:'GET',query:{slug:'article-1005'}} as never,r as never);expect(r.code).toBe(503);expect(r.headers['Cache-Control']).toBe('no-store');}}finally{state.pool=pool;}});
 it('validates sitemap page and supports HEAD',async()=>{const invalid=response();await sitemapHandler({method:'GET',query:{page:'-1'}} as never,invalid as never);expect(invalid.code).toBe(400);const r=response();await blogHandler({method:'HEAD',query:{slug:'article-1005'}} as never,r as never);expect(r.code).toBe(200);expect(r.body).toBe('');});
 it('escapes metadata and markdown attribute injection',()=>{const html=publicBlogHtml({slug:'safe',title:'<script>alert(1)</script>',meta_description:'" onload="bad',body_markdown:'[link](https://example.com/"onmouseover="alert(1))\n<script>bad</script>'} as never);expect(html).not.toContain('<script>alert');expect(html).not.toContain(' onmouseover="');expect(html).toContain('&lt;script&gt;bad&lt;/script&gt;');});
+
+import indexHandler from '../../api/public-blog-index';
+import {readBlogIndex,publicBlogIndexHtml} from './publicBlogIndex';
+it('paginates readable blog links beyond the first 50 and excludes unpublished content',async()=>{
+ const first=await readBlogIndex(pool,1),last=await readBlogIndex(pool,21);
+ expect(first.articles).toHaveLength(50);expect(first.hasNext).toBe(true);
+ expect(last.articles).toHaveLength(5);expect(last.hasNext).toBe(false);
+ const html=publicBlogIndexHtml(first,1);
+ expect(html).toContain('href="/blog/article-0001"');expect(html).toContain('href="/blog?page=2"');
+ expect(html).not.toContain('Private draft');expect(html).not.toContain('bad slug');
+ expect(publicBlogIndexHtml(last,21)).toContain('rel="canonical" href="https://haulz.space/blog?page=21"');
+});
+it('distinguishes empty, missing and failing blog index pages',async()=>{
+ const missing=response();await indexHandler({method:'GET',query:{page:'22'}} as never,missing as never);expect(missing.code).toBe(404);
+ const invalid=response();await indexHandler({method:'GET',query:{page:'0'}} as never,invalid as never);expect(invalid.code).toBe(400);
+ const head=response();await indexHandler({method:'HEAD',query:{}} as never,head as never);expect(head.code).toBe(200);expect(head.body).toBe('');
+ state.pool={query:()=>Promise.reject(new Error('offline'))};try{const r=response();await indexHandler({method:'GET',query:{}} as never,r as never);expect(r.code).toBe(503);expect(r.headers['Cache-Control']).toBe('no-store');}finally{state.pool=pool;}
+});

@@ -71,10 +71,9 @@ export function GuestBlogListPage({ onBack, onOpenArticle, onCalculator }: Props
 
         <div className="grid gap-3">
           {articles.map((a) => (
-            <button
+            <a
               key={a.slug}
-              type="button"
-              onClick={() => onOpenArticle(a.slug)}
+              href={`/blog/${a.slug}`}
               className="rounded-2xl bg-white p-5 text-left shadow-sm transition hover:shadow-md"
             >
               <div className="flex items-start gap-3">
@@ -91,10 +90,11 @@ export function GuestBlogListPage({ onBack, onOpenArticle, onCalculator }: Props
                   </p>
                 </div>
               </div>
-            </button>
+            </a>
           ))}
         </div>
 
+        <p className="mt-6"><a href="/blog">Все опубликованные материалы →</a></p>
         <div className="mt-8 rounded-[1.75rem] bg-[#dbeafe] p-6 sm:p-8">
           <p className="text-lg font-bold text-[#111827]">Нужен расчёт перевозки?</p>
           <p className="mt-1 text-sm text-[#4b5563]">Калькулятор Москва ↔ Калининград — без регистрации.</p>

@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import { ArrowRight, Ship, Truck } from "lucide-react";
 import { PlaneIcon } from "../../components/icons/PlaneIcon";
@@ -136,14 +137,14 @@ export function GuestRoutesSection({ onCalculator, onRouteLanding }: Props) {
                 ))}
               </ul>
               <div className="guest-routes__cta-row flex flex-col gap-2 sm:flex-row">
-                <Button className="guest-routes__cta" onClick={onCalculator}>
+                <Button className="guest-routes__cta" asChild><GuestLink href="/kalkulyator" onNavigate={onCalculator}>
                   Рассчитать это направление
                   <ArrowRight className="h-4 w-4" />
-                </Button>
+                </GuestLink></Button>
                 {onRouteLanding ? (
-                  <Button variant="outline" className="guest-routes__cta" onClick={() => onRouteLanding(route.path)}>
+                  <Button variant="outline" className="guest-routes__cta" asChild><GuestLink href={route.path} onNavigate={() => onRouteLanding(route.path)}>
                     Подробнее о маршруте
-                  </Button>
+                  </GuestLink></Button>
                 ) : null}
               </div>
             </div>

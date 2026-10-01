@@ -206,6 +206,11 @@ const mountApp = () => {
     return;
   }
 
+  // Build-time guest styling must not leak into an authenticated session.
+  if (document.documentElement.dataset.publicPrerender) {
+    document.documentElement.classList.remove("guest-mode", "light-mode");
+    delete document.documentElement.dataset.publicPrerender;
+  }
   ReactDOM.createRoot(rootEl).render(
     <React.StrictMode>
       <ErrorBoundary>

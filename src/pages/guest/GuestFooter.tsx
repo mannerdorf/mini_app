@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import { fetchLegalPublic } from "../../api/client/legal";
 import { LegalModal } from "../../components/modals/LegalModal";
@@ -75,9 +76,9 @@ export function GuestFooter({ onAbout, onWarehouses, onFaq, onApp, onCalculator,
               <ul className="guest-footer__links">
                 {NAV_LINKS.map((item) => (
                   <li key={item.label}>
-                    <button type="button" onClick={handlers[item.onClick]}>
+                    <GuestLink href={{onAbout:"/o-kompanii",onWarehouses:"/sklady",onFaq:"/faq",onApp:"/app",onCalculator:"/kalkulyator",onLogin:"/login"}[item.onClick]} onNavigate={handlers[item.onClick]}>
                       {item.label}
-                    </button>
+                    </GuestLink>
                   </li>
                 ))}
               </ul>

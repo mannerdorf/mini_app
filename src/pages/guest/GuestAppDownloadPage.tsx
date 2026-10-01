@@ -1,3 +1,4 @@
+import { GuestLink } from "./GuestLink";
 import React from "react";
 import {
   ArrowLeft,
@@ -35,9 +36,7 @@ export function GuestAppDownloadPage({ onBack }: Props) {
   return (
     <div className="guest-shell min-h-[100dvh]">
       <div className="guest-page-back mx-auto max-w-guest px-4 sm:px-6 lg:px-8">
-        <Button variant="outline" size="icon" aria-label="Назад" onClick={onBack} className="bg-white">
-          <ArrowLeft className="h-5 w-5" />
-        </Button>
+        <Button variant="outline" size="icon" aria-label="Назад"  className="bg-white" asChild><GuestLink href="/" onNavigate={onBack}><ArrowLeft className="h-5 w-5" /></GuestLink></Button>
         <span className="text-sm font-semibold text-[#374151]">Приложение HAULZ</span>
       </div>
 
