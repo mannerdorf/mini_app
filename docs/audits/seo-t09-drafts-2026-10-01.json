@@ -43,7 +43,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 249,
+      "word_count": 315,
       "title_length": 40,
       "description_length": 135
     },
@@ -86,7 +86,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 245,
+      "word_count": 307,
       "title_length": 41,
       "description_length": 112
     },
@@ -128,9 +128,9 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 229,
+      "word_count": 397,
       "title_length": 43,
-      "description_length": 120
+      "description_length": 142
     },
     {
       "id": "P04",
@@ -170,7 +170,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 226,
+      "word_count": 294,
       "title_length": 46,
       "description_length": 124
     },
@@ -212,7 +212,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 229,
+      "word_count": 285,
       "title_length": 41,
       "description_length": 110
     },
@@ -255,7 +255,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 236,
+      "word_count": 285,
       "title_length": 49,
       "description_length": 124
     },
@@ -301,7 +301,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 237,
+      "word_count": 273,
       "title_length": 30,
       "description_length": 114
     },
@@ -342,7 +342,7 @@
         }
       ],
       "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 209,
+      "word_count": 199,
       "title_length": 42,
       "description_length": 112
     }
