@@ -14,7 +14,8 @@
         "service.full_load",
         "service.road",
         "service.ferry",
-        "service.air"
+        "service.air",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -40,12 +41,18 @@
           "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "state": "verified"
+        },
+        {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 315,
-      "title_length": 40,
-      "description_length": 135
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 357,
+      "title_length": 49,
+      "description_length": 142
     },
     {
       "id": "P02",
@@ -57,7 +64,8 @@
         "service.door",
         "product.calculator_scope",
         "service.groupage",
-        "service.full_load"
+        "service.full_load",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -73,6 +81,12 @@
           "state": "verified"
         },
         {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
+        },
+        {
           "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
           "expected": null,
           "actual": null,
@@ -85,10 +99,10 @@
           "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 307,
-      "title_length": 41,
-      "description_length": 112
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 312,
+      "title_length": 49,
+      "description_length": 132
     },
     {
       "id": "P03",
@@ -99,7 +113,8 @@
         "service.route",
         "service.groupage",
         "service.door",
-        "product.calculator_scope"
+        "product.calculator_scope",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -115,6 +130,12 @@
           "state": "verified"
         },
         {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
+        },
+        {
           "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
           "expected": null,
           "actual": null,
@@ -127,10 +148,10 @@
           "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 397,
-      "title_length": 43,
-      "description_length": 142
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 399,
+      "title_length": 44,
+      "description_length": 135
     },
     {
       "id": "P04",
@@ -141,7 +162,8 @@
         "service.route",
         "service.ferry",
         "service.door",
-        "product.calculator_scope"
+        "product.calculator_scope",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -157,6 +179,12 @@
           "state": "verified"
         },
         {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
+        },
+        {
           "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
           "expected": null,
           "actual": null,
@@ -169,10 +197,10 @@
           "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 294,
-      "title_length": 46,
-      "description_length": 124
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 295,
+      "title_length": 38,
+      "description_length": 136
     },
     {
       "id": "P05",
@@ -183,7 +211,8 @@
         "service.route",
         "service.air",
         "service.door",
-        "product.calculator_scope"
+        "product.calculator_scope",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -209,12 +238,18 @@
           "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "state": "verified"
+        },
+        {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 285,
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 291,
       "title_length": 41,
-      "description_length": 110
+      "description_length": 129
     },
     {
       "id": "P06",
@@ -226,7 +261,8 @@
         "service.full_load",
         "service.groupage",
         "service.door",
-        "product.calculator_scope"
+        "product.calculator_scope",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -242,6 +278,12 @@
           "state": "verified"
         },
         {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
+        },
+        {
           "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
           "expected": null,
           "actual": null,
@@ -254,10 +296,10 @@
           "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 285,
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 286,
       "title_length": 49,
-      "description_length": 124
+      "description_length": 123
     },
     {
       "id": "P07",
@@ -272,7 +314,8 @@
         "service.ferry",
         "service.air",
         "service.door",
-        "product.calculator_scope"
+        "product.calculator_scope",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -298,12 +341,18 @@
           "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
           "state": "verified"
+        },
+        {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 273,
-      "title_length": 30,
-      "description_length": 114
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 300,
+      "title_length": 42,
+      "description_length": 133
     },
     {
       "id": "P08",
@@ -313,7 +362,8 @@
       "fact_ids": [
         "service.route",
         "product.calculator_scope",
-        "service.door"
+        "service.door",
+        "service.b2b_only"
       ],
       "sources": [
         {
@@ -329,6 +379,12 @@
           "state": "verified"
         },
         {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "expected": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "actual": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021",
+          "state": "verified"
+        },
+        {
           "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services",
           "expected": null,
           "actual": null,
@@ -341,10 +397,10 @@
           "state": "verified"
         }
       ],
-      "registry_hash": "c03133fb7a05293d5d51502ab9a38a5201750a463eff1cf0f1240498dce9afd9",
-      "word_count": 199,
-      "title_length": 42,
-      "description_length": 112
+      "registry_hash": "6f4e5ad087f8de920f4bc89e77f6b71c30ee32cbce01c8af0e9a420c5ad30018",
+      "word_count": 203,
+      "title_length": 45,
+      "description_length": 132
     }
   ],
   "paid_generation_calls": 0,

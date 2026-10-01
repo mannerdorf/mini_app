@@ -1,0 +1,337 @@
+{
+  "version": 3,
+  "audience": "B2B",
+  "source_period": "2026-08-30/2026-09-28",
+  "new_wordstat_measurement": false,
+  "publication_status": "draft",
+  "pages": [
+    {
+      "id": "P01",
+      "path": "/perevozka-moskva-kaliningrad",
+      "seo_title": "Перевозка грузов Москва — Калининград для бизнеса | HAULZ",
+      "queries": [
+        {
+          "id": "Q001",
+          "phrase": "доставка груза в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q003",
+          "phrase": "перевозка грузов в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q004",
+          "phrase": "отправить груз в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q005",
+          "phrase": "отправка груза в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q009",
+          "phrase": "доставка груза в калининград из москвы",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q013",
+          "phrase": "перевозка грузов москва калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q021",
+          "phrase": "отправить груз в калининград транспортной компанией",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q022",
+          "phrase": "отправка груза в калининград из москвы",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q032",
+          "phrase": "доставить груз москва калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Как отправить груз в Калининград из Москвы",
+        "Как груз попадёт к получателю",
+        "Какой вариант обсудить",
+        "Как узнать стоимость доставки"
+      ],
+      "related_materials": [
+        "P03",
+        "P06",
+        "P08",
+        "P07"
+      ]
+    },
+    {
+      "id": "P02",
+      "path": "/perevozka-kaliningrad-moskva",
+      "seo_title": "Перевозка грузов Калининград — Москва для бизнеса | HAULZ",
+      "queries": [
+        {
+          "id": "Q007",
+          "phrase": "грузы из калининграда в россию",
+          "coverage": "limited",
+          "limit": "Только Москва; не вся Россия"
+        },
+        {
+          "id": "Q018",
+          "phrase": "доставка грузов из калининграда в россию",
+          "coverage": "limited",
+          "limit": "Только Москва; не вся Россия"
+        },
+        {
+          "id": "Q020",
+          "phrase": "перевозка грузов из калининграда в россию",
+          "coverage": "limited",
+          "limit": "Только Москва; не вся Россия"
+        },
+        {
+          "id": "Q030",
+          "phrase": "как привезти груз из калининграда",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Кто передаст груз в Калининграде",
+        "Если вы уже отправляли груз в другую сторону",
+        "Сборная перевозка или полная загрузка",
+        "Как получатель заберёт партию в Москве"
+      ],
+      "related_materials": [
+        "P03",
+        "P06",
+        "P08"
+      ]
+    },
+    {
+      "id": "P03",
+      "path": "/uslugi/sbornye-gruzy",
+      "seo_title": "Доставка сборных грузов Москва — Калининград | HAULZ",
+      "queries": [
+        {
+          "id": "Q010",
+          "phrase": "сборные грузы в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q019",
+          "phrase": "доставка сборных грузов в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q031",
+          "phrase": "отправка сборных грузов из калининграда",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Начните с того, что отправляете",
+        "Решите, где передать и получить груз",
+        "Сборные грузы в Калининград и обратно",
+        "Сверьте расчёт с будущей отправкой"
+      ],
+      "related_materials": [
+        "P01",
+        "P02",
+        "P08"
+      ]
+    },
+    {
+      "id": "P04",
+      "path": "/uslugi/paromnye-perevozki",
+      "seo_title": "Перевозка грузов паромом в Калининград | HAULZ",
+      "queries": [
+        {
+          "id": "Q006",
+          "phrase": "паром калининград грузы",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q008",
+          "phrase": "груз в калининград паромом",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q015",
+          "phrase": "перевозка грузов паромом в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q025",
+          "phrase": "доставка грузов паромом калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q036",
+          "phrase": "фура паром в калининград",
+          "coverage": "limited",
+          "limit": "Конкретная фура, вместимость и рейс не подтверждены"
+        }
+      ],
+      "answer_sections": [
+        "Обсудите весь путь груза",
+        "Подготовьте описание партии",
+        "Если груз нужен к определённой дате",
+        "Как перейти к расчёту"
+      ],
+      "related_materials": [
+        "P01",
+        "P02",
+        "P08"
+      ]
+    },
+    {
+      "id": "P05",
+      "path": "/uslugi/aviaperevozki",
+      "seo_title": "Авиаперевозка грузов Москва — Калининград | HAULZ",
+      "queries": [
+        {
+          "id": "Q016",
+          "phrase": "авиа грузы калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Расскажите, что нужно перевезти",
+        "Уточните подготовку до отправки",
+        "Решите вопрос с забором и получением",
+        "Назовите важную для вас дату"
+      ],
+      "related_materials": [
+        "P01",
+        "P02",
+        "P08"
+      ]
+    },
+    {
+      "id": "P06",
+      "path": "/uslugi/polnaya-zagruzka",
+      "seo_title": "Перевозка с полной загрузкой Москва — Калининград | HAULZ",
+      "queries": [
+        {
+          "id": "Q035",
+          "phrase": "фуры калининград москва",
+          "coverage": "limited",
+          "limit": "Конкретная фура, вместимость и рейс не подтверждены"
+        }
+      ],
+      "answer_sections": [
+        "Соберите сведения обо всей партии",
+        "Как будет проходить передача",
+        "Если формат ещё не выбран",
+        "Что сверить перед отправкой"
+      ],
+      "related_materials": [
+        "P03",
+        "P01",
+        "P02"
+      ]
+    },
+    {
+      "id": "P07",
+      "path": "/faq",
+      "seo_title": "Как отправить груз в Калининград из Москвы | HAULZ",
+      "queries": [
+        {
+          "id": "Q011",
+          "phrase": "как доставить груз в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q017",
+          "phrase": "грузы в калининград сейчас",
+          "coverage": "limited",
+          "limit": "Не новостная сводка о текущих ограничениях"
+        },
+        {
+          "id": "Q024",
+          "phrase": "как перевезти груз в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q026",
+          "phrase": "как доставляются грузы в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q027",
+          "phrase": "как отправить груз в калининград из москвы",
+          "coverage": "editorial_target",
+          "limit": null
+        },
+        {
+          "id": "Q028",
+          "phrase": "как возят грузы в калининград",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Что подготовить для первого расчёта",
+        "Если планы изменились"
+      ],
+      "related_materials": [
+        "P01",
+        "P03",
+        "P08"
+      ]
+    },
+    {
+      "id": "P08",
+      "path": "/kalkulyator",
+      "seo_title": "Стоимость доставки груза Москва — Калининград | HAULZ",
+      "queries": [
+        {
+          "id": "Q033",
+          "phrase": "доставка грузов в калининград из москвы стоимость",
+          "coverage": "editorial_target",
+          "limit": null
+        }
+      ],
+      "answer_sections": [
+        "Выберите направление",
+        "Укажите вес, размеры и количество мест",
+        "Добавьте нужные адресные услуги",
+        "Сравните варианты на одинаковых условиях"
+      ],
+      "related_materials": [
+        "P01",
+        "P02",
+        "P03"
+      ]
+    }
+  ],
+  "excluded_intents": [
+    "Личные посылки",
+    "Личные вещи физических лиц"
+  ],
+  "limits": "Привязка запросов к содержанию — редакционная проверка, не гарантия позиций. Частоты не складываются. В выдаче есть смешанный B2B/B2C спрос."
+}

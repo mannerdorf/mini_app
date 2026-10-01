@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "as_of": "2026-10-01",
   "policy_status": "owner_approved",
   "automatic_publication_enabled": false,
@@ -643,6 +643,34 @@
       ],
       "limits": "Текущая публикация не доказывает факт, разрешение клиента на кейс или право использовать логотип.",
       "publication_use": "Исключено из новых публикаций до отдельного подтверждения; дата перепроверки не означает действительность факта"
+    },
+    {
+      "id": "service.b2b_only",
+      "claim": "HAULZ работает только с бизнесом (B2B); личные посылки и вещи физических лиц сейчас не принимает",
+      "value": "B2B only",
+      "status": "owner_confirmed",
+      "owner": "Владелец HAULZ — пользователь текущей задачи",
+      "sources": [
+        {
+          "reference": "docs/facts/owner-b2b-scope-2026-10-01.txt",
+          "sha256": "635784447ff42c832b460a46df27c76f61e398dd9c5a2c7938ec44f23cd9c021"
+        }
+      ],
+      "checked_at": "2026-10-01",
+      "confirmed_at": "2026-10-01",
+      "valid_until": "2026-10-31",
+      "review_interval_days": 30,
+      "limits": "Не подтверждает допустимость любого груза, цены, сроки или новые маршруты.",
+      "used_on": [
+        "/perevozka-moskva-kaliningrad",
+        "/perevozka-kaliningrad-moskva",
+        "/uslugi/sbornye-gruzy",
+        "/uslugi/paromnye-perevozki",
+        "/uslugi/aviaperevozki",
+        "/uslugi/polnaya-zagruzka",
+        "/faq",
+        "/kalkulyator"
+      ]
     }
   ],
   "policy_approved_at": "2026-10-01"
