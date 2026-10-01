@@ -14,7 +14,7 @@ export function publicAnalyticsUrl(raw: string): string | null {
   const direction = url.searchParams.get('direction');
   if (path === '/kalkulyator' && (direction === 'mow_kgd' || direction === 'kgd_mow')) clean.searchParams.set('direction', direction);
   // Campaign labels are deliberately restricted; user-entered search text and contacts are not analytics data.
-  for (const key of ['utm_source', 'utm_medium', 'utm_campaign']) {
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']) {
     const value = url.searchParams.get(key);
     if (value && /^[a-z0-9_-]{1,80}$/i.test(value)) clean.searchParams.set(key, value);
   }

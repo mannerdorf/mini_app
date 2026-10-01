@@ -13,6 +13,12 @@ describe('public analytics boundaries', () => {
   it('does not collect on native, local or unconfigured domains', () => {
     for (const url of ['capacitor://localhost/', 'http://localhost/', 'https://haulz.pro/', 'https://api.haulz.space/']) expect(publicAnalyticsUrl(url)).toBeNull();
   });
+  it('attributes an editorial post without accepting free-form content or search terms', () => {
+    expect(publicAnalyticsUrl('https://haulz.space/perevozka-moskva-kaliningrad?utm_source=telegram&utm_medium=social&utm_campaign=b2b_moscow_kaliningrad&utm_content=t12_p01&utm_term=private&phone=123')).toBe('https://haulz.space/perevozka-moskva-kaliningrad?utm_source=telegram&utm_medium=social&utm_campaign=b2b_moscow_kaliningrad&utm_content=t12_p01');
+    for (const value of ['person@example.com', 'Customer name', 'a'.repeat(81)]) {
+      expect(publicAnalyticsUrl('https://haulz.space/?utm_content='+encodeURIComponent(value))).toBe('https://haulz.space/');
+    }
+  });
   it('accepts public articles and canonicalizes trailing slashes', () => {
     expect(publicAnalyticsUrl('https://haulz.space/blog/packing/')).toBe('https://haulz.space/blog/packing');
   });
