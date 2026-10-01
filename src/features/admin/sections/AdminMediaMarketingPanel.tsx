@@ -1,3 +1,4 @@
+import { MediaPlanEditor } from "./MediaPlanEditor";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import { Loader2, Sparkles, CheckCircle2, Circle, Megaphone, ListChecks, CalendarDays, Network } from "lucide-react";
@@ -415,7 +416,7 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
               >
                 <Typography.Body style={{ fontWeight: 600, fontSize: "0.9rem" }}>{p.planned_date?.slice(0, 10)} · {p.title}</Typography.Body>
                 <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)" }}>
-                  {MEDIA_CONTENT_STATUSES.find((s) => s.id === p.status)?.label ?? p.status}
+                  {MEDIA_CONTENT_STATUSES.find((s) => s.id === p.status)?.label ?? p.status}{p.site_revision ? ` · На сайте версия ${p.site_revision}` : " · На сайте не опубликован"}
                   {p.article_slug ? ` · /blog/${p.article_slug}` : ""}
                 </Typography.Body>
               </button>
@@ -424,95 +425,7 @@ export function AdminMediaMarketingPanel({ adminToken }: Props) {
 
           <div style={{ flex: "2 1 420px", minWidth: 300 }}>
             {selectedPlan ? (
-              <div style={cardStyle}>
-                <Flex justify="space-between" align="center" style={{ marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-                  <Typography.Body style={{ fontWeight: 700 }}>{selectedPlan.article_title || selectedPlan.title}</Typography.Body>
-                  <Button className="filter-button" onClick={handleGenerate} disabled={generating}>
-                    {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" style={{ marginRight: 6 }} />}
-                    {generating ? "GPT…" : "Сгенерировать статью"}
-                  </Button>
-                </Flex>
-                <Typography.Body style={{ fontSize: "0.8rem", color: "var(--color-text-secondary)", marginBottom: 8 }}>
-                  OPENAI_API_KEY на сервере API. Модель: gpt-4o-mini. После генерации проверьте текст и опубликуйте в выбранных каналах.
-                </Typography.Body>
-                {selectedPlan.meta_description && (
-                  <>
-                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>Meta description</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.85rem", marginBottom: 8 }}>{selectedPlan.meta_description}</Typography.Body>
-                  </>
-                )}
-                {selectedPlan.telegram_teaser && (
-                  <>
-                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>Telegram (анонс)</Typography.Body>
-                    <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.8rem", background: "#f9fafb", padding: 8, borderRadius: 8 }}>{selectedPlan.telegram_teaser}</pre>
-                  </>
-                )}
-                {selectedPlan.email_subject && (
-                  <>
-                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem" }}>Email</Typography.Body>
-                    <Typography.Body style={{ fontSize: "0.85rem" }}>{selectedPlan.email_subject}</Typography.Body>
-                    <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.8rem", background: "#f9fafb", padding: 8, borderRadius: 8 }}>{selectedPlan.email_teaser}</pre>
-                  </>
-                )}
-                {selectedPlan.body_markdown && (
-                  <>
-                    <Typography.Body style={{ fontWeight: 600, fontSize: "0.85rem", marginTop: 8 }}>Статья (Markdown)</Typography.Body>
-                    <pre style={{ whiteSpace: "pre-wrap", fontSize: "0.75rem", maxHeight: 420, overflow: "auto", background: "#f9fafb", padding: 10, borderRadius: 8 }}>
-                      {selectedPlan.body_markdown}
-                    </pre>
-                  </>
-                )}
-                <Flex gap="0.5rem" style={{ marginTop: 12, flexWrap: "wrap" }}>
-                  <Button
-                    className="filter-button"
-                    onClick={async () => {
-                      await updateMediaPlan(adminToken, { id: selectedPlan.id, status: "ready" });
-                      const { plan } = await fetchMediaPlan(adminToken, selectedPlan.id);
-                      setSelectedPlan(plan);
-                      loadPlans();
-                    }}
-                  >
-                    Отметить «Готово»
-                  </Button>
-                  <Button
-                    className="filter-button"
-                    onClick={async () => {
-                      if (!selectedPlan.article_slug || !selectedPlan.body_markdown) {
-                        setError("Сначала сгенерируйте статью (нужны slug и текст)");
-                        return;
-                      }
-                      await updateMediaPlan(adminToken, { id: selectedPlan.id, mark_published: true });
-                      const { plan } = await fetchMediaPlan(adminToken, selectedPlan.id);
-                      setSelectedPlan(plan);
-                      loadPlans();
-                    }}
-                  >
-                    Опубликовать на сайт
-                  </Button>
-                  {selectedPlan.status === "published" && selectedPlan.article_slug && (
-                    <a
-                      href={`/blog/${selectedPlan.article_slug}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="filter-button"
-                      style={{ display: "inline-flex", alignItems: "center", textDecoration: "none" }}
-                    >
-                      Открыть /blog/{selectedPlan.article_slug}
-                    </a>
-                  )}
-                  <Button
-                    className="filter-button"
-                    onClick={async () => {
-                      if (!confirm("Удалить план?")) return;
-                      await deleteMediaPlan(adminToken, selectedPlan.id);
-                      setSelectedPlanId(null);
-                      loadPlans();
-                    }}
-                  >
-                    Удалить
-                  </Button>
-                </Flex>
-              </div>
+              <MediaPlanEditor key={selectedPlan.id} adminToken={adminToken} id={selectedPlan.id} onChanged={loadPlans} />
             ) : (
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>Выберите материал из списка или создайте новый.</Typography.Body>
             )}

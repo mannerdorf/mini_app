@@ -15,6 +15,7 @@ export type MediaSeoChecklistItem = {
 };
 
 export type MediaContentPlan = {
+  site_revision?: number | null;
   id: number;
   planned_date: string;
   title: string;
@@ -83,12 +84,12 @@ export async function patchMediaSeoChecklist(
 }
 
 export async function fetchMediaPlans(adminToken: string) {
-  const res = await fetch("/api/admin-media-plans", { headers: adminAuthHeaders(adminToken) });
+  const res = await fetch("/api/admin-content-editor", { headers: adminAuthHeaders(adminToken) });
   return parseJson(res) as Promise<{ plans: MediaContentPlan[] }>;
 }
 
 export async function fetchMediaPlan(adminToken: string, id: number) {
-  const res = await fetch(`/api/admin-media-plans?id=${id}`, { headers: adminAuthHeaders(adminToken) });
+  const res = await fetch(`/api/admin-content-editor?id=${id}`, { headers: adminAuthHeaders(adminToken) });
   return parseJson(res) as Promise<{ plan: MediaContentPlan }>;
 }
 
@@ -102,7 +103,7 @@ export async function createMediaPlan(
     channels: string[];
   },
 ) {
-  const res = await fetch("/api/admin-media-plans", {
+  const res = await fetch("/api/admin-content-editor", {
     method: "POST",
     headers: { ...adminAuthHeaders(adminToken), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -111,7 +112,7 @@ export async function createMediaPlan(
 }
 
 export async function updateMediaPlan(adminToken: string, payload: Record<string, unknown>) {
-  const res = await fetch("/api/admin-media-plans", {
+  const res = await fetch("/api/admin-content-editor", {
     method: "PATCH",
     headers: { ...adminAuthHeaders(adminToken), "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -120,7 +121,7 @@ export async function updateMediaPlan(adminToken: string, payload: Record<string
 }
 
 export async function deleteMediaPlan(adminToken: string, id: number) {
-  const res = await fetch(`/api/admin-media-plans?id=${id}`, {
+  const res = await fetch(`/api/admin-content-editor?id=${id}`, {
     method: "DELETE",
     headers: adminAuthHeaders(adminToken),
   });
