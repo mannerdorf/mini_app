@@ -28,3 +28,7 @@ migrations
 docs/*
 !docs/SEO_AEO_GEO.md
 !docs/seo-aeo-geo-content-factory-2026-09-30.md
+# Fixed source registry consumed by generate-content-source-manifest.mjs.
+!docs/facts/
+docs/facts/*
+!docs/facts/haulz-facts-2026-10-01.json
