@@ -1,0 +1,112 @@
+{
+  "as_of": "2026-10-01",
+  "commit": "788d3699",
+  "checks": [
+    {
+      "url": "https://haulz.space/",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/uslugi/sbornye-gruzy",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/uslugi/missing",
+      "status": 404,
+      "expected": 404,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/uslugi/sbornye-gruzy/",
+      "status": 301,
+      "expected": 301,
+      "location": "https://haulz.space/uslugi/sbornye-gruzy",
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/blog/missing-t06",
+      "status": 404,
+      "expected": 404,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/api/sitemap?page=0",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/faq",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/kalkulyator",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/sklady",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/blog",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/perevozka-moskva-kaliningrad",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.space/public-analytics.js",
+      "status": 200,
+      "expected": 200,
+      "location": null,
+      "passed": true
+    },
+    {
+      "url": "https://haulz.ru/uslugi/sbornye-gruzy",
+      "status": 301,
+      "expected": 301,
+      "location": "https://haulz.space/uslugi/sbornye-gruzy",
+      "passed": true
+    },
+    {
+      "url": "https://haulz.pro/uslugi/sbornye-gruzy",
+      "status": 301,
+      "expected": 301,
+      "location": "https://haulz.space/uslugi/sbornye-gruzy",
+      "passed": true
+    },
+    {
+      "url": "https://www.haulz.ru/uslugi/sbornye-gruzy",
+      "status": 301,
+      "expected": 301,
+      "location": "https://haulz.space/uslugi/sbornye-gruzy",
+      "passed": true
+    }
+  ],
+  "passed": true
+}
