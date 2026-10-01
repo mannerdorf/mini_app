@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-01",
+  "commit": "1b4c9a39",
+  "status": "passed",
+  "tests": {
+    "passed": 38,
+    "files": 7,
+    "backend_types": true,
+    "frontend_types": true,
+    "build": true,
+    "nginx_static_config": true,
+    "nginx_api_config": true
+  },
+  "backend": {
+    "migration": 124,
+    "ready": true,
+    "api_pid_unchanged": 431066,
+    "old_editor_generate_status": 422,
+    "old_editor_generate_slash_status": 422,
+    "old_generate_status": 410,
+    "old_generate_slash_status": 410,
+    "generation_enabled": false,
+    "daily_budget_usd": 0,
+    "paid_calls": 0
+  },
+  "local_ui": {
+    "enqueue": true,
+    "process": true,
+    "sources_visible": true,
+    "attempt_visible": true
+  },
+  "production_ui": "Not inspected in the native browser; user is using it.",
+  "initial_deploy_failure": {
+    "commit": "75939289",
+    "time": "2026-10-01T08:12:51Z",
+    "cause": "ENOENT docs/facts/haulz-facts-2026-10-01.json in Docker context",
+    "fix_commit": "1b4c9a39",
+    "fix": "Include exactly the approved fact registry in .dockerignore"
+  },
+  "build": {
+    "id": "unknown-27860dc7",
+    "commit": "unknown",
+    "builtAt": "2026-10-01T08:20:34.247Z"
+  },
+  "checks": [
+    {
+      "path": "/",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/uslugi/sbornye-gruzy",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/blog",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/public-blog",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/api/sitemap?page=0",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "path": "/blog/dannye-dlya-rascheta-perevozki",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "path": "/api/admin-content-factory?id=1",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "path": "/api/admin-factory-setup",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "path": "/content-source-manifest.json",
+      "status": 200,
+      "passed": true
+    }
+  ],
+  "cms_bundle": {
+    "path": "/assets/CMSStandalonePage-BafWYSep.js",
+    "queue_ui_present": true
+  },
+  "manifest": {
+    "version": 1,
+    "sources_count": 6
+  },
+  "timeweb": {
+    "status": "Успешно",
+    "commit": "1b4c9a3"
+  }
+}

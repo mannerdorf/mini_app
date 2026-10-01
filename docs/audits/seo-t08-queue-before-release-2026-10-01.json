@@ -1,0 +1,31 @@
+{
+  "phase": "before frontend deployment",
+  "enqueue_status": 200,
+  "repeated_job_id": "1",
+  "jobs": [
+    {
+      "id": "1",
+      "state": "held",
+      "reasons": [
+        "product.calculator_scope: источник src/pages/guest/GuestCalculatorIntro.tsx недоступен",
+        "product.calculator_scope: источник src/pages/HaulzCalculatorPage.tsx недоступен"
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "id": "1",
+      "state": "held",
+      "provider_started": false,
+      "reserved_usd": "0",
+      "estimated_usd": null
+    }
+  ],
+  "settings": {
+    "id": 1,
+    "generation_enabled": false,
+    "daily_budget_usd": "0",
+    "input_usd_per_million": "0",
+    "output_usd_per_million": "0"
+  }
+}

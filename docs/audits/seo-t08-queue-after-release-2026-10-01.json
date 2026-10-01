@@ -1,0 +1,66 @@
+{
+  "jobs": [
+    {
+      "id": "1",
+      "state": "done",
+      "reasons": [],
+      "revision": 2,
+      "sources": [
+        {
+          "state": "verified",
+          "actual": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "expected": "acccd5b1c84c9c1f51185b2900f0675e1d1b0e26205b7d0dda8e02ed06f5e122",
+          "reference": "src/pages/guest/GuestCalculatorIntro.tsx"
+        },
+        {
+          "state": "verified",
+          "actual": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "expected": "4284ad827f071688f43f8f0ba5cd44015f46ddd29e70cd088761af6470ecd717",
+          "reference": "src/pages/HaulzCalculatorPage.tsx"
+        },
+        {
+          "state": "owner_confirmation",
+          "actual": null,
+          "expected": null,
+          "reference": "conversation:2026-10-01:owner-confirmed-all-listed-services"
+        },
+        {
+          "state": "verified",
+          "actual": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "expected": "090022366645d208a1c4ada6a7a98213c6ca65d37b1cdb5614c55f731510e931",
+          "reference": "lib/haulzCalculator/publicRouteCatalog.ts"
+        }
+      ]
+    }
+  ],
+  "attempts": [
+    {
+      "id": "2",
+      "state": "done",
+      "provider_started": false,
+      "reserved_usd": "0",
+      "estimated_usd": null
+    },
+    {
+      "id": "1",
+      "state": "held",
+      "provider_started": false,
+      "reserved_usd": "0",
+      "estimated_usd": null
+    }
+  ],
+  "settings": {
+    "id": 1,
+    "generation_enabled": false,
+    "daily_budget_usd": "0",
+    "input_usd_per_million": "0",
+    "output_usd_per_million": "0"
+  },
+  "editor": {
+    "revision": 2,
+    "publication": null,
+    "errors": [
+      "Автор: заполните поле"
+    ]
+  }
+}
