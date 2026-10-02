@@ -267,6 +267,7 @@ function AppRoot() {
                     </div>
                 }
             >
+                <AppNavigationProvider setSearchText={setSearchText} useServiceRequest={useServiceRequest}>
                 <WbOnlyAppLayout
                     desktopExpanded={desktopExpanded}
                     onLogout={handleLogout}
@@ -290,6 +291,7 @@ function AppRoot() {
                         />
                     </AppRuntimeProvider>
                 </WbOnlyAppLayout>
+                </AppNavigationProvider>
             </Suspense>
         );
     }
