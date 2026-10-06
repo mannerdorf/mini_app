@@ -1,3 +1,4 @@
+import { ParcelVolumeInput } from "./ParcelVolumeInput";
 import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
@@ -36,7 +37,7 @@ import {
   type HaulzCalcMobileRoute,
 } from "./haulzCalcMobileLabels";
 import { boxPresetToPlace, HAULZ_BOX_PRESETS } from "../../../lib/haulzCalculator/boxPresets";
-import { volumeM3FromCm } from "../../../lib/haulzCalculator/placeDimensions";
+import { updatePlaceDimension } from "../../../lib/haulzCalculator/placeDimensions";
 
 type ChargeableHint = {
   w: number;
@@ -412,16 +413,7 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
                     const v = Number(e.target.value) || 0;
                     setPlaces((prev) => {
                       const next = [...prev];
-                      const current = { ...next[idx], [field]: v };
-                      next[idx] = {
-                        ...current,
-                        volumeM3:
-                          volumeM3FromCm(
-                            Number(current.lengthCm) || 0,
-                            Number(current.widthCm) || 0,
-                            Number(current.heightCm) || 0,
-                          ) || current.volumeM3,
-                      };
+                      next[idx] = updatePlaceDimension(next[idx], field, v);
                       return next;
                     });
                   }}
@@ -446,7 +438,13 @@ export function HaulzCalcMobileFlow(props: HaulzCalcMobileFlowProps) {
             </label>
             <label className="haulz-calc-field">
               <span className="haulz-calc-label">Объём, м³</span>
-              <input type="number" step="0.01" className="haulz-calc-input" readOnly value={String(place.volumeM3)} />
+              <ParcelVolumeInput value={place.volumeM3} onChange={(volumeM3) => {
+                setPlaces((prev) => {
+                  const next = [...prev];
+                  next[idx] = { ...next[idx], volumeM3, volumeMode: "manual" };
+                  return next;
+                });
+              }} />
             </label>
           </div>
           <div className="haulz-calc-extra haulz-calc-extra--place">

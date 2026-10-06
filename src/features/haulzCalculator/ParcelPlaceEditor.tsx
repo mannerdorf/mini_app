@@ -2,7 +2,9 @@ import React from "react";
 import { Plus } from "lucide-react";
 import type { ParcelPlace } from "../../../lib/haulzCalculator/types";
 import { HAULZ_BOX_PRESETS, boxPresetToPlace } from "../../../lib/haulzCalculator/boxPresets";
-import { volumeM3FromCm } from "../../../lib/haulzCalculator/placeDimensions";
+import { updatePlaceDimension } from "../../../lib/haulzCalculator/placeDimensions";
+
+import { ParcelVolumeInput } from "./ParcelVolumeInput";
 
 type Props = {
   places: ParcelPlace[];
@@ -20,14 +22,7 @@ function updateDim(
   value: number,
 ): ParcelPlace[] {
   const next = [...places];
-  const current = { ...next[idx], [field]: value };
-  const lengthCm = Number(current.lengthCm) || 0;
-  const widthCm = Number(current.widthCm) || 0;
-  const heightCm = Number(current.heightCm) || 0;
-  next[idx] = {
-    ...current,
-    volumeM3: volumeM3FromCm(lengthCm, widthCm, heightCm) || current.volumeM3,
-  };
+  next[idx] = updatePlaceDimension(next[idx], field, value);
   return next;
 }
 
@@ -115,13 +110,11 @@ export function ParcelPlaceEditor({
             </label>
             <label className="haulz-calc-field">
               <span className="haulz-calc-label">Объём, м³</span>
-              <input
-                type="number"
-                step="0.01"
-                className="haulz-calc-input"
-                readOnly
-                value={String(p.volumeM3)}
-              />
+              <ParcelVolumeInput value={p.volumeM3} onChange={(volumeM3) => {
+                const next = [...places];
+                next[idx] = { ...next[idx], volumeM3, volumeMode: "manual" };
+                onChange(next);
+              }} />
             </label>
           </div>
           <div className="haulz-calc-extra haulz-calc-extra--place">

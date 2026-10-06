@@ -20,9 +20,11 @@ export function hasPlaceDimensions(p: ParcelPlace): boolean {
   return (Number(p.lengthCm) || 0) > 0 && (Number(p.widthCm) || 0) > 0 && (Number(p.heightCm) || 0) > 0;
 }
 
-/** Нормализует место: при наличии Д×Ш×В пересчитывает объём, иначе — куб из объёма. */
+/** Сохраняет ручной объём; для остальных мест рассчитывает его из габаритов. */
 export function normalizeParcelPlace(p: ParcelPlace): ParcelPlace {
   const weightKg = Math.max(0, Number(p.weightKg) || 0);
+  const rawVolume = Number(p.volumeM3);
+  const volumeM3 = Number.isFinite(rawVolume) ? Math.max(0, rawVolume) : 0;
   if (hasPlaceDimensions(p)) {
     const lengthCm = Math.max(0, Number(p.lengthCm) || 0);
     const widthCm = Math.max(0, Number(p.widthCm) || 0);
@@ -33,10 +35,9 @@ export function normalizeParcelPlace(p: ParcelPlace): ParcelPlace {
       lengthCm,
       widthCm,
       heightCm,
-      volumeM3: volumeM3FromCm(lengthCm, widthCm, heightCm),
+      volumeM3: p.volumeMode === "manual" ? volumeM3 : volumeM3FromCm(lengthCm, widthCm, heightCm),
     };
   }
-  const volumeM3 = Math.max(0, Number(p.volumeM3) || 0);
   const side = cubeSideCmFromVolumeM3(volumeM3);
   const rounded = side > 0 ? Math.max(1, Math.round(side)) : 0;
   return {
@@ -51,4 +52,10 @@ export function normalizeParcelPlace(p: ParcelPlace): ParcelPlace {
 
 export function normalizeParcelPlaces(places: ParcelPlace[]): ParcelPlace[] {
   return places.map(normalizeParcelPlace);
+}
+
+/** Редактирование габаритов возвращает автоматический расчёт объёма. */
+export function updatePlaceDimension(p: ParcelPlace, field: "lengthCm" | "widthCm" | "heightCm", value: number): ParcelPlace {
+  const next = { ...p, [field]: value, volumeMode: undefined };
+  return { ...next, volumeM3: volumeM3FromCm(next.lengthCm ?? 0, next.widthCm ?? 0, next.heightCm ?? 0) };
 }

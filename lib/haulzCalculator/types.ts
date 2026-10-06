@@ -19,6 +19,8 @@ export type AddressSelection = {
 export type ParcelPlace = {
   weightKg: number;
   volumeM3: number;
+  /** Ручной объём имеет приоритет над произведением габаритов. */
+  volumeMode?: "manual";
   /** Габариты места, см */
   lengthCm?: number;
   widthCm?: number;

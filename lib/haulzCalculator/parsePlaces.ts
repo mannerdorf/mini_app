@@ -23,6 +23,7 @@ export function parseParcelPlaces(raw: unknown): ParcelPlace[] {
     return {
       weightKg: Math.max(0, Number(o.weightKg ?? o.weight_kg) || 0),
       volumeM3: Math.max(0, Number(o.volumeM3 ?? o.volume_m3) || 0),
+      volumeMode: o.volumeMode === "manual" ? "manual" as const : undefined,
       lengthCm,
       widthCm,
       heightCm,
