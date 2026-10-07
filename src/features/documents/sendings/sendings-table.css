@@ -11,7 +11,9 @@
 .sendings-table > tbody > tr > td > * { max-width: 100%; }
 .sendings-table > tbody > tr > td .max-badge,
 .sendings-table > tbody > tr > td .app-badge {
-  white-space: normal !important;
+  white-space: nowrap !important;
+  overflow-wrap: normal;
+  padding-inline: 0.4rem;
 }
 
 .sendings-ferry-control { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
