@@ -10,6 +10,9 @@ import type { AuthData } from "../../../types";
 import {
   buildDeliveredWithoutAppReport,
   expandInvoiceLookupDateFrom,
+  filterSortDeliveredAppRows,
+  type DeliveredAppFilter,
+  type DeliveredAppSortColumn,
 } from "../../../lib/adminDeliveredWithoutAppAnalytics";
 import type { CargoItem } from "../../../types";
 
@@ -101,16 +104,29 @@ export function AdminDeliveredWithoutAppSection({
     };
   }, [loadData]);
 
+  const [filter,setFilter] = useState<DeliveredAppFilter>('withoutApp');
+  const [sort,setSort] = useState<{column:DeliveredAppSortColumn;order:'asc'|'desc'}>({column:'dateVr',order:'desc'});
   const report = useMemo(
     () => buildDeliveredWithoutAppReport(cargoItems, invoices),
     [cargoItems, invoices],
   );
 
+  const visibleRows=useMemo(()=>filterSortDeliveredAppRows(report.allRows,filter,sort.column,sort.order),[report,filter,sort]);
+  const metrics: {key:DeliveredAppFilter;label:string;value:number;color?:string}[] = [
+    {key:'all',label:'Доставлено',value:report.deliveredTotal},
+    {key:'withoutApp',label:'Без АПП',value:report.withoutApp,color:'#dc2626'},
+    {key:'withApp',label:'С АПП',value:report.withApp,color:'var(--color-success-status)'},
+    {key:'withoutInvoice',label:'Без счёта',value:report.noLinkedInvoice},
+  ];
+  const columns:{key:DeliveredAppSortColumn;label:string}[]=[
+    {key:'cargoNumber',label:'№ перевозки'},{key:'customer',label:'Заказчик'},
+    {key:'datePrih',label:'Приход'},{key:'dateVr',label:'Выдача'},
+    {key:'route',label:'Маршрут'},{key:'invoiceNumber',label:'Счёт'},{key:'appStatusLabel',label:'Статус АПП'},
+  ];
   return (
     <div>
       <Typography.Body style={{ fontSize: "0.88rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-        Перевозки со статусом «Доставлено» за период по дате выдачи (<code>DateVr</code>), у которых нет АПП в ЭДО
-        (пустое поле <code>DDRecipientResponseStatus_APP</code> на связанном счёте или перевозке).
+        Доставленные перевозки за период по дате выдачи. Нажмите на карточку, чтобы отфильтровать список по наличию АПП или счёта.
       </Typography.Body>
 
       <Flex align="center" gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
@@ -168,51 +184,34 @@ export function AdminDeliveredWithoutAppSection({
       {!loading && !error && (
         <>
           <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
-            <Panel className="cargo-card" style={{ padding: "0.75rem 1rem", borderRadius: 12, minWidth: 140 }}>
-              <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Доставлено</Typography.Body>
-              <Typography.Headline style={{ fontSize: "1.35rem", fontWeight: 700 }}>{report.deliveredTotal}</Typography.Headline>
-            </Panel>
-            <Panel className="cargo-card" style={{ padding: "0.75rem 1rem", borderRadius: 12, minWidth: 140 }}>
-              <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Без АПП</Typography.Body>
-              <Typography.Headline style={{ fontSize: "1.35rem", fontWeight: 700, color: "#dc2626" }}>
-                {report.withoutApp}
-              </Typography.Headline>
-            </Panel>
-            <Panel className="cargo-card" style={{ padding: "0.75rem 1rem", borderRadius: 12, minWidth: 140 }}>
-              <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>С АПП</Typography.Body>
-              <Typography.Headline style={{ fontSize: "1.35rem", fontWeight: 700, color: "var(--color-success-status)" }}>
-                {report.withApp}
-              </Typography.Headline>
-            </Panel>
-            {report.noLinkedInvoice > 0 ? (
-              <Panel className="cargo-card" style={{ padding: "0.75rem 1rem", borderRadius: 12, minWidth: 140 }}>
-                <Typography.Body style={{ fontSize: "0.72rem", color: "var(--color-text-secondary)" }}>Без счёта</Typography.Body>
-                <Typography.Headline style={{ fontSize: "1.35rem", fontWeight: 700 }}>{report.noLinkedInvoice}</Typography.Headline>
-              </Panel>
-            ) : null}
+            {metrics.map(metric=><button key={metric.key} type="button" className="cargo-card" aria-pressed={filter===metric.key}
+              onClick={()=>setFilter(current=>current===metric.key?'all':metric.key)}
+              style={{padding:'0.75rem 1rem',borderRadius:12,minWidth:140,textAlign:'left',cursor:'pointer',font:'inherit',color:'var(--color-text-primary)',background:'var(--color-bg-card)',border:filter===metric.key?'2px solid var(--color-primary-blue,#2563eb)':'2px solid var(--color-border)'}}>
+              <span style={{display:'block',fontSize:'0.72rem',color:'var(--color-text-secondary)'}}>{metric.label}</span>
+              <strong style={{display:'block',fontSize:'1.35rem',fontWeight:700,color:metric.color}}>{metric.value}</strong>
+            </button>)}
           </Flex>
 
           <Panel className="cargo-card" style={{ padding: "1rem 1.1rem", borderRadius: 12, background: "var(--color-bg-card)" }}>
-            {report.rows.length === 0 ? (
+            {visibleRows.length === 0 ? (
               <Typography.Body style={{ color: "var(--color-text-secondary)" }}>
-                За выбранный период нет доставленных перевозок без АПП.
+                Нет перевозок по выбранному фильтру за этот период.
               </Typography.Body>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.85rem" }}>
                   <thead>
                     <tr style={{ borderBottom: "2px solid var(--color-border)" }}>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>№ перевозки</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Заказчик</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Приход</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Выдача</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Маршрут</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Счёт</th>
-                      <th style={{ padding: "0.45rem 0.5rem", textAlign: "left", fontWeight: 600 }}>Статус АПП</th>
+                      {columns.map(column=><th key={column.key} aria-sort={sort.column===column.key?(sort.order==='asc'?'ascending':'descending'):'none'} style={{padding:'0.45rem 0.5rem',textAlign:'left',fontWeight:600}}>
+                        <button type="button" onClick={()=>setSort(current=>({column:column.key,order:current.column===column.key?(current.order==='asc'?'desc':'asc'):(column.key==='datePrih'||column.key==='dateVr'?'desc':'asc')}))}
+                          style={{border:0,padding:0,background:'transparent',font:'inherit',color:'inherit',cursor:'pointer',textAlign:'left'}}>
+                          {column.label} {sort.column===column.key?(sort.order==='asc'?'↑':'↓'):'↕'}
+                        </button>
+                      </th>)}
                     </tr>
                   </thead>
                   <tbody>
-                    {report.rows.map((row) => (
+                    {visibleRows.map((row) => (
                       <tr key={row.cargoNumber} style={{ borderBottom: "1px solid var(--color-border)" }}>
                         <td style={{ padding: "0.45rem 0.5rem", fontWeight: 600, whiteSpace: "nowrap" }}>{row.cargoNumber}</td>
                         <td

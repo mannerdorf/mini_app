@@ -16,10 +16,13 @@ export type DeliveredWithoutAppRow = {
   route: string;
   invoiceNumber: string | null;
   appStatusLabel: string;
+  hasApp: boolean;
+  hasLinkedInvoice: boolean;
 };
 
 export type DeliveredWithoutAppReport = {
   rows: DeliveredWithoutAppRow[];
+  allRows: DeliveredWithoutAppRow[];
   deliveredTotal: number;
   withApp: number;
   withoutApp: number;
@@ -65,6 +68,7 @@ export function buildDeliveredWithoutAppReport(
 ): DeliveredWithoutAppReport {
   const invoiceByCargo = buildInvoiceByCargoKeyMap(invoices);
   const rows: DeliveredWithoutAppRow[] = [];
+  const allRows: DeliveredWithoutAppRow[] = [];
   let deliveredTotal = 0;
   let withApp = 0;
   let withoutApp = 0;
@@ -79,16 +83,13 @@ export function buildDeliveredWithoutAppReport(
     const cargoKey = normCargoKey(cargoNumber);
     const linkedInvoice = cargoKey ? invoiceByCargo.get(cargoKey) ?? null : null;
 
-    if (cargoHasAppDocument(item, linkedInvoice)) {
-      withApp += 1;
-      continue;
-    }
-
-    withoutApp += 1;
+    const hasApp = cargoHasAppDocument(item, linkedInvoice);
+    if (hasApp) withApp += 1;
+    else withoutApp += 1;
     if (!linkedInvoice) noLinkedInvoice += 1;
 
-    const appSource = linkedInvoice ?? item;
-    rows.push({
+    const appSource = linkedInvoice && getInvoiceEdoRawByDocLabel(linkedInvoice, "АПП").trim() ? linkedInvoice : item;
+    const row: DeliveredWithoutAppRow = {
       cargoNumber: cargoNumber || "—",
       customer: stripOoo(String(item.Customer ?? (item as { customer?: string }).customer ?? "—")).trim() || "—",
       datePrih: String(item.DatePrih ?? "").trim(),
@@ -98,7 +99,11 @@ export function buildDeliveredWithoutAppReport(
         ? String(linkedInvoice.Number ?? linkedInvoice.number ?? linkedInvoice.N ?? "").trim() || null
         : null,
       appStatusLabel: getInvoiceEdoInfoByDocLabel(appSource, "АПП").label,
-    });
+      hasApp,
+      hasLinkedInvoice: !!linkedInvoice,
+    };
+    allRows.push(row);
+    if (!hasApp) rows.push(row);
   }
 
   rows.sort(
@@ -107,5 +112,22 @@ export function buildDeliveredWithoutAppReport(
       a.cargoNumber.localeCompare(b.cargoNumber, "ru"),
   );
 
-  return { rows, deliveredTotal, withApp, withoutApp, noLinkedInvoice };
+  return { rows, allRows, deliveredTotal, withApp, withoutApp, noLinkedInvoice };
+}
+
+export type DeliveredAppFilter = 'all' | 'withoutApp' | 'withApp' | 'withoutInvoice';
+export type DeliveredAppSortColumn = 'cargoNumber' | 'customer' | 'datePrih' | 'dateVr' | 'route' | 'invoiceNumber' | 'appStatusLabel';
+export function filterSortDeliveredAppRows(rows:DeliveredWithoutAppRow[],filter:DeliveredAppFilter,column:DeliveredAppSortColumn,order:'asc'|'desc') {
+  return rows.filter(row=>filter==='all' || (filter==='withoutApp'?!row.hasApp:filter==='withApp'?row.hasApp:!row.hasLinkedInvoice))
+    .sort((a,b)=>{
+      const x=a[column],y=b[column];
+      const empty=(v:unknown)=>v==null || v==='' || v==='—';
+      if(empty(x)!==empty(y))return empty(x)?1:-1;
+      let diff=0;
+      if(column==='datePrih'||column==='dateVr') {
+        const date=(v:unknown)=>{const t=Date.parse(String(v??''));return Number.isFinite(t)?t:0;};
+        diff=date(x)-date(y);
+      } else diff=String(x??'').localeCompare(String(y??''),'ru',{numeric:true,sensitivity:'base'});
+      return (order==='asc'?diff:-diff) || a.cargoNumber.localeCompare(b.cargoNumber,'ru',{numeric:true});
+    });
 }
