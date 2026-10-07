@@ -1,3 +1,4 @@
+import { CargoFerryMap } from "./CargoFerryMap";
 import { CargoPickupPhotos } from "./CargoPickupPhotos";
 import React, { useState, useEffect } from "react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
@@ -510,6 +511,8 @@ export function CargoDetailsModal({
                                 return (
                                     <ShipmentStatusPanel
                                         steps={perevozkaTimeline ?? []}
+                                        routeMap={getCargoTransportType(item) === 'ferry' && fromCity === 'KGD' && toCity === 'MSK'
+                                            ? <CargoFerryMap key={String(item.Number)} item={item} auth={auth}/> : undefined}
                                         fromCity={fromCity}
                                         toCity={toCity}
                                         totalHours={totalHours}

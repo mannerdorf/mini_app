@@ -1,0 +1,5 @@
+.cargo-ferry-map { margin:12px 0 16px; min-width:0; }
+.cargo-ferry-map__canvas { position:relative; height:270px; border-radius:14px; overflow:hidden; background:var(--color-bg-hover); border:1px solid var(--color-border); }
+.cargo-ferry-map__canvas iframe { position:absolute; inset:0; height:100%; width:100%; border:0; }
+.cargo-ferry-map__canvas > p { display:grid; place-items:center; height:100%; margin:0; padding:18px; box-sizing:border-box; font-size:.85rem; color:var(--color-text-secondary); }
+.cargo-ferry-map__caption { margin:6px 0 0; color:var(--color-text-secondary); font-size:.72rem; overflow-wrap:anywhere; }
