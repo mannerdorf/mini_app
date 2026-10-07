@@ -34,7 +34,7 @@ export function SendingTrackingDialog({ ferry, auth, initialNumber, onClose }: {
       .finally(() => { if (!stopped) setLoading(false); });
     return () => { stopped = true; };
   }, [query, refresh, ferry.id, ferry.provider, auth.login, auth.password]);
-  const field = (label: string, value: React.ReactNode) => <div><dt>{label}</dt><dd>{value ?? '—'}</dd></div>;
+  const field = (label: string, value: React.ReactNode) => value == null || value === '' || value === '—' ? null : <div><dt>{label}</dt><dd>{value}</dd></div>;
   return <GuardedDialog title={`Трекинг ${ferry.provider} — ${ferry.name}`} onClose={onClose} className="sending-tracking-dialog">
     <header><PackageSearch size={24} /><div><h2>Трекинг {ferry.provider}</h2><p>{ferry.name}</p></div><button className="tracking-icon" onClick={onClose} aria-label="Закрыть трекинг"><X /></button></header>
     <form onSubmit={event => { event.preventDefault(); const next = input.trim().toUpperCase().replace(/\s+/g, ''); setQuery(next); setRefresh(n => n + 1); }}>

@@ -78,11 +78,15 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
                   <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{row.operator || "—"}</td>
                   <td style={{ padding: '0.5rem 0.75rem' }}>
                     <Flex align="center" gap="0.35rem">
-                      <Input value={f.ferryEditApi[row.id] ?? row.api_provider ?? ''}
-                        aria-label={`API судна ${row.name}`} placeholder="—" maxLength={80}
+                      <select value={f.ferryEditApi[row.id] ?? row.api_provider ?? ''}
+                        aria-label={`API судна ${row.name}`}
                         disabled={!!f.ferryApiLoading[row.id] || f.ferryDeleteLoading === row.id}
                         style={{ width: '7rem', padding: '0.25rem 0.4rem', fontSize: '0.85rem' }}
-                        onChange={e => f.setFerryEditApi(prev => ({ ...prev, [row.id]: e.target.value }))} />
+                        onChange={e => f.setFerryEditApi(prev => ({ ...prev, [row.id]: e.target.value }))}>
+                        <option value="">Не выбран</option>
+                        <option value="FESCO">FESCO</option>
+                        {row.api_provider && row.api_provider !== 'FESCO' && <option value={row.api_provider}>{row.api_provider}</option>}
+                      </select>
                       {f.ferryEditApi[row.id] !== undefined && f.ferryEditApi[row.id].trim() !== (row.api_provider || '') &&
                         <Button type="button" className="button-primary" disabled={!!f.ferryApiLoading[row.id] || f.ferryDeleteLoading === row.id}
                           style={{ padding: '0.2rem 0.5rem', minWidth: 'auto', fontSize: '0.75rem' }}
