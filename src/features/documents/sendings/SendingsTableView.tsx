@@ -1,8 +1,9 @@
 import { SendingPlanDateProgress } from "./PlanDateQueueStatus";
 import React from "react";
+import "./sendings-table.css";
 import { motion } from "motion/react";
 
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp, MapPin } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { CargoTransportTypeIcon } from "../../../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
@@ -106,10 +107,19 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
     handleOpenCargo,
   } = props;
   const sendingsAnalyticsExtraColCount = getSendingsAnalyticsExtraColCount(hasAnalytics, showSums);
+  const columnWeights = [
+    ...(canSelectSendingRows ? [28] : []),
+    100, 65, 95, 45, 60, 105, 135, 120, 125,
+    ...(hasAnalytics ? [70] : []),
+    ...(hasAnalytics && showSums ? [95, 105] : []),
+    110,
+  ];
+  const totalColumnWeight = columnWeights.reduce((sum, weight) => sum + weight, 0);
   return (
                 <motion.div key="docs-send-table" className="documents-table-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
-                <div className="cargo-card" style={{ overflowX: 'auto', marginBottom: '1rem' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <div className="cargo-card sendings-table-container" style={{ marginBottom: '1rem' }}>
+                    <table className="sendings-table" style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                        <colgroup>{columnWeights.map((weight, index) => <col key={index} style={{ width: `${weight / totalColumnWeight * 100}%` }} />)}</colgroup>
                         <thead>
                             <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-bg-hover)' }}>
                                 {canSelectSendingRows && (
@@ -169,6 +179,8 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const ferryEntry = getSendingsFerryEntry(rowKey, number);
+                                const selectedFerry = ferriesList.find((ferry: { id: number; mmsi: string }) => Number(ferry.id) === Number(ferryEntry?.ferry_id));
+                                const ferryMmsi = String(selectedFerry?.mmsi ?? '').trim().replace(/\D/g, '');
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
                                 return (
@@ -228,17 +240,29 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }} onClick={(e) => e.stopPropagation()}>
+                                                <div className="sendings-ferry-control">
                                                 <select
                                                     aria-label={`Выбор парома для отправки ${number || rowKey}`}
                                                     value={ferryEntry?.ferry_id ?? ''}
                                                     disabled={!!ferryEtaLoadingByRow[rowKey]}
                                                     onChange={(e) => { void handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null); }}
-                                                    style={{ maxWidth: 220, padding: '0.35rem', color: 'var(--color-text-primary)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6 }}
+                                                    style={{ width: '100%', minWidth: 0, maxWidth: '100%', padding: '0.35rem', color: 'var(--color-text-primary)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6 }}
                                                 >
                                                     <option value="">Не выбран</option>
                                                     {ferryEntry && !ferriesList.some((ferry: { id: number }) => Number(ferry.id) === Number(ferryEntry.ferry_id)) && <option value={ferryEntry.ferry_id}>{ferryEntry.ferry_name}</option>}
                                                     {ferriesList.map((ferry: { id: number; name: string }) => <option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}
                                                 </select>
+                                                {ferryEntry && onOpenAisWithMmsi && (
+                                                    <button
+                                                        type="button"
+                                                        className="sendings-ferry-map-icon"
+                                                        aria-label={`Показать паром ${ferryEntry.ferry_name} на карте`}
+                                                        title={ferryMmsi.length === 9 ? `Показать ${ferryEntry.ferry_name} на карте` : 'Для этого парома не указан MMSI'}
+                                                        disabled={ferryMmsi.length !== 9}
+                                                        onClick={() => onOpenAisWithMmsi(ferryMmsi)}
+                                                    ><MapPin size={18} aria-hidden="true" /></button>
+                                                )}
+                                                </div>
                                             </td>
                                             {hasAnalytics && (
                                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>

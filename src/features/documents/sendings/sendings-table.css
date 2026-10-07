@@ -1,0 +1,26 @@
+/* Fit the sending overview to its container; nested parcel tables keep their own layout. */
+.sendings-table-container { min-width: 0; max-width: 100%; }
+.sendings-table > thead > tr > th,
+.sendings-table > tbody > tr > td {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.sendings-table > thead > tr > th { padding-inline: 0.25rem !important; }
+.sendings-table > tbody > tr > td { padding-inline: 0.25rem !important; }
+.sendings-table > tbody > tr > td > * { max-width: 100%; }
+.sendings-table > tbody > tr > td .max-badge,
+.sendings-table > tbody > tr > td .app-badge {
+  white-space: normal !important;
+}
+
+.sendings-ferry-control { display: flex; align-items: center; gap: 0.25rem; min-width: 0; }
+.sendings-ferry-control select { flex: 1; min-width: 0; }
+.sendings-ferry-map-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: 0 0 24px; width: 24px; height: 32px; padding: 0;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none;
+  color: var(--color-primary-blue, #2563eb); cursor: pointer;
+}
+.sendings-ferry-map-icon:disabled { opacity: 0.4; cursor: default; }
+.sendings-ferry-map-icon:focus-visible { outline: 2px solid var(--color-primary-blue, #2563eb); outline-offset: 2px; }
