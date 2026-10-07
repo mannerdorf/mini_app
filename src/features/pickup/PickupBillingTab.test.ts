@@ -3,9 +3,9 @@ import {act,create} from 'react-test-renderer';
 import {afterEach,expect,it,vi} from 'vitest';
 import {PickupBillingTab} from './PickupBillingTab';
 let root:ReturnType<typeof create>;
-afterEach(()=>{if(root)act(()=>root.unmount());});
+afterEach(()=>{if(root)act(()=>root.unmount());vi.unstubAllGlobals();});
 const row={jobId:'1',jobNumber:'ZB-1',date:'2026-09-19',customer:'Тест',version:4,amount:100,status:'not_issued',orderNumber:'000123'};
-async function mount(call:any,onOpenInvoice?: (invoice:Record<string,unknown>)=>void){await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:row.date,jobs:[],routes:[],call,onOpenInvoice}));});}
+async function mount(call:any,onOpenInvoice?: (invoice:Record<string,unknown>)=>void){vi.stubGlobal('document',{activeElement:null});await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:row.date,jobs:[],routes:[],call,onOpenInvoice}));});}
 const issue=()=>root.root.findAllByType('button').find(b=>b.children.includes('Выставить счёт'))!;
 it('saves the edited amount before sending with the returned version',async()=>{
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[row]}:b.action==='billing_save'?{ok:true,version:5}:{ok:true,status:'transmitted'});
@@ -51,7 +51,7 @@ it('offers an explicit retry without a sandbox or a preview request',async()=>{
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'manual'}]}:{ok:true});
  await mount(call);
  expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal']);
- const retry=root.root.findAllByType('button').find(b=>b.children.includes('Повторить передачу в 1С'))!;
+ const retry=root.root.findAllByType('button').find(b=>b.props['aria-label']==='Повторить передачу в 1С ZB-1')!;
  await act(async()=>retry.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_send',id:'1',version:4,confirmed:true,retry:true,createInvoice:true});
  expect(call.mock.calls.filter(([b])=>b.action==='billing_send')).toHaveLength(1);
@@ -122,7 +122,8 @@ it('selects a journal invoice and saves its number and date with the reviewed ro
  const open=vi.fn();
  const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'issued'}]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Услуги по забору груза',amount:1350,transportNumbers:['000142649']}]}:{ok:true});
  await mount(call,open);
- await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить счёт'))!.props.onClick());
+ await act(async()=>root.root.findAllByType('button').find(b=>b.props['aria-label']==='Сопоставить счёт ZB-1')!.props.onClick());
+ expect(root.root.findByType('dialog').props['aria-label']).toBe('Сопоставить счёт');
  expect(root.root.findAllByType('option')[1].children.join('')).toContain('000142649');
  expect(root.root.findAllByType('option')[1].children.join('')).toContain('₽');
  await act(async()=>root.root.findByType('select').props.onChange({target:{value:'0'}}));
@@ -130,13 +131,14 @@ it('selects a journal invoice and saves its number and date with the reviewed ro
  expect(open).toHaveBeenCalledWith({Number:'4200',Customer:'Тест',_invoiceReferenceDate:'2026-09-18'});
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить'))!.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_match_invoice',id:'1',version:4,invoiceNumber:'4200',invoiceDate:'2026-09-18'});
+ expect(root.root.findAllByType('dialog')).toHaveLength(0);
  expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
 });
 
 it.each(['manual','uncertain','sending'])('uses invoice matching instead of blind manual confirmation for %s',async(status)=>{
  await mount(vi.fn(async()=>({rows:[{...row,status}]})));
  const buttons=root.root.findAllByType('button');
- expect(buttons.some(b=>b.children.includes('Сопоставить счёт'))).toBe(true);
+ expect(buttons.some(b=>b.props['aria-label']==='Сопоставить счёт ZB-1')).toBe(true);
  expect(buttons.some(b=>b.children.includes('Подтвердить ручное выставление'))).toBe(false);
 });
 
@@ -147,6 +149,7 @@ it('searches and matches a missing transport with the job version returned by th
  await act(async()=>root.root.findByProps({'aria-label':'Перевозка 000123'}).props.onChange({target:{checked:true}}));
  await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сохранить сопоставление'))!.props.onClick());
  expect(call).toHaveBeenCalledWith({action:'billing_match_transport',id:'1',jobVersion:8,transportNumber:'000123'});
+ expect(root.root.findAllByType('dialog')).toHaveLength(0);
  expect(root.root.findAllByProps({role:'dialog'})).toHaveLength(0);
 });
 
@@ -155,29 +158,18 @@ it.each(['CreatePickupInvoice','SetPickupCost'])('distinguishes an existing invo
  const status=root.root.findByProps({'data-label':'Статус'});
  expect(status.findByType('strong').children.join('')).not.toContain('требуется ручное выставление');
  expect(status.findByType('strong').children.join('')).toContain(invoiceRequestMethod==='CreatePickupInvoice'?'Счёт за забор уже есть':'отклонила изменение стоимости');
- expect(root.root.findAllByType('button').some(b=>b.children.includes('Повторить передачу в 1С'))).toBe(invoiceRequestMethod!=='CreatePickupInvoice');
+ expect(root.root.findAllByType('button').some(b=>b.props['aria-label']==='Повторить передачу в 1С ZB-1')).toBe(invoiceRequestMethod!=='CreatePickupInvoice');
 });
 
-it.each(['manual','uncertain','not_issued'])('hides obsolete transmission actions and errors when an invoice exists (%s)',async(status)=>{
+it.each(['manual','uncertain','not_issued','issued','transmitted','sending'])('hides obsolete transmission actions and errors when an invoice exists (%s)',async(status)=>{
  await mount(vi.fn(async()=>({rows:[{...row,status,invoiceNumber:'4053',last_error:'Ошибка записи счета',source:{mode:'manual'}}]})),vi.fn());
+ expect(root.root.findByProps({'data-label':'Действие'}).findAllByType('button')).toHaveLength(0);
+ expect(root.root.findByProps({'data-label':'Сумма, ₽'}).findAllByType('button')).toHaveLength(0);
  const buttons=root.root.findAllByType('button');
- expect(buttons.some(b=>b.children.includes('Повторить передачу в 1С')||b.children.includes('Выставить счёт'))).toBe(false);
+ expect(buttons.some(b=>b.props['aria-label']==='Повторить передачу в 1С ZB-1'||b.children.includes('Выставить счёт'))).toBe(false);
  expect(JSON.stringify(root.toJSON())).not.toContain('Ошибка записи счета');
  expect(JSON.stringify(root.toJSON())).not.toContain('Не выставлен — ручной расчёт');
  expect(root.root.findByProps({'data-label':'Статус'}).findByType('button')).toBeTruthy();
-});
-
-it('keeps matching available for an existing invoice and replaces it without issuing another invoice',async()=>{
- const matched={...row,status:'issued',invoiceNumber:'4200',invoiceReferenceDate:'2026-09-18'};
- const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[matched]}:b.action==='billing_invoice_candidates'?{invoices:[{number:'4200',date:'2026-09-18',description:'Первый'},{number:'4201',date:'2026-09-19',description:'Второй'}]}:{ok:true});
- await mount(call);
- await act(async()=>root.root.findByProps({'aria-label':'Изменить сопоставление счёта ZB-1'}).props.onClick());
- expect(root.root.findByType('select').props.value).toBe('0');
- await act(async()=>root.root.findByType('select').props.onChange({target:{value:'1'}}));
- await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Сопоставить'))!.props.onClick());
- expect(call).toHaveBeenCalledWith({action:'billing_match_invoice',id:'1',version:4,invoiceNumber:'4201',invoiceDate:'2026-09-19'});
- expect(call.mock.calls.some(([b])=>b.action==='billing_send'||b.action==='billing_save')).toBe(false);
- expect(root.root.findByProps({'aria-label':'Изменить сопоставление счёта ZB-1'})).toBeTruthy();
 });
 
 it('keeps checked transports across search and submits multiple numbers in billing-anchor order',async()=>{
@@ -196,13 +188,11 @@ it('keeps checked transports across search and submits multiple numbers in billi
  expect(call.mock.calls.some(([b])=>b.action==='billing_send')).toBe(false);
 });
 
-it('shows saved cURL and 1C response without retrying the write',async()=>{
- const call=vi.fn(async(b:any)=>b.action==='billing_journal'?{rows:[{...row,status:'uncertain'}]}:{attempts:[{id:'1',createdAt:'2026-10-01T10:00:00Z',method:'CreatePickupInvoice',error:'Ошибка записи счета',diagnostics:{curl:'curl masked',status:500,response:'actual response',elapsedMs:123}}]});
+it.each(['not_issued','manual','uncertain','sending','transmitted','issued'])('does not expose 1C diagnostics for %s',async(status)=>{
+ const call=vi.fn(async()=>({rows:[{...row,status}]}));
  await mount(call);
- await act(async()=>root.root.findAllByType('button').find(b=>b.children.includes('Диагностика 1С'))!.props.onClick());
- expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal','billing_diagnostics']);
- const rendered=JSON.stringify(root.toJSON());
- expect(rendered).toContain('curl masked');expect(rendered).toContain('actual response');
+ expect(JSON.stringify(root.toJSON())).not.toContain('Диагностика 1С');
+ expect(call.mock.calls.map(([b])=>b.action)).toEqual(['billing_journal']);
 });
 it('shows each transport and its total inside the amount cell',async()=>{
  const call=vi.fn(async()=>({rows:[{...row,amount:3000,matchedTransportNumbers:['000001','000002'],breakdown:[{transportNumber:'000001',amount:1350},{transportNumber:'000002',amount:1650}]}]}));
@@ -214,4 +204,12 @@ it('shows each transport and its total inside the amount cell',async()=>{
  expect(content).toContain('Итого по расчёту: 3 000 ₽');
  expect(content).toContain('1 350 ₽');expect(content).toContain('1 650 ₽');
  expect(root.root.findByProps({'aria-label':'Расчёт перевозок ZB-1'})).toBeTruthy();
+});
+
+it('shows the awaiting invoice status in yellow without matching actions',async()=>{
+ await mount(vi.fn(async()=>({rows:[{...row,status:'transmitted'}]})));
+ expect(root.root.findByProps({'data-label':'Действие'}).findAllByType('button')).toHaveLength(0);
+ const status=root.root.findByProps({'data-label':'Статус'}).findByType('strong');
+ expect(status.children.join('')).toBe('Стоимость передана — ожидается счёт');
+ expect(status.props.style.color).toBe('var(--pk-awaiting-invoice-text)');
 });

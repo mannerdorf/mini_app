@@ -2544,8 +2544,8 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   .pk-day-customer { grid-column: 1 / -1; }
 }
 
-.pk-root { --pk-success-text: #4ade80; --pk-warning-text: #fbbf24; }
-.light-mode .pk-root { --pk-success-text: #166534; --pk-warning-text: #92400e; }
+.pk-root { --pk-success-text: #4ade80; --pk-warning-text: #fbbf24; --pk-awaiting-invoice-text: #facc15; }
+.light-mode .pk-root { --pk-success-text: #166534; --pk-warning-text: #92400e; --pk-awaiting-invoice-text: #a16207; }
 
 /* Narrow panels use cards so actions and financial inputs remain readable. */
 @container pickup-billing (max-width: 1100px) {
@@ -2997,3 +2997,15 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
   overflow-wrap: normal;
   word-break: normal;
 }
+
+.pk-root dialog.pk-invoice-match-dialog { width: min(900px, 94vw); max-width: 94vw; margin: auto; }
+.pk-root dialog.pk-invoice-match-dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.pk-root .pk-invoice-match-dialog select { width: 100%; min-width: 0; }
+
+.pk-root .pk-billing-table td[data-label="Действие"] button.pk-billing-action-icon {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; min-height: 44px; padding: 8px;
+  border: 0; background: transparent; box-shadow: none; color: inherit;
+}
+.pk-root .pk-billing-action-icon:hover { color: var(--color-primary, #2563eb); }
+.pk-root .pk-billing-action-icon:focus-visible { outline: 2px solid var(--color-primary, #2563eb); outline-offset: 2px; }
