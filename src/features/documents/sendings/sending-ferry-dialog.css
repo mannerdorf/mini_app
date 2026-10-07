@@ -1,0 +1,10 @@
+dialog.sending-ferry-dialog { width: min(960px, 94vw); max-width: 94vw; margin: auto; padding: 1rem; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-bg-primary, #fff); color: var(--color-text-primary); box-sizing: border-box; }
+.sending-ferry-dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.sending-ferry-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.sending-ferry-dialog__header h2 { margin: 0; font-size: 1.1rem; overflow-wrap: anywhere; }
+.sending-ferry-dialog__header > div { display: flex; flex-shrink: 0; }
+.sending-ferry-dialog__icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border: 0; padding: 8px; background: transparent; box-shadow: none; color: inherit; cursor: pointer; }
+.sending-ferry-dialog__icon:disabled { opacity: 0.5; cursor: default; }
+.sending-ferry-dialog__icon:focus-visible { outline: 2px solid var(--color-primary-blue, #2563eb); outline-offset: 2px; }
+.sending-ferry-dialog__hint { color: var(--color-text-secondary); font-size: 0.85rem; }
+.sending-ferry-dialog__error { color: var(--color-error, #dc2626); }

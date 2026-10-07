@@ -4,6 +4,7 @@ import {
   enrichAdminFerriesMarinesia,
   fetchAdminFerries,
   saveAdminFerry,
+  setAdminFerryActive,
   type AdminFerryRow,
 } from "../../../api/client/admin/directories";
 
@@ -19,6 +20,7 @@ export function useAdminFerries({ adminToken }: Params) {
   const [ferriesEnrichMessage, setFerriesEnrichMessage] = useState<string | null>(null);
   const [ferryEditMmsi, setFerryEditMmsi] = useState<Record<number, string>>({});
   const [ferrySaveLoading, setFerrySaveLoading] = useState<number | null>(null);
+  const [ferryToggleLoading, setFerryToggleLoading] = useState<Record<number, boolean>>({});
   const [ferryDeleteLoading, setFerryDeleteLoading] = useState<number | null>(null);
   const [ferryAddModalOpen, setFerryAddModalOpen] = useState(false);
   const [ferryAddName, setFerryAddName] = useState("");
@@ -81,6 +83,20 @@ export function useAdminFerries({ adminToken }: Params) {
     }
   }, [adminToken, refreshList]);
 
+  const toggleFerry = useCallback(async (ferry: AdminFerryRow) => {
+    setFerryToggleLoading(prev => ({ ...prev, [ferry.id]: true }));
+    setFerriesEnrichMessage(null);
+    try {
+      const active = ferry.active === false;
+      await setAdminFerryActive(adminToken, ferry.id, active);
+      setFerriesList(prev => prev.map(row => row.id === ferry.id ? { ...row, active } : row));
+    } catch (e) {
+      setFerriesEnrichMessage((e as Error)?.message || "Не удалось изменить активность парома");
+    } finally {
+      setFerryToggleLoading(prev => ({ ...prev, [ferry.id]: false }));
+    }
+  }, [adminToken]);
+
   const deleteFerry = useCallback(async (ferry: AdminFerryRow) => {
     if (!window.confirm(`Удалить паром «${ferry.name}» (${ferry.mmsi})?`)) return;
     setFerryDeleteLoading(ferry.id);
@@ -124,6 +140,8 @@ export function useAdminFerries({ adminToken }: Params) {
     ferryEditMmsi,
     setFerryEditMmsi,
     ferrySaveLoading,
+    ferryToggleLoading,
+    toggleFerry,
     ferryDeleteLoading,
     ferryAddModalOpen,
     ferryAddName,

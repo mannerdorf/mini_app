@@ -56,17 +56,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     try {
-      const { rows } = await pool.query<{ row_key: string; ferry_id: number; ferry_name: string; eta: string | null }>(
-        `select sf.row_key, sf.ferry_id, f.name as ferry_name, sf.eta
+      const { rows } = await pool.query<{ row_key: string; ferry_id: number; ferry_name: string; mmsi: string; eta: string | null }>(
+        `select sf.row_key, sf.ferry_id, f.name as ferry_name, f.mmsi, sf.eta
            from sendings_ferry sf
            join ferries f on f.id = sf.ferry_id
           where lower(trim(sf.login)) = $1`,
         [login]
       );
-      const map: Record<string, { ferry_id: number; ferry_name: string; eta: string | null }> = {};
+      const map: Record<string, { ferry_id: number; ferry_name: string; mmsi: string; eta: string | null }> = {};
       for (const row of rows) {
         if (!row.row_key) continue;
-        const entry = { ferry_id: row.ferry_id, ferry_name: row.ferry_name, eta: row.eta };
+        const entry = { ferry_id: row.ferry_id, ferry_name: row.ferry_name, mmsi: row.mmsi, eta: row.eta };
         const keys = keyVariants(row.row_key);
         for (const key of keys) {
           map[key] = entry;
@@ -101,6 +101,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       );
       return res.status(200).json({ ok: true, rowKey, ferry_id: null, eta: null, request_id: ctx.requestId });
     }
+
+    const available = await pool.query("SELECT id FROM ferries WHERE id=$1 AND active=true", [ferryId]);
+    if (!available.rows.length) return res.status(409).json({ error: "Паром выключен или удалён. Выберите другой паром.", request_id: ctx.requestId });
 
     const updated = await pool.query(
       `update sendings_ferry

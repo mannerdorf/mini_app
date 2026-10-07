@@ -55,7 +55,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (resp.status === 429) {
       return res.status(429).json({
-        error: "Marinesia: превышен лимит запросов (Free: 1 запрос / 30 мин)",
+        error: "Marinesia: превышен лимит запросов. Повторите немного позже.",
         request_id: ctx.requestId,
       });
     }

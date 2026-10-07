@@ -111,7 +111,7 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
   const [sendingSanctionMap, setSendingSanctionMap] = useState<Record<string, SanctionCheckResult>>({});
   const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
   const [sendingsFerryMap, setSendingsFerryMap] = useState<
-    Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>
+    Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }>
   >({});
   const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
 

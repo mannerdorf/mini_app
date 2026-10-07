@@ -6,6 +6,7 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 export type Ferry = {
   id: number;
   name: string;
+  active: boolean;
   mmsi: string;
   imo: string | null;
   vessel_type: string | null;
@@ -28,6 +29,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(401).json({ error: "Требуется авторизация админа", request_id: ctx.requestId });
   }
 
+  if (req.method === "PATCH") {
+    const body = req.body as Record<string, unknown> | undefined;
+    if (!Number.isInteger(body?.id) || Number(body?.id) < 1 || typeof body?.active !== "boolean") {
+      return res.status(400).json({ error: "Нужны id парома и active (true/false)", request_id: ctx.requestId });
+    }
+    try {
+      const { rows } = await getPool().query("UPDATE ferries SET active=$2, updated_at=now() WHERE id=$1 RETURNING id, active", [body.id, body.active]);
+      if (!rows.length) return res.status(404).json({ error: "Паром не найден", request_id: ctx.requestId });
+      return res.status(200).json({ ok: true, ...rows[0], request_id: ctx.requestId });
+    } catch (e) {
+      logError(ctx, "ferries_toggle_failed", e);
+      return res.status(500).json({ error: "Не удалось изменить активность парома", request_id: ctx.requestId });
+    }
+  }
+
   if (req.method === "DELETE") {
     const idRaw = req.query?.id ?? (req.body as Record<string, unknown>)?.id;
     const id = typeof idRaw === "number" ? idRaw : typeof idRaw === "string" ? parseInt(idRaw, 10) : undefined;
@@ -48,7 +64,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const pool = getPool();
       const { rows } = await pool.query<Ferry>(
-        `SELECT id, name, mmsi, imo, vessel_type, teu_capacity, trailer_capacity, operator, created_at::text, updated_at::text
+        `SELECT id, name, active, mmsi, imo, vessel_type, teu_capacity, trailer_capacity, operator, created_at::text, updated_at::text
          FROM ferries ORDER BY name`
       );
       return res.status(200).json({ ferries: rows, request_id: ctx.requestId });
@@ -98,6 +114,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  res.setHeader("Allow", "GET, POST, DELETE");
+  res.setHeader("Allow", "GET, POST, PATCH, DELETE");
   return res.status(405).json({ error: "Method not allowed", request_id: ctx.requestId });
 }

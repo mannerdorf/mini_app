@@ -7,6 +7,7 @@ import { adminAuthHeaders } from "./auth";
 export type AdminFerryRow = {
   id: number;
   name: string;
+  active: boolean;
   mmsi: string;
   imo: string | null;
   vessel_type: string | null;
@@ -44,6 +45,16 @@ export async function saveAdminFerry(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((data as { error?: string })?.error || "Ошибка сохранения");
+}
+
+export async function setAdminFerryActive(adminToken: string, id: number, active: boolean): Promise<void> {
+  const res = await fetch("/api/ferries", {
+    method: "PATCH",
+    headers: adminAuthHeaders(adminToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ id, active }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Не удалось изменить активность парома");
 }
 
 export async function deleteAdminFerry(adminToken: string, id: number): Promise<void> {

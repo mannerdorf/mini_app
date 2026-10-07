@@ -1,4 +1,5 @@
 import React from "react";
+import { TapSwitch } from "../../../components/TapSwitch";
 import { Button, Flex, Input, Typography } from "@maxhub/max-ui";
 import { Loader2, Trash2 } from "lucide-react";
 import type { AdminFerriesState } from "../hooks/useAdminFerries";
@@ -23,6 +24,7 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
         <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.9rem" }}>
           <thead>
             <tr style={{ background: "var(--color-bg-hover)", borderBottom: "1px solid var(--color-border)" }}>
+              <th style={{ padding: "0.5rem 0.75rem", textAlign: "center", fontWeight: 600 }}>Включён</th>
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Наименование</th>
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>MMSI</th>
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>IMO</th>
@@ -40,7 +42,11 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
               const mmsiValid = mmsiVal.replace(/\D/g, "").length === 9;
               return (
                 <tr key={row.id} style={{ borderBottom: "1px solid var(--color-border)" }}>
-                  <td style={{ padding: "0.5rem 0.75rem" }}>{row.name}</td>
+                  <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
+                    <TapSwitch checked={row.active !== false} disabled={!!f.ferryToggleLoading[row.id] || f.ferryDeleteLoading === row.id}
+                      aria-label={`Паром ${row.name}: включён`} onToggle={() => { void f.toggleFerry(row); }} />
+                  </td>
+                  <td style={{ padding: "0.5rem 0.75rem", color: row.active === false ? "var(--color-text-secondary)" : undefined }}>{row.name}</td>
                   <td style={{ padding: "0.5rem 0.75rem" }}>
                     <Flex align="center" gap="0.35rem">
                       <Input
@@ -73,7 +79,7 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
                     <Button
                       type="button"
                       className="filter-button"
-                      disabled={f.ferryDeleteLoading === row.id}
+                      disabled={f.ferryDeleteLoading === row.id || !!f.ferryToggleLoading[row.id]}
                       style={{ padding: "0.25rem", minWidth: "auto", color: "var(--color-error)" }}
                       onClick={(e) => {
                         e.stopPropagation();

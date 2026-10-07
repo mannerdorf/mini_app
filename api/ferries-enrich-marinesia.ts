@@ -37,8 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const pool = getPool();
     const { rows: ferries } = await pool.query<{ id: number; mmsi: string; name: string }>(
       mmsiList && mmsiList.length > 0
-        ? "SELECT id, mmsi, name FROM ferries WHERE mmsi = ANY($1)"
-        : "SELECT id, mmsi, name FROM ferries",
+        ? "SELECT id, mmsi, name FROM ferries WHERE active=true AND mmsi = ANY($1)"
+        : "SELECT id, mmsi, name FROM ferries WHERE active=true",
       mmsiList && mmsiList.length > 0 ? [mmsiList] : []
     );
 

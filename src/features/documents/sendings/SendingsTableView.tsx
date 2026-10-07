@@ -1,5 +1,6 @@
 import { SendingPlanDateProgress } from "./PlanDateQueueStatus";
-import React from "react";
+import React, { useState } from "react";
+import { SendingFerryDialog } from "./SendingFerryDialog";
 import "./sendings-table.css";
 import { motion } from "motion/react";
 
@@ -106,6 +107,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
     auth,
     handleOpenCargo,
   } = props;
+  const [ferryOnMap, setFerryOnMap] = useState<{ mmsi: string; name: string } | null>(null);
   const sendingsAnalyticsExtraColCount = getSendingsAnalyticsExtraColCount(hasAnalytics, showSums);
   const columnWeights = [
     ...(canSelectSendingRows ? [28] : []),
@@ -180,7 +182,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const ferryEntry = getSendingsFerryEntry(rowKey, number);
                                 const selectedFerry = ferriesList.find((ferry: { id: number; mmsi: string }) => Number(ferry.id) === Number(ferryEntry?.ferry_id));
-                                const ferryMmsi = String(selectedFerry?.mmsi ?? '').trim().replace(/\D/g, '');
+                                const ferryMmsi = String(selectedFerry?.mmsi ?? ferryEntry?.mmsi ?? '').trim().replace(/\D/g, '');
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
                                 return (
@@ -249,17 +251,17 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                                     style={{ width: '100%', minWidth: 0, maxWidth: '100%', padding: '0.35rem', color: 'var(--color-text-primary)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6 }}
                                                 >
                                                     <option value="">Не выбран</option>
-                                                    {ferryEntry && !ferriesList.some((ferry: { id: number }) => Number(ferry.id) === Number(ferryEntry.ferry_id)) && <option value={ferryEntry.ferry_id}>{ferryEntry.ferry_name}</option>}
+                                                    {ferryEntry && !ferriesList.some((ferry: { id: number }) => Number(ferry.id) === Number(ferryEntry.ferry_id)) && <option value={ferryEntry.ferry_id} disabled>{ferryEntry.ferry_name} (выключен)</option>}
                                                     {ferriesList.map((ferry: { id: number; name: string }) => <option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}
                                                 </select>
-                                                {ferryEntry && onOpenAisWithMmsi && (
+                                                {ferryEntry && (
                                                     <button
                                                         type="button"
                                                         className="sendings-ferry-map-icon"
                                                         aria-label={`Показать паром ${ferryEntry.ferry_name} на карте`}
                                                         title={ferryMmsi.length === 9 ? `Показать ${ferryEntry.ferry_name} на карте` : 'Для этого парома не указан MMSI'}
                                                         disabled={ferryMmsi.length !== 9}
-                                                        onClick={() => onOpenAisWithMmsi(ferryMmsi)}
+                                                        onClick={() => setFerryOnMap({ mmsi: ferryMmsi, name: ferryEntry.ferry_name })}
                                                     ><MapPin size={18} aria-hidden="true" /></button>
                                                 )}
                                                 </div>
@@ -298,6 +300,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                         </tbody>
                     </table>
                 </div>
+                {ferryOnMap && <SendingFerryDialog key={ferryOnMap.mmsi} ferry={ferryOnMap} onClose={() => setFerryOnMap(null)} />}
                 </motion.div>
   );
 }

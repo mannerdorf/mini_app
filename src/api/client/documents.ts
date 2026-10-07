@@ -132,7 +132,7 @@ export async function fetchFerriesList(): Promise<FerryListItem[]> {
 
 export type SendingsFerryMap = Record<
   string,
-  { ferry_id: number; ferry_name: string; eta: string | null }
+  { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }
 >;
 
 export async function fetchSendingsFerryMap(

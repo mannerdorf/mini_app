@@ -17,7 +17,7 @@ type Params = {
     SetStateAction<{ id: number; name: string; mmsi: string }[]>
   >;
   setSendingsFerryMap: Dispatch<
-    SetStateAction<Record<string, { ferry_id: number; ferry_name: string; eta: string | null }>>
+    SetStateAction<Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }>>
   >;
   resetSendingsUiState: () => void;
 };
