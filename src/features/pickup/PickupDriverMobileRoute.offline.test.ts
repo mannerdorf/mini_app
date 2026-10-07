@@ -14,3 +14,12 @@ it('allows completing the current stop after a safely queued arrival',()=>{
  expect(flow.props.job.version).toBe(1);
  expect(flow.props.busy).toBe(false);
 });
+
+it('shows sender phone and cargo measurements in the stop list',()=>{
+ const job={...props.routeJobs[0],data:{...props.routeJobs[0].data,contacts:[{phone:'+7 (999) 123-45-67',extension:'12'}],weightKg:229,volumeM3:2.737}};
+ act(()=>{root=create(React.createElement(PickupDriverMobileRoute,{...props,routeJobs:[job]}));});
+ const link=root.root.findByType('a');
+ expect(link.props.href).toBe('tel:+79991234567');
+ const rendered=JSON.stringify(root.toJSON());
+ expect(rendered).toContain('Телефон отправителя');expect(rendered).toContain('229');expect(rendered).toContain('2.737');
+});

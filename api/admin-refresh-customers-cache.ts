@@ -1,3 +1,4 @@
+import { normalizeCacheCustomers, replaceCustomerCache } from "../lib/customerCacheSync.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { getPool } from "./_db.js";
@@ -17,41 +18,6 @@ function parseBody(req: VercelRequest): { dryRun?: boolean } {
   }
   if (!body || typeof body !== "object" || Array.isArray(body)) return {};
   return { dryRun: (body as { dryRun?: boolean }).dryRun === true };
-}
-
-function extractCustomerArray(raw: unknown): any[] {
-  if (!raw || typeof raw !== "object") return [];
-  if (Array.isArray(raw)) return raw;
-  const o = raw as Record<string, unknown>;
-  const from =
-    o.Items ?? o.items ?? o.Customers ?? o.customers ?? o.Data ?? o.data ?? o.Result ?? o.result ?? o.Rows ?? o.rows;
-  if (Array.isArray(from)) return from;
-  if (o.INN != null || o.Inn != null || o.inn != null) return [o];
-  return Object.values(o).filter((v) => v && typeof v === "object") as any[];
-}
-
-function getStr(el: any, ...keys: string[]): string {
-  if (!el || typeof el !== "object") return "";
-  for (const key of keys) {
-    const value = el[key];
-    if (value != null && value !== "") return String(value).trim();
-  }
-  return "";
-}
-
-function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
-  const byInn = new Map<string, { inn: string; customer_name: string; email: string }>();
-  for (const el of extractCustomerArray(raw)) {
-    let inn = getStr(el, "Inn", "INN", "inn", "ИНН", "Code", "code", "Код");
-    inn = inn.replace(/\D/g, "") || inn.trim();
-    if (!inn || (inn.length !== 10 && inn.length !== 12)) continue;
-    const customer_name =
-      getStr(el, "Name", "name", "Customer", "customer", "Contragent", "contragent", "Client", "client", "Заказчик", "Наименование") ||
-      inn;
-    const email = getStr(el, "Email", "email", "E-mail", "e-mail", "Почта", "Mail");
-    byInn.set(inn, { inn, customer_name, email });
-  }
-  return Array.from(byInn.values());
 }
 
 function extractPayload(data: unknown): unknown {
@@ -177,14 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const pool = getPool();
-    await pool.query("delete from cache_customers");
-    await pool.query(
-      `insert into cache_customers (inn, customer_name, email, fetched_at)
-       select inn, customer_name, email, now()
-       from unnest($1::text[], $2::text[], $3::text[]) as t(inn, customer_name, email)
-       on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()`,
-      [rows.map((r) => r.inn), rows.map((r) => r.customer_name), rows.map((r) => r.email)],
-    );
+    await replaceCustomerCache(pool, rows);
 
     logInfo(ctx, "admin_refresh_customers_done", { customers_count: rows.length });
     return res.status(200).json({

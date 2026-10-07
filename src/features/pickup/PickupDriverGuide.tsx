@@ -103,8 +103,9 @@ export function PickupDriverStop({
           <strong>{job.data.senderName}</strong>
           <span>Заказчик: {job.data.customerName || "Нет данных"}</span>
           <span>{job.data.address}</span>
+          <span>{job.data.serviceKind === "last_mile" ? "Телефон получателя" : "Телефон отправителя"}: {(job.data.contacts ?? []).filter(c => c.phone.trim()).map((contact, index) => <React.Fragment key={index}>{index > 0 ? "; " : null}<a href={`tel:${contact.phone.replace(/[^+0-9]/g, "")}`} onClick={e => e.stopPropagation()}>{contact.phone}</a>{contact.extension ? ` · доб. ${contact.extension}` : ""}</React.Fragment>)}</span>
           <small>
-            {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг
+            {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг · {job.data.volumeM3 ?? "—"} м³
           </small>
         </span>
         <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />

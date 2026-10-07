@@ -8,6 +8,8 @@ export type AdminAutoRegisterCandidate = {
   inn: string;
   customer_name: string;
   email: string;
+  state?: "new" | "pending" | "needs_review";
+  reason?: string;
 };
 
 export type AdminAutoRegisterStats = {

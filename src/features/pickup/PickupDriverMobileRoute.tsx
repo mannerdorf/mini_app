@@ -112,7 +112,10 @@ export function PickupDriverMobileRoute({
       <details className="pk-driver-itinerary">
         <summary>Все остановки · {total}</summary>
         <p className="pk-hint">Старт: {routeStartAddress(route) || "Склад HAULZ"}</p>
-        <ol>{routeJobs.map((job) => <li key={job.id}><strong>{job.data.senderName}</strong><span>Заказчик: {job.data.customerName || "Нет данных"}</span><span>{job.data.address}</span><span>{job.data.windowFrom}–{job.data.windowTo} · {job.data.serviceKind === "last_mile" && job.status === "deposited" ? "Вручено получателю" : statusLabels[job.status]}</span></li>)}</ol>
+        <ol>{routeJobs.map((job) => <li key={job.id}><strong>{job.data.senderName}</strong><span>Заказчик: {job.data.customerName || "Нет данных"}</span><span>{job.data.address}</span>
+          <span>{job.data.serviceKind === "last_mile" ? "Телефон получателя" : "Телефон отправителя"}: {(job.data.contacts ?? []).some(c => c.phone.trim()) ? job.data.contacts.filter(c => c.phone.trim()).map((contact, index) => <React.Fragment key={index}>{index > 0 ? "; " : null}<a href={`tel:${contact.phone.replace(/[^+0-9]/g, "")}`} onClick={e => e.stopPropagation()}>{contact.phone}</a>{contact.extension ? ` · доб. ${contact.extension}` : ""}</React.Fragment>) : "Нет данных"}</span>
+          <span>Вес: {job.data.weightKg ?? "—"} кг · Объём: {job.data.volumeM3 ?? "—"} м³</span>
+          <span>{job.data.windowFrom}–{job.data.windowTo} · {job.data.serviceKind === "last_mile" && job.status === "deposited" ? "Вручено получателю" : statusLabels[job.status]}</span></li>)}</ol>
         <p><strong>Финиш: {route.snapshot.depot?.name || "Склад HAULZ"}</strong><br />{route.snapshot.depot?.data.address}</p>
         <PickupStopOrder route={route} jobs={routeJobs} busy={busy} error={error} disabled={blocked || draftDirty || stale || outboxCount > 0 || route.status === "completed"} onSave={async (ids, version) => Boolean(await act({ action: "reorder", id: route.id, version, ids, asDriver: true }, "Порядок точек сохранён"))} />
       </details>

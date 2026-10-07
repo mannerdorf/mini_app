@@ -1,117 +1,9 @@
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { getPool } from "./_db.js";
-import { verifyAdminToken, getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
-import { withErrorLog } from "../lib/requestErrorLog.js";
-import { generatePassword, hashPassword } from "../lib/passwordUtils.js";
-import { sendRegistrationEmail } from "../lib/sendRegistrationEmail.js";
-import { writeAuditLog } from "../lib/adminAuditLog.js";
-import { sendLkAddTo1c } from "../lib/sendLkTo1c.js";
-import { initRequestContext, logError } from "./_lib/observability.js";
-
-const DEFAULT_PERMISSIONS = {
-  cms_access: false,
-  home: true,
-  dashboard: true,
-  cargo: true,
-  doc_invoices: true,
-  doc_acts: true,
-  doc_orders: false,
-  doc_sendings: false,
-  doc_claims: false,
-  doc_contracts: false,
-  doc_acts_settlement: false,
-  doc_tariffs: false,
-  haulz: false,
-  eor: false,
-  chat: true,
-  service_mode: false,
-  analytics: false,
-  supervisor: false,
-};
-
-type Candidate = {
-  inn: string;
-  customer_name: string;
-  email: string;
-};
-
-function parseEnvInt(name: string, fallback: number, min: number, max: number): number {
-  const raw = Number.parseInt(String(process.env[name] || ""), 10);
-  if (!Number.isFinite(raw)) return fallback;
-  return Math.max(min, Math.min(max, raw));
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-function randomInt(min: number, max: number): number {
-  if (max <= min) return min;
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
-function normalizeEmail(v: string): string {
-  return String(v || "").trim().toLowerCase();
-}
-
-function isValidEmail(v: string): boolean {
-  const s = normalizeEmail(v);
-  return !!s && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
-
-async function collectCandidates(q?: string): Promise<{
-  candidates: Candidate[];
-  stats: { total: number; withEmail: number; validEmail: number; alreadyRegistered: number };
-}> {
-  const pool = getPool();
-  const search = String(q || "").trim();
-  const queryRows = search.length >= 2
-    ? await pool.query<{ inn: string; customer_name: string; email: string }>(
-        `select inn, customer_name, email
-         from cache_customers
-         where inn ilike $1 or customer_name ilike $1 or email ilike $1
-         order by customer_name
-         limit 5000`,
-        [`%${search.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`]
-      )
-    : await pool.query<{ inn: string; customer_name: string; email: string }>(
-        `select inn, customer_name, email
-         from cache_customers
-         order by customer_name
-         limit 5000`
-      );
-
-  const raw = queryRows.rows || [];
-  const total = raw.length;
-  const withEmailRows = raw.filter((r) => normalizeEmail(r.email) !== "");
-  const withEmail = withEmailRows.length;
-  const validRows = withEmailRows.filter((r) => isValidEmail(r.email));
-  const validEmail = validRows.length;
-
-  const users = await pool.query<{ login: string }>("select login from registered_users where coalesce(trim(login), '') <> ''");
-  const existingLogins = new Set(users.rows.map((r) => normalizeEmail(r.login)).filter(Boolean));
-
-  const uniq = new Map<string, Candidate>();
-  let alreadyRegistered = 0;
-  for (const row of validRows) {
-    const email = normalizeEmail(row.email);
-    if (existingLogins.has(email)) {
-      alreadyRegistered += 1;
-      continue;
-    }
-    const inn = String(row.inn || "").trim();
-    const customerName = String(row.customer_name || "").trim();
-    const key = `${email}|${inn}`;
-    if (!uniq.has(key)) {
-      uniq.set(key, { inn, customer_name: customerName, email });
-    }
-  }
-
-  return {
-    candidates: Array.from(uniq.values()),
-    stats: { total, withEmail, validEmail, alreadyRegistered },
-  };
-}
+import type { VercelRequest,VercelResponse } from '@vercel/node';
+import { getPool } from './_db.js';
+import { verifyAdminToken,getAdminTokenFromRequest,getAdminTokenPayload } from '../lib/adminAuth.js';
+import { withErrorLog } from '../lib/requestErrorLog.js';
+import { initRequestContext,logError } from './_lib/observability.js';
+import { collectCustomerCandidates,processCustomerOnboarding } from '../lib/customerOnboarding.js';
 
 async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "admin-auto-register-candidates");
@@ -128,7 +20,7 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method === "GET") {
     try {
       const q = typeof req.query.q === "string" ? req.query.q : "";
-      const { candidates, stats } = await collectCandidates(q);
+      const { candidates, stats } = await collectCustomerCandidates(getPool(),q);
       return res.status(200).json({
         ok: true,
         auto_mode_enabled: autoModeEnabled,
@@ -161,151 +53,11 @@ async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   try {
-    const q = typeof req.query.q === "string" ? req.query.q : "";
-    const { candidates } = await collectCandidates(q);
-    const innFilter = new Set((Array.isArray(body?.inns) ? body.inns : []).map((x) => String(x || "").trim()).filter(Boolean));
-    const requestedLimit = Math.max(1, Math.min(1000, Number(body?.limit) || candidates.length));
-    const maxPerRun = parseEnvInt("AUTO_REGISTER_MAX_PER_RUN", 20, 1, 200);
-    const limit = Math.min(requestedLimit, maxPerRun);
-    const targetAll = candidates
-      .filter((c) => (innFilter.size ? innFilter.has(c.inn) : true))
-      .slice(0, requestedLimit);
-    const target = targetAll.slice(0, limit);
-
-    // Антиспам: регулируем скорость отправки welcome-писем партиями.
-    const emailDelayMs = parseEnvInt("AUTO_REGISTER_EMAIL_DELAY_MS", 2000, 0, 30000);
-    const emailJitterMs = parseEnvInt("AUTO_REGISTER_EMAIL_JITTER_MS", 800, 0, 10000);
-
-    const pool = getPool();
-    let created = 0;
-    let skipped = 0;
-    let emailSent = 0;
-    let emailFailed = 0;
-    const errors: string[] = [];
-    let emailAttempts = 0;
-
-    for (const c of target) {
-      const login = normalizeEmail(c.email);
-      try {
-        const password = generatePassword(8);
-        const passwordHash = hashPassword(password);
-        const existing = await pool.query<{ id: number }>(
-          "select id from registered_users where lower(trim(login)) = $1 limit 1",
-          [login]
-        );
-        if (existing.rows.length > 0) {
-          skipped += 1;
-          continue;
-        }
-
-        const inserted = await pool.query<{ id: number }>(
-          `insert into registered_users (login, password_hash, inn, company_name, permissions, financial_access, access_all_inns)
-           values ($1, $2, $3, $4, $5, $6, $7)
-           returning id`,
-          [login, passwordHash, c.inn, c.customer_name || "", JSON.stringify(DEFAULT_PERMISSIONS), true, false]
-        );
-        const userId = inserted.rows[0]?.id;
-        if (!userId) {
-          skipped += 1;
-          continue;
-        }
-
-        await pool.query(
-          `insert into account_companies (login, inn, name)
-           values ($1, $2, $3)
-           on conflict (login, inn) do update set name = excluded.name`,
-          [login, c.inn, c.customer_name || ""]
-        );
-
-        created += 1;
-        await writeAuditLog(pool, {
-          action: "auto_user_register",
-          target_type: "user",
-          target_id: userId,
-          details: { login, inn: c.inn, customer_name: c.customer_name },
-        });
-        if (c.inn && login) {
-          const sendLkResult = await sendLkAddTo1c({ inn: c.inn, email: login });
-          await writeAuditLog(pool, {
-            action: sendLkResult.ok ? "integration_sendlk_sent" : "integration_sendlk_failed",
-            target_type: "user",
-            target_id: userId,
-            details: {
-              login,
-              inn: c.inn,
-              email: login,
-              source: "auto_register",
-              status: sendLkResult.status ?? null,
-              error: sendLkResult.ok ? null : (sendLkResult.error || sendLkResult.responseText || "unknown_error"),
-            },
-          });
-        } else {
-          await writeAuditLog(pool, {
-            action: "integration_sendlk_skipped",
-            target_type: "user",
-            target_id: userId,
-            details: {
-              login,
-              inn: c.inn || null,
-              email: login || null,
-              source: "auto_register",
-              reason: "missing_inn_or_email",
-            },
-          });
-        }
-
-        if (emailAttempts > 0 && emailDelayMs > 0) {
-          const pause = emailDelayMs + randomInt(0, emailJitterMs);
-          await sleep(pause);
-        }
-        emailAttempts += 1;
-        const sendResult = await sendRegistrationEmail(pool, login, login, password, c.customer_name || "");
-        if (sendResult.ok) {
-          emailSent += 1;
-          await writeAuditLog(pool, {
-            action: "email_delivery_registration_sent",
-            target_type: "user",
-            target_id: userId,
-            details: { login, email: login, source: "auto_register" },
-          });
-        } else {
-          emailFailed += 1;
-          await writeAuditLog(pool, {
-            action: "email_delivery_registration_failed",
-            target_type: "user",
-            target_id: userId,
-            details: { login, email: login, source: "auto_register", error: sendResult.error || "unknown_error" },
-          });
-        }
-      } catch (e: any) {
-        if (e?.code === "23505") {
-          skipped += 1;
-          continue;
-        }
-        errors.push(`${c.inn || c.email}: ${e?.message || "Ошибка"}`);
-      }
-    }
-
-    return res.status(200).json({
-      ok: true,
-      auto_mode_enabled: autoModeEnabled,
-      processed: target.length,
-      remaining_candidates: Math.max(0, targetAll.length - target.length),
-      run_limit: limit,
-      created,
-      skipped_existing: skipped,
-      email_sent: emailSent,
-      email_failed: emailFailed,
-      email_delay_ms: emailDelayMs,
-      email_jitter_ms: emailJitterMs,
-      errors: errors.slice(0, 20),
-      request_id: ctx.requestId,
-    });
-  } catch (e: unknown) {
-    const err = e as Error;
-    logError(ctx, "admin_auto_register_candidates_post_failed", err);
-    return res.status(500).json({ error: err?.message || "Ошибка авто-регистрации", request_id: ctx.requestId });
+    const result=await processCustomerOnboarding(getPool(),{limit:Number(body?.limit)||undefined,inns:Array.isArray(body?.inns)?body.inns.map(String):undefined});
+    return res.status(200).json({ok:true,auto_mode_enabled:true,...result,request_id:ctx.requestId});
+  } catch(e) {
+    logError(ctx,'customer_onboarding_failed',e);
+    return res.status(500).json({error:'Не удалось завершить регистрацию. Незавершённые шаги сохранены для повтора.',request_id:ctx.requestId});
   }
 }
-
 export default withErrorLog(handler);

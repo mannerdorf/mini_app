@@ -2,6 +2,8 @@ export type AdminCustomerRow = {
   inn: string;
   customer_name: string;
   email: string;
+  state?: "new" | "pending" | "needs_review";
+  reason?: string;
 };
 
 export type AdminCustomersSortBy = "inn" | "customer_name" | "email";

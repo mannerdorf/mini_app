@@ -37,6 +37,7 @@ export async function sendLkAddTo1c(params: {
   try {
     const upstream = await fetch(url.toString(), {
       method: "GET",
+      signal: AbortSignal.timeout(15000),
       headers: {
         Authorization: SERVICE_AUTH,
         Auth: `Basic ${creds.login}:${creds.password}`,
@@ -46,6 +47,12 @@ export async function sendLkAddTo1c(params: {
     if (!upstream.ok) {
       return { ok: false, status: upstream.status, responseText: text || upstream.statusText, error: text || upstream.statusText };
     }
+    try {
+      const result=JSON.parse(text);
+      if(result?.Success===false || result?.success===false) {
+        return {ok:false,status:upstream.status,responseText:text,error:String(result.Error||result.error||"1С отклонила передачу доступа")};
+      }
+    } catch { /* Some 1C versions return plain text on success. */ }
     return { ok: true, status: upstream.status, responseText: text };
   } catch (e: unknown) {
     const err = e as Error;

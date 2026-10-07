@@ -8,67 +8,16 @@ import { requireCronAuth } from "../_lib/cronAuth.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 import {
   ensureDocumentCacheTables,
-  fetchServiceJson,
   refreshDatedKindForWindow,
   ROTATING_DOCUMENT_KINDS,
   type DatedDocumentCacheKind,
   type DocumentCacheKind,
 } from "../../lib/documentCacheRefreshCore.js";
 
-const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
 
 function getStringQuery(req: VercelRequest, key: string): string {
   const value = req.query[key];
   return typeof value === "string" ? value.trim() : "";
-}
-
-function extractCustomerArray(raw: unknown): any[] {
-  if (!raw || typeof raw !== "object") return [];
-  if (Array.isArray(raw)) return raw;
-  const o = raw as Record<string, unknown>;
-  const from = o.Items ?? o.items ?? o.Customers ?? o.customers ?? o.Data ?? o.data ?? o.Result ?? o.result ?? o.Rows ?? o.rows;
-  if (Array.isArray(from)) return from;
-  if (o.INN != null || o.Inn != null || o.inn != null) return [o];
-  return Object.values(o).filter((v) => v && typeof v === "object") as any[];
-}
-
-function getStr(el: any, ...keys: string[]): string {
-  if (!el || typeof el !== "object") return "";
-  for (const key of keys) {
-    const value = el[key];
-    if (value != null && value !== "") return String(value).trim();
-  }
-  return "";
-}
-
-function normalizeCacheCustomers(raw: unknown): { inn: string; customer_name: string; email: string }[] {
-  const byInn = new Map<string, { inn: string; customer_name: string; email: string }>();
-  for (const el of extractCustomerArray(raw)) {
-    let inn = getStr(el, "Inn", "INN", "inn", "ИНН", "Code", "code", "Код");
-    inn = inn.replace(/\D/g, "") || inn.trim();
-    if (!inn || (inn.length !== 10 && inn.length !== 12)) continue;
-    const customer_name =
-      getStr(el, "Name", "name", "Customer", "customer", "Contragent", "contragent", "Client", "client", "Заказчик", "Наименование") || inn;
-    const email = getStr(el, "Email", "email", "E-mail", "e-mail", "Почта", "Mail");
-    byInn.set(inn, { inn, customer_name, email });
-  }
-  return Array.from(byInn.values());
-}
-
-async function refreshCustomers(pool: ReturnType<typeof getPool>, login: string, password: string): Promise<{ count: number }> {
-  const json = await fetchServiceJson(login, password, `${GETAPI_URL}?metod=Getcustomers`);
-  const rows = normalizeCacheCustomers(json);
-  await pool.query("delete from cache_customers");
-  if (rows.length > 0) {
-    await pool.query(
-      `insert into cache_customers (inn, customer_name, email, fetched_at)
-       select inn, customer_name, email, now()
-       from unnest($1::text[], $2::text[], $3::text[]) as t(inn, customer_name, email)
-       on conflict (inn) do update set customer_name = excluded.customer_name, email = excluded.email, fetched_at = now()`,
-      [rows.map((r) => r.inn), rows.map((r) => r.customer_name), rows.map((r) => r.email)],
-    );
-  }
-  return { count: rows.length };
 }
 
 function ensureCronAuth(req: VercelRequest, res: VercelResponse, route: string) {
@@ -118,22 +67,12 @@ export async function handleRefreshCacheRecent(req: VercelRequest, res: VercelRe
     if (requestedKind && requestedKind !== "auxiliary") return res.status(400).json({ error: "Unknown document queue" });
     if (lane !== "recent") return res.status(400).json({ error: "lane requires invoices or perevozki" });
     return res.status(200).json(await runCronWork(pool,requestedKind === "auxiliary" ? "documents_auxiliary" : "documents_recent",25,async cursor => {
-    const kinds: DocumentCacheKind[] = requestedKind === "auxiliary" ? ["sendings", "acts", "customers"] : [...ROTATING_DOCUMENT_KINDS,"customers"];
+    const kinds: DocumentCacheKind[] = requestedKind === "auxiliary" ? ["sendings", "acts"] : [...ROTATING_DOCUMENT_KINDS];
     const position = Number.isInteger(cursor.position) ? cursor.position % kinds.length : 0;
     const kind = kinds[position];
     const { dateFrom, dateTo } = cronDateWindow(3);
 
-    const result =
-      kind === "customers"
-        ? {
-            kind: "customers" as const,
-            mode: "recent" as const,
-            dateFrom,
-            dateTo,
-            chunkCountRows: 0,
-            cacheCount: (await refreshCustomers(pool, credentials.login, credentials.password)).count,
-          }
-        : await refreshDatedKindForWindow(
+    const result = await refreshDatedKindForWindow(
             pool,
             credentials.login,
             credentials.password,

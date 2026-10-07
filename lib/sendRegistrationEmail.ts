@@ -129,7 +129,7 @@ const DEFAULT_PASSWORD_RESET_HTML = (login: string, password: string, companyNam
 /** Общая отправка HTML-письма (сброс пароля, сводка, доступ по ИНН и т.д.). SMTP — из env, шаблоны регистрации — из БД. */
 export async function sendHaulzEmail(
   pool: Pool,
-  params: { to: string; subject: string; html: string; text?: string },
+  params: { to: string; subject: string; html: string; text?: string; timeoutMs?: number },
 ): Promise<{ ok: boolean; error?: string }> {
   const settings = await getEmailSettings(pool);
   if (!settings.smtp_host || !settings.from_email) {
@@ -140,6 +140,7 @@ export async function sendHaulzEmail(
     host: settings.smtp_host,
     port: settings.smtp_port || 587,
     secure: settings.smtp_port === 465,
+    ...(params.timeoutMs ? { connectionTimeout: params.timeoutMs, greetingTimeout: params.timeoutMs, socketTimeout: params.timeoutMs } : {}),
     auth:
       settings.smtp_user && settings.smtp_password
         ? { user: settings.smtp_user, pass: settings.smtp_password }
@@ -171,7 +172,7 @@ export async function sendRegistrationEmail(
   login: string,
   password: string,
   companyName: string,
-  options?: { isPasswordReset?: boolean }
+  options?: { isPasswordReset?: boolean; timeoutMs?: number }
 ): Promise<{ ok: boolean; error?: string }> {
   const settings = await getEmailSettings(pool);
 
@@ -195,5 +196,5 @@ export async function sendRegistrationEmail(
   }
 
   const subject = isReset ? "Новый пароль для входа в HAULZ" : "Регистрация в HAULZ";
-  return sendHaulzEmail(pool, { to, subject, html });
+  return sendHaulzEmail(pool, { to, subject, html, timeoutMs: options?.timeoutMs });
 }

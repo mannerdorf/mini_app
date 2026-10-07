@@ -83,6 +83,15 @@ export function useAdminCustomers({ adminToken, isSuperAdmin, users, onUsersRefr
     void onUsersRefresh();
   }, [onUsersRefresh]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "hidden") return;
+      setFetchTrigger((n) => n + 1);
+      setAutoRegisterFetchTrigger((n) => n + 1);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   const sorted = useMemo(
     () => sortCustomers(filterCustomersWithoutEmail(list, showOnlyWithoutEmail), sortBy, sortOrder),
     [list, showOnlyWithoutEmail, sortBy, sortOrder],
@@ -128,6 +137,7 @@ export function useAdminCustomers({ adminToken, isSuperAdmin, users, onUsersRefr
       } else {
         setSyncMessage(`Обновлено: ${Number(data.customers_count || 0)} записей`);
         setFetchTrigger((n) => n + 1);
+        setAutoRegisterFetchTrigger((n) => n + 1);
       }
     } catch (e: unknown) {
       setSyncMessage((e as Error)?.message || (dryRun ? "Не удалось выполнить Getcustomers" : "Не удалось обновить справочник заказчиков"));
