@@ -1,8 +1,8 @@
 import { useCallback, useState, type Dispatch, type SetStateAction } from "react";
 import { fetchMarinesiaShipEta, postSendingsFerryAssignment } from "../../../api/client/documents";
 
-type FerryEntry = { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null };
-type FerryListItem = { id: number; name: string; mmsi: string };
+type FerryEntry = { ferry_id: number; ferry_name: string; mmsi?: string; api_provider?: string | null; eta: string | null };
+type FerryListItem = { id: number; name: string; mmsi: string; api_provider?: string | null };
 type Auth = { login?: string; password?: string } | null | undefined;
 
 type Params = {
@@ -52,7 +52,7 @@ export function useSendingsFerryActions({
 
       const keys = [rowKey, rowKey.replace(/\D/g, "")].filter(Boolean);
       const optimisticEntry =
-        ferryId && ferry ? { ferry_id: ferryId, ferry_name: ferry.name, mmsi: ferry.mmsi, eta: null as string | null } : null;
+        ferryId && ferry ? { ferry_id: ferryId, ferry_name: ferry.name, mmsi: ferry.mmsi, api_provider: ferry.api_provider, eta: null as string | null } : null;
       setSendingsFerryMap((prev) => {
         const next = { ...prev };
         keys.forEach((k) => {
@@ -76,7 +76,7 @@ export function useSendingsFerryActions({
         setSendingsFerryMap((prev) => {
           const next = { ...prev };
           const entry =
-            ferryId && ferry ? { ferry_id: ferryId, ferry_name: ferry.name, mmsi: ferry.mmsi, eta } : null;
+            ferryId && ferry ? { ferry_id: ferryId, ferry_name: ferry.name, mmsi: ferry.mmsi, api_provider: ferry.api_provider, eta } : null;
           keys.forEach((k) => {
             if (entry) next[k] = entry;
             else delete next[k];

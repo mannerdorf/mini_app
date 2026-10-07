@@ -32,6 +32,7 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>TEU</th>
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "right", fontWeight: 600 }}>Трейлеров</th>
               <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>Оператор</th>
+              <th style={{ padding: "0.5rem 0.75rem", textAlign: "left", fontWeight: 600 }}>API</th>
               <th style={{ padding: "0.5rem 0.75rem", width: 44, textAlign: "center", fontWeight: 600 }}></th>
             </tr>
           </thead>
@@ -75,11 +76,26 @@ export function AdminFerriesTable({ f }: { f: AdminFerriesState }) {
                   <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{row.teu_capacity ?? "—"}</td>
                   <td style={{ padding: "0.5rem 0.75rem", textAlign: "right" }}>{row.trailer_capacity ?? "—"}</td>
                   <td style={{ padding: "0.5rem 0.75rem", color: "var(--color-text-secondary)" }}>{row.operator || "—"}</td>
+                  <td style={{ padding: '0.5rem 0.75rem' }}>
+                    <Flex align="center" gap="0.35rem">
+                      <Input value={f.ferryEditApi[row.id] ?? row.api_provider ?? ''}
+                        aria-label={`API судна ${row.name}`} placeholder="—" maxLength={80}
+                        disabled={!!f.ferryApiLoading[row.id] || f.ferryDeleteLoading === row.id}
+                        style={{ width: '7rem', padding: '0.25rem 0.4rem', fontSize: '0.85rem' }}
+                        onChange={e => f.setFerryEditApi(prev => ({ ...prev, [row.id]: e.target.value }))} />
+                      {f.ferryEditApi[row.id] !== undefined && f.ferryEditApi[row.id].trim() !== (row.api_provider || '') &&
+                        <Button type="button" className="button-primary" disabled={!!f.ferryApiLoading[row.id] || f.ferryDeleteLoading === row.id}
+                          style={{ padding: '0.2rem 0.5rem', minWidth: 'auto', fontSize: '0.75rem' }}
+                          onClick={() => void f.saveApiProvider(row, f.ferryEditApi[row.id])}>
+                          {f.ferryApiLoading[row.id] ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Сохранить'}
+                        </Button>}
+                    </Flex>
+                  </td>
                   <td style={{ padding: "0.5rem 0.75rem", textAlign: "center" }}>
                     <Button
                       type="button"
                       className="filter-button"
-                      disabled={f.ferryDeleteLoading === row.id || !!f.ferryToggleLoading[row.id]}
+                      disabled={f.ferryDeleteLoading === row.id || !!f.ferryToggleLoading[row.id] || !!f.ferryApiLoading[row.id]}
                       style={{ padding: "0.25rem", minWidth: "auto", color: "var(--color-error)" }}
                       onClick={(e) => {
                         e.stopPropagation();

@@ -11,8 +11,8 @@ import assignmentHandler from './sendings-ferry';
 let db: PGlite;
 beforeEach(async () => {
   state.authorized = true; db = new PGlite();
-  await db.exec(`CREATE TABLE ferries(id int PRIMARY KEY,name text,mmsi text,updated_at timestamptz DEFAULT now());
-    INSERT INTO ferries VALUES(1,'ALISA','273251360',now());
+  await db.exec(`CREATE TABLE ferries(id int PRIMARY KEY,name text,mmsi text,updated_at timestamptz DEFAULT now(),api_provider text);
+    INSERT INTO ferries VALUES(1,'ALISA','273251360',now(),null);
     CREATE TABLE sendings_ferry(ferry_id int REFERENCES ferries(id),row_key text,login text,eta text);
     INSERT INTO sendings_ferry VALUES(1,'2708278','driver@example.ru',null);`);
   const migration = readFileSync(new URL('../migrations/128_ferries_active.sql', import.meta.url), 'utf8');
@@ -54,4 +54,33 @@ it('rejects a new assignment to a disabled ferry while retaining its saved map i
   expect(res.code).toBe(200);
   expect(res.data.map['2708278']).toMatchObject({ ferry_id: 1, ferry_name: 'ALISA', mmsi: '273251360' });
   expect((await db.query('SELECT row_key FROM sendings_ferry')).rows).toEqual([{ row_key: '2708278' }]);
+});
+
+async function apiProviderMigration() {
+  await db.exec(`ALTER TABLE ferries ALTER COLUMN id SET DEFAULT 2;
+    ALTER TABLE ferries ADD CONSTRAINT ferries_mmsi_key UNIQUE (mmsi);
+    ALTER TABLE ferries ADD COLUMN imo text;
+    ALTER TABLE ferries ADD COLUMN vessel_type text;
+    ALTER TABLE ferries ADD COLUMN operator text;
+    UPDATE ferries SET name='FESCO NOVIK',mmsi='273329660' WHERE id=1;`);
+  const migration = readFileSync(new URL('../migrations/129_ferries_api_provider.sql', import.meta.url), 'utf8');
+  await db.exec(migration); await db.exec(migration);
+}
+it('seeds FESCO for Novik and Navarin once, saves other providers and allows clearing', async () => {
+  await apiProviderMigration();
+  expect((await db.query('SELECT name,api_provider FROM ferries ORDER BY id')).rows).toEqual([
+    { name: 'FESCO NOVIK', api_provider: 'FESCO' }, { name: 'FESCO NAVARIN', api_provider: 'FESCO' },
+  ]);
+  expect((await patch({ id: 1, api_provider: ' Other API ' })).code).toBe(200);
+  expect((await db.query('SELECT api_provider,active FROM ferries WHERE id=1')).rows).toEqual([{ api_provider: 'Other API', active: true }]);
+  expect((await patch({ id: 1, api_provider: '' })).code).toBe(200);
+  expect((await db.query('SELECT api_provider FROM ferries WHERE id=1')).rows).toEqual([{ api_provider: null }]);
+});
+it('validates API provider edits and enforces admin access', async () => {
+  await apiProviderMigration();
+  expect((await patch({ id: 1, api_provider: 7 })).code).toBe(400);
+  expect((await patch({ id: 1, api_provider: 'a'.repeat(81) })).code).toBe(400);
+  expect((await patch({ id: 999, api_provider: 'FESCO' })).code).toBe(404);
+  state.authorized = false;
+  expect((await patch({ id: 1, api_provider: '' })).code).toBe(401);
 });

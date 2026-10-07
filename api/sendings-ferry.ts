@@ -56,17 +56,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "GET") {
     try {
-      const { rows } = await pool.query<{ row_key: string; ferry_id: number; ferry_name: string; mmsi: string; eta: string | null }>(
-        `select sf.row_key, sf.ferry_id, f.name as ferry_name, f.mmsi, sf.eta
+      const { rows } = await pool.query<{ row_key: string; ferry_id: number; ferry_name: string; mmsi: string; api_provider: string | null; eta: string | null }>(
+        `select sf.row_key, sf.ferry_id, f.name as ferry_name, f.mmsi, f.api_provider, sf.eta
            from sendings_ferry sf
            join ferries f on f.id = sf.ferry_id
           where lower(trim(sf.login)) = $1`,
         [login]
       );
-      const map: Record<string, { ferry_id: number; ferry_name: string; mmsi: string; eta: string | null }> = {};
+      const map: Record<string, { ferry_id: number; ferry_name: string; mmsi: string; api_provider: string | null; eta: string | null }> = {};
       for (const row of rows) {
         if (!row.row_key) continue;
-        const entry = { ferry_id: row.ferry_id, ferry_name: row.ferry_name, mmsi: row.mmsi, eta: row.eta };
+        const entry = { ferry_id: row.ferry_id, ferry_name: row.ferry_name, mmsi: row.mmsi, api_provider: row.api_provider, eta: row.eta };
         const keys = keyVariants(row.row_key);
         for (const key of keys) {
           map[key] = entry;

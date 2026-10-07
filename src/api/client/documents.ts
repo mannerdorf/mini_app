@@ -119,7 +119,7 @@ export async function fetchEdoCounterpartyInns(): Promise<string[]> {
   }
 }
 
-export type FerryListItem = { id: number; name: string; mmsi: string };
+export type FerryListItem = { id: number; name: string; mmsi: string; api_provider?: string | null };
 
 export async function fetchFerriesList(): Promise<FerryListItem[]> {
   try {
@@ -132,7 +132,7 @@ export async function fetchFerriesList(): Promise<FerryListItem[]> {
 
 export type SendingsFerryMap = Record<
   string,
-  { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }
+  { ferry_id: number; ferry_name: string; mmsi?: string; api_provider?: string | null; eta: string | null }
 >;
 
 export async function fetchSendingsFerryMap(

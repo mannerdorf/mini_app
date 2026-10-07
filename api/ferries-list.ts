@@ -12,8 +12,8 @@ export default withApiHandler({ methods: "GET" }, async (req, res) => {
 
   try {
     const pool = getPool();
-    const { rows } = await pool.query<{ id: number; name: string; mmsi: string }>(
-      "SELECT id, name, mmsi FROM ferries WHERE active=true ORDER BY name"
+    const { rows } = await pool.query<{ id: number; name: string; mmsi: string; api_provider: string | null }>(
+      "SELECT id, name, mmsi, api_provider FROM ferries WHERE active=true ORDER BY name"
     );
     return res.status(200).json({ ferries: rows, request_id: ctx.requestId });
   } catch (e) {

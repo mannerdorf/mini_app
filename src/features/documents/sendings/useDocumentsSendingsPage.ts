@@ -109,9 +109,9 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
   const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<"customer" | "receiver">("customer");
   const [eorStatusMap, setEorStatusMap] = useState<Record<string, EorStatus[]>>({});
   const [sendingSanctionMap, setSendingSanctionMap] = useState<Record<string, SanctionCheckResult>>({});
-  const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string }[]>([]);
+  const [ferriesList, setFerriesList] = useState<{ id: number; name: string; mmsi: string; api_provider?: string | null }[]>([]);
   const [sendingsFerryMap, setSendingsFerryMap] = useState<
-    Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }>
+    Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; api_provider?: string | null; eta: string | null }>
   >({});
   const [ferryEtaLoadingByRow, setFerryEtaLoadingByRow] = useState<Record<string, boolean>>({});
 

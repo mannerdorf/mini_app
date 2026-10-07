@@ -27,8 +27,8 @@ export async function fetchMarinesiaShip(mmsi: string, history = false): Promise
   return { ok, vessel: data.vessel, error: data.error, track: data.track, historyError: data.historyError };
 }
 
-export async function fetchFerriesList(): Promise<{ id: number; name: string; mmsi: string }[]> {
-  const { ok, data } = await fetchJson<{ ferries?: { id: number; name: string; mmsi: string }[] }>("/api/ferries-list");
+export async function fetchFerriesList(): Promise<{ id: number; name: string; mmsi: string; api_provider?: string | null }[]> {
+  const { ok, data } = await fetchJson<{ ferries?: { id: number; name: string; mmsi: string; api_provider?: string | null }[] }>("/api/ferries-list");
   if (!ok) return [];
   return data.ferries ?? [];
 }

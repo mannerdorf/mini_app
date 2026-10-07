@@ -1,10 +1,11 @@
 import { SendingPlanDateProgress } from "./PlanDateQueueStatus";
 import React, { useState } from "react";
+import { SendingTrackingDialog, extractContainerNumber } from "./SendingTrackingDialog";
 import { SendingFerryDialog } from "./SendingFerryDialog";
 import "./sendings-table.css";
 import { motion } from "motion/react";
 
-import { ArrowDown, ArrowUp, MapPin } from "lucide-react";
+import { ArrowDown, ArrowUp, MapPin, PackageSearch } from "lucide-react";
 import { DateText } from "../../../components/ui/DateText";
 import { CargoTransportTypeIcon } from "../../../components/shared/CargoTableDisplay";
 import { StatusBadge } from "../../../components/shared/StatusBadges";
@@ -107,6 +108,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
     auth,
     handleOpenCargo,
   } = props;
+  const [tracking, setTracking] = useState<{ id: number; name: string; provider: string; number: string } | null>(null);
   const [ferryOnMap, setFerryOnMap] = useState<{ mmsi: string; name: string } | null>(null);
   const sendingsAnalyticsExtraColCount = getSendingsAnalyticsExtraColCount(hasAnalytics, showSums);
   const columnWeights = [
@@ -181,7 +183,8 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
                                 const ferryEntry = getSendingsFerryEntry(rowKey, number);
-                                const selectedFerry = ferriesList.find((ferry: { id: number; mmsi: string }) => Number(ferry.id) === Number(ferryEntry?.ferry_id));
+                                const selectedFerry = ferriesList.find((ferry: { id: number; mmsi: string; api_provider?: string | null }) => Number(ferry.id) === Number(ferryEntry?.ferry_id));
+                                const trackingProvider = String(selectedFerry?.api_provider ?? ferryEntry?.api_provider ?? '').trim();
                                 const ferryMmsi = String(selectedFerry?.mmsi ?? ferryEntry?.mmsi ?? '').trim().replace(/\D/g, '');
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
@@ -264,6 +267,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                                         onClick={() => setFerryOnMap({ mmsi: ferryMmsi, name: ferryEntry.ferry_name })}
                                                     ><MapPin size={18} aria-hidden="true" /></button>
                                                 )}
+                                                {ferryEntry && trackingProvider && <button type="button" className="sendings-ferry-map-icon" title={`Трекинг ${trackingProvider}`} aria-label={`Открыть трекинг ${trackingProvider} для отправки ${number}`} onClick={() => setTracking({ id: ferryEntry.ferry_id, name: ferryEntry.ferry_name, provider: trackingProvider, number: extractContainerNumber(vehicle) })}><PackageSearch size={18} aria-hidden="true" /></button>}
                                                 </div>
                                             </td>
                                             {hasAnalytics && (
@@ -300,6 +304,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                         </tbody>
                     </table>
                 </div>
+                {tracking && auth && <SendingTrackingDialog key={tracking.id + tracking.number} ferry={tracking} auth={auth} initialNumber={tracking.number} onClose={() => setTracking(null)} />}
                 {ferryOnMap && <SendingFerryDialog key={ferryOnMap.mmsi} ferry={ferryOnMap} onClose={() => setFerryOnMap(null)} />}
                 </motion.div>
   );

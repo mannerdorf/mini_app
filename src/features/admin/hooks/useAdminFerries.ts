@@ -5,6 +5,7 @@ import {
   fetchAdminFerries,
   saveAdminFerry,
   setAdminFerryActive,
+  setAdminFerryApiProvider,
   type AdminFerryRow,
 } from "../../../api/client/admin/directories";
 
@@ -21,6 +22,8 @@ export function useAdminFerries({ adminToken }: Params) {
   const [ferryEditMmsi, setFerryEditMmsi] = useState<Record<number, string>>({});
   const [ferrySaveLoading, setFerrySaveLoading] = useState<number | null>(null);
   const [ferryToggleLoading, setFerryToggleLoading] = useState<Record<number, boolean>>({});
+  const [ferryEditApi, setFerryEditApi] = useState<Record<number, string>>({});
+  const [ferryApiLoading, setFerryApiLoading] = useState<Record<number, boolean>>({});
   const [ferryDeleteLoading, setFerryDeleteLoading] = useState<number | null>(null);
   const [ferryAddModalOpen, setFerryAddModalOpen] = useState(false);
   const [ferryAddName, setFerryAddName] = useState("");
@@ -97,6 +100,21 @@ export function useAdminFerries({ adminToken }: Params) {
     }
   }, [adminToken]);
 
+  const saveApiProvider = useCallback(async (ferry: AdminFerryRow, value: string) => {
+    setFerryApiLoading(prev => ({ ...prev, [ferry.id]: true }));
+    setFerriesEnrichMessage(null);
+    try {
+      const api_provider = value.trim();
+      await setAdminFerryApiProvider(adminToken, ferry.id, api_provider);
+      setFerriesList(prev => prev.map(row => row.id === ferry.id ? { ...row, api_provider: api_provider || null } : row));
+      setFerryEditApi(prev => { const next = { ...prev }; delete next[ferry.id]; return next; });
+    } catch (e) {
+      setFerriesEnrichMessage((e as Error)?.message || 'Не удалось сохранить API судна');
+    } finally {
+      setFerryApiLoading(prev => ({ ...prev, [ferry.id]: false }));
+    }
+  }, [adminToken]);
+
   const deleteFerry = useCallback(async (ferry: AdminFerryRow) => {
     if (!window.confirm(`Удалить паром «${ferry.name}» (${ferry.mmsi})?`)) return;
     setFerryDeleteLoading(ferry.id);
@@ -141,6 +159,10 @@ export function useAdminFerries({ adminToken }: Params) {
     setFerryEditMmsi,
     ferrySaveLoading,
     ferryToggleLoading,
+    ferryEditApi,
+    setFerryEditApi,
+    ferryApiLoading,
+    saveApiProvider,
     toggleFerry,
     ferryDeleteLoading,
     ferryAddModalOpen,

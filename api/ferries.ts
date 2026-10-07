@@ -7,6 +7,7 @@ export type Ferry = {
   id: number;
   name: string;
   active: boolean;
+  api_provider: string | null;
   mmsi: string;
   imo: string | null;
   vessel_type: string | null;
@@ -31,6 +32,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   if (req.method === "PATCH") {
     const body = req.body as Record<string, unknown> | undefined;
+    if (body && Object.prototype.hasOwnProperty.call(body, 'api_provider')) {
+      if (!Number.isInteger(body.id) || Number(body.id) < 1 || typeof body.api_provider !== 'string' || body.api_provider.trim().length > 80) {
+        return res.status(400).json({ error: 'Нужны id судна и название API (до 80 символов)', request_id: ctx.requestId });
+      }
+      try {
+        const { rows } = await getPool().query('UPDATE ferries SET api_provider=$2, updated_at=now() WHERE id=$1 RETURNING id, api_provider', [body.id, body.api_provider.trim() || null]);
+        if (!rows.length) return res.status(404).json({ error: 'Судно не найдено', request_id: ctx.requestId });
+        return res.status(200).json({ ok: true, ...rows[0], request_id: ctx.requestId });
+      } catch (e) {
+        logError(ctx, 'ferries_api_provider_failed', e);
+        return res.status(500).json({ error: 'Не удалось сохранить API судна', request_id: ctx.requestId });
+      }
+    }
     if (!Number.isInteger(body?.id) || Number(body?.id) < 1 || typeof body?.active !== "boolean") {
       return res.status(400).json({ error: "Нужны id парома и active (true/false)", request_id: ctx.requestId });
     }
@@ -64,7 +78,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
       const pool = getPool();
       const { rows } = await pool.query<Ferry>(
-        `SELECT id, name, active, mmsi, imo, vessel_type, teu_capacity, trailer_capacity, operator, created_at::text, updated_at::text
+        `SELECT id, name, active, api_provider, mmsi, imo, vessel_type, teu_capacity, trailer_capacity, operator, created_at::text, updated_at::text
          FROM ferries ORDER BY name`
       );
       return res.status(200).json({ ferries: rows, request_id: ctx.requestId });

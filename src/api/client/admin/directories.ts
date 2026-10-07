@@ -8,6 +8,7 @@ export type AdminFerryRow = {
   id: number;
   name: string;
   active: boolean;
+  api_provider?: string | null;
   mmsi: string;
   imo: string | null;
   vessel_type: string | null;
@@ -55,6 +56,15 @@ export async function setAdminFerryActive(adminToken: string, id: number, active
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Не удалось изменить активность парома");
+}
+
+export async function setAdminFerryApiProvider(adminToken: string, id: number, api_provider: string): Promise<void> {
+  const res = await fetch('/api/ferries', {
+    method: 'PATCH', headers: adminAuthHeaders(adminToken, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ id, api_provider }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Не удалось сохранить API судна');
 }
 
 export async function deleteAdminFerry(adminToken: string, id: number): Promise<void> {

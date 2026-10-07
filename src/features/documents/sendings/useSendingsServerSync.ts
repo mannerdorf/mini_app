@@ -14,10 +14,10 @@ type Params = {
   auth: Auth;
   setEorStatusMap: Dispatch<SetStateAction<Record<string, EorStatus[]>>>;
   setFerriesList: Dispatch<
-    SetStateAction<{ id: number; name: string; mmsi: string }[]>
+    SetStateAction<{ id: number; name: string; mmsi: string; api_provider?: string | null }[]>
   >;
   setSendingsFerryMap: Dispatch<
-    SetStateAction<Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; eta: string | null }>>
+    SetStateAction<Record<string, { ferry_id: number; ferry_name: string; mmsi?: string; api_provider?: string | null; eta: string | null }>>
   >;
   resetSendingsUiState: () => void;
 };
