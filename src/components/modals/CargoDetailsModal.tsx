@@ -511,7 +511,7 @@ export function CargoDetailsModal({
                                 return (
                                     <ShipmentStatusPanel
                                         steps={perevozkaTimeline ?? []}
-                                        routeMap={getCargoTransportType(item) === 'ferry' && fromCity === 'KGD' && toCity === 'MSK'
+                                        routeMap={fromCity === 'KGD' && toCity === 'MSK'
                                             ? <CargoFerryMap key={String(item.Number)} item={item} auth={auth}/> : undefined}
                                         fromCity={fromCity}
                                         toCity={toCity}

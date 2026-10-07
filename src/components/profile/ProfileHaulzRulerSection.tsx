@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { ArrowLeft, Printer } from "lucide-react";
-import { Button, Flex, Input, Panel, Typography } from "@maxhub/max-ui";
+import { Button, Flex, Typography } from "@maxhub/max-ui";
 import {
   absoluteTrackCount,
   buildRulerStripLayers,
@@ -108,7 +108,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
         <Typography.Headline className="text-page-title">Линейка веса</Typography.Headline>
       </Flex>
 
-      <Panel className="haulz-weight-ruler__panel no-print" style={{ padding: "1rem", marginBottom: "1rem" }}>
+      <div className="haulz-weight-ruler__panel no-print" style={{ padding: "1rem", marginBottom: "1rem" }}>
         <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
           Absolute-линейка как для ДШВ: сканер читает позицию в см, приложение переводит в кг.
           Шаг — сколько кг на 1 см ленты. Печать — строки по {PRINT_CM_PER_ROW} см (ширина листа), продолжение ниже до конца диапазона.
@@ -117,15 +117,15 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
         <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
           <label className="haulz-weight-ruler__field">
             <span>Начало, кг</span>
-            <Input value={startStr} onChange={(e) => setStartStr(e.target.value)} inputMode="decimal" />
+            <input className="haulz-weight-ruler__input" value={startStr} onChange={(e) => setStartStr(e.target.value)} inputMode="decimal" />
           </label>
           <label className="haulz-weight-ruler__field">
             <span>Конец, кг</span>
-            <Input value={endStr} onChange={(e) => setEndStr(e.target.value)} inputMode="decimal" />
+            <input className="haulz-weight-ruler__input" value={endStr} onChange={(e) => setEndStr(e.target.value)} inputMode="decimal" />
           </label>
           <label className="haulz-weight-ruler__field">
             <span>Шаг, кг/см</span>
-            <Input value={stepStr} onChange={(e) => setStepStr(e.target.value)} inputMode="decimal" />
+            <input className="haulz-weight-ruler__input" value={stepStr} onChange={(e) => setStepStr(e.target.value)} inputMode="decimal" />
           </label>
         </Flex>
 
@@ -172,7 +172,9 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
           Проверка скана (см с линейки)
         </Typography.Label>
         <Flex gap="0.5rem" align="center" wrap="wrap">
-          <Input
+          <input
+            className="haulz-weight-ruler__input"
+            aria-label="Проверка скана (см с линейки)"
             value={scanCm}
             onChange={(e) => setScanCm(e.target.value)}
             placeholder="например 37"
@@ -183,7 +185,7 @@ export function ProfileHaulzRulerSection({ onBack }: Props) {
             → вес: <strong>{scannedWeight == null ? "—" : `${formatWeightKg(scannedWeight)} кг`}</strong>
           </Typography.Body>
         </Flex>
-      </Panel>
+      </div>
 
       {!validationError && previewRows.length > 0 ? (
         <div className="haulz-weight-ruler__preview no-print" aria-label="Превью линейки">
