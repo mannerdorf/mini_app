@@ -45,15 +45,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       (all || resolvePerevozkiRolesForInns(item, inns).length > 0));
     if (cargo.length !== 1) return res.status(404).json({ error: "Перевозка не найдена или нет доступа" });
     const matches = await pool.query<{id:number;name:string;mmsi:string;own:boolean}>(`
-      SELECT f.id,f.name,f.mmsi,lower(trim(sf.login))=$3 AS own
+      SELECT f.id,f.name,f.mmsi,lower(trim(sf.login))=$2 AS own
       FROM sendings_metrics m
       JOIN sendings_ferry sf ON ltrim(btrim(sf.row_key),'0')=ltrim(btrim(m.sending_number),'0')
-        AND (sf.inn=m.customer_inn OR (sf.inn IS NULL AND lower(trim(sf.login))=$3))
+        AND (sf.inn=m.customer_inn OR (sf.inn IS NULL AND lower(trim(sf.login))=$2))
       JOIN ferries f ON f.id=sf.ferry_id
-      WHERE m.customer_inn=$1 AND EXISTS (
+      -- A consolidated sending can contain cargo belonging to different customers.
+      -- Cargo access was verified above; the sending's INN scopes its ferry assignment.
+      WHERE EXISTS (
         SELECT 1 FROM jsonb_array_elements_text(m.cargo_numbers) AS cargo_number(value)
-        WHERE ltrim(btrim(cargo_number.value),'0')=ltrim($2,'0')
-      ) ORDER BY sf.updated_at DESC`,[perevozkiCustomerInn(cargo[0]),String(cargo[0].Number ?? number).trim(),key]);
+        WHERE ltrim(btrim(cargo_number.value),'0')=ltrim($1,'0')
+      ) ORDER BY sf.updated_at DESC`,[String(cargo[0].Number ?? number).trim(),key]);
     const own=matches.rows.filter(row=>row.own);
     const ferryCandidates=own.length?own:matches.rows;
     const vessels=new Map(ferryCandidates.map(row=>[row.id,row]));

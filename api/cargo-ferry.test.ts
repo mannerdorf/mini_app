@@ -18,7 +18,7 @@ beforeEach(()=>{
 });
 it('resolves the selected vessel from server cargo links and customer scope',async()=>{
  const res=await call({ferryId:99});expect(res.status).toHaveBeenCalledWith(200);expect(res.json).toHaveBeenCalledWith({ferry:{id:1,name:ferry.name,mmsi:ferry.mmsi}});
- expect(state.query.mock.calls.find(([sql])=>sql.includes('sendings_metrics'))?.[1]).toEqual([cargo.INN,cargo.Number,'user']);
+ expect(state.query.mock.calls.find(([sql])=>sql.includes('sendings_metrics'))?.[1]).toEqual([cargo.Number,'user']);
 });
 it('rejects forged service mode and foreign cargo before reading ferry assignments',async()=>{
  state.verify.mockResolvedValue({inn:'999',accessAllInns:false});expect((await call({serviceMode:true})).status).toHaveBeenCalledWith(404);

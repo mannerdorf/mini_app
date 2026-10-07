@@ -46,6 +46,9 @@ export function SendingsSection(props: SendingsSectionProps) {
   const viewProps = { ...props, handleOpenCargo };
 
   return (
+    <>
+      {props.cargoDetailsLoading && <div role="status" style={{padding:"8px 0",color:"var(--color-text-secondary)"}}>Загружаем сведения о перевозках…</div>}
+      {props.cargoDetailsError && <div role="alert" style={{padding:"8px 0",color:"var(--color-error)"}}>{props.cargoDetailsError} <button type="button" className="filter-button" onClick={props.onRetryCargoDetails}>Повторить</button></div>}
     <AnimatePresence mode="wait">
       {tableModeEffective ? (
         <SendingsTableView {...viewProps} />
@@ -53,5 +56,6 @@ export function SendingsSection(props: SendingsSectionProps) {
         <SendingsCardsView {...viewProps} />
       )}
     </AnimatePresence>
+    </>
   );
 }

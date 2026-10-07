@@ -6,6 +6,7 @@ export type UseSendingsSectionPropsInput = SendingsSectionProps;
 /** Bundles SendingsSection props — keeps DocumentsPage JSX to a single spread. */
 export function useSendingsSectionProps(input: SendingsSectionProps): SendingsSectionProps {
   return useMemo(() => input, [
+    input.cargoDetailsLoading, input.cargoDetailsError, input.onRetryCargoDetails,
     input.tableModeEffective,
     input.docsMotionEnabled,
     input.cargoModeSwitchMotion,

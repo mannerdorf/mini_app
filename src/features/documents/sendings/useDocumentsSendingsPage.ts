@@ -1,3 +1,8 @@
+import useSWR from "swr";
+import { apiFetchJson } from "../../../utils";
+import { buildCargoStateByNumber, buildCargoSumByNumber } from "../lib/documentsPipeline";
+import { getSendingRowKey } from "./sendingsRowHelpers";
+import { mergeSendingCargoDetails, sendingCargoDetailNumbers } from "./sendingCargoDetails";
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { buildCargoDepartureByNumber } from "../../../lib/transitDateTime";
 import { getFilterKeyByStatus } from "../../../lib/statusUtils";
@@ -75,9 +80,9 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
     sendingsItems,
     sendingsLoading,
     sendingsError,
-    perevozkiItems,
-    cargoStateByNumber,
-    cargoSumByNumber,
+    perevozkiItems: basePerevozkiItems,
+    cargoStateByNumber: baseCargoStateByNumber,
+    cargoSumByNumber: baseCargoSumByNumber,
     normCargoKey,
     apiDateRange,
     customerFilter,
@@ -104,6 +109,42 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
   } = input;
 
   const [expandedSendingRow, setExpandedSendingRow] = useState<string | null>(null);
+  const expandedCargoNumbers = useMemo(() => {
+    const row = sendingsItems.find((row, idx) => getSendingRowKey(row, idx) === expandedSendingRow);
+    return row ? sendingCargoDetailNumbers(row) : [];
+  }, [sendingsItems, expandedSendingRow]);
+  const { data: cargoDetails, isLoading: cargoDetailsLoading, error: cargoDetailsError, mutate: retryCargoDetails } = useSWR<{items:any[]}>(
+    active && expandedCargoNumbers.length && auth.login && auth.password
+      ? ["sending-cargo-details", auth.login, auth.password, effectiveServiceMode, expandedCargoNumbers.join(",")]
+      : null,
+    async () => {
+      const items: any[] = [];
+      for (let offset = 0; offset < expandedCargoNumbers.length; offset += 200) {
+        const response = await apiFetchJson<{items:any[]}>("/api/cargo-details", {
+          method: "POST", headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({login:auth.login,password:auth.password,serviceMode:effectiveServiceMode,
+            numbers:expandedCargoNumbers.slice(offset,offset+200)}),
+        });
+        items.push(...response.items);
+      }
+      return {items};
+    },
+    {revalidateOnFocus:false, dedupingInterval:120000},
+  );
+  const detailsScope = JSON.stringify([auth.login, auth.password, effectiveServiceMode, effectiveActiveInn]);
+  const [loadedCargoDetails, setLoadedCargoDetails] = useState<{scope:string;items:any[]}>({scope:detailsScope,items:[]});
+  useEffect(() => {
+    if (!cargoDetails?.items) return;
+    setLoadedCargoDetails(previous => ({scope:detailsScope,items:mergeSendingCargoDetails(
+      previous.scope === detailsScope ? previous.items : [], cargoDetails.items,
+    )}));
+  }, [cargoDetails, detailsScope]);
+  const perevozkiItems = useMemo(() => mergeSendingCargoDetails(basePerevozkiItems ?? [],
+    mergeSendingCargoDetails(loadedCargoDetails.scope === detailsScope ? loadedCargoDetails.items : [], cargoDetails?.items ?? [])),
+    [basePerevozkiItems, loadedCargoDetails, detailsScope, cargoDetails]);
+  const cargoStateByNumber = useMemo(() => new Map([...baseCargoStateByNumber, ...buildCargoStateByNumber(perevozkiItems)]), [baseCargoStateByNumber, perevozkiItems]);
+  const cargoSumByNumber = useMemo(() => new Map([...baseCargoSumByNumber, ...buildCargoSumByNumber(perevozkiItems)]), [baseCargoSumByNumber, perevozkiItems]);
+
   const [sendingsSummaryCollapsed, setSendingsSummaryCollapsed] = useState(false);
   const [sendingsDetailsView, setSendingsDetailsView] = useState<"general" | "byCargo" | "byCustomer">("general");
   const [sendingsSummaryGroupBy, setSendingsSummaryGroupBy] = useState<"customer" | "receiver">("customer");
@@ -543,6 +584,9 @@ export function useDocumentsSendingsPage(input: UseDocumentsSendingsPageInput) {
   }, [expandedSendingRow, sendingsDetailsView, setSelectedByCustomerSummaryKeys, setExpandedByCustomerKey, setByCustomerPlanDateOpen, setByCustomerPlanDateValue, setByCustomerActionLoading, setByCustomerActionError, setByCustomerActionInfo]);
 
   const sendingsSectionProps = useSendingsSectionProps({
+    cargoDetailsLoading: !!expandedSendingRow && cargoDetailsLoading,
+    cargoDetailsError: expandedSendingRow ? cargoDetailsError?.message : undefined,
+    onRetryCargoDetails: () => { void retryCargoDetails(); },
     tableModeEffective,
     docsMotionEnabled,
     cargoModeSwitchMotion,

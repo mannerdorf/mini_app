@@ -5,6 +5,9 @@ import type { EorStatus } from "./sendingsTypes";
 import type { AuthData, CargoItem } from "../../../types";
 
 export type SendingsSectionProps = {
+  cargoDetailsLoading?: boolean;
+  cargoDetailsError?: string;
+  onRetryCargoDetails?: () => void;
   tableModeEffective: any;
   docsMotionEnabled: any;
   cargoModeSwitchMotion: any;
