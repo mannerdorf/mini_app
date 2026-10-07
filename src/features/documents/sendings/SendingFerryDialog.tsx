@@ -3,24 +3,28 @@ import { Loader2, RotateCw, Ship, X } from 'lucide-react';
 import { GuardedDialog } from '../../../components/GuardedDialog';
 import { formatPortDest, NAV_STATUS_LABELS } from '../../../components/shared/VesselInfoPanel';
 import { SendingVesselMap } from './SendingVesselMap';
-import { fetchMarinesiaShip, type MarinesiaVessel } from '../../../api/client/ais';
+import { fetchMarinesiaShip, type MarinesiaVessel, type MarinesiaTrackPoint } from '../../../api/client/ais';
 import './sending-ferry-dialog.css';
 
 export function SendingFerryDialog({ ferry, onClose }: {
   ferry: { mmsi: string; name: string }; onClose: () => void;
 }) {
   const [vessel, setVessel] = useState<MarinesiaVessel | null>(null);
+  const [track, setTrack] = useState<MarinesiaTrackPoint[]>([]);
+  const [historyError, setHistoryError] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [refresh, setRefresh] = useState(0);
   useEffect(() => {
     let stopped = false;
     setLoading(true); setError('');
-    fetchMarinesiaShip(ferry.mmsi).then(result => {
+    fetchMarinesiaShip(ferry.mmsi, true).then(result => {
       if (stopped) return;
       if (!result.ok) { setError(result.error || 'Не удалось получить данные судна'); return; }
       if (!result.vessel) { setError('Судно не найдено'); return; }
       setVessel({ ...result.vessel, name: ferry.name });
+      setTrack(result.track || []);
+      setHistoryError(result.historyError || '');
     }).catch(e => { if (!stopped) setError((e as Error).message || 'Не удалось получить данные судна'); })
       .finally(() => { if (!stopped) setLoading(false); });
     return () => { stopped = true; };
@@ -29,7 +33,7 @@ export function SendingFerryDialog({ ferry, onClose }: {
   const number = (value: number | undefined, unit: string) => typeof value === 'number' && Number.isFinite(value) ? `${value} ${unit}` : '—';
   const field = (label: string, value: string) => <div><dt>{label}</dt><dd>{value || '—'}</dd></div>;
   return <GuardedDialog title={`Паром ${ferry.name} — движение судна`} onClose={onClose} className="sending-ferry-dialog">
-    {vessel ? <SendingVesselMap vessel={vessel} /> : <div className="sending-vessel-map-placeholder" />}
+    {vessel ? <SendingVesselMap vessel={vessel} track={track} /> : <div className="sending-vessel-map-placeholder" />}
     <aside className="sending-vessel-card" aria-label="Информация о судне">
       <header className="sending-vessel-card__header">
         <Ship size={24} aria-hidden="true" />
@@ -38,6 +42,8 @@ export function SendingFerryDialog({ ferry, onClose }: {
       </header>
       {loading && <p role="status" className="sending-vessel-card__notice">Обновляем положение судна…</p>}
       {error && <p role="alert" className="sending-ferry-dialog__error">{error}</p>}
+      {historyError && <p role="status" className="sending-vessel-card__notice">{historyError}</p>}
+      {track.length > 0 && <p className="sending-vessel-card__notice">История AIS · {track.length} точек<br />{track[0].timeUtc.replace('T', ' ').replace(/Z$/, '')} — {track[track.length - 1].timeUtc.replace('T', ' ').replace(/Z$/, '')} (UTC)</p>}
       <section className="sending-vessel-card__section">
         <dl className="sending-vessel-card__grid">
           <div className="sending-vessel-card__wide"><dt>Порт назначения</dt><dd>{vessel?.dest ? formatPortDest(vessel.dest) : '—'}</dd></div>
@@ -63,6 +69,6 @@ export function SendingFerryDialog({ ferry, onClose }: {
         </button>
       </footer>
     </aside>
-    <div className="sending-vessel-map-caption">Marinesia · Последняя позиция судна</div>
+    <div className="sending-vessel-map-caption">Marinesia · {track.length > 1 ? 'Пройденный путь по данным AIS' : 'Последняя позиция судна'}</div>
   </GuardedDialog>;
 }

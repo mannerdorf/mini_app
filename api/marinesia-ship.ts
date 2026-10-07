@@ -3,6 +3,17 @@ import { initRequestContext, logError } from "./_lib/observability.js";
 
 const MARINESIA_BASE = "https://api.marinesia.com";
 
+export function normalizeVesselHistory(value: unknown, mmsi: string) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((p): p is Record<string, unknown> => !!p && typeof p === 'object')
+    .filter(p => String(p.mmsi) === mmsi && p.valid !== false &&
+      typeof p.lat === 'number' && Number.isFinite(p.lat) && Math.abs(p.lat) <= 90 &&
+      typeof p.lng === 'number' && Number.isFinite(p.lng) && Math.abs(p.lng) <= 180 &&
+      typeof p.ts === 'string' && Number.isFinite(Date.parse(p.ts.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(p.ts) ? p.ts : `${p.ts}Z`)))
+    .map((p): Record<string, unknown> => ({ ...p, ts: new Date(Date.parse(String(p.ts).endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(String(p.ts)) ? String(p.ts) : `${p.ts}Z`)).toISOString() }))
+    .sort((a, b) => Date.parse(String(a.ts)) - Date.parse(String(b.ts)));
+}
+
 /**
  * GET /api/marinesia-ship?mmsi=265510570
  * Прокси к Marinesia API — разовый запрос последней позиции судна по MMSI.
@@ -38,7 +49,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   url.searchParams.set("key", apiKey);
 
   try {
-    const resp = await fetch(url.toString(), {
+    let track: { lat: number; lon: number; timeUtc: string }[] = [];
+    let historyError: string | undefined;
+    let historyPayload: Record<string, unknown> | undefined;
+    // One history request also supplies the newest position. Fall back to latest
+    // when history is unavailable, so the map remains usable.
+    if (req.query.history === '1') {
+      const historyUrl = new URL(`${MARINESIA_BASE}/api/v1/vessel/${mmsi}/location`);
+      historyUrl.searchParams.set('key', apiKey);
+      try {
+        const response = await fetch(historyUrl.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+        const history = await response.json() as Record<string, unknown>;
+        const points = response.ok && history.error !== true ? normalizeVesselHistory(history.data, mmsi) : [];
+        historyPayload = points.at(-1);
+        track = points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string }));
+        if (!points.length) historyError = 'История движения недоступна. Показана последняя позиция.';
+      } catch {
+        historyError = 'Не удалось загрузить историю движения. Показана последняя позиция.';
+      }
+    }
+    const resp = historyPayload ? new Response(JSON.stringify({ data: historyPayload }), { status: 200 }) : await fetch(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(15000),
@@ -94,6 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(200).json({
       request_id: ctx.requestId,
       source: "Marinesia",
+      ...(req.query.history === '1' ? { track, historyError } : {}),
       vessel:
         lat != null && lon != null
           ? { mmsi: mmsiVal, name, lat: Number(lat), lon: Number(lon), sog, cog, timeUtc, dest, eta, status, hdt, draught }

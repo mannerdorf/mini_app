@@ -22,7 +22,7 @@ async function mount() {
 it('loads the selected ferry in a modal, showing map and independent course fields', async () => {
   fetchShip.mockResolvedValue({ ok: true, vessel });
   const close = await mount();
-  expect(fetchShip).toHaveBeenCalledWith(ferry.mmsi);
+  expect(fetchShip).toHaveBeenCalledWith(ferry.mmsi, true);
   expect(root.root.findByType('dialog').props['aria-label']).toContain('ALISA');
   expect(root.root.findByType('iframe').props.srcDoc).toContain('[54.6,19.9]');
   expect(root.root.findByType('iframe').props.srcDoc).toContain('heading=86');
@@ -55,4 +55,23 @@ it('does not render a false ship position when coordinates are invalid', async (
   await mount();
   expect(root.root.findAllByType('iframe')).toHaveLength(0);
   expect(JSON.stringify(root.toJSON())).toContain('Координаты судна недоступны');
+});
+
+it('draws the recorded track and shows its actual time range', async () => {
+  fetchShip.mockResolvedValue({ ok: true, vessel, track: [
+    { lat: 54.5, lon: 19.7, timeUtc: '2026-10-07T01:00:00Z' },
+    { lat: 54.6, lon: 19.9, timeUtc: '2026-10-07T12:00:00Z' },
+  ] });
+  await mount();
+  const html = root.root.findByType('iframe').props.srcDoc;
+  expect(html).toContain('track=[[54.5,19.7],[54.6,19.9]]');
+  expect(html).toContain('L.polyline(track');
+  expect(html).toContain('map.fitBounds');
+  expect(JSON.stringify(root.toJSON())).toContain('Пройденный путь по данным AIS');
+});
+it('keeps the current position when history is unavailable', async () => {
+  fetchShip.mockResolvedValue({ ok: true, vessel, track: [], historyError: 'История недоступна' });
+  await mount();
+  expect(root.root.findAllByType('iframe')).toHaveLength(1);
+  expect(JSON.stringify(root.toJSON())).toContain('История недоступна');
 });

@@ -17,12 +17,14 @@ export type MarinesiaVessel = {
   draught?: number;
 };
 
-export async function fetchMarinesiaShip(mmsi: string): Promise<{ ok: boolean; vessel?: MarinesiaVessel; error?: string }> {
+export type MarinesiaTrackPoint = { lat: number; lon: number; timeUtc: string };
+
+export async function fetchMarinesiaShip(mmsi: string, history = false): Promise<{ ok: boolean; vessel?: MarinesiaVessel; error?: string; track?: MarinesiaTrackPoint[]; historyError?: string }> {
   const trimmed = mmsi.trim().replace(/\D/g, "");
-  const { ok, data } = await fetchJson<{ vessel?: MarinesiaVessel; error?: string }>(
-    `/api/marinesia-ship?mmsi=${encodeURIComponent(trimmed)}`,
+  const { ok, data } = await fetchJson<{ vessel?: MarinesiaVessel; error?: string; track?: MarinesiaTrackPoint[]; historyError?: string }>(
+    `/api/marinesia-ship?mmsi=${encodeURIComponent(trimmed)}${history ? '&history=1' : ''}`,
   );
-  return { ok, vessel: data.vessel, error: data.error };
+  return { ok, vessel: data.vessel, error: data.error, track: data.track, historyError: data.historyError };
 }
 
 export async function fetchFerriesList(): Promise<{ id: number; name: string; mmsi: string }[]> {
