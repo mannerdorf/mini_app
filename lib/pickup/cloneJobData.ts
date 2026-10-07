@@ -34,6 +34,7 @@ export function cloneJobDataForCopy(data: JobData): JobData {
   }
 
   return {
+    serviceKind: data.serviceKind,
     customerInn: textValue(data.customerInn, 20),
     customerName: textValue(data.customerName, 300),
     senderInn: textValue(data.senderInn, 20),

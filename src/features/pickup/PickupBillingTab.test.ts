@@ -114,7 +114,7 @@ it('sorts customer names and document numbers naturally',async()=>{
  await mount(vi.fn(async()=>({rows:[{...row,jobId:'a',customer:'Я',jobNumber:'ZB-10'},{...row,jobId:'b',customer:'А',jobNumber:'ZB-2'}]})));
  await act(async()=>root.root.findByProps({'aria-label':'Сортировать: Заказчик'}).props.onClick());
  expect(root.root.findByType('tbody').findAllByProps({'data-label':'Заказчик'})[0].children).toEqual(['А']);
- await act(async()=>root.root.findByProps({'aria-label':'Сортировать: № забора'}).props.onClick());
+ await act(async()=>root.root.findByProps({'aria-label':'Сортировать: № задания'}).props.onClick());
  expect(root.root.findByType('tbody').findAllByProps({'data-label':'№ забора'})[0].findByType('strong').children).toEqual(['ZB-2']);
 });
 

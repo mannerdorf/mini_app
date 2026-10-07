@@ -15,6 +15,7 @@ export function cargoHasPickupPhotos(cargo: Record<string, unknown>, jobs: Photo
   const order = numberKey(cargo.ZayavkaNumber);
   const number = numberKey(cargo.rawNumber ?? cargo.Number ?? cargo.НомерПеревозки);
   return jobs.some((job) => {
+    if (job.data.serviceKind === "last_mile") return false;
     if (text(job.data.customerInn) !== inn) return false;
     const jobOrder = numberKey(job.data.zayavkaNumber);
     const jobCargo = numberKey(job.data.cargoNumber);

@@ -9,6 +9,8 @@ import { buildPickupCustomerQuote } from './customerQuote.js';
 import { persistResolvedPickupCoords, resolvePickupPointCoords } from './pvzCoords.js';
 import { deliveryRequestPreview, deliverySetter } from './deliveryService.js';
 
+const serviceKind = (job: {data?: {serviceKind?: string}}) => job.data?.serviceKind === 'last_mile' ? 'last_mile' : 'pickup';
+const isDelivery = (job: {data?: {serviceKind?: string}}) => serviceKind(job) === 'last_mile';
 const text = (value: unknown) => String(value ?? '').trim();
 export function transportMetrics(row: any) {
   function number(value: unknown): number | null {
@@ -41,13 +43,13 @@ export function matchBillingTransport(job: Job, rows: any[]) {
   const sameInn = (row: any) => text(row.ЗаказчикИНН ?? row.INN ?? row.CustomerINN) === inn;
   const request = text(job.data.zayavkaNumber);
   const matches = rows.filter(row => sameInn(row) &&
-    (text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number) ||
+    ((!isDelivery(job) && text(row.НомерПикапа ?? row.PickupNumber) === text(job.job_number)) ||
      (text(job.data.cargoNumber) !== '' && transportNumber(row) === text(job.data.cargoNumber)) ||
      (request !== '' && sameDocumentNumber(transportOrderNumber(row), request))));
   if (matches.length !== 1) throw new Error(matches.length ? 'Найдено несколько перевозок: требуется сверка' : 'Перевозка не найдена: проверьте номер заявки, забора или перевозки и загрузку из 1С');
   const row = matches[0];
   const pickup = text(row.НомерПикапа ?? row.PickupNumber);
-  if (pickup && pickup !== text(job.job_number)) throw new Error('Перевозка связана с другим забором');
+  if (!isDelivery(job) && pickup && pickup !== text(job.job_number)) throw new Error('Перевозка связана с другим забором');
   if (job.data.cargoNumber && transportNumber(row) !== text(job.data.cargoNumber)) throw new Error('Номер перевозки в заборе не совпадает с данными 1С');
   const order = transportOrderNumber(row);
   if (order && request && !sameDocumentNumber(order, request)) throw new Error('Номер заявки в заборе не совпадает с данными перевозки');
@@ -69,7 +71,7 @@ export function matchBillingTransports(job: Job, rows: any[]): any[] {
     const order = transportOrderNumber(row);
     if (number === numbers[0] && order && text(job.data.zayavkaNumber) && !sameDocumentNumber(order,text(job.data.zayavkaNumber))) throw new PickupError('Номер заявки в заборе не совпадает с данными перевозки');
     const pickup = text(row.НомерПикапа ?? row.PickupNumber);
-    if (pickup && pickup !== job.job_number) throw new PickupError('Перевозка связана с другим забором');
+    if (!isDelivery(job) && pickup && pickup !== job.job_number) throw new PickupError('Перевозка связана с другим забором');
     return row;
   });
 }
@@ -116,7 +118,7 @@ function transportTariffDate(job:Job,row:any):string {
 function sourceFor(job: Job, rows: any[]) {
   const metrics = rows.map(transportMetrics);
   const sum = (key: keyof ReturnType<typeof transportMetrics>) => metrics.length === 1 ? metrics[0][key] : metrics.some(m => m[key] == null) ? null : Number(metrics.reduce((total,m) => total + m[key]!,0).toFixed(6));
-  return { transportNumber: transportNumber(rows[0]), pickupNumber: job.job_number, customerInn: job.data.customerInn,
+  return { ...(isDelivery(job) ? {serviceKind: "last_mile"} : {}), transportNumber: transportNumber(rows[0]), pickupNumber: job.job_number, customerInn: job.data.customerInn,
     orderNumber: job.data.zayavkaNumber,
     tariffDates:rows.map(row=>transportTariffDate(job,row)),
     ...(rows.length > 1 ? {transportNumbers:rows.map(transportNumber),orderNumbers:rows.map(transportOrderNumber),transportMetrics:rows.map(row=>{const m=transportMetrics(row);return [transportNumber(row),m.places,m.weight,m.volume,m.chargeableWeight];})} : {}),
@@ -130,7 +132,7 @@ async function quoteTransports(pool:Pool, job:Job, rows:any[], coords?:{latitude
     const metrics = transportMetrics(row);
     if(metrics.weight==null || metrics.volume==null || metrics.chargeableWeight==null) throw new PickupError('В перевозке нет веса, объёма или платного веса для расчёта');
     const asOfDate=transportTariffDate(job,row);
-    const quote = await buildPickupCustomerQuote(pool,{asOfDate,city:job.city,weightKg:metrics.weight,volumeM3:metrics.volume,
+    const quote = await buildPickupCustomerQuote(pool,{serviceKind:serviceKind(job),asOfDate,city:job.city,weightKg:metrics.weight,volumeM3:metrics.volume,
       chargeableWeightKg:metrics.chargeableWeight,kmOverride:job.data.mkadKm,
       latitude:coords?.latitude??job.data.latitude??null,longitude:coords?.longitude??job.data.longitude??null});
     breakdown.push({transportNumber:transportNumber(row),amount:Math.round(quote.totalRub),asOfDate,tariffVersionId:quote.tariffVersionId,tariffEffectiveFrom:quote.tariffEffectiveFrom});
@@ -163,7 +165,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
     let invoiceCustomer: string | undefined;
     try {
       const matchedTransports = matchBillingTransports(job,cargos);
-      const invoices = [...new Set(matchedTransports.map(t=>pickupInvoiceForTransport(invoiceLines,transportNumber(t),(job as Job & {billing_date:string}).billing_date.slice(0,4),text(job.data.customerInn))).filter(Boolean))];
+      const invoices = [...new Set(matchedTransports.map(t=>pickupInvoiceForTransport(invoiceLines,transportNumber(t),(job as Job & {billing_date:string}).billing_date.slice(0,4),text(job.data.customerInn), serviceKind(job))).filter(Boolean))];
       invoiceNumber = invoices.length===1?invoices[0]:'';
       invoiceConflict = invoices.length>1;
       source = sourceFor(job, matchedTransports);
@@ -184,10 +186,10 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
       }
     } catch (e) { error = (e as Error).message; }
     if (source) {
-      const duplicate=await pool.query(`SELECT job_id FROM pickup_billing WHERE job_id<>$2 AND
+      const duplicate=await pool.query(`SELECT job_id FROM pickup_billing WHERE coalesce(source->>'serviceKind','pickup')=$3 AND job_id<>$2 AND
         (transport_number=ANY($1::text[]) OR coalesce(source->'transportNumbers','[]'::jsonb) ?| $1::text[])
-        UNION ALL SELECT id FROM pickup_jobs WHERE id<>$2 AND
-        (data->>'cargoNumber'=ANY($1::text[]) OR coalesce(data->'cargoNumbers','[]'::jsonb) ?| $1::text[])`,[source.transportNumbers??[source.transportNumber],job.id]);
+        UNION ALL SELECT id FROM pickup_jobs WHERE coalesce(data->>'serviceKind','pickup')=$3 AND id<>$2 AND
+        (data->>'cargoNumber'=ANY($1::text[]) OR coalesce(data->'cargoNumbers','[]'::jsonb) ?| $1::text[])`,[source.transportNumbers??[source.transportNumber],job.id,serviceKind(job)]);
       if(duplicate.rows.length) {error='Эта перевозка уже есть в журнале другого забора';source=null;}
     }
     if (source) {
@@ -225,7 +227,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
     if (/сч[её]т уже выставлен/i.test(record?.last_error||'')) {
       const attempt=(await pool.query(`SELECT action,detail FROM pickup_billing_events WHERE job_id=$1
         AND action IN ('send_started','invoice_fallback_started') ORDER BY created_at DESC,id DESC LIMIT 1`,[job.id])).rows[0];
-      if(attempt) invoiceRequestMethod=attempt.action==='invoice_fallback_started'||attempt.detail?.createInvoice===true?'CreatePickupInvoice':'SetPickupCost';
+      if(attempt) invoiceRequestMethod=attempt.action==='invoice_fallback_started'||attempt.detail?.createInvoice===true?(isDelivery(job)?'CreateLastMileInvoice':'CreatePickupInvoice'):(isDelivery(job)?'SetLastMileCost':'SetPickupCost');
     }
     if (!error && record?.status==='not_issued' && !breakdown.length && (source?.transportNumbers?.length??0)>1) {
       try {
@@ -240,7 +242,7 @@ export async function billingJournal(pool: Pool, city: string, date: string, act
         : record?.amount == null
           ? null
           : Number(record.amount);
-    return { jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
+    return { serviceKind:serviceKind(job), jobId:job.id,jobNumber:job.job_number,date:(job as Job & {billing_date:string}).billing_date,customer:job.data.customerName,sender:job.data.senderName,
       ...record, breakdown, matchedTransportNumbers:job.data.cargoNumbers ?? (job.data.cargoNumber?[job.data.cargoNumber]:[]), invoiceNumber, invoiceReferenceDate, invoiceCustomer, invoiceRequestMethod, orderNumber:text(job.data.zayavkaNumber), source: source ?? record?.source, amount: displayAmount, error, numberSync:sync };
   }
   const result=[];
@@ -279,19 +281,19 @@ export async function billingDiagnostics(pool:Pool,id:string) {
   const attempts=[];
   for(const event of events) {
     const detail=event.detail??{};
-    if(event.action==='send_started') { method=detail.createInvoice?'CreatePickupInvoice':'SetPickupCost'; continue; }
+    if(event.action==='send_started') { method=detail.serviceKind==='last_mile'?(detail.createInvoice?'CreateLastMileInvoice':'SetLastMileCost'):(detail.createInvoice?'CreatePickupInvoice':'SetPickupCost'); continue; }
     if(detail.manualMatch) continue;
     const outcome=event.action==='invoice_fallback_started'?detail.outcome??{}:detail;
-    attempts.push({id:String(event.id),createdAt:event.created_at,method:event.action==='invoice_fallback_started'?'SetPickupCost':method,
+    attempts.push({id:String(event.id),createdAt:event.created_at,method:event.action==='invoice_fallback_started'?(detail.method??'SetPickupCost'):method,
       action:event.action,error:outcome.error??null,diagnostics:outcome.diagnostics??null});
-    if(event.action==='invoice_fallback_started') method='CreatePickupInvoice';
+    if(event.action==='invoice_fallback_started') method=detail.invoiceMethod??'CreatePickupInvoice';
   }
   return {attempts:attempts.reverse()};
 }
 export async function billingPreview(pool:Pool, id:string) {
-  const record=(await pool.query('SELECT job_id,amount,transport_number,version,status FROM pickup_billing WHERE job_id=$1',[id])).rows[0];
+  const record=(await pool.query('SELECT b.job_id,b.amount,b.transport_number,b.version,b.status,j.data FROM pickup_billing b JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1',[id])).rows[0];
   if(!record) throw new PickupError('Запись не найдена',404);
-  const diagnostics=deliveryRequestPreview('SetPickupCost',{Номер:record.transport_number,СтоимостьПикапа:Number(record.amount)}).diagnostics;
+  const diagnostics=deliveryRequestPreview(isDelivery(record)?'SetLastMileCost':'SetPickupCost',{Номер:record.transport_number,[isDelivery(record)?'СтоимостьПоследнейМили':'СтоимостьПикапа']:Number(record.amount)}).diagnostics;
   return {version:record.version,amount:record.amount,transportNumber:record.transport_number,status:record.status,diagnostics};
 }
 export async function billingSend(pool: Pool, actor: string, body: any, automatic = false) {
@@ -306,7 +308,7 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
     const selected = (await db.query(`SELECT b.*,j.data,j.status AS job_status,j.job_number,j.city,j.date FROM pickup_billing b JOIN pickup_jobs j ON j.id=b.job_id WHERE b.job_id=$1 FOR UPDATE OF b,j`,[body.id])).rows[0];
     if (!selected || selected.version !== body.version || !(selected.status === 'not_issued' || (retry && ['manual','uncertain'].includes(selected.status))) || selected.amount == null || selected.job_status !== 'deposited' || !selected.data.issueCustomerBill) throw new PickupError('Обновите журнал: строка изменилась или уже обработана',409);
     if (createInvoice && (!Number.isFinite(Number(selected.amount)) || Number(selected.amount)<=0)) throw new PickupError('Сумма счёта должна быть больше нуля');
-    if (automatic && (selected.data.cargoNumbers?.length > 1 || selected.data.customerBillMode !== 'auto' || !text(selected.data.zayavkaNumber) || selected.amount_manual || selected.last_error)) {
+    if (automatic && (selected.data.cargoNumbers?.length > 1 || selected.data.customerBillMode !== 'auto' || !(isDelivery(selected) ? text(selected.data.cargoNumber) : text(selected.data.zayavkaNumber)) || selected.amount_manual || selected.last_error)) {
       throw new PickupError('Автоматическая передача недоступна: проверьте расчёт и номер заявки',409);
     }
     const job = {...selected,id:body.id} as Job;
@@ -314,24 +316,27 @@ export async function billingSend(pool: Pool, actor: string, body: any, automati
     if (actual.transportNumbers?.length) {
       const year=String(selected.date instanceof Date?selected.date.getFullYear():selected.date).slice(0,4);
       const lines=await readPickupInvoiceLines(pool,`${year}-01-01`,`${year}-12-31`);
-      if(actual.transportNumbers.some(number=>pickupInvoiceForTransport(lines,number,year,text(selected.data.customerInn)))) throw new PickupError('Для выбранных перевозок уже есть счёт за забор. Сопоставьте его перед продолжением.',409);
+      if(actual.transportNumbers.some(number=>pickupInvoiceForTransport(lines,number,year,text(selected.data.customerInn),serviceKind(job)))) throw new PickupError('Для выбранных перевозок уже есть счёт за забор. Сопоставьте его перед продолжением.',409);
     }
     if (JSON.stringify(actual) !== JSON.stringify(Object.fromEntries(Object.keys(actual).map(key=>[key,selected.source[key]])))) throw new PickupError('Данные перевозки изменились. Обновите журнал и проверьте сумму.',409);
     await db.query("UPDATE pickup_billing SET status='sending',version=version+1,updated_by=$2,updated_at=now() WHERE job_id=$1",[body.id,actor]);
-    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number,automatic,retry,createInvoice})]);
+    await db.query("INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,'send_started',$3)",[body.id,actor,JSON.stringify({amount:selected.amount,transportNumber:selected.transport_number,automatic,retry,createInvoice,serviceKind:serviceKind(selected)})]);
     claimed=selected;
     await db.query('COMMIT');
   } catch(e) { await db.query('ROLLBACK'); throw e; } finally { db.release(); }
-  const method = createInvoice ? 'CreatePickupInvoice' : 'SetPickupCost';
-  const payload = createInvoice ? {Номер:claimed.transport_number,Сумма:Number(claimed.amount)} : {Номер:claimed.transport_number,СтоимостьПикапа:Number(claimed.amount)};
+  const lastMile = isDelivery(claimed);
+  const setterMethod = lastMile ? 'SetLastMileCost' : 'SetPickupCost';
+  const invoiceMethod = lastMile ? 'CreateLastMileInvoice' : 'CreatePickupInvoice';
+  const method = createInvoice ? invoiceMethod : setterMethod;
+  const payload = createInvoice ? {Номер:claimed.transport_number,Сумма:Number(claimed.amount)} : {Номер:claimed.transport_number,[lastMile ? "СтоимостьПоследнейМили" : "СтоимостьПикапа"]:Number(claimed.amount)};
   let outcome = await deliverySetter(method,payload,true);
   let invoiceRequested = createInvoice;
   // Only an explicit rejection permits fallback; a timeout or ambiguous response requires reconciliation.
   if (automatic && !outcome.ok && outcome.rejectedByService && !outcome.uncertain && Number(claimed.amount)>0) {
     await pool.query('INSERT INTO pickup_billing_events(job_id,actor,action,detail) VALUES($1,$2,$3,$4)',
-      [body.id,actor,'invoice_fallback_started',JSON.stringify({method:'SetPickupCost',outcome,amount:Number(claimed.amount),transportNumber:claimed.transport_number})]);
+      [body.id,actor,'invoice_fallback_started',JSON.stringify({method:setterMethod,invoiceMethod,outcome,amount:Number(claimed.amount),transportNumber:claimed.transport_number})]);
     invoiceRequested = true;
-    outcome = await deliverySetter('CreatePickupInvoice',{Номер:claimed.transport_number,Сумма:Number(claimed.amount)},true);
+    outcome = await deliverySetter(invoiceMethod,{Номер:claimed.transport_number,Сумма:Number(claimed.amount)},true);
   }
   const status=outcome.ok?(invoiceRequested?'issued':'transmitted'):outcome.uncertain?'uncertain':'manual';
   // If the process stops after the network call, 'sending' is intentionally not retried.
@@ -395,12 +400,12 @@ export async function billingMatchTransport(pool: Pool, actor: string, body: any
       if(await isNormalizedCacheReady(pool,'perevozki')) {
         rows=(await db.query(`SELECT payload FROM cache_perevozki_rows
           WHERE coalesce(payload->>'ЗаказчикИНН',payload->>'INN',payload->>'CustomerINN')=$1
-          AND (coalesce(payload->>'НомерПикапа',payload->>'PickupNumber','')='' OR coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=$2)
+          AND ($4::boolean OR coalesce(payload->>'НомерПикапа',payload->>'PickupNumber','')='' OR coalesce(payload->>'НомерПикапа',payload->>'PickupNumber')=$2)
           AND strpos(lower(concat_ws(' ',payload->>'Number',payload->>'rawNumber',payload->>'НомерПеревозки',payload->>'ZayavkaNumber',payload->>'Sender',payload->>'Receiver')),$3)>0
-          ORDER BY coalesce(payload->>'DatePrih','') DESC LIMIT 100`,[inn,job.job_number,search])).rows.map(r=>r.payload);
+          ORDER BY coalesce(payload->>'DatePrih','') DESC LIMIT 100`,[inn,job.job_number,search,isDelivery(job)])).rows.map(r=>r.payload);
       } else rows=await transports(pool,[job]);
       const candidates=rows.filter(r=>text(r.ЗаказчикИНН??r.INN??r.CustomerINN)===inn &&
-        (!text(r.НомерПикапа??r.PickupNumber)||text(r.НомерПикапа??r.PickupNumber)===job.job_number) &&
+        (isDelivery(job)||!text(r.НомерПикапа??r.PickupNumber)||text(r.НомерПикапа??r.PickupNumber)===job.job_number) &&
         [transportNumber(r),transportOrderNumber(r),r.Sender,r.Receiver].join(' ').toLowerCase().includes(search))
         .slice(0,100).map(r=>({number:transportNumber(r),orderNumber:transportOrderNumber(r),date:text(r.DatePrih),sender:text(r.Sender),receiver:text(r.Receiver),...transportMetrics(r)}));
       await db.query('COMMIT');return {version:job.version,transports:candidates};
@@ -416,10 +421,10 @@ export async function billingMatchTransport(pool: Pool, actor: string, body: any
     proposed.data.zayavkaNumber=transportOrderNumber(matched[0]) || job.data.zayavkaNumber;
     // Stable lock order protects overlapping selections against concurrent matches.
     for (const number of [...numbers].sort()) await db.query('SELECT pg_advisory_xact_lock(hashtext($1))',[`pickup-transport:${number}`]);
-    const conflict=await db.query(`SELECT id FROM pickup_jobs WHERE id<>$1 AND
+    const conflict=await db.query(`SELECT id FROM pickup_jobs WHERE coalesce(data->>'serviceKind','pickup')=$3 AND id<>$1 AND
       (data->>'cargoNumber'=ANY($2::text[]) OR coalesce(data->'cargoNumbers','[]'::jsonb) ?| $2::text[])
-      UNION ALL SELECT job_id FROM pickup_billing WHERE job_id<>$1 AND
-      (transport_number=ANY($2::text[]) OR coalesce(source->'transportNumbers','[]'::jsonb) ?| $2::text[])`,[job.id,numbers]);
+      UNION ALL SELECT job_id FROM pickup_billing WHERE coalesce(source->>'serviceKind','pickup')=$3 AND job_id<>$1 AND
+      (transport_number=ANY($2::text[]) OR coalesce(source->'transportNumbers','[]'::jsonb) ?| $2::text[])`,[job.id,numbers,serviceKind(job)]);
     if(conflict.rows.length) throw new PickupError('Перевозка уже сопоставлена с другим забором',409);
     await db.query('UPDATE pickup_jobs SET data=$2,version=version+1,updated_at=now() WHERE id=$1',[job.id,JSON.stringify(proposed.data)]);
     // Invalidate stale drafts immediately, even when a manually entered amount is retained.

@@ -11,3 +11,9 @@ it('rejects other transports, years, customers and ambiguous pickup invoices',()
  expect(pickupInvoiceForTransport([valid],'000142632','2026','456')).toBe('');
  expect(pickupInvoiceForTransport([valid,line('4080','Забор')],'000142632','2026','123')).toBe('');
 });
+
+it('does not confuse last-mile and pickup service invoices', () => {
+ const lines=[{number:'LM-1',date:'2026-10-07',inn:'100',line:{Name:'Услуги последней мили. Перевозка № 000123'}},{number:'ZB-1',date:'2026-10-07',inn:'100',line:{Name:'Забор. Перевозка № 000123'}}];
+ expect(pickupInvoiceForTransport(lines,'000123','2026','100','last_mile')).toBe('LM-1');
+ expect(pickupInvoiceForTransport(lines,'000123','2026','100')).toBe('ZB-1');
+});

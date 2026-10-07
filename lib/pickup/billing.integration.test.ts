@@ -26,7 +26,9 @@ beforeAll(async()=>{
     CREATE TABLE cache_invoices_rows(doc_number text,doc_date date,customer_inn text,payload jsonb); CREATE TABLE cache_perevozki(id int PRIMARY KEY,data jsonb); CREATE TABLE cache_perevozki_rows(payload jsonb); CREATE TABLE document_cache_normalized_state(kind text PRIMARY KEY,row_count bigint); CREATE TABLE cache_orders(id int PRIMARY KEY,data jsonb,fetched_at timestamptz);`);
   const migration=readFileSync(new URL('../../migrations/114_pickup_1c_integration.sql',import.meta.url),'utf8');
   await db.exec(migration);await db.exec(migration);
+  await db.exec(readFileSync(new URL("../../migrations/126_last_mile_dispatch.sql",import.meta.url),"utf8"));
   await db.exec(readFileSync(new URL('../../migrations/119_pickup_auto_billing.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL("../../migrations/126_last_mile_dispatch.sql",import.meta.url),"utf8"));
 },30000);
 afterAll(()=>db.close());
 beforeEach(async()=>{await db.exec('TRUNCATE cache_invoices_rows,pickup_jobs,cache_perevozki,cache_perevozki_rows,document_cache_normalized_state,cache_orders CASCADE');vi.mocked(deliverySetter).mockReset();vi.mocked(deliverySetter).mockResolvedValue({ok:true});});
@@ -543,4 +545,24 @@ it('selects each transport date separately for historical tariffs',async()=>{
  const result=await billingQuote(pool,{id,version:row.version});
  expect(vi.mocked(buildPickupCustomerQuote).mock.calls.map(call=>call[1].asOfDate)).toEqual(['2026-08-31','2026-09-01']);
  expect(result.breakdown.map(item=>item.asOfDate)).toEqual(['2026-08-31','2026-09-01']);
+});
+
+it('bills last mile independently of pickup and falls back to the last-mile invoice method',async()=>{
+  await seed();
+  const pickupId=id;
+  await journal();
+  const deliveryId=randomUUID();
+  await db.query("INSERT INTO pickup_jobs(id,job_number,city,date,status,data) SELECT $1,'DL-001',city,date,status,data || $2::jsonb FROM pickup_jobs WHERE id=$3",[deliveryId,JSON.stringify({serviceKind:'last_mile',cargoNumber:'000001',zayavkaNumber:''}),pickupId]);
+  const rows=(await journal()).rows;
+  const delivery=rows.find(r=>r.jobId===deliveryId)!;
+  expect(delivery.error).toBeNull();
+  expect(rows).toHaveLength(2);
+  expect(delivery.source?.serviceKind).toBe('last_mile');
+  expect((await db.query('SELECT state FROM pickup_auto_billing_queue WHERE job_id=$1',[deliveryId])).rows[0].state).toBe('pending');
+  expect((await db.query('SELECT * FROM pickup_number_sync WHERE job_id=$1',[deliveryId])).rows).toHaveLength(0);
+  vi.mocked(deliverySetter).mockResolvedValueOnce({ok:false,rejectedByService:true,error:'счет уже выставлен',uncertain:false}).mockResolvedValueOnce({ok:true,invoiceNumber:'LM-5'});
+  await billingSend(pool,'cron',{id:deliveryId,version:delivery.version,confirmed:true},true);
+  expect(deliverySetter).toHaveBeenNthCalledWith(1,'SetLastMileCost',{Номер:'000001',СтоимостьПоследнейМили:540},true);
+  expect(deliverySetter).toHaveBeenNthCalledWith(2,'CreateLastMileInvoice',{Номер:'000001',Сумма:540},true);
+  expect((await db.query('SELECT status FROM pickup_billing WHERE job_id=$1',[deliveryId])).rows[0].status).toBe('issued');
 });

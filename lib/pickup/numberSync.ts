@@ -19,7 +19,7 @@ export async function syncPickupNumbers(pool: Pool) {
     const orders = cache.rows[0]?.data;
     if (!cache.rows[0]?.fetched_at || Date.now()-new Date(cache.rows[0].fetched_at).getTime()>30*60000) throw new Error('Обновите кэш заявок перед передачей номеров');
     if (!Array.isArray(orders)) throw new Error('Сначала загрузите заявки GetZayavki');
-    const { rows } = await db.query(`SELECT * FROM pickup_number_sync WHERE state<>'synced' AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 20`);
+    const { rows } = await db.query(`SELECT * FROM pickup_number_sync WHERE job_id IN (SELECT id FROM pickup_jobs WHERE coalesce(data->>'serviceKind','pickup')<>'last_mile') AND state<>'synced' AND next_attempt_at<=now() ORDER BY next_attempt_at LIMIT 20`);
     let synced = 0, failed = 0;
     const deadline=Date.now()+45000;
     let cursor=0;

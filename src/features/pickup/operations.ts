@@ -161,6 +161,6 @@ export function currentDriverJob(jobs: Job[]) {
 export function canDepositJobs(jobs: Job[]): boolean {
   return (
     jobs.length > 0 &&
-    jobs.every((j) => !["pending", "arrived"].includes(j.status))
+    jobs.every((j) => !["pending", "arrived"].includes(j.status) && !(j.data.serviceKind === "last_mile" && ["partial", "problem"].includes(j.status)))
   );
 }

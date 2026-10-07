@@ -8,7 +8,7 @@ function deliveryCredentials() {
   const password = String(process.env.PEREVOZKI_SERVICE_PASSWORD ?? '').trim();
   return login && password ? {login,password} : null;
 }
-export function deliveryRequestPreview(method: 'SetPickupNumber' | 'SetPickupCost' | 'CreatePickupInvoice', payload: Record<string, unknown>) {
+export function deliveryRequestPreview(method: 'SetPickupNumber' | 'SetPickupCost' | 'CreatePickupInvoice' | 'SetLastMileCost' | 'CreateLastMileInvoice', payload: Record<string, unknown>) {
   const credentials = deliveryCredentials();
   const base = process.env.ONE_C_DELIVERY_BASE_URL || POST_ZAYAVKA_URL.replace(/PostZayavka2\/?$/, '');
   const url = `${base.replace(/\/$/, '')}/${method}/`;
@@ -28,8 +28,8 @@ export function deliveryRequestPreview(method: 'SetPickupNumber' | 'SetPickupCos
   };
   return {url,body,redact,diagnostics};
 }
-/** Shared DeliveryWebService authentication; only CreatePickupInvoice creates an invoice. */
-export async function deliverySetter(method: 'SetPickupNumber' | 'SetPickupCost' | 'CreatePickupInvoice', payload: Record<string, unknown>, diagnostic = false): Promise<DeliveryWriteResult> {
+/** Shared DeliveryWebService authentication; only Create*Invoice methods create an invoice. */
+export async function deliverySetter(method: 'SetPickupNumber' | 'SetPickupCost' | 'CreatePickupInvoice' | 'SetLastMileCost' | 'CreateLastMileInvoice', payload: Record<string, unknown>, diagnostic = false): Promise<DeliveryWriteResult> {
   const credentials = deliveryCredentials();
   if (!credentials) return { ok: false, error: 'Не настроены PEREVOZKI_SERVICE_LOGIN и PEREVOZKI_SERVICE_PASSWORD' };
   const {url,body,redact,diagnostics} = deliveryRequestPreview(method,payload);
@@ -46,7 +46,7 @@ export async function deliverySetter(method: 'SetPickupNumber' | 'SetPickupCost'
     let data: {Success?: unknown; Error?: unknown; Номер?: unknown; Ссылка?: unknown} | null = null;
     try { data = JSON.parse(raw); } catch { /* Preserve non-JSON responses in diagnostics. */ }
     if (response.ok && data?.Success === true) {
-      if (method === 'CreatePickupInvoice') {
+      if ((method === 'CreatePickupInvoice' || method === 'CreateLastMileInvoice')) {
         const invoiceNumber = typeof data.Номер === 'string' ? data.Номер.trim() : '';
         if (!invoiceNumber) return finish({ok:false,uncertain:true,error:'1С подтвердила создание счёта, но не вернула номер. Требуется сверка.'});
         return finish({ok:true,invoiceNumber,invoiceId:typeof data.Ссылка === 'string' ? data.Ссылка : undefined});

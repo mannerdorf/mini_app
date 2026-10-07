@@ -23,7 +23,7 @@ export async function processPickupAutoBilling(pool: Pool) {
       await done(); return { processed: 1, status: job.billing_status };
     }
     try {
-      if (job.status !== "deposited" || job.data.issueCustomerBill !== true || job.data.customerBillMode !== "auto" || !String(job.data.zayavkaNumber ?? "").trim() || job.amount_manual) {
+      if (job.status !== "deposited" || job.data.issueCustomerBill !== true || job.data.customerBillMode !== "auto" || !(job.data.serviceKind === "last_mile" ? String(job.data.cargoNumber ?? "").trim() : String(job.data.zayavkaNumber ?? "").trim()) || job.amount_manual) {
         throw new Error("Ожидание автоматического расчёта, сдачи на склад и номера заявки; ручная сумма не отправляется автоматически");
       }
       const journal = await billingJournal(pool, job.city, job.date, "cron:auto-billing", job.job_id);

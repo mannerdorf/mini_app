@@ -7,6 +7,7 @@ import type { CityCode } from "../haulzCalculator/types.js";
 
 export type PickupCustomerQuoteInput = {
   city: CityCode;
+  serviceKind?: "pickup" | "last_mile";
   asOfDate?: string;
   weightKg: number | null;
   volumeM3: number | null;
@@ -39,9 +40,11 @@ export async function buildPickupCustomerQuote(
 ): Promise<PickupCustomerQuoteResult> {
   if(input.asOfDate && (!/^\d{4}-\d{2}-\d{2}$/.test(input.asOfDate) || !Number.isFinite(Date.parse(input.asOfDate)) || new Date(input.asOfDate).toISOString().slice(0,10)!==input.asOfDate)) throw new Error('Некорректная дата тарифа');
   const tariffs = await loadCalculatorTariffs(pool,input.asOfDate);
-  if (!tariffs.pickup?.cities?.[input.city]?.tiers?.length) {
+  const lastMile = input.serviceKind === "last_mile";
+  const matrix = lastMile ? tariffs.byCode.last_mile_matrix?.version?.payload as typeof tariffs.pickup : tariffs.pickup;
+  if (!matrix?.cities?.[input.city]?.tiers?.length) {
     throw new Error(
-      `Тарифы забора не настроены${input.asOfDate ? ` на ${input.asOfDate}` : ""}. Загрузите матрицу в админке HAULZ → Калькулятор → Забор.`,
+      `Тарифы ${lastMile ? "последней мили" : "забора"} не настроены${input.asOfDate ? ` на ${input.asOfDate}` : ""}. Загрузите матрицу в админке HAULZ → Калькулятор → ${lastMile ? "Последняя миля" : "Забор"}.`,
     );
   }
 
@@ -70,7 +73,7 @@ export async function buildPickupCustomerQuote(
   km = Math.max(0, Number(km) || 0);
 
   const calc = calcPickupFromMatrix(
-    tariffs.pickup,
+    matrix,
     input.city,
     chargeableWeightKg,
     volumeM3,
@@ -80,7 +83,7 @@ export async function buildPickupCustomerQuote(
   const ringName = input.city === "moscow" ? "МКАД" : "КАД";
   const totalRub = Math.round(calc.total);
   const summary = [
-    `Забор ${totalRub.toLocaleString("ru-RU")} ₽`,
+    `${lastMile ? "Доставка" : "Забор"} ${totalRub.toLocaleString("ru-RU")} ₽`,
     `${ringName} +${km.toFixed(1)} км`,
     `платный вес ${Math.round(chargeableWeightKg)} кг`,
     `тарифный диапазон ${calc.tierIndex + 1}`,
@@ -88,8 +91,8 @@ export async function buildPickupCustomerQuote(
 
   return {
     asOfDate:tariffs.asOfDate,
-    tariffVersionId:tariffs.byCode.pickup_matrix?.version?.id,
-    tariffEffectiveFrom:tariffs.byCode.pickup_matrix?.version?.effective_from,
+    tariffVersionId:tariffs.byCode[lastMile ? "last_mile_matrix" : "pickup_matrix"]?.version?.id,
+    tariffEffectiveFrom:tariffs.byCode[lastMile ? "last_mile_matrix" : "pickup_matrix"]?.version?.effective_from,
     totalRub,
     km,
     chargeableWeightKg,

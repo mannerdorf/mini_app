@@ -74,7 +74,7 @@ export function PickupDayRow({
             {route?.snapshot.driver?.name || "Не назначен"}
             <small>{route?.name || "Без маршрута"}</small>
           </span>
-          <PickupJobStatusBadge status={job.status} />
+          <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />
           <span aria-hidden="true">→</span>
         </button>
       </div>

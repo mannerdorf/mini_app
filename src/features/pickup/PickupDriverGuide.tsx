@@ -107,7 +107,7 @@ export function PickupDriverStop({
             {plannedPlaces(job.data)} мест · {job.data.weightKg ?? "—"} кг
           </small>
         </span>
-        <PickupJobStatusBadge status={job.status} />
+        <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />
       </summary>
       {children}
     </details>

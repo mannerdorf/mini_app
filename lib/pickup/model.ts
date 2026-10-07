@@ -29,6 +29,7 @@ export type Place = {
   heightCm: number | null;
 };
 export type JobData = {
+  serviceKind?: "pickup" | "last_mile";
   customerInn: string;
   customerName: string;
   senderInn: string;
@@ -288,7 +289,8 @@ export function normalizeJob(raw: any): JobData {
       raw.windowFrom < raw.windowTo,
     "Укажите окно забора в пределах дня: начало раньше окончания",
   );
-  requireValue(textValue(raw.address), "Укажите адрес забора");
+  requireValue(textValue(raw.address), raw.serviceKind === "last_mile" ? "Укажите адрес получателя" : "Укажите адрес забора");
+  if (raw.serviceKind === "last_mile") requireValue(textValue(raw.cargoNumber), "Укажите номер перевозки для доставки");
   const documents: Basis[] = (Array.isArray(raw.documents) ? raw.documents : [])
     .slice(0, 20)
     .map((d: any) => {
@@ -327,6 +329,7 @@ export function normalizeJob(raw: any): JobData {
     raw.defaultPlaceKind === "custom" ? "custom" : "pvz";
 
   return {
+    serviceKind: raw.serviceKind === "last_mile" ? "last_mile" : "pickup",
     customerInn: textValue(raw.customerInn, 20),
     customerName: textValue(raw.customerName, 300),
     senderInn: textValue(raw.senderInn, 20),

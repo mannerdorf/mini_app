@@ -1,5 +1,6 @@
+import { annotateCargoLastMile } from "../lib/pickup/cargoLastMile.js";
 import { SERVICE_AUTH } from "../lib/oneCServiceAuth.js";
-import { annotateCargoPickupPhotos } from "../lib/pickup/cargoPhotoIndicator.js";
+import { annotateCargoPickupPhotos as annotatePickupPhotos } from "../lib/pickup/cargoPhotoIndicator.js";
 import type { Pool } from "pg";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
@@ -676,4 +677,8 @@ async function ingestCargoItems(items: any[], login: string) {
       }),
     );
   }
+}
+
+async function annotateCargoPickupPhotos(pool: Parameters<typeof annotatePickupPhotos>[0], items: any[]) {
+  return annotateCargoLastMile(pool, await annotatePickupPhotos(pool, items));
 }

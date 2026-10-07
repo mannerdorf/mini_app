@@ -489,6 +489,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     let quote;
     try {
       quote = await buildPickupCustomerQuote(pool, {
+        serviceKind: body.serviceKind === "last_mile" ? "last_mile" : "pickup",
         city,
         weightKg: numberValue(body.weight_kg, "weight_kg", 100000),
         volumeM3: numberValue(body.volume_m3, "volume_m3", 1000),
@@ -522,7 +523,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "SELECT id,action,data,created_at FROM pickup_events WHERE job_id=$1 ORDER BY created_at,id",
         [body.id],
       );
-      const statusActions = new Set(["Прибыл на точку", "Груз забран", "Проблема на точке", "Решение диспетчера", "Забор отменён", "Груз сдан на склад", "Статус забора изменён диспетчером", "arrive", "complete", "problem", "resolve", "cancel", "set_job_status"]);
+      const statusActions = new Set(["Груз вручен получателю", "Прибыл на точку", "Груз забран", "Проблема на точке", "Решение диспетчера", "Забор отменён", "Груз сдан на склад", "Статус забора изменён диспетчером", "arrive", "complete", "problem", "resolve", "cancel", "set_job_status"]);
       return { createdAt: rows[0].created_at, status: rows[0].status,
         events: events.rows.filter((e) => statusActions.has(e.action)).map((e) => ({
           id: e.id, action: e.action, created_at: e.created_at,
@@ -762,6 +763,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       );
       const job: Job = rows[0];
       requireValue(job, "Забор не найден");
+      requireValue((job.data.serviceKind ?? "pickup") === (data.serviceKind ?? "pickup"), "Нельзя менять тип существующего задания");
       checkVersion(job, body.version);
       requireValue(
         job.status !== "cancelled",
@@ -835,7 +837,8 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       const jobId = i === 0 ? id : randomUUID();
       const jobData = { ...data, ...scheduleMeta };
       const search = pickupJobSearchColumns(jobData);
-      const jobNumber = await allocatePickupJobNumber(db);
+      const allocatedNumber = await allocatePickupJobNumber(db);
+      const jobNumber = data.serviceKind === "last_mile" ? allocatedNumber.replace(/^ZB-/, "DL-") : allocatedNumber;
       await db.query(
         `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn,job_number)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -1208,6 +1211,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           jobs.every((j) => !["pending", "arrived"].includes(j.status)),
         "Остались точки, где водитель ещё не зафиксировал результат",
       );
+      requireValue(!jobs.some(j => j.data.serviceKind === "last_mile" && ["partial", "problem"].includes(j.status)), "По доставке требуется решение диспетчера");
       const missing = jobs.filter(pickupJobNeedsZayavka);
       const entries = body.zayavka_numbers ?? [];
       requireValue(
@@ -1481,7 +1485,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         "Опишите решение и что делать с остатком",
       );
       await db.query(
-        "UPDATE pickup_jobs SET resolution=$2,status=CASE WHEN status='problem' THEN 'resolved' ELSE status END,version=version+1,updated_at=now() WHERE id=$1",
+        "UPDATE pickup_jobs SET resolution=$2,status=CASE WHEN status='problem' THEN 'resolved' WHEN data->>'serviceKind'='last_mile' AND status='partial' THEN 'deposited' ELSE status END,version=version+1,updated_at=now() WHERE id=$1",
         [job.id, textValue(body.note, 3000)],
       );
     } else {
@@ -1521,7 +1525,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           "UPDATE pickup_jobs SET status=$2,actual_places=$3,note=$4,version=version+1,updated_at=now() WHERE id=$1",
           [
             job.id,
-            count !== plannedPlaces(job.data) ? "partial" : "picked_up",
+            count !== plannedPlaces(job.data) ? "partial" : job.data.serviceKind === "last_mile" ? "deposited" : "picked_up",
             count,
             textValue(body.note, 3000),
           ],
@@ -1545,7 +1549,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       (
         {
           arrive: "Прибыл на точку",
-          complete: "Груз забран",
+          complete: job.data.serviceKind === "last_mile" ? "Груз вручен получателю" : "Груз забран",
           problem: "Проблема на точке",
           resolve: "Решение диспетчера",
         } as Record<string, string>
@@ -1555,12 +1559,20 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       {
         from: job.status,
         to: action === "arrive" ? "arrived" : action === "problem" ? "problem"
-          : action === "resolve" ? (job.status === "problem" ? "resolved" : job.status)
-          : Number(body.actual_places) !== plannedPlaces(job.data) ? "partial" : "picked_up",
+          : action === "resolve" ? (job.status === "problem" ? "resolved" : job.data.serviceKind === "last_mile" && job.status === "partial" ? "deposited" : job.status)
+          : Number(body.actual_places) !== plannedPlaces(job.data) ? "partial" : job.data.serviceKind === "last_mile" ? "deposited" : "picked_up",
         note: textValue(body.note, 3000),
         ...(action === "complete" ? { actualPlaces: body.actual_places } : {}),
       },
     );
+    if (job.data.serviceKind === "last_mile" && ["complete", "resolve"].includes(action)) {
+      // A delivery-only route finishes at the recipient; mixed routes retain warehouse handoff.
+      const remaining = await db.query("SELECT id FROM pickup_jobs WHERE route_id=$1 AND status NOT IN ('deposited','cancelled','resolved')", [route.id]);
+      if (!remaining.rows.length) {
+        await db.query("UPDATE pickup_routes SET status='completed',updated_at=now() WHERE id=$1", [route.id]);
+        await event(db, actor, "Маршрут завершён у получателя", route.id, null);
+      }
+    }
     return { ok: true };
   }
   throw new PickupError("Неизвестное действие");

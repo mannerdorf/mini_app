@@ -185,6 +185,7 @@ beforeAll(async () => {
     "109_pickup_gps_quality.sql",
     "110_pickup_job_number.sql",
     "114_pickup_1c_integration.sql",
+    "126_last_mile_dispatch.sql",
   ]) {
     await state.db.exec(
       readFileSync(
@@ -208,6 +209,8 @@ afterAll(async () => {
   await state.db?.close();
 });
 beforeEach(async () => {
+  // Yield between PGlite WASM tests so Vitest can acknowledge worker progress.
+  await new Promise<void>((resolve) => setImmediate(resolve));
   await state.db.query('UPDATE cache_orders SET data=$1 WHERE id=1',[JSON.stringify(['З-001','З-002','З-1'].map(Номер=>({Номер,ЗаказчикИНН:'100',Ссылка:Номер})))]);
   await state.db.exec(
     "TRUNCATE pickup_receipts,pickup_events,pickup_photos,pickup_jobs,pickup_routes,pickup_resources,pickup_supplier_contacts,registered_users CASCADE",
@@ -1420,4 +1423,44 @@ it('rejects depot handoff when the entered order belongs only to another custome
    expect(response.status).toBe(400);expect(response.body.error).toBe('Заявка не найдена');
    const after=await snapshot();expect(after.jobs[0].status).toBe('picked_up');expect(after.jobs[0].data.zayavkaNumber).toBe('');
  } finally {vi.unstubAllEnvs();}
+});
+
+it("delivery finishes at recipient with photos and does not enqueue a pickup number", async () => {
+  const {job} = await setup();
+  const before = await snapshot();
+  const saved = before.jobs.find((j:any)=>j.id===job.id);
+  // Seed an existing delivery route to exercise driver completion independently of the form.
+  await state.db.query("UPDATE pickup_jobs SET data=data || $2::jsonb,job_number='DL-000001' WHERE id=$1", [job.id,JSON.stringify({serviceKind:'last_mile',cargoNumber:'000001'})]);
+  const started=await publishAndStart();
+  const current=started.jobs.find((j:any)=>j.id===job.id);
+  await ok('driver',{action:'complete',id:job.id,version:current.version,actual_places:2,photos:[photo]});
+  const after=await snapshot();
+  expect(after.jobs.find((j:any)=>j.id===job.id).status).toBe('deposited');
+  expect(after.routes[0].status).toBe('completed');
+  expect((await state.db.query('SELECT * FROM pickup_number_sync WHERE job_id=$1',[job.id])).rows).toHaveLength(0);
+});
+
+it("creates deliveries with DL numbers and prevents changing their service kind", async () => {
+  await setup();
+  const deliveryData={...data(),serviceKind:'last_mile',cargoNumber:'000001'};
+  const created=await ok('dispatch',{action:'save_job',city:'moscow',date:'2026-09-15',data:deliveryData});
+  const row=(await snapshot()).jobs.find((j:any)=>j.id===created.id);
+  expect(row.job_number).toMatch(/^DL-\d{6}$/);
+  expect(row.data.serviceKind).toBe('last_mile');
+  expect((await request('dispatch',{action:'save_job',id:row.id,version:row.version,city:'moscow',date:'2026-09-15',data:{...deliveryData,serviceKind:'pickup'}})).status).toBe(400);
+});
+
+it("partial last-mile delivery needs dispatcher resolution and cannot be deposited as pickup", async () => {
+  const {job}=await setup();
+  await state.db.query("UPDATE pickup_jobs SET data=data || $2::jsonb WHERE id=$1",[job.id,JSON.stringify({serviceKind:'last_mile',cargoNumber:'000001'})]);
+  const started=await publishAndStart();
+  const current=started.jobs.find((j:any)=>j.id===job.id);
+  await ok('driver',{action:'complete',id:job.id,version:current.version,actual_places:1,note:'Одно место не принято',photos:[photo]});
+  const partial=await snapshot();
+  expect(partial.jobs[0].status).toBe('partial');
+  expect((await request('driver',{action:'deposit',id:partial.routes[0].id,version:partial.routes[0].version})).status).toBe(400);
+  await ok('dispatch',{action:'resolve',id:job.id,version:partial.jobs[0].version,note:'Остаток будет доставлен отдельным заданием'});
+  const done=await snapshot();
+  expect(done.jobs[0].status).toBe('deposited');
+  expect(done.routes[0].status).toBe('completed');
 });

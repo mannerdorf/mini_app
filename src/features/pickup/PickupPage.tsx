@@ -103,7 +103,7 @@ const empty: Snapshot = {
   dispatcher: false,
 };
 type Editor =
-  | { type: "job"; job?: Job; copyFrom?: Job }
+  | { type: "job"; serviceKind?: "pickup" | "last_mile"; job?: Job; copyFrom?: Job }
   | { type: "route"; route?: Route }
   | { type: ResourceKind; resource?: Resource }
   | null;
@@ -489,6 +489,7 @@ export function PickupPage({
               >
                 + Забор
               </button>
+              <button onClick={() => setEditor({ type: "job", serviceKind: "last_mile" })}>+ Доставка</button>
               <button onClick={() => setEditor({ type: "route" })}>
                 + Маршрут
               </button>
@@ -528,6 +529,7 @@ export function PickupPage({
         <div className="pk-editor-overlay">
           {editor.type === "job" ? (
             <JobForm
+              serviceKind={editor.serviceKind}
               job={editor.job}
               copyFrom={editor.copyFrom}
               city={city}
@@ -564,9 +566,9 @@ export function PickupPage({
           <div className="pk-stats" aria-label="Фильтры плана дня">
             {(
               [
-                ["all", "Заборов за день", "blue"],
+                ["all", "Заданий за день", "blue"],
                 ["unassigned", "Не распределено", "amber"],
-                ["collected", "Груз забран", "green"],
+                ["collected", "Забрано / доставлено", "green"],
                 ["attention", "Требуют решения", "red"],
               ] as const
             ).map(([id, label, tone]) => (
@@ -920,9 +922,9 @@ export function PickupPage({
             />
           )}
           <div className="pk-day-columns" aria-hidden="true">
-            <span>Номер забора</span>
+            <span>Номер задания</span>
             <span>Окно забора</span>
-            <span>Отправитель / адрес</span>
+            <span>Отправитель / получатель / адрес</span>
             <span>Заказчик</span>
             <span>Груз</span>
             <span>Водитель / маршрут</span>
@@ -1095,7 +1097,7 @@ export function PickupPage({
                       key={j.id}
                     >
                       <div className="pk-card__head">
-                        <PickupJobStatusBadge status={j.status} />
+                        <PickupJobStatusBadge status={j.status} serviceKind={j.data.serviceKind} />
                       </div>
                       <JobSummary job={j} compact={jobViewCompact} />
                       <div className="pk-actions">
@@ -1836,7 +1838,7 @@ function JobCompactSummary({ job }: { job: Job }) {
     <div className="pk-job-compact">
       <PickupJobNumber job={job} />
       <div className="pk-job-compact__head">
-        <PickupJobStatusBadge status={job.status} />
+        <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />
         <span className="pk-job-compact__meta">
           {job.data.windowFrom}–{job.data.windowTo} · {plannedPlaces(job.data)}{" "}
           м · {job.data.weightKg ?? "—"} кг
@@ -1875,7 +1877,7 @@ function JobSummary({
     <>
       {showBadge && (
         <div className="pk-card__head">
-          <PickupJobStatusBadge status={job.status} />
+          <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />
         </div>
       )}
       {compact ? (
@@ -1985,7 +1987,7 @@ function JobDetails({
       <PickupJobTimeline id={job.id} version={job.version} call={call} photoCount={job.photo_count ?? 0} />
       {driver && (
         <div className="pk-actions">
-          {!driver && <PickupJobStatusBadge status={job.status} />}
+          {!driver && <PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} />}
           {job.actual_places !== null && (
             <strong>Забрано: {job.actual_places} мест</strong>
           )}
@@ -1993,7 +1995,7 @@ function JobDetails({
       )}
       {!driver ? (
         <section className="pk-pickup-overview" aria-label="Основное о заборе">
-          <div className="pk-actions"><PickupJobStatusBadge status={job.status} /></div>
+          <div className="pk-actions"><PickupJobStatusBadge status={job.status} serviceKind={job.data.serviceKind} /></div>
           <h3>{job.data.senderName}</h3>
           <p>{job.data.address}</p>
           <dl className="pk-pickup-facts">
@@ -2115,7 +2117,7 @@ function JobDetails({
                 setProblemOpen(false);
               }}
             >
-              Зафиксировать забор
+              {job.data.serviceKind === "last_mile" ? "Подтвердить вручение" : "Зафиксировать забор"}
             </button>
             <button
               className="pk-btn-secondary"
@@ -2130,7 +2132,7 @@ function JobDetails({
           </div>
           {resultOpen && (
             <section className="pk-pickup-result">
-              <h3>Подтверждение забора</h3>
+              <h3>{job.data.serviceKind === "last_mile" ? "Подтверждение вручения" : "Подтверждение забора"}</h3>
               <p className="pk-hint">
                 Укажите фактическое количество и приложите фото груза.
               </p>

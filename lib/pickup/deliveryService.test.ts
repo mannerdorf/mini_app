@@ -24,12 +24,12 @@ it('reports an unknown result without retrying when the connection fails',async(
  expect(requestFetch).toHaveBeenCalledTimes(1);
 });
 
-it.each(['SetPickupCost','SetPickupNumber'] as const)('uses transportation credentials and both headers for %s',async(method)=>{
+it.each(['SetPickupCost','SetPickupNumber','SetLastMileCost','CreateLastMileInvoice'] as const)('uses transportation credentials and both headers for %s',async(method)=>{
  vi.mocked(requestFetch).mockResolvedValue(new Response('{"Success":true}'));
  await deliverySetter(method,{});
  expect(requestFetch).toHaveBeenCalledWith(expect.any(String),expect.objectContaining({headers:expect.objectContaining({Auth:'Basic perevozki-fixture:secret-fixture-password',Authorization:'Basic fixture-service-token'})}));
 });
-it.each(['SetPickupCost','SetPickupNumber'] as const)('does not fall back to upload credentials for %s',async(method)=>{
+it.each(['SetPickupCost','SetPickupNumber','SetLastMileCost','CreateLastMileInvoice'] as const)('does not fall back to upload credentials for %s',async(method)=>{
  vi.stubEnv('PEREVOZKI_SERVICE_PASSWORD','');
  expect(await deliverySetter(method,{})).toMatchObject({ok:false,error:expect.stringContaining('PEREVOZKI_SERVICE_PASSWORD')});
  expect(requestFetch).not.toHaveBeenCalled();

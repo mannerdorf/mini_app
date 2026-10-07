@@ -142,9 +142,9 @@ export function PickupDriverJobFlow({
       {step === "pickup_places" && (
         <div className="pk-driver-mobile-step__body">
           <p className="pk-hint">План: {planned} мест</p>
-          <button type="button" disabled={busy} onClick={() => setActual(String(planned))}>Забрано по плану: {planned}</button>
+          <button type="button" disabled={busy} onClick={() => setActual(String(planned))}>{job.data.serviceKind === "last_mile" ? "Вручено" : "Забрано"} по плану: {planned}</button>
           <Field
-            label="Фактически забрано мест"
+            label={job.data.serviceKind === "last_mile" ? "Фактически вручено мест" : "Фактически забрано мест"}
             type="number"
             min="1"
             step="1"
@@ -169,7 +169,7 @@ export function PickupDriverJobFlow({
             disabled={busy}
             onClick={() => setStep("problem")}
           >
-            Не удалось забрать
+            {job.data.serviceKind === "last_mile" ? "Не удалось вручить" : "Не удалось забрать"}
           </button>
         </div>
       )}
@@ -253,7 +253,7 @@ export function PickupDriverJobFlow({
       {step === "pickup_confirm" && (
         <div className="pk-driver-mobile-step__body">
           <p>
-            Забрано <strong>{actual}</strong> мест · фото: {photos.length}
+            {job.data.serviceKind === "last_mile" ? "Вручено" : "Забрано"} <strong>{actual}</strong> мест · фото: {photos.length}
           </p>
           <button
             type="button"
@@ -269,7 +269,7 @@ export function PickupDriverJobFlow({
                   note,
                   photos,
                 },
-                "Выполнил — груз забран",
+                job.data.serviceKind === "last_mile" ? "Груз вручен получателю" : "Выполнил — груз забран",
                 true,
               )
             }
@@ -319,7 +319,7 @@ export function PickupDriverJobFlow({
             disabled={busy}
             onClick={() => setStep("pickup_places")}
           >
-            Вернуться к забору
+            Вернуться к заданию
           </button>
         </div>
       )}

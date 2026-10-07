@@ -19,7 +19,7 @@ export function PickupJobNumber({
           : "pk-job-number"
       }
     >
-      Забор <strong>{n}</strong>
+      {job.data.serviceKind === "last_mile" ? "Доставка" : "Забор"} <strong>{n}</strong>
     </p>
   );
 }

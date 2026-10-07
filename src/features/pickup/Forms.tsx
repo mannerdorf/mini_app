@@ -644,6 +644,7 @@ type NewJobDraft = {
   scheduleUi: ReturnType<typeof defaultPickupScheduleUiState>;
 };
 export function JobForm({
+  serviceKind,
   job,
   copyFrom,
   city,
@@ -653,6 +654,7 @@ export function JobForm({
   done,
   onCreatedMany,
 }: {
+  serviceKind?: "pickup" | "last_mile";
   job?: Job;
   /** Новый забор с данными из существующего (без id). */
   copyFrom?: Job;
@@ -663,8 +665,9 @@ export function JobForm({
   done: () => void;
   onCreatedMany?: (count: number) => void;
 }) {
+  const isDelivery = (job?.data.serviceKind ?? copyFrom?.data.serviceKind ?? serviceKind) === "last_mile";
   const cityCode = pickupCityToCode(city);
-  const draftKey = `pickup-new-draft:v1:${account.login.toLowerCase()}:${city}:${date}:${copyFrom?.id ?? "new"}`;
+  const draftKey = `pickup-new-draft:v1:${account.login.toLowerCase()}:${city}:${date}:${copyFrom?.id ?? "new"}:${isDelivery ? "delivery" : "pickup"}`;
   const [restoredDraft] = useState<NewJobDraft | null>(() => {
     if (job) return null;
     try {
@@ -689,7 +692,7 @@ export function JobForm({
   const seedData =
     job?.data ?? (copyFrom ? cloneJobDataForCopy(copyFrom.data) : undefined);
   const [data, setData] = useState<JobData>(
-    restoredDraft?.data ?? seedData ?? emptyData,
+    restoredDraft?.data ?? seedData ?? { ...emptyData, serviceKind: isDelivery ? "last_mile" : "pickup" },
   );
   const [day, setDay] = useState(restoredDraft?.day ?? job?.date ?? date);
   const [addressState, setAddressState] = useState(
@@ -834,10 +837,10 @@ export function JobForm({
     <FormShell
       title={
         job
-          ? "Редактировать забор"
+          ? (isDelivery ? "Редактировать доставку" : "Редактировать забор")
           : copyFrom
-            ? "Новый забор (копия)"
-            : "Новый забор"
+            ? (isDelivery ? "Новая доставка (копия)" : "Новый забор (копия)")
+            : (isDelivery ? "Новая доставка" : "Новый забор")
       }
       onClose={done}
       onSave={async () => {
@@ -881,7 +884,7 @@ export function JobForm({
         <PickupJobNumber job={job} prominent />
       ) : (
         <p className="pk-hint">
-          При сохранении будет присвоен уникальный номер забора (ZB-…). Номер
+          При сохранении будет присвоен уникальный номер {isDelivery ? "доставки (DL-…)" : "забора (ZB-…)"}. Номер
           заявки и перевозки — отдельно, по процессу приёмки и сплита.
         </p>
       )}
@@ -908,7 +911,7 @@ export function JobForm({
               <button
                 type="button"
                 onClick={() => {
-                  setData(emptyData);
+                  setData({ ...emptyData, serviceKind: isDelivery ? "last_mile" : "pickup" });
                   setDay(date);
                   setAddressState(defaultPickupAddressState(cityCode));
                   setDefaultPlaceState(
@@ -934,7 +937,7 @@ export function JobForm({
       </p>
       <details className="pk-form-section" open>
         <summary>
-          <span className="pk-form-step">1</span> Заказчик и отправитель
+          <span className="pk-form-step">1</span> {isDelivery ? "Заказчик и получатель" : "Заказчик и отправитель"}
         </summary>
         <div className="pk-grid">
           <Directory
@@ -948,7 +951,7 @@ export function JobForm({
             }
           />
           <Directory
-            label="Отправитель"
+            label={isDelivery ? "Получатель" : "Отправитель"}
             kind="supplier"
             value={data.senderInn}
             name={data.senderName}
@@ -961,11 +964,11 @@ export function JobForm({
       </details>
       <details className="pk-form-section" open>
         <summary>
-          <span className="pk-form-step">2</span> Где и когда забрать
+          <span className="pk-form-step">2</span> {isDelivery ? "Куда и когда доставить" : "Где и когда забрать"}
         </summary>
         <div className="pk-grid">
           <Field
-            label="Дата пикапа"
+            label={isDelivery ? "Дата доставки" : "Дата пикапа"}
             type="date"
             value={day}
             onChange={setDay}
@@ -973,7 +976,7 @@ export function JobForm({
           />
         </div>
         <details className="pk-form-extra">
-          <summary>Повторять забор по графику</summary>
+          <summary>Повторять {isDelivery ? "доставку" : "забор"} по графику</summary>
           <PickupScheduleSection
             startDate={day}
             state={scheduleUi}
@@ -1208,7 +1211,7 @@ export function JobForm({
           />
         </div>
       </details>
-      <details className="pk-form-section" open>
+      {!isDelivery && <details className="pk-form-section" open>
         <summary>
           <span className="pk-form-step">4</span> Место выгрузки
         </summary>
@@ -1220,8 +1223,8 @@ export function JobForm({
           state={defaultPlaceState}
           onChange={setDefaultPlaceState}
         />
-      </details>
-      <details className="pk-form-section">
+      </details>}
+      <details className="pk-form-section" open={isDelivery || undefined}>
         <summary>
           <span className="pk-form-step">5</span> Стоимость и документы{" "}
           <small>Дополнительно</small>
@@ -1234,7 +1237,8 @@ export function JobForm({
             placeholder="Как в 1С / документах"
           />
           <Field
-            label="№ перевозки (если известен)"
+            label={isDelivery ? "№ перевозки" : "№ перевозки (если известен)"}
+            required={isDelivery}
             value={data.cargoNumber}
             onChange={(v) => update("cargoNumber", v)}
           />
