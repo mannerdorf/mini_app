@@ -172,14 +172,25 @@ it("checks deterministic 3D non-overlap and support bounds with mixed package si
     expect(a.x + a.length).toBeLessThanOrEqual(4.00001);
     expect(a.y + a.width).toBeLessThanOrEqual(2.00001);
     if (a.z > 0) {
-      const base = p.find((b) => b.unit === a.support)!;
-      expect(base).toBeDefined();
-      expect(a.z).toBeCloseTo(base.z + base.height);
-      expect(a.x).toBeGreaterThanOrEqual(base.x - 0.00001);
-      expect(a.x + a.length).toBeLessThanOrEqual(
-        base.x + base.length + 0.00001,
-      );
-      expect(base.topLoad).toBeLessThanOrEqual(base.maxTopLoad);
+      expect(a.supports!.reduce((sum, s) => sum + s.share, 0)).toBeCloseTo(1);
+      for (const support of a.supports!) {
+        const base = p.find((b) => b.unit === support.unit)!;
+        expect(a.z).toBeCloseTo(base.z + base.height);
+        const area =
+          Math.max(
+            0,
+            Math.min(a.x + a.length, base.x + base.length) -
+              Math.max(a.x, base.x),
+          ) *
+          Math.max(
+            0,
+            Math.min(a.y + a.width, base.y + base.width) -
+              Math.max(a.y, base.y),
+          );
+        expect(support.share).toBeCloseTo(area / (a.length * a.width));
+        expect(base.topLoad).toBeLessThanOrEqual(base.maxTopLoad);
+        expect(a.density).toBeLessThanOrEqual(base.density + 0.00001);
+      }
     }
     for (const b of p) {
       if (a === b) continue;
@@ -205,8 +216,12 @@ it("uses three estimated layers instead of stopping after one third of the volum
   expect(plan.placements.map((p) => p.z)).toEqual([0, 1, 2]);
   expect(plan.placements.every((p) => p.estimated)).toBe(true);
   expect(plan.placements[0].topLoad).toBe(200);
-  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 0 }).selected).toEqual([]);
-  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 1 }).selected).toEqual([]);
+  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 0 }).selected).toEqual(
+    [],
+  );
+  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 1 }).selected).toEqual(
+    [],
+  );
 });
 
 it("puts lighter estimated boxes above heavier ones regardless of FIFO order", () => {
@@ -220,26 +235,67 @@ it("puts lighter estimated boxes above heavier ones regardless of FIFO order", (
 });
 
 it("keeps estimated pallets on the floor while allowing lighter boxes above", () => {
-  const o = { ...options({}), requireDimensions: false, floorCustomers: ["pallet"], pallets: { p: 1 }, palletLength: 1, palletWidth: 1 };
-  const p = planLoad([cargo("p", 100, { customerId: "pallet" }), cargo("b", 10)], o);
+  const o = {
+    ...options({}),
+    requireDimensions: false,
+    floorCustomers: ["pallet"],
+    pallets: { p: 1 },
+    palletLength: 1,
+    palletWidth: 1,
+  };
+  const p = planLoad(
+    [cargo("p", 100, { customerId: "pallet" }), cargo("b", 10)],
+    o,
+  );
   expect(p.placements.find((p) => p.cargoId === "p")?.z).toBe(0);
   expect(p.placements.find((p) => p.cargoId === "b")?.z).toBe(1);
-  expect(planLoad([cargo("p", 200, { customerId: "pallet", volume: 2 })], { ...o, pallets: { p: 2 } }).selected).toEqual([]);
+  expect(
+    planLoad([cargo("p", 200, { customerId: "pallet", volume: 2 })], {
+      ...o,
+      pallets: { p: 2 },
+    }).selected,
+  ).toEqual([]);
 });
 
 it("never overrides a measured no-stacking rule with an estimated load factor", () => {
-  const o = { ...options({ base: [box({ stackable: false })] }), requireDimensions: false, estimatedTopLoadFactor: 5 };
-  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(1);
-  expect(() => planLoad([], { ...o, estimatedTopLoadFactor: NaN })).toThrow("нагрузка");
+  const o = {
+    ...options({ base: [box({ stackable: false })] }),
+    requireDimensions: false,
+    estimatedTopLoadFactor: 5,
+  };
+  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(
+    1,
+  );
+  expect(() => planLoad([], { ...o, estimatedTopLoadFactor: NaN })).toThrow(
+    "нагрузка",
+  );
 });
-
 
 it("starts partial loads at the front wall in every compartment, with and without rotation", () => {
   for (const rotate of [true, false]) {
     const o = options({
-      a: [box({ length: 2, width: 1, height: 1, rotate, weight: 100, stackable: true, maxTopLoad: 50 })],
+      a: [
+        box({
+          length: 4.5,
+          width: 1,
+          height: 1,
+          rotate,
+          weight: 100,
+          stackable: true,
+          maxTopLoad: 50,
+        }),
+      ],
       b: [box({ length: 1, width: 1, height: 1, rotate, weight: 10 })],
-      c: [box({ length: 4.5, width: 1, height: 1, rotate, weight: 100, floorOnly: true })],
+      c: [
+        box({
+          length: 4.5,
+          width: 1,
+          height: 1,
+          rotate,
+          weight: 100,
+          floorOnly: true,
+        }),
+      ],
     });
     o.vehicle.compartments = [
       { length: 5, width: 1, height: 3 },
@@ -249,7 +305,11 @@ it("starts partial loads at the front wall in every compartment, with and withou
     expect(p).not.toBeNull();
     expect(new Set(p.map((p) => p.compartment)).size).toBe(2);
     for (const compartment of [0, 1]) {
-      expect(Math.min(...p.filter((p) => p.compartment === compartment).map((p) => p.x))).toBe(0);
+      expect(
+        Math.min(
+          ...p.filter((p) => p.compartment === compartment).map((p) => p.x),
+        ),
+      ).toBe(0);
     }
     const upper = p.find((p) => p.cargoId === "b")!;
     const lower = p.find((p) => p.unit === upper.support)!;
@@ -260,56 +320,277 @@ it("starts partial loads at the front wall in every compartment, with and withou
 });
 
 it("fills estimated cargo to the roof without an invented layer limit, while retaining a chosen load factor", () => {
-  const o = { ...options({}), requireDimensions: false, estimatedStacking: "height" as const };
+  const o = {
+    ...options({}),
+    requireDimensions: false,
+    estimatedStacking: "height" as const,
+  };
   o.vehicle.compartments = [{ length: 1, width: 1, height: 6 }];
   o.vehicle.volume = 6;
   const rows = [cargo("1", 600, { volume: 6, places: 6 })];
   const p = planLoad(rows, o);
   expect(p.selected).toHaveLength(1);
-  expect(p.placements.map(p => p.z)).toEqual([0, 1, 2, 3, 4, 5]);
+  expect(p.placements.map((p) => p.z)).toEqual([0, 1, 2, 3, 4, 5]);
   expect(p.placements[0].topLoad).toBe(500);
-  expect(planLoad(rows, { ...o, estimatedStacking: "load", estimatedTopLoadFactor: 2 }).selected).toHaveLength(0);
-  expect(planLoad(rows, { ...o, estimatedStacking: "load", estimatedTopLoadFactor: 5 }).selected).toHaveLength(1);
+  expect(
+    planLoad(rows, {
+      ...o,
+      estimatedStacking: "load",
+      estimatedTopLoadFactor: 2,
+    }).selected,
+  ).toHaveLength(0);
+  expect(
+    planLoad(rows, {
+      ...o,
+      estimatedStacking: "load",
+      estimatedTopLoadFactor: 5,
+    }).selected,
+  ).toHaveLength(1);
 });
 
 it("fills above an estimated floor pallet to the roof, without placing another pallet above it", () => {
-  const o = { ...options({}), requireDimensions: false, estimatedStacking: "height" as const,
-    floorCustomers: ["pallet"], pallets: { p: 1 }, palletLength: 1, palletWidth: 1 };
+  const o = {
+    ...options({}),
+    requireDimensions: false,
+    estimatedStacking: "height" as const,
+    floorCustomers: ["pallet"],
+    pallets: { p: 1 },
+    palletLength: 1,
+    palletWidth: 1,
+  };
   o.vehicle.compartments = [{ length: 1, width: 1, height: 5 }];
   o.vehicle.volume = 5;
-  const p = planLoad([cargo("p", 500, { customerId: "pallet" }), cargo("b", 40, { places: 4, volume: 4 })], o);
+  const p = planLoad(
+    [
+      cargo("p", 500, { customerId: "pallet" }),
+      cargo("b", 40, { places: 4, volume: 4 }),
+    ],
+    o,
+  );
   expect(p.selected).toHaveLength(2);
-  expect(p.placements.filter(p => p.pallet).every(p => p.z === 0)).toBe(true);
-  expect(Math.max(...p.placements.map(p => p.z + p.height))).toBe(5);
+  expect(p.placements.filter((p) => p.pallet).every((p) => p.z === 0)).toBe(
+    true,
+  );
+  expect(Math.max(...p.placements.map((p) => p.z + p.height))).toBe(5);
 });
 
 it("requires explicit pallet stacking permission on both pallets and respects floor-only rules", () => {
   for (const [baseAllowed, upperAllowed, floorOnly, expected] of [
-    [false, false, false, 1], [true, false, false, 1], [false, true, false, 1],
-    [true, true, true, 1], [true, true, false, 2],
+    [false, false, false, 1],
+    [true, false, false, 1],
+    [false, true, false, 1],
+    [true, true, true, 1],
+    [true, true, false, 2],
   ] as const) {
     const o = options({
-      base: [box({ pallet: true, palletStacking: baseAllowed, stackable: true, maxTopLoad: 200 })],
-      upper: [box({ pallet: true, palletStacking: upperAllowed, floorOnly, weight: 50 })],
+      base: [
+        box({
+          pallet: true,
+          palletStacking: baseAllowed,
+          stackable: true,
+          maxTopLoad: 200,
+        }),
+      ],
+      upper: [
+        box({
+          pallet: true,
+          palletStacking: upperAllowed,
+          floorOnly,
+          weight: 50,
+        }),
+      ],
     });
     const p = planLoad([cargo("base"), cargo("upper", 50)], o);
     expect(p.selected).toHaveLength(expected);
-    if (expected === 2) expect(p.placements.find(p => p.cargoId === "upper")?.z).toBe(1);
+    if (expected === 2)
+      expect(p.placements.find((p) => p.cargoId === "upper")?.z).toBe(1);
   }
 });
 
 it("does not place an allowed pallet on loose boxes, or override measured compression limits in height mode", () => {
-  const o = options({ base: [box({ stackable: true, maxTopLoad: 20 })],
-    top: [box({ pallet: true, palletStacking: true, weight: 10 })] });
+  const o = options({
+    base: [box({ stackable: true, maxTopLoad: 20 })],
+    top: [box({ pallet: true, palletStacking: true, weight: 10 })],
+  });
   o.estimatedStacking = "height";
-  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(1);
+  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(
+    1,
+  );
   o.packages!.top = [box({ weight: 30 })];
-  expect(planLoad([cargo("base"), cargo("top", 30)], o).selected).toHaveLength(1);
+  expect(planLoad([cargo("base"), cargo("top", 30)], o).selected).toHaveLength(
+    1,
+  );
 });
-
 
 it("ignores an inactive load factor in height mode but validates it when enabled", () => {
   const o = { ...options({}), estimatedTopLoadFactor: NaN };
-  expect(() => planLoad([], { ...o, estimatedStacking: "height" })).not.toThrow();
-  expect(() => planLoad([], { ...o, estimatedStacking: "load" })).toThrow("нагрузка");
+  expect(() =>
+    planLoad([], { ...o, estimatedStacking: "height" }),
+  ).not.toThrow();
+  expect(() => planLoad([], { ...o, estimatedStacking: "load" })).toThrow(
+    "нагрузка",
+  );
+});
+
+it("fills the floor with dense places before stacking lighter places from another customer", () => {
+  const o = {
+    ...options({}),
+    requireDimensions: false,
+    estimatedStacking: "height" as const,
+  };
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  o.vehicle.volume = 4;
+  const rows = [
+    cargo("light", 20, { customerId: "priority", places: 2, volume: 2 }),
+    cargo("dense", 200, { customerId: "other", places: 2, volume: 2 }),
+  ];
+  o.priority = ["priority"];
+  const plan = planLoad(rows, o);
+  expect(plan.selected.map((c) => c.id)).toEqual(["light", "dense"]);
+  expect(
+    plan.placements.filter((p) => p.z === 0).map((p) => p.cargoId),
+  ).toEqual(["dense", "dense"]);
+  expect(
+    plan.placements.filter((p) => p.z === 1).map((p) => p.cargoId),
+  ).toEqual(["light", "light"]);
+  for (const upper of plan.placements.filter((p) => p.z > 0)) {
+    expect(plan.placements.find((p) => p.unit === upper.support)?.cargoId).toBe(
+      "dense",
+    );
+  }
+});
+
+it("interleaves measured package groups by their own density instead of shipment averages", () => {
+  const support = (weight: number) =>
+    box({ weight, stackable: true, maxTopLoad: 200 });
+  const o = options({
+    a: [support(100), support(10)],
+    b: [support(80), support(20)],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  const rows = [
+    cargo("a", 110, { customerId: "A" }),
+    cargo("b", 100, { customerId: "B" }),
+  ];
+  const p = pack3d(rows, o)!;
+  expect(p.map((p) => p.weight)).toEqual([100, 80, 20, 10]);
+  expect(p.filter((p) => p.z === 0).map((p) => p.weight)).toEqual([100, 80]);
+  expect(p.filter((p) => p.z === 1).map((p) => p.weight)).toEqual([20, 10]);
+  expect(
+    pack3d(
+      rows.map((c) => ({
+        ...c,
+        customerId: "same-customer",
+        customer: "Same",
+      })),
+      o,
+    ),
+  ).toEqual(p);
+  expect(pack3d([...rows].reverse(), o)).toEqual(p);
+});
+
+it("compares lower surfaces across all compartments before creating upper tiers", () => {
+  const o = options({
+    a: [box({ count: 2, stackable: true, maxTopLoad: 200 })],
+  });
+  o.vehicle.compartments = [
+    { length: 1, width: 1, height: 2 },
+    { length: 1, width: 1, height: 2 },
+  ];
+  const p = pack3d([cargo("a", 200)], o)!;
+  expect(p.map((p) => p.z)).toEqual([0, 0]);
+  expect(p.map((p) => p.compartment)).toEqual([0, 1]);
+});
+
+it("supports a wide lighter box across two customers and distributes the load", () => {
+  const o = options({
+    a: [box({ weight: 100, stackable: true, maxTopLoad: 40 })],
+    b: [box({ weight: 80, stackable: true, maxTopLoad: 40 })],
+    c: [box({ length: 2, weight: 60 })],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  const p = pack3d([cargo("a"), cargo("b", 80), cargo("c", 60)], o)!;
+  expect(p).not.toBeNull();
+  const upper = p.find((p) => p.cargoId === "c")!;
+  expect(upper.z).toBe(1);
+  expect(upper.supports!.map((s) => s.share)).toEqual([0.5, 0.5]);
+  expect(p.filter((p) => p.z === 0).map((p) => p.topLoad)).toEqual([30, 30]);
+  o.packages!.b[0].maxTopLoad = 29;
+  expect(pack3d([cargo("a"), cargo("b", 80), cargo("c", 60)], o)).toBeNull();
+});
+
+it("rejects support gaps and unequal top heights", () => {
+  for (const change of [{ length: 0.9 }, { height: 0.9 }]) {
+    const o = options({
+      a: [
+        box({
+          count: 2,
+          weight: 100,
+          stackable: true,
+          maxTopLoad: 100,
+          ...change,
+        }),
+      ],
+      b: [box({ length: 2, weight: 20 })],
+    });
+    if ("height" in change)
+      (o.packages!.a.push(
+        box({ weight: 100, stackable: true, maxTopLoad: 100 }),
+      ),
+        (o.packages!.a[0].count = 1));
+    o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+    expect(pack3d([cargo("a", 200), cargo("b", 20)], o)).toBeNull();
+  }
+});
+
+it("accumulates split load once through a shared ancestor", () => {
+  const o = options({
+    a: [box({ length: 2, weight: 400, stackable: true, maxTopLoad: 250 })],
+    b: [box({ count: 2, weight: 100, stackable: true, maxTopLoad: 50 })],
+    c: [box({ length: 2, weight: 40 })],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 3 }];
+  const rows = [cargo("a", 400), cargo("b", 200), cargo("c", 40)];
+  const p = pack3d(rows, o)!;
+  expect(p.find((p) => p.cargoId === "a")!.topLoad).toBeCloseTo(240);
+  expect(p.filter((p) => p.cargoId === "b").map((p) => p.topLoad)).toEqual([
+    20, 20,
+  ]);
+  o.packages!.a[0].maxTopLoad = 239;
+  expect(pack3d(rows, o)).toBeNull();
+});
+
+it("requires permission on every pallet supporting an upper pallet", () => {
+  const o = options({
+    a: [
+      box({
+        count: 2,
+        pallet: true,
+        palletStacking: true,
+        weight: 100,
+        stackable: true,
+        maxTopLoad: 100,
+      }),
+    ],
+    b: [box({ length: 2, pallet: true, palletStacking: true, weight: 40 })],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  const rows = [cargo("a", 200), cargo("b", 40)];
+  expect(
+    pack3d(rows, o)!.find((p) => p.cargoId === "b")!.supports,
+  ).toHaveLength(2);
+  o.packages!.a[0].palletStacking = false;
+  expect(pack3d(rows, o)).toBeNull();
+});
+
+it("tries another support when the first tight fit cannot bear the load", () => {
+  const o = options({
+    a: [box({ weight: 100, stackable: true, maxTopLoad: 1 })],
+    b: [box({ weight: 90, stackable: true, maxTopLoad: 100 })],
+    c: [box({ weight: 20 })],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  const p = pack3d([cargo("a"), cargo("b", 90), cargo("c", 20)], o);
+  expect(p).not.toBeNull();
+  expect(p!.find((p) => p.cargoId === "c")!.support).toBe("b/0/0");
 });

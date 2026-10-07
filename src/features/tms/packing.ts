@@ -6,7 +6,7 @@ const inside = (a: FloorRect, b: FloorRect) =>
   a.x + a.length <= b.x + b.length + EPS &&
   a.y + a.width <= b.y + b.width + EPS;
 /** Maximal empty rectangles. Splits may overlap each other, but never overlap placed cargo. */
-function subtract(free: FloorRect[], used: FloorRect): FloorRect[] {
+export function subtract(free: FloorRect[], used: FloorRect): FloorRect[] {
   const result: FloorRect[] = [];
   for (const r of free) {
     if (
@@ -81,4 +81,67 @@ export function packFloor(
     remaining = subtract(remaining, best);
   }
   return { free: remaining, placements };
+}
+
+/** Merge adjacent coplanar support faces only when their union is a full rectangle. */
+export function mergeFloorRects(rects: FloorRect[]): FloorRect[] {
+  const result = [...rects];
+  for (let i = 0; i < result.length; i++) {
+    for (let j = i + 1; j < result.length; j++) {
+      const a = result[i],
+        b = result[j];
+      const x = Math.min(a.x, b.x),
+        y = Math.min(a.y, b.y);
+      const length = Math.max(a.x + a.length, b.x + b.length) - x;
+      const width = Math.max(a.y + a.width, b.y + b.width) - y;
+      const overlap =
+        Math.max(
+          0,
+          Math.min(a.x + a.length, b.x + b.length) - Math.max(a.x, b.x),
+        ) *
+        Math.max(
+          0,
+          Math.min(a.y + a.width, b.y + b.width) - Math.max(a.y, b.y),
+        );
+      const union = a.length * a.width + b.length * b.width - overlap;
+      if (Math.abs(length * width - union) > EPS) continue;
+      result[i] = { x, y, length, width };
+      result.splice(j, 1);
+      // The larger rectangle may now join an earlier neighbour as well.
+      i = -1;
+      break;
+    }
+  }
+  return result;
+}
+
+/** All distinct single-place positions, tight fits first; lets 3D test alternative supports. */
+export function floorCandidates(
+  free: FloorRect[],
+  length: number,
+  width: number,
+  rotate: boolean,
+): FloorRect[] {
+  const candidates = new Map<string, { rect: FloorRect; score: number }>();
+  for (const r of free)
+    for (const [l, w] of rotate
+      ? [
+          [length, width],
+          [width, length],
+        ]
+      : [[length, width]]) {
+      if (l > r.length + EPS || w > r.width + EPS) continue;
+      const rect = { x: r.x, y: r.y, length: l, width: w };
+      const score =
+        Math.min(r.length - l, r.width - w) * 1000 +
+        Math.max(r.length - l, r.width - w);
+      const key = JSON.stringify(rect);
+      if (!candidates.has(key) || score < candidates.get(key)!.score)
+        candidates.set(key, { rect, score });
+    }
+  return [...candidates.values()]
+    .sort(
+      (a, b) => a.score - b.score || a.rect.x - b.rect.x || a.rect.y - b.rect.y,
+    )
+    .map((c) => c.rect);
 }

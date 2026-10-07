@@ -1,5 +1,10 @@
 import type { TmsCargo, PlanOptions, PackageGroup, Placement } from "./model";
-import { packFloor, type FloorRect } from "./packing";
+import {
+  floorCandidates,
+  subtract,
+  mergeFloorRects,
+  type FloorRect,
+} from "./packing";
 const EPS = 1e-6;
 export function packageGroups(
   c: TmsCargo,
@@ -90,147 +95,209 @@ type Unit = PackageGroup & {
   estimated: boolean;
   density: number;
 };
-type Surface = { parent: string | null; z: number; free: FloorRect[] };
+type Surface = { parents: string[]; z: number; free: FloorRect[] };
 type Bin = { surfaces: Surface[]; placements: Placement[] };
-/** Conservative 3D packing: full support by one box, upright only, cumulative load down the support chain. */
+/** Upright packing with full coplanar support and cumulative contact-area load distribution. */
 export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
   const bins: Bin[] = o.vehicle.compartments.map((b) => ({
     placements: [],
     surfaces: [
       {
-        parent: null,
+        parents: [],
         z: 0,
         free: [{ x: 0, y: 0, length: b.length, width: b.width }],
       },
     ],
   }));
-  const groups = cargo
-    .map((c) => {
-      const { groups, estimated } = packageGroups(c, o);
-      const units: Unit[] = groups.flatMap((g, i) =>
-        Array.from({ length: g.count }, (_, j) => ({
-          ...g,
-          pallet: g.pallet || o.floorCustomers.includes(c.customerId),
-          floorOnly:
-            g.floorOnly || (g.pallet && !g.palletStacking) || o.floorCustomers.includes(c.customerId),
-          cargoId: c.id,
-          unit: `${c.id}/${i}/${j}`,
-          estimated,
-          density: g.weight / (g.length * g.width * g.height),
-        })),
-      );
-      units.sort(
-        (a, b) =>
-          Number(b.floorOnly) - Number(a.floorOnly) ||
-          Number(b.stackable) - Number(a.stackable) ||
-          b.density - a.density ||
-          b.weight - a.weight,
-      );
-      return {
-        units,
-        rank: Math.max(
-          ...units.map((u) => (u.floorOnly ? 2 : u.stackable ? 1 : 0)),
-        ),
-        density: c.weight! / c.volume!,
-      };
-    })
-    .sort((a, b) => b.rank - a.rank || b.density - a.density);
-  if (groups.reduce((s, g) => s + g.units.length, 0) > 2000)
+  // Selection remains shipment-atomic in the planner. Placement mixes the
+  // individual places of all selected shipments; customer identity is irrelevant.
+  const units: Unit[] = cargo.flatMap((c) => {
+    const { groups, estimated } = packageGroups(c, o);
+    return groups.flatMap((g, i) =>
+      Array.from({ length: g.count }, (_, j) => ({
+        ...g,
+        pallet: g.pallet || o.floorCustomers.includes(c.customerId),
+        floorOnly:
+          g.floorOnly ||
+          (g.pallet && !g.palletStacking) ||
+          o.floorCustomers.includes(c.customerId),
+        cargoId: c.id,
+        unit: `${c.id}/${i}/${j}`,
+        estimated,
+        density: g.weight / (g.length * g.width * g.height),
+      })),
+    );
+  });
+  units.sort(
+    (a, b) =>
+      Number(b.floorOnly) - Number(a.floorOnly) ||
+      b.density - a.density ||
+      b.weight - a.weight ||
+      Number(b.stackable) - Number(a.stackable) ||
+      a.unit.localeCompare(b.unit, undefined, { numeric: true }),
+  );
+  if (units.length > 2000)
     throw new Error(
       "Для 3D-расчёта выберите до 2000 мест. Сузьте период или маршрут.",
     );
-  for (const { units } of groups) {
-    let fitted = false;
+  const byUnit = new Map<string, Placement>();
+  type Candidate = {
+    bi: number;
+    si: number;
+    z: number;
+    rect: FloorRect;
+    loads: Map<string, number>;
+    supports: { unit: string; share: number }[];
+  };
+  for (const u of units) {
+    let best: Candidate | null = null;
     for (let bi = 0; bi < bins.length; bi++) {
-      const bin: Bin = structuredClone(bins[bi]),
+      const bin = bins[bi],
         bounds = o.vehicle.compartments[bi];
-      const byUnit = new Map(bin.placements.map((p) => [p.unit, p]));
-      let ok = true;
-      for (const u of units) {
-        let candidate: {
-          si: number;
-          layout: NonNullable<ReturnType<typeof packFloor>>;
-          ancestors: Placement[];
-          score: number;
-        } | null = null;
-        bin.surfaces.forEach((s, si) => {
-          if (
-            !s.free.length ||
-            (u.floorOnly && s.z > EPS) ||
-            s.z + u.height > bounds.height + EPS
-          )
-            return;
-          const layout = packFloor(s.free, 1, u.length, u.width, u.rotate);
-          if (!layout) return;
-          if (u.pallet && s.parent) {
-            const base = byUnit.get(s.parent)!;
-            if (!u.palletStacking || !base.pallet || !base.palletStacking) return;
-          }
-          const ancestors: Placement[] = [];
-          let parent = s.parent;
-          while (parent) {
-            const p = byUnit.get(parent)!;
+      for (let si = 0; si < bin.surfaces.length; si++) {
+        const s = bin.surfaces[si];
+        if (
+          !s.free.length ||
+          (u.floorOnly && s.z > EPS) ||
+          s.z + u.height > bounds.height + EPS ||
+          (best && s.z > best.z + EPS)
+        )
+          continue;
+        // A merged face may contain both weak and strong supports. Keep their
+        // original anchors so a rejected position does not hide a valid neighbour.
+        const free = [...s.free];
+        for (const unit of s.parents) {
+          const p = byUnit.get(unit)!;
+          for (const r of s.free)
             if (
-              p.topLoad + u.weight > p.maxTopLoad + EPS ||
-              u.density > p.density + EPS ||
-              u.weight > p.weight + EPS
+              p.x >= r.x - EPS &&
+              p.y >= r.y - EPS &&
+              p.x < r.x + r.length - EPS &&
+              p.y < r.y + r.width - EPS
             )
-              return;
-            ancestors.push(p);
-            parent = p.support;
+              free.push({
+                x: p.x,
+                y: p.y,
+                length: r.x + r.length - p.x,
+                width: r.y + r.width - p.y,
+              });
+        }
+        const candidates = floorCandidates(free, u.length, u.width, u.rotate);
+        if (s.z > EPS) candidates.sort((a, b) => a.x - b.x || a.y - b.y);
+        for (const rect of candidates) {
+          if (
+            bin.placements.some(
+              (p) =>
+                rect.x < p.x + p.length - EPS &&
+                rect.x + rect.length > p.x + EPS &&
+                rect.y < p.y + p.width - EPS &&
+                rect.y + rect.width > p.y + EPS &&
+                s.z < p.z + p.height - EPS &&
+                s.z + u.height > p.z + EPS,
+            )
+          )
+            continue;
+          const area = rect.length * rect.width;
+          const supports = s.parents.flatMap((unit) => {
+            const p = byUnit.get(unit)!;
+            const contact =
+              Math.max(
+                0,
+                Math.min(rect.x + rect.length, p.x + p.length) -
+                  Math.max(rect.x, p.x),
+              ) *
+              Math.max(
+                0,
+                Math.min(rect.y + rect.width, p.y + p.width) -
+                  Math.max(rect.y, p.y),
+              );
+            return contact > EPS ? [{ unit, share: contact / area }] : [];
+          });
+          if (
+            s.z > EPS &&
+            Math.abs(supports.reduce((n, p) => n + p.share, 0) - 1) > EPS
+          )
+            continue;
+          if (
+            u.pallet &&
+            supports.some(({ unit }) => {
+              const p = byUnit.get(unit)!;
+              return !u.palletStacking || !p.pallet || !p.palletStacking;
+            })
+          )
+            continue;
+          const loads = new Map<string, number>();
+          const distribute = (unit: string, load: number) => {
+            loads.set(unit, (loads.get(unit) ?? 0) + load);
+            const p = byUnit.get(unit)!;
+            for (const support of p.supports ??
+              (p.support ? [{ unit: p.support, share: 1 }] : []))
+              distribute(support.unit, load * support.share);
+          };
+          for (const p of supports) distribute(p.unit, u.weight * p.share);
+          let allowed = true;
+          for (const [unit, load] of loads) {
+            const p = byUnit.get(unit)!;
+            if (
+              p.topLoad + load > p.maxTopLoad + EPS ||
+              u.density > p.density + EPS ||
+              load > p.weight + EPS
+            ) {
+              allowed = false;
+              break;
+            }
           }
-          // Prefer an allowed stack to consuming more floor. Lower available layer wins.
-          const score =
-            (s.parent ? 0 : 10000) + s.z * 100 + layout.placements[0].x;
-          if (!candidate || score < candidate.score)
-            candidate = { si, layout, ancestors, score };
-        });
-        if (!candidate) {
-          ok = false;
+          if (!allowed) continue;
+          // Fill the lowest feasible level across the vehicle before building higher.
+          // Use front-to-rear order only to break ties at the same height.
+          if (
+            !best ||
+            s.z < best.z - EPS ||
+            (Math.abs(s.z - best.z) <= EPS &&
+              (bi < best.bi || (bi === best.bi && rect.x < best.rect.x - EPS)))
+          ) {
+            best = { bi, si, z: s.z, rect, loads, supports };
+          }
+          // First valid tight fit on this plane; other planes still compete by height.
           break;
         }
-        const fit = candidate as {
-          si: number;
-          layout: NonNullable<ReturnType<typeof packFloor>>;
-          ancestors: Placement[];
-          score: number;
-        };
-        const surface = bin.surfaces[fit.si];
-        const rect = fit.layout.placements[0];
-        surface.free = fit.layout.free;
-        for (const a of fit.ancestors) a.topLoad += u.weight;
-        const placed: Placement = {
-          ...rect,
-          z: surface.z,
-          height: u.height,
-          weight: u.weight,
-          density: u.density,
-          cargoId: u.cargoId,
-          unit: u.unit,
-          pallet: u.pallet,
-          palletStacking: !!u.palletStacking,
-          estimated: u.estimated,
-          compartment: bi,
-          support: surface.parent,
-          topLoad: 0,
-          maxTopLoad: u.stackable ? u.maxTopLoad : 0,
-        };
-        bin.placements.push(placed);
-        byUnit.set(placed.unit, placed);
-        if (placed.maxTopLoad > 0)
-          bin.surfaces.push({
-            parent: placed.unit,
-            z: placed.z + placed.height,
-            free: [rect],
-          });
-      }
-      if (ok) {
-        bins[bi] = bin;
-        fitted = true;
-        break;
       }
     }
-    if (!fitted) return null;
+    // A failed place rejects the whole candidate selection; no partial shipment escapes.
+    if (!best) return null;
+    const bin = bins[best.bi],
+      surface = bin.surfaces[best.si];
+    const rect = best.rect;
+    surface.free = subtract(surface.free, rect);
+    for (const [unit, load] of best.loads) byUnit.get(unit)!.topLoad += load;
+    const placed: Placement = {
+      ...rect,
+      z: surface.z,
+      height: u.height,
+      weight: u.weight,
+      density: u.density,
+      cargoId: u.cargoId,
+      unit: u.unit,
+      pallet: u.pallet,
+      palletStacking: !!u.palletStacking,
+      estimated: u.estimated,
+      compartment: best.bi,
+      support: best.supports[0]?.unit ?? null,
+      supports: best.supports,
+      topLoad: 0,
+      maxTopLoad: u.stackable ? u.maxTopLoad : 0,
+    };
+    bin.placements.push(placed);
+    byUnit.set(placed.unit, placed);
+    if (placed.maxTopLoad > 0) {
+      const top = placed.z + placed.height;
+      const existing = bin.surfaces.find((s) => Math.abs(s.z - top) <= EPS);
+      if (existing) {
+        existing.parents.push(placed.unit);
+        existing.free = mergeFloorRects([...existing.free, rect]);
+      } else
+        bin.surfaces.push({ parents: [placed.unit], z: top, free: [rect] });
+    }
   }
   // x = 0 is the front wall. Keep the packing origin instead of moving cargo
   // toward the center: a mass-center estimate is not an axle-load calculation.

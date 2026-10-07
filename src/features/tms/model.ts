@@ -118,6 +118,7 @@ export type Placement = {
   estimated: boolean;
   unit: string;
   support: string | null;
+  supports?: { unit: string; share: number }[];
   topLoad: number;
   maxTopLoad: number;
 };

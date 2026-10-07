@@ -333,20 +333,45 @@ export function LoadScene({
         </label>
       </div>
       {density && (
-        <section className="tms-density-legend" aria-label="Карта плотности груза">
+        <section
+          className="tms-density-legend"
+          aria-label="Карта плотности груза"
+        >
           <b>Плотность груза · кг/м³</b>
           <div className="tms-density-scale">
             {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
               const value = scale.min + fraction * (scale.max - scale.min);
-              return <span key={fraction} style={{ borderTopColor: `hsl(${densityHue(value, scale.min, scale.max) * 360} 80% 48%)` }}>{fmt(value)}</span>;
+              return (
+                <span
+                  key={fraction}
+                  style={{
+                    borderTopColor: `hsl(${densityHue(value, scale.min, scale.max) * 360} 80% 48%)`,
+                  }}
+                >
+                  {fmt(value)}
+                </span>
+              );
             })}
           </div>
-          <small>Синий — менее плотный, красный — более плотный в этом плане. Верхнее место не плотнее и не тяжелее своих опор. Палета на палету — только по разрешению.</small>
+          <small>
+            Синий — менее плотный, красный — более плотный в этом плане. Сначала
+            плотные места всех заказчиков занимают нижний ярус, затем менее
+            плотные — верхние. Нагрузка распределяется по площади контакта с
+            опорами. Палета на палету — только по разрешению.
+          </small>
           <div className="tms-density-bands">
-            {bands.map((band) => <div key={band.label}>
-              <b>{band.label} · {fmt(band.from, 2)}–{fmt(band.to, 2)} м</b>
-              <span>{band.density === null ? "Нет груза" : `${fmt(band.density)} кг/м³ · ${fmt(band.mass)} кг`}</span>
-            </div>)}
+            {bands.map((band) => (
+              <div key={band.label}>
+                <b>
+                  {band.label} · {fmt(band.from, 2)}–{fmt(band.to, 2)} м
+                </b>
+                <span>
+                  {band.density === null
+                    ? "Нет груза"
+                    : `${fmt(band.density)} кг/м³ · ${fmt(band.mass)} кг`}
+                </span>
+              </div>
+            ))}
           </div>
         </section>
       )}
@@ -423,7 +448,9 @@ export function LoadScene({
       </div>
       <p className="tms-muted">
         Вращайте мышью или пальцем, приближайте колёсиком или двумя пальцами.{" "}
-        {density ? "Шкала плотности соответствует грузам текущего плана." : "Цвета обозначают перевозки."}
+        {density
+          ? "Шкала плотности соответствует грузам текущего плана."
+          : "Цвета обозначают перевозки."}
       </p>
       <div className="tms-scene-cargo">
         <label>
@@ -481,9 +508,22 @@ export function LoadScene({
                   <td>
                     {fmt(p.weight)} кг / {fmt(p.density)} кг/м³
                   </td>
-                  <td>{p.support ? `Место ${p.support}` : "Пол"}</td>
                   <td>
-                    {fmt(p.topLoad)} / {p.estimated && estimatedStacking === "height" ? "прочность не задана" : fmt(p.maxTopLoad)}
+                    {p.supports?.length
+                      ? p.supports
+                          .map(
+                            (s) => `Место ${s.unit} · ${fmt(s.share * 100)}%`,
+                          )
+                          .join("; ")
+                      : p.support
+                        ? `Место ${p.support}`
+                        : "Пол"}
+                  </td>
+                  <td>
+                    {fmt(p.topLoad)} /{" "}
+                    {p.estimated && estimatedStacking === "height"
+                      ? "прочность не задана"
+                      : fmt(p.maxTopLoad)}
                   </td>
                 </tr>
               ))}
