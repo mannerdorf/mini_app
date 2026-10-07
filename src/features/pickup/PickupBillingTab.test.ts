@@ -224,3 +224,12 @@ it('opens each transport and order separately from a multi-document billing row'
  expect(onOpenCargo.mock.calls).toEqual([['000142509'],['000142508']]);
  expect(onOpenOrder.mock.calls).toEqual([['00018166'],['00018165']]);
 });
+
+it('shows the 1C rejection reason only as a status tooltip',async()=>{
+ const reason='Автоформирование счета отключено: АвтоформированиеСчета = Нет';
+ await mount(vi.fn(async()=>({rows:[{...row,status:'manual',last_error:reason}]})));
+ const cell=root.root.findByProps({'data-label':'Статус'});
+ expect(cell.findByType('strong').props.title).toBe(reason);
+ expect(cell.findByType('strong').children.join('')).toBe('Не передано в 1С — требуется ручное выставление');
+ expect(cell.findAllByType('small')).toHaveLength(0);
+});
