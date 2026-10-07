@@ -1,6 +1,8 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
+import { filterAisTrack } from "../lib/aisTrack.js";
+
 const MARINESIA_BASE = "https://api.marinesia.com";
 
 export function normalizeVesselHistory(value: unknown, mmsi: string) {
@@ -49,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   url.searchParams.set("key", apiKey);
 
   try {
-    let track: { lat: number; lon: number; timeUtc: string }[] = [];
+    let track: { lat: number; lon: number; timeUtc: string; breakBefore?: boolean }[] = [];
     let historyError: string | undefined;
     let historyPayload: Record<string, unknown> | undefined;
     // One history request also supplies the newest position. Fall back to latest
@@ -61,8 +63,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const response = await fetch(historyUrl.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
         const history = await response.json() as Record<string, unknown>;
         const points = response.ok && history.error !== true ? normalizeVesselHistory(history.data, mmsi) : [];
-        historyPayload = points.at(-1);
-        track = points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string }));
+        const filtered = filterAisTrack(points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string })));
+        track = filtered.points;
+        historyPayload = points.slice().reverse().find(p => p.ts === track.at(-1)?.timeUtc);
+        if (filtered.discarded || filtered.breaks) historyError = `Исключено подозрительных точек: ${filtered.discarded}. Разрывов линии: ${filtered.breaks}.`;
         if (!points.length) historyError = 'История движения недоступна. Показана последняя позиция.';
       } catch {
         historyError = 'Не удалось загрузить историю движения. Показана последняя позиция.';

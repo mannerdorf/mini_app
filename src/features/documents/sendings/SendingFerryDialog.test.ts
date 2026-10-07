@@ -59,13 +59,13 @@ it('does not render a false ship position when coordinates are invalid', async (
 
 it('draws the recorded track and shows its actual time range', async () => {
   fetchShip.mockResolvedValue({ ok: true, vessel, track: [
-    { lat: 54.5, lon: 19.7, timeUtc: '2026-10-07T01:00:00Z' },
+    { lat: 54.5, lon: 19.7, timeUtc: '2026-10-07T08:00:00Z' },
     { lat: 54.6, lon: 19.9, timeUtc: '2026-10-07T12:00:00Z' },
   ] });
   await mount();
   const html = root.root.findByType('iframe').props.srcDoc;
-  expect(html).toContain('track=[[54.5,19.7],[54.6,19.9]]');
-  expect(html).toContain('L.polyline(track');
+  expect(html).toContain('track=[[[54.5,19.7],[54.6,19.9]]]');
+  expect(html).toContain('L.polyline(segment');
   expect(html).toContain('map.fitBounds');
   expect(JSON.stringify(root.toJSON())).toContain('Пройденный путь по данным AIS');
 });

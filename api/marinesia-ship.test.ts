@@ -33,3 +33,15 @@ it('falls back to latest position when history is denied without losing the map'
   expect(result.historyError).toContain('История');
   expect(result.vessel.lat).toBe(latest.lat);
 });
+it('removes a teleport fix and reports breaks to the map', async () => {
+  vi.stubEnv('MARINESIA_API_KEY', 'test-key');
+  const fixes = [
+    { ...old, lat: 55, lng: 19, ts: '2026-10-07T00:00:00' },
+    { ...old, lat: 55, lng: 33, ts: '2026-10-07T01:00:00' },
+    { ...old, lat: 55, lng: 19.2, ts: '2026-10-07T02:00:00' },
+    { ...old, lat: 55, lng: 19.3, ts: '2026-10-07T12:00:00' },
+  ];
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: fixes }))));
+  const res = response(); await handler({ method: 'GET', query: { mmsi, history: '1' } } as any, res as any);
+  const result = res.json.mock.calls[0][0]; expect(result.track.map((p: any) => p.lon)).toEqual([19, 19.2, 19.3]); expect(result.track[2].breakBefore).toBe(true); expect(result.historyError).toContain('точек: 1');
+});

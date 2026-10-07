@@ -17,7 +17,7 @@ export type MarinesiaVessel = {
   draught?: number;
 };
 
-export type MarinesiaTrackPoint = { lat: number; lon: number; timeUtc: string };
+export type MarinesiaTrackPoint = { lat: number; lon: number; timeUtc: string; breakBefore?: boolean };
 
 export async function fetchMarinesiaShip(mmsi: string, history = false): Promise<{ ok: boolean; vessel?: MarinesiaVessel; error?: string; track?: MarinesiaTrackPoint[]; historyError?: string }> {
   const trimmed = mmsi.trim().replace(/\D/g, "");
