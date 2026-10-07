@@ -1,5 +1,5 @@
 .sending-tracking-dialog {
-  width: min(900px, 88vw); max-height: 84dvh !important; padding: 18px;
+  width: min(820px, 88vw); max-height: 84dvh !important; padding: 18px;
   border: 1px solid var(--color-border, #dce3ed); border-radius: 14px;
   background: var(--color-bg-primary, #fff); box-sizing: border-box;
   overflow: auto; overflow-wrap: anywhere; font-size: 14px; line-height: 1.35;
@@ -11,24 +11,38 @@
 .sending-tracking-dialog h3 { font-size: 16px; line-height: 1.3; margin: 16px 0 8px; }
 .sending-tracking-dialog h4 { font-size: 14px; line-height: 1.35; margin: 0 0 3px; }
 .sending-tracking-dialog p { font-size: 13px; line-height: 1.35; margin: 3px 0 8px; }
-.sending-tracking-dialog label { font-size: 13px; }
 .sending-tracking-dialog .tracking-icon { border: 0; background: transparent; box-shadow: none; padding: 5px; color: inherit; cursor: pointer; }
-.sending-tracking-dialog .tracking-search { display: flex; gap: 8px; margin-top: 5px; }
-.sending-tracking-dialog .tracking-search input { flex: 1; min-width: 0; padding: 7px 9px; font-size: 14px; border: 1px solid var(--color-border, #ccd5e3); border-radius: 6px; }
-.sending-tracking-dialog .tracking-search > button[type=submit] { background: #2554e8; color: white; border: 0; border-radius: 6px; padding: 6px 12px; font-size: 13px; }
 .sending-tracking-dialog .tracking-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 16px; margin: 8px 0; }
 .sending-tracking-dialog .tracking-fields dt { font-size: 12px; line-height: 1.3; color: var(--color-text-secondary, #6b7d99); }
 .sending-tracking-dialog .tracking-fields dd { font-size: 14px; line-height: 1.35; margin: 2px 0 0; }
-.sending-tracking-dialog .tracking-timeline { list-style: none; padding: 0 0 0 7px; margin: 0; }
-.sending-tracking-dialog .tracking-timeline li { position: relative; border-left: 2px solid #ff991a; padding: 4px 0 12px 14px; }
-.sending-tracking-dialog .tracking-timeline li:before { content: ''; position: absolute; left: -5px; top: 8px; width: 8px; height: 8px; background: #ff991a; border-radius: 50%; }
-.sending-tracking-dialog .tracking-timeline .is-current:before { background: #2554e8; }
-.sending-tracking-dialog .tracking-current { display: inline-block; font-size: 11px; font-weight: 500; margin-left: 8px; padding: 2px 6px; background: #eaf0ff; color: #2554e8; border-radius: 6px; }
 .sending-tracking-dialog footer { font-size: 11px; line-height: 1.35; color: var(--color-text-secondary, #6b7d99); margin-top: 12px; }
 @media (max-width: 800px) { .sending-tracking-dialog .tracking-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) {
   .sending-tracking-dialog { width: 92vw; padding: 12px; }
   .sending-tracking-dialog .tracking-fields { gap: 7px 10px; }
-  .sending-tracking-dialog .tracking-search { flex-wrap: wrap; }
-  .sending-tracking-dialog .tracking-search input { flex-basis: 100%; }
 }
+/* Overview first, compact stages, secondary information on demand. */
+.sending-tracking-dialog .tracking-container-heading { display:flex; gap:10px; align-items:baseline; margin:14px 0 10px; }
+.sending-tracking-dialog .tracking-container-heading h3 { margin:0; font-size:18px; }
+.sending-tracking-dialog .tracking-container-heading span,.sending-tracking-dialog .tracking-eyebrow { color:var(--color-text-secondary,#6b7d99);font-size:12px; }
+.sending-tracking-dialog .tracking-now { background:var(--color-bg-hover,#f0f5ff);border:1px solid var(--color-border,#dce3ed);border-radius:10px;padding:12px 14px;margin-bottom:12px; }
+.sending-tracking-dialog .tracking-now h3 { margin:3px 0 6px;color:var(--color-primary-blue,#2554e8);font-size:19px; }
+.sending-tracking-dialog .tracking-now-route { font-weight:600;font-size:15px;margin:0 0 4px; }
+.sending-tracking-dialog .tracking-last-operation { border-top:1px solid var(--color-border,#dce3ed);margin-top:10px;padding-top:8px; }
+.sending-tracking-dialog .tracking-last-operation>span { font-size:12px;color:var(--color-text-secondary,#6b7d99); }
+.sending-tracking-dialog .tracking-last-operation p { margin-bottom:0; }
+.sending-tracking-dialog .tracking-bill { display:flex;gap:12px;flex-wrap:wrap;font-size:13px;margin:8px 0; }
+.sending-tracking-dialog .tracking-details summary { cursor:pointer;color:var(--color-text-secondary,#6b7d99);font-size:12px;padding:4px 0; }
+.sending-tracking-dialog .tracking-stages { list-style:none;margin:0;padding:0;display:grid;gap:8px; }
+.sending-tracking-dialog .tracking-stages>li { border:1px solid var(--color-border,#dce3ed);border-radius:8px;padding:10px 12px; }
+.sending-tracking-dialog .tracking-stages>.is-current { border-left:3px solid #2554e8; }
+.sending-tracking-dialog .tracking-stage-heading { display:flex;align-items:baseline;justify-content:space-between;gap:12px; }
+.sending-tracking-dialog .tracking-stage-status { flex-shrink:0;font-size:11px;color:var(--color-text-secondary,#6b7d99);white-space:nowrap; }
+.sending-tracking-dialog .is-current .tracking-stage-status { color:#2554e8; }
+.sending-tracking-dialog .tracking-stage-dates { display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;margin-bottom:3px; }
+.sending-tracking-dialog .tracking-stage-dates strong { font-weight:500; }
+.sending-tracking-dialog .tracking-events { padding:0;list-style:none;margin:0; }
+.sending-tracking-dialog .tracking-events>li { display:grid;grid-template-columns:130px minmax(0,1fr);gap:12px;padding:9px 0;border-top:1px solid var(--color-border,#dce3ed); }
+.sending-tracking-dialog .tracking-events time { font-size:12px;color:var(--color-text-secondary,#6b7d99); }
+.sending-tracking-dialog .tracking-events p { margin-bottom:0; }
+@media(max-width:600px) { .sending-tracking-dialog{width:92vw}.sending-tracking-dialog .tracking-events>li{grid-template-columns:1fr;gap:4px}.sending-tracking-dialog .tracking-stage-heading{gap:8px} }
