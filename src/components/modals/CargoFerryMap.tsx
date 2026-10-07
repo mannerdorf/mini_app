@@ -6,8 +6,8 @@ import {fetchMarinesiaShip,type MarinesiaVessel,type MarinesiaTrackPoint} from '
 import {SendingVesselMap} from '../../features/documents/sendings/SendingVesselMap';
 import './cargo-ferry-map.css';
 
-type State={key:string;vessel?:MarinesiaVessel;track?:MarinesiaTrackPoint[];error?:string};
-export function CargoFerryMap({item,auth}:{item:CargoItem;auth:AuthData}) {
+type State={key:string;unassigned?:boolean;vessel?:MarinesiaVessel;track?:MarinesiaTrackPoint[];error?:string};
+export function CargoFerryMap({item,auth,fallback=null}:{item:CargoItem;auth:AuthData;fallback?:React.ReactNode}) {
  const number=String(item.rawNumber || item.Number || '');
  const customerInn=perevozkiCustomerInn(item);
  const {login,password}=auth;
@@ -21,7 +21,7 @@ export function CargoFerryMap({item,auth}:{item:CargoItem;auth:AuthData}) {
     method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({login,password,number,customerInn}),
    });
    if(!active)return;
-   if(!ferry)throw new Error('Паром не выбран для этой перевозки. Укажите его в отправках.');
+   if(!ferry){setState({key,unassigned:true});return;}
    if(!/^\d{9}$/.test(ferry.mmsi))throw new Error('У выбранного парома не указан MMSI.');
    const result=await fetchMarinesiaShip(ferry.mmsi,true);
    if(!active)return;
@@ -31,6 +31,7 @@ export function CargoFerryMap({item,auth}:{item:CargoItem;auth:AuthData}) {
   return ()=>{active=false;};
  },[key,number,customerInn,login,password]);
  const visible=state.key===key?state:undefined;
+ if(visible?.unassigned)return <>{fallback}</>;
  return <div className="cargo-ferry-map">
   <div className="cargo-ferry-map__canvas">
    {visible?.vessel?<SendingVesselMap vessel={visible.vessel} track={visible.track} embedded/>:<p role={visible?.error?'alert':'status'}>{visible?.error || 'Загрузка карты парома…'}</p>}

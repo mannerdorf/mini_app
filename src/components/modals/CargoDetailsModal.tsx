@@ -512,7 +512,7 @@ export function CargoDetailsModal({
                                     <ShipmentStatusPanel
                                         steps={perevozkaTimeline ?? []}
                                         routeMap={fromCity === 'KGD' && toCity === 'MSK'
-                                            ? <CargoFerryMap key={String(item.Number)} item={item} auth={auth}/> : undefined}
+                                            ? (fallback) => <CargoFerryMap key={String(item.Number)} item={item} auth={auth} fallback={fallback}/> : undefined}
                                         fromCity={fromCity}
                                         toCity={toCity}
                                         totalHours={totalHours}

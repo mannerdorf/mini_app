@@ -3,7 +3,6 @@ import { getPool } from "./_db.js";
 import { respondCorsPreflight } from "./_lib/cors.js";
 import { resolveHaulzCalculatorAccess } from "./_haulzCalculator.js";
 import {
-  checkCargo,
   cleanNumber,
   normalizeCargo,
   readBacklog,
@@ -38,14 +37,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .json({ error: "TMS доступен сотрудникам с правом HAULZ" });
     const numbers = body.numbers?.map(cleanNumber);
     const { rows, assigned } = await readBacklog(getPool(), numbers);
-    const items = await Promise.all(
-      rows.map(async (r) => {
-        const updatedAt = r.updated_at?.toISOString() ?? null;
-        const item = normalizeCargo(r.payload, updatedAt);
-        return numbers
-          ? { ...item, ...(await checkCargo(r.payload, updatedAt ?? "")) }
-          : item;
-      }),
+    const items = rows.map((r) =>
+      normalizeCargo(r.payload, r.updated_at?.toISOString() ?? null),
     );
     return res
       .status(200)
@@ -55,11 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       "[tms-backlog]",
       error instanceof Error ? error.name : "Error",
     );
-    return res
-      .status(500)
-      .json({
-        error:
-          "Не удалось загрузить перевозки для планирования. Повторите попытку.",
-      });
+    return res.status(500).json({
+      error:
+        "Не удалось загрузить перевозки для планирования. Повторите попытку.",
+    });
   }
 }

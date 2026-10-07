@@ -1,5 +1,10 @@
 import type { TmsCargo, PlanOptions, LoadPlan } from "./model";
-import { packFloor, type FloorRect } from "./packing";
+import {
+  pack3d,
+  packageProblem,
+  packedVolume,
+  packedWeight,
+} from "./packing3d";
 const EPS = 1e-7;
 const positive = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n) && n > 0;
@@ -30,12 +35,12 @@ export function cargoProblem(c: TmsCargo, o: PlanOptions): string | null {
   if (!positive(c.weight) || !positive(c.volume))
     return "Нет фактического веса или объёма";
   if (!c.received) return "Нет даты приёмки";
-  if (o.floorCustomers.includes(c.customerId)) {
+  if (o.floorCustomers.includes(c.customerId) && !o.packages?.[c.id]?.length) {
     const n = o.pallets[c.id];
     if (!Number.isInteger(n) || n <= 0 || n > 1000)
       return "Укажите количество палет (1–1000)";
   }
-  return null;
+  return packageProblem(c, o);
 }
 /** Repeatable, bounded multi-start packing. Whole consignments; priorities first, FIFO/LIFO with a small lookahead. */
 export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
@@ -52,8 +57,7 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
     0,
   );
   const volumeLimit = Math.min(o.vehicle.volume, geometricVolume) * reserve;
-  const priority = new Set(o.priority),
-    floor = new Set(o.floorCustomers);
+  const priority = new Set(o.priority);
   const ordered = cargo
     .filter((c) => o.strictSelection || !cargoProblem(c, o))
     .sort(
@@ -63,11 +67,8 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
         (o.order === "fifo" ? 1 : -1) * a.received.localeCompare(b.received) ||
         a.number.localeCompare(b.number, undefined, { numeric: true }),
     );
+  const layoutCache = new Map<string, ReturnType<typeof pack3d>>();
   const run = (strategy: number): LoadPlan => {
-    const bins = o.vehicle.compartments.map((c) => ({
-      ...c,
-      free: [{ x: 0, y: 0, length: c.length, width: c.width }] as FloorRect[],
-    }));
     const result: LoadPlan = {
       selected: [],
       omitted: [],
@@ -80,48 +81,37 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
       volumeLimit,
     };
     const tryFit = (c: TmsCargo, commit: boolean): boolean => {
+      const volume = packedVolume(c, o),
+        weight = packedWeight(c, o);
       if (
-        result.weight + c.weight! > payloadLimit + EPS ||
-        result.volume + c.volume! > volumeLimit + EPS
+        result.weight + weight > payloadLimit + EPS ||
+        result.volume + volume > volumeLimit + EPS
       )
         return false;
-      const count = floor.has(c.customerId) ? o.pallets[c.id] : 0;
-      for (let i = 0; i < bins.length; i++) {
-        const b = bins[i];
-        if (
-          count &&
-          c.volume! > count * o.palletLength * o.palletWidth * b.height + EPS
-        )
-          continue;
-        const layout = packFloor(
-          b.free,
-          count || 1,
-          count ? o.palletLength : c.volume! / (b.width * b.height),
-          count ? o.palletWidth : b.width,
-          Boolean(count),
+      const key = JSON.stringify(
+        [...result.selected.map((c) => c.id), c.id].sort(),
+      );
+      if (!layoutCache.has(key))
+        layoutCache.set(
+          key,
+          pack3d(
+            [...result.selected, c].sort((a, b) => a.id.localeCompare(b.id)),
+            o,
+          ),
         );
-        if (!layout) continue;
-        if (commit) {
-          const placements = layout.placements.map((p) => ({
-            ...p,
-            cargoId: c.id,
-            compartment: i,
-            pallet: Boolean(count),
-          }));
-          b.free = layout.free;
-          result.placements.push(...placements);
-          result.selected.push(c);
-          result.weight += c.weight!;
-          result.volume += c.volume!;
-          result.pallets += count;
-          result.floorArea += placements.reduce(
-            (s, p) => s + p.length * p.width,
-            0,
-          );
-        }
-        return true;
+      const placements = layoutCache.get(key);
+      if (!placements) return false;
+      if (commit) {
+        result.selected.push(c);
+        result.placements = placements;
+        result.weight += weight;
+        result.volume += volume;
+        result.pallets = placements.filter((p) => p.pallet).length;
+        result.floorArea = placements
+          .filter((p) => p.z < EPS)
+          .reduce((s, p) => s + p.length * p.width, 0);
       }
-      return false;
+      return true;
     };
     let stoppedAt: TmsCargo | null = null;
     const remaining = [...ordered];
@@ -173,7 +163,7 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
           stoppedAt && c.id !== stoppedAt.id
             ? `Строгий отбор: очередь остановлена на перевозке ${stoppedAt.number}`
             : cargoProblem(c, o) ||
-              "Не помещается в оставшиеся вес, объём или площадь пола",
+              "Не помещается по весу, габаритам или условиям опоры и штабелирования",
       }));
     return result;
   };

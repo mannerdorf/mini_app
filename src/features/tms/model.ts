@@ -1,9 +1,5 @@
 export type Readiness =
-  | "pending"
-  | "ready"
-  | "unreceived"
-  | "dispatched"
-  | "unknown";
+  "pending" | "ready" | "unreceived" | "dispatched" | "unknown";
 export type TmsCargo = {
   id: string;
   number: string;
@@ -77,7 +73,21 @@ export const VEHICLES: Vehicle[] = [
   preset("20fr", "ferry", "20′ Flat Rack", 28000, 5.6, 2.2, 2.2),
   preset("40fr", "ferry", "40′ Flat Rack", 26000, 11.65, 2.2, 2.2),
 ];
+export type PackageGroup = {
+  count: number;
+  length: number;
+  width: number;
+  height: number;
+  weight: number;
+  pallet: boolean;
+  floorOnly: boolean;
+  stackable: boolean;
+  maxTopLoad: number;
+  rotate: boolean;
+};
 export type PlanOptions = {
+  packages?: Record<string, PackageGroup[]>;
+  requireDimensions?: boolean;
   vehicle: Vehicle;
   order: "fifo" | "lifo";
   strictSelection: boolean;
@@ -96,6 +106,15 @@ export type Placement = {
   length: number;
   width: number;
   pallet: boolean;
+  z: number;
+  height: number;
+  weight: number;
+  density: number;
+  estimated: boolean;
+  unit: string;
+  support: string | null;
+  topLoad: number;
+  maxTopLoad: number;
 };
 export type LoadPlan = {
   selected: TmsCargo[];

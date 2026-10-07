@@ -36,7 +36,7 @@ export type ShipmentStatusPanelProps = {
   embedded?: boolean;
   stepOutOfSla?: (index: number) => boolean;
   receiptPhotoControl?: React.ReactNode;
-  routeMap?: React.ReactNode;
+  routeMap?: React.ReactNode | ((fallback: React.ReactNode) => React.ReactNode);
 };
 
 function deriveStepStatuses(steps: PerevozkaTimelineStep[]): TrackingStepStatus[] {
@@ -293,6 +293,7 @@ export function ShipmentStatusPanel({
 
   const completedCount = trackingSteps.filter((s) => s.status === "completed" || s.status === "current").length;
 
+  const defaultRouteMap = <RouteMap fromCity={fromCity} toCity={toCity} stepCount={completedCount} />;
   const inner = (
     <motion.section
       className={[
@@ -332,7 +333,7 @@ export function ShipmentStatusPanel({
 
       {!loading && !error && trackingSteps.length > 0 && (
         <>
-          {routeMap ?? <RouteMap fromCity={fromCity} toCity={toCity} stepCount={completedCount} />}
+          {typeof routeMap === "function" ? routeMap(defaultRouteMap) : (routeMap ?? defaultRouteMap)}
 
           <div className="shipment-status-steps">
             {trackingSteps.map((step, index) => (

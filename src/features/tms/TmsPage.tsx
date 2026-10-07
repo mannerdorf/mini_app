@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   RefreshCw,
@@ -16,24 +16,17 @@ import {
   type PlanOptions,
   type LoadPlan,
   type Vehicle,
+  type PackageGroup,
 } from "./model";
-import { planLoad, cargoProblem, validateOptions } from "./planner";
+import { cargoProblem, validateOptions } from "./planner";
+import { LoadScene, COLORS } from "./LoadScene";
+import { PackageEditor } from "./PackageEditor";
 import "./tms.css";
 const fmt = (n: number, d = 1) =>
   n.toLocaleString("ru-RU", { maximumFractionDigits: d });
 const date = (s: string) => (s ? s.split("-").reverse().join(".") : "Нет даты");
 const sum = (rows: TmsCargo[], key: "weight" | "volume" | "places") =>
   rows.reduce((s, c) => s + (c[key] ?? 0), 0);
-const COLORS = [
-  "#2563eb",
-  "#059669",
-  "#7c3aed",
-  "#d97706",
-  "#0891b2",
-  "#db2777",
-  "#4f46e5",
-  "#65a30d",
-];
 function MultiSelect({
   label,
   customers,
@@ -46,8 +39,38 @@ function MultiSelect({
   onChange: (v: string[]) => void;
 }) {
   const [search, setSearch] = useState("");
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  useEffect(() => {
+    const closeOutside = (event: Event) => {
+      const menu = menuRef.current;
+      if (
+        menu?.open &&
+        event.target instanceof Node &&
+        !menu.contains(event.target)
+      ) {
+        menu.open = false;
+      }
+    };
+    document.addEventListener("pointerdown", closeOutside, true);
+    document.addEventListener("focusin", closeOutside, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside, true);
+      document.removeEventListener("focusin", closeOutside, true);
+    };
+  }, []);
   return (
-    <details className="tms-multi">
+    <details
+      className="tms-multi"
+      ref={menuRef}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && event.currentTarget.open) {
+          event.preventDefault();
+          event.stopPropagation();
+          event.currentTarget.open = false;
+          event.currentTarget.querySelector("summary")?.focus();
+        }
+      }}
+    >
       <summary>
         {label}
         <span>
@@ -82,109 +105,6 @@ function MultiSelect({
           ))}
       </div>
     </details>
-  );
-}
-export function LoadVisual({
-  plan,
-  vehicle,
-}: {
-  plan: LoadPlan;
-  vehicle: Vehicle;
-}) {
-  const [hover, setHover] = useState<string | null>(null);
-  const index = new Map(plan.selected.map((c, i) => [c.id, i]));
-  const selected = plan.selected.find((c) => c.id === hover);
-  const longest = Math.max(...vehicle.compartments.map((c) => c.length));
-  return (
-    <div className="tms-visual">
-      <div className="tms-section-heading">
-        <h3>План загрузки · вид сверху</h3>
-        <span>Передняя стенка → двери</span>
-      </div>
-      <p className="tms-muted">
-        Палеты — по указанному размеру, остальной груз — зона по объёму на
-        полную высоту кузова. Габариты отдельных мест, совместимость и нагрузку
-        на оси проверяет логист.
-      </p>
-      {vehicle.compartments.map((c, i) => (
-        <div key={i}>
-          <div className="tms-visual-caption">
-            {vehicle.compartments.length > 1 ? `Кузов ${i + 1} · ` : ""}
-            {fmt(c.length, 2)} × {fmt(c.width, 2)} × {fmt(c.height, 2)} м
-          </div>
-          <svg
-            role="img"
-            aria-label={`План загрузки кузова ${i + 1}`}
-            viewBox={`-0.12 -0.12 ${longest + 0.24} ${c.width + 0.24}`}
-            style={{ maxHeight: 220 }}
-          >
-            <rect
-              width={c.length}
-              height={c.width}
-              rx=".05"
-              fill="var(--color-bg-secondary, #f1f5f9)"
-              stroke="var(--color-text-secondary, #64748b)"
-              strokeWidth=".025"
-            />
-            {plan.placements
-              .filter((p) => p.compartment === i)
-              .map((p, j) => {
-                const idx = index.get(p.cargoId) ?? 0,
-                  cargo = plan.selected[idx];
-                return (
-                  <g
-                    key={j}
-                    onMouseEnter={() => setHover(p.cargoId)}
-                    onMouseLeave={() => setHover(null)}
-                    onClick={() =>
-                      setHover(hover === p.cargoId ? null : p.cargoId)
-                    }
-                  >
-                    <title>
-                      {cargo.number} · {cargo.customer} · {fmt(cargo.weight!)}{" "}
-                      кг · {fmt(cargo.volume!, 2)} м³
-                    </title>
-                    <rect
-                      x={p.x + 0.012}
-                      y={p.y + 0.012}
-                      width={Math.max(0, p.length - 0.024)}
-                      height={Math.max(0, p.width - 0.024)}
-                      fill={COLORS[idx % COLORS.length]}
-                      opacity={hover && hover !== p.cargoId ? 0.4 : 0.86}
-                      rx=".02"
-                    />
-                    {p.length > 0.32 && (
-                      <text
-                        x={p.x + p.length / 2}
-                        y={p.y + p.width / 2}
-                        textAnchor="middle"
-                        dominantBaseline="middle"
-                        fill="white"
-                        fontSize=".18"
-                      >
-                        {idx + 1}
-                      </text>
-                    )}
-                  </g>
-                );
-              })}
-          </svg>
-        </div>
-      ))}
-      <div className="tms-legend">
-        {selected ? (
-          <span>
-            <b>№ {selected.number}</b> · {selected.customer} ·{" "}
-            {fmt(selected.weight!)} кг · {fmt(selected.volume!, 2)} м³
-          </span>
-        ) : (
-          <span>
-            Наведите на груз для подробностей. Номера зон соответствуют списку
-            ниже.
-          </span>
-        )}
-      </div>
-    </div>
   );
 }
 function ResultTable({ plan }: { plan: LoadPlan }) {
@@ -286,8 +206,12 @@ export function TmsPage({
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0),
     [checkedAt, setCheckedAt] = useState("");
-  const [assigned, setAssigned] = useState(0),
-    [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [assigned, setAssigned] = useState(0);
+  const [packages, setPackages] = useState<Record<string, PackageGroup[]>>({});
+  const [requireDimensions, setRequireDimensions] = useState(false);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [calculating, setCalculating] = useState(false);
+  const workerRef = useRef<Worker | null>(null);
   const [mode, setMode] = useState<Vehicle["mode"]>("road"),
     [vehicle, setVehicle] = useState<Vehicle>(() =>
       structuredClone(VEHICLES[0]),
@@ -308,6 +232,8 @@ export function TmsPage({
     [planError, setPlanError] = useState("");
   useEffect(() => {
     setPallets({});
+    setPackages({});
+    setEditing(null);
     setExcluded([]);
     setPriority([]);
     setFloorCustomers([]);
@@ -317,7 +243,6 @@ export function TmsPage({
     setItems([]);
     setLoading(true);
     setError("");
-    setProgress({ done: 0, total: 0 });
     setPlan(null);
     const post = (numbers?: string[]) =>
       apiFetchJson<{ items: TmsCargo[]; assigned: number; checkedAt: string }>(
@@ -335,31 +260,6 @@ export function TmsPage({
         setItems(data.items);
         setAssigned(data.assigned);
         setCheckedAt(data.checkedAt);
-        const numbers = [...new Set(data.items.map((c) => c.number))];
-        setProgress({ done: 0, total: numbers.length });
-        for (let i = 0; i < numbers.length; i += 4) {
-          if (cancelled) break;
-          const batch = numbers.slice(i, i + 4),
-            result = await post(batch);
-          if (cancelled) break;
-          const byId = new Map(result.items.map((c) => [c.id, c]));
-          setItems((current) =>
-            current.map((c) =>
-              batch.includes(c.number)
-                ? (byId.get(c.id) ?? {
-                    ...c,
-                    readiness: "dispatched",
-                    reason: "Уже включена в отправку или завершена",
-                  })
-                : c,
-            ),
-          );
-          setProgress({
-            done: Math.min(i + 4, numbers.length),
-            total: numbers.length,
-          });
-          setCheckedAt(result.checkedAt);
-        }
       } catch (e) {
         if (!cancelled)
           setError(
@@ -376,6 +276,8 @@ export function TmsPage({
   const options: PlanOptions = useMemo(
     () => ({
       vehicle,
+      packages,
+      requireDimensions,
       order,
       strictSelection,
       priority,
@@ -387,6 +289,8 @@ export function TmsPage({
     }),
     [
       vehicle,
+      packages,
+      requireDimensions,
       order,
       strictSelection,
       priority,
@@ -399,6 +303,9 @@ export function TmsPage({
   useEffect(() => {
     setPlan(null);
     setPlanError("");
+    workerRef.current?.terminate();
+    workerRef.current = null;
+    setCalculating(false);
   }, [options, items, from, to, route, excluded]);
   const customers = useMemo(
     () =>
@@ -442,15 +349,61 @@ export function TmsPage({
         ? current.filter((id) => !rows.some((c) => c.id === id))
         : [...new Set([...current, ...rows.map((c) => c.id)])],
     );
+  useEffect(() => () => workerRef.current?.terminate(), []);
   const calculate = () => {
-    try {
-      if (from && to && from > to)
-        throw new Error("Начало периода должно быть раньше конца");
-      setPlan(planLoad(candidates, options));
-      setPlanError("");
-    } catch (e) {
-      setPlanError(e instanceof Error ? e.message : "Не удалось рассчитать");
+    if (from && to && from > to) {
+      setPlanError("Начало периода должно быть раньше конца");
+      return;
     }
+    const error = validateOptions(options);
+    if (error) {
+      setPlanError(error);
+      return;
+    }
+    workerRef.current?.terminate();
+    const worker = new Worker(new URL("./planner.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    workerRef.current = worker;
+    setCalculating(true);
+    setPlanError("");
+    setPlan(null);
+    worker.onmessage = (e) => {
+      if (workerRef.current !== worker) return;
+      setCalculating(false);
+      setPlan(e.data.plan ?? null);
+      setPlanError(e.data.error ?? "");
+      worker.terminate();
+      workerRef.current = null;
+    };
+    worker.onerror = () => {
+      if (workerRef.current !== worker) return;
+      setCalculating(false);
+      setPlanError("Ошибка расчёта. Уменьшите выборку и повторите.");
+      worker.terminate();
+      workerRef.current = null;
+    };
+    worker.postMessage({ cargo: candidates, options });
+  };
+  const export3d = () => {
+    if (!plan) return;
+    const url = URL.createObjectURL(
+      new Blob(
+        [
+          JSON.stringify(
+            { version: 1, createdAt: new Date().toISOString(), options, plan },
+            null,
+            2,
+          ),
+        ],
+        { type: "application/json" },
+      ),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tms-3d-plan.json";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   const exportPlan = () => {
     if (!plan) return;
@@ -496,6 +449,15 @@ export function TmsPage({
   };
   return (
     <div className="tms">
+      {editing && items.find((c) => c.id === editing) && (
+        <PackageEditor
+          key={editing}
+          cargo={items.find((c) => c.id === editing)!}
+          options={options}
+          onClose={() => setEditing(null)}
+          onSave={(groups) => setPackages({ ...packages, [editing]: groups })}
+        />
+      )}
       <header className="tms-header">
         <button className="tms-icon" onClick={onBack} aria-label="Назад">
           <ArrowLeft size={20} />
@@ -727,6 +689,29 @@ export function TmsPage({
           </strong>
         </div>
       </div>
+      <section className="tms-card tms-rules">
+        <div>
+          <h2>Правила размещения · 3D</h2>
+          <p className="tms-muted">
+            Палеты на полу. Плотный и тяжёлый груз — ниже; лёгкий — на
+            разрешённых опорах. Учитываем суммарную нагрузку всех верхних
+            ярусов.
+          </p>
+        </div>
+        <label>
+          <input
+            type="checkbox"
+            checked={requireDimensions}
+            onChange={(e) => setRequireDimensions(e.target.checked)}
+          />{" "}
+          Только с проверенными габаритами мест
+        </label>
+        <p className="tms-muted">
+          {requireDimensions
+            ? "Без введённых габаритов перевозка не попадёт в расчёт. В строгой очереди она остановит подбор."
+            : "Без замеров строим предварительную модель из числа мест, веса и объёма. Расчётные места не служат опорой для других грузов."}
+        </p>
+      </section>
       <section className="tms-card">
         <div className="tms-section-heading">
           <h2>Неотправленные перевозки</h2>
@@ -747,17 +732,17 @@ export function TmsPage({
         </div>
         <div className="tms-status" aria-live="polite">
           {loading
-            ? `Проверка этапов в 1С: ${progress.done} из ${progress.total}…`
+            ? "Загрузка из БД…"
             : checkedAt
-              ? `Проверено ${new Date(checkedAt).toLocaleString("ru-RU")}`
+              ? `Данные БД загружены ${new Date(checkedAt).toLocaleString("ru-RU")}`
               : "Загрузка…"}
           {assigned > 0 && ` · Уже связаны с отправками: ${assigned}`}
         </div>
         {!ready.length && (
           <p className="tms-empty">
             {loading
-              ? "Подтверждённые перевозки будут появляться здесь по мере проверки."
-              : "Нет подтверждённых неотправленных перевозок по выбранным условиям."}
+              ? "Загружаем поступившие перевозки без связи с отправкой."
+              : "Нет неотправленных перевозок по выбранным условиям."}
           </p>
         )}
         {[...groups.entries()]
@@ -796,6 +781,7 @@ export function TmsPage({
                       <th>Вес, кг</th>
                       <th>Объём, м³</th>
                       <th>Палет по полу</th>
+                      <th>Габариты / укладка</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -848,8 +834,20 @@ export function TmsPage({
                               }
                             />
                           ) : (
-                            <span className="tms-muted">По объёму</span>
+                            <span className="tms-muted">Поштучно</span>
                           )}
+                        </td>
+                        <td>
+                          <button onClick={() => setEditing(c.id)}>
+                            {packages[c.id]?.length
+                              ? "Габариты введены"
+                              : "Указать габариты"}
+                          </button>
+                          <small>
+                            {c.weight && c.volume
+                              ? `${fmt(c.weight / c.volume)} кг/м³`
+                              : "Нет плотности"}
+                          </small>
                         </td>
                       </tr>
                     ))}
@@ -860,12 +858,10 @@ export function TmsPage({
           ))}
         {unresolved.length > 0 && (
           <details className="tms-unresolved">
-            <summary>
-              Не подтверждены для загрузки · {unresolved.length}
-            </summary>
+            <summary>Нет данных для планирования · {unresolved.length}</summary>
             <p className="tms-muted">
-              Эти перевозки не участвуют в расчёте, пока нет подтверждения
-              складской приёмки и отсутствия отправки.
+              Эти перевозки не участвуют в расчёте: в БД не заполнена дата
+              поступления. Данные обновляет существующая синхронизация.
             </p>
             <div className="tms-table-scroll">
               <table>
@@ -900,15 +896,23 @@ export function TmsPage({
           </div>
           <button
             className="tms-primary"
-            disabled={
-              !candidates.length ||
-              filtered.some((c) => c.readiness === "pending")
-            }
+            disabled={!candidates.length || loading || calculating}
             onClick={calculate}
           >
             <Package size={18} />
-            Рассчитать
+            {calculating ? "Расчёт 3D…" : "Рассчитать 3D"}
           </button>
+          {calculating && (
+            <button
+              onClick={() => {
+                workerRef.current?.terminate();
+                workerRef.current = null;
+                setCalculating(false);
+              }}
+            >
+              Отменить расчёт
+            </button>
+          )}
         </div>
         {(planError || validateOptions(options)) && (
           <p role="alert" className="tms-problem">
@@ -926,6 +930,9 @@ export function TmsPage({
                 {plan.selected.length} перевозок
               </p>
             </div>
+            <button disabled={!plan.selected.length} onClick={export3d}>
+              <Download size={16} /> Скачать 3D-план
+            </button>
             <button disabled={!plan.selected.length} onClick={exportPlan}>
               <Download size={16} />
               Скачать список
@@ -974,7 +981,7 @@ export function TmsPage({
               ? "Строгий отбор: без пропусков в выбранной очереди."
               : "Подобран лучший из шести проверенных вариантов."}
           </p>
-          <LoadVisual plan={plan} vehicle={vehicle} />
+          <LoadScene plan={plan} vehicle={vehicle} />
           <ResultTable plan={plan} />
           {plan.omitted.length > 0 && (
             <details className="tms-unresolved">

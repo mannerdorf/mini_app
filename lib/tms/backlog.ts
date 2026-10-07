@@ -1,9 +1,6 @@
 import type { Pool } from "pg";
 import type { TmsCargo, Readiness } from "../../src/features/tms/model.js";
 import { cityToCode } from "../cityToCode.js";
-import { normalizePerevozkaSteps } from "../../api/lib/postbGetapiNormalize.js";
-import { fetchTimelineFrom1C } from "../cargoTimelineReportBuild.js";
-import { getPerevozkiServiceCredentials } from "../cacheHistoryDays.js";
 export const cleanNumber = (n: unknown) =>
   String(n ?? "")
     .trim()
@@ -26,43 +23,21 @@ export function terminal(item: Record<string, unknown>): boolean {
     )
   );
 }
-export function readiness(payload: unknown): {
+/** Availability comes from the synchronized DB; sending membership is excluded by readBacklog. */
+export function readiness(item: Record<string, unknown>): {
   readiness: Readiness;
   reason: string;
 } {
-  const steps = normalizePerevozkaSteps(payload).filter((s) =>
-    validDate(s.date),
-  );
-  if (
-    steps.some((s) =>
-      /отправлен|улетел|в\s*пути|загружен|к\s*вручению|доставлен|прибыл|отмен|возврат/i.test(
-        s.title,
-      ),
-    )
-  )
+  if (terminal(item))
     return {
       readiness: "dispatched",
-      reason: "Уже загружена, отправлена или завершена по этапам 1С",
+      reason: "Перевозка завершена или отменена",
     };
-  if (
-    steps.some((s) =>
-      /получена?\s*(от\s*заказчика|на\s*складе|в\s*(MSK|KGD|Моск|Калининг))|упакован|измерен|консолидац/i.test(
-        s.title,
-      ),
-    )
-  )
-    return {
-      readiness: "ready",
-      reason: "Принята на складе, отправка не зафиксирована",
-    };
-  if (steps.some((s) => /получена\s*информация/i.test(s.title)))
-    return {
-      readiness: "unreceived",
-      reason: "Есть информация о грузе, приёмка ещё не подтверждена",
-    };
+  if (!validDate(item.DatePrih))
+    return { readiness: "unreceived", reason: "В БД нет даты поступления" };
   return {
-    readiness: "unknown",
-    reason: "Не удалось подтвердить этапы перевозки в 1С",
+    readiness: "ready",
+    reason: "Есть дата поступления, связи с отправкой в БД нет",
   };
 }
 export function normalizeCargo(
@@ -85,8 +60,7 @@ export function normalizeCargo(
     weight: amount(item.W),
     volume: amount(item.Value),
     places: amount(item.Mest),
-    readiness: "pending",
-    reason: "Проверяем приёмку и отправку",
+    ...readiness(item),
     updatedAt,
   };
 }
@@ -109,45 +83,4 @@ export async function readBacklog(pool: Pool, numbers?: string[]) {
   );
   const available = rows.filter((r) => !r.assigned && !terminal(r.payload));
   return { rows: available, assigned: rows.filter((r) => r.assigned).length };
-}
-const verified = new Map<
-  string,
-  { until: number; value: ReturnType<typeof readiness> }
->();
-const pending = new Map<string, Promise<ReturnType<typeof readiness>>>();
-export async function checkCargo(
-  item: Record<string, unknown>,
-  updatedAt: string,
-): Promise<ReturnType<typeof readiness>> {
-  const key = `${text(item.INN)}:${cleanNumber(item.Number)}:${updatedAt}`;
-  const cached = verified.get(key);
-  if (cached && cached.until > Date.now()) return cached.value;
-  const running = pending.get(key);
-  if (running) return running;
-  const task = (async () => {
-    const credentials = getPerevozkiServiceCredentials();
-    if (!credentials)
-      return {
-        readiness: "unknown" as const,
-        reason: "Не настроено подключение к 1С",
-      };
-    const payload = await fetchTimelineFrom1C(
-      String(item.Number),
-      text(item.INN),
-      credentials.login,
-      credentials.password,
-      8000,
-    );
-    const value = readiness(payload);
-    if (verified.size > 5000) verified.clear();
-    if (value.readiness !== "unknown")
-      verified.set(key, { until: Date.now() + 120000, value });
-    return value;
-  })();
-  pending.set(key, task);
-  try {
-    return await task;
-  } finally {
-    pending.delete(key);
-  }
 }

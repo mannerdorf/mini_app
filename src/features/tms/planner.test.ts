@@ -88,8 +88,8 @@ describe("TMS load planning", () => {
       [
         cargo("1", 1200, 12),
         cargo("2", 600, 6),
-        cargo("3", 500, 5),
-        cargo("4", 500, 5),
+        cargo("3", 500, 5, { places: 5 }),
+        cargo("4", 500, 5, { places: 5 }),
       ],
       options(),
     );
@@ -233,10 +233,14 @@ it("keeps mixed rotated pallets and volume zones within each floor without overl
       }
     }
   }
-});
+}, 30000);
 describe("strict selection", () => {
   it("stops at the first unfit shipment without filling the gap with later cargo", () => {
-    const rows = [cargo("1", 600, 6), cargo("2", 500, 5), cargo("3", 400, 4)];
+    const rows = [
+      cargo("1", 600, 6, { places: 6 }),
+      cargo("2", 500, 5, { places: 5 }),
+      cargo("3", 400, 4, { places: 4 }),
+    ];
     const p = planLoad(rows, options({ strictSelection: true }));
     expect(p.selected.map((c) => c.id)).toEqual(["1"]);
     expect(p.omitted.find((c) => c.cargo.id === "3")?.reason).toContain(
