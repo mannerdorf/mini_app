@@ -194,3 +194,41 @@ it("checks deterministic 3D non-overlap and support bounds with mixed package si
     }
   }
 });
+
+it("uses three estimated layers instead of stopping after one third of the volume", () => {
+  const rows = [cargo("1", 300, { volume: 3, places: 3 })];
+  const o = { ...options({}), requireDimensions: false };
+  const plan = planLoad(rows, o);
+  expect(plan.selected).toHaveLength(1);
+  expect(plan.volume).toBe(3);
+  expect(plan.floorArea).toBe(1);
+  expect(plan.placements.map((p) => p.z)).toEqual([0, 1, 2]);
+  expect(plan.placements.every((p) => p.estimated)).toBe(true);
+  expect(plan.placements[0].topLoad).toBe(200);
+  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 0 }).selected).toEqual([]);
+  expect(planLoad(rows, { ...o, estimatedTopLoadFactor: 1 }).selected).toEqual([]);
+});
+
+it("puts lighter estimated boxes above heavier ones regardless of FIFO order", () => {
+  const o = { ...options({}), requireDimensions: false };
+  const rows = [cargo("light", 10), cargo("medium", 50), cargo("heavy", 100)];
+  const p = planLoad(rows, o);
+  expect(p.selected).toHaveLength(3);
+  const sorted = [...p.placements].sort((a, b) => a.z - b.z);
+  expect(sorted.map((p) => p.weight)).toEqual([100, 50, 10]);
+  expect(sorted[0].topLoad).toBe(60);
+});
+
+it("keeps estimated pallets on the floor while allowing lighter boxes above", () => {
+  const o = { ...options({}), requireDimensions: false, floorCustomers: ["pallet"], pallets: { p: 1 }, palletLength: 1, palletWidth: 1 };
+  const p = planLoad([cargo("p", 100, { customerId: "pallet" }), cargo("b", 10)], o);
+  expect(p.placements.find((p) => p.cargoId === "p")?.z).toBe(0);
+  expect(p.placements.find((p) => p.cargoId === "b")?.z).toBe(1);
+  expect(planLoad([cargo("p", 200, { customerId: "pallet", volume: 2 })], { ...o, pallets: { p: 2 } }).selected).toEqual([]);
+});
+
+it("never overrides a measured no-stacking rule with an estimated load factor", () => {
+  const o = { ...options({ base: [box({ stackable: false })] }), requireDimensions: false, estimatedTopLoadFactor: 5 };
+  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(1);
+  expect(() => planLoad([], { ...o, estimatedTopLoadFactor: NaN })).toThrow("нагрузка");
+});

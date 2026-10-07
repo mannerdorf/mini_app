@@ -14,6 +14,8 @@ export function packageGroups(
       ? c.places!
       : 1;
   const v = (c.volume ?? 0) / count;
+  const weight = (c.weight ?? 0) / count;
+  const factor = o.estimatedTopLoadFactor ?? 2;
   // An explicit estimate, never a claim about actual individual package dimensions.
   const width = pallet
     ? o.palletWidth
@@ -30,11 +32,11 @@ export function packageGroups(
         length,
         width,
         height,
-        weight: (c.weight ?? 0) / count,
+        weight,
         pallet,
         floorOnly: pallet,
-        stackable: false,
-        maxTopLoad: 0,
+        stackable: factor > 0,
+        maxTopLoad: weight * factor,
         rotate: true,
       },
     ],
@@ -140,6 +142,7 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
     for (let bi = 0; bi < bins.length; bi++) {
       const bin: Bin = structuredClone(bins[bi]),
         bounds = o.vehicle.compartments[bi];
+      const byUnit = new Map(bin.placements.map((p) => [p.unit, p]));
       let ok = true;
       for (const u of units) {
         let candidate: {
@@ -150,14 +153,17 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
         } | null = null;
         bin.surfaces.forEach((s, si) => {
           if (
+            !s.free.length ||
             (u.floorOnly && s.z > EPS) ||
             s.z + u.height > bounds.height + EPS
           )
             return;
+          const layout = packFloor(s.free, 1, u.length, u.width, u.rotate);
+          if (!layout) return;
           const ancestors: Placement[] = [];
           let parent = s.parent;
           while (parent) {
-            const p = bin.placements.find((p) => p.unit === parent)!;
+            const p = byUnit.get(parent)!;
             if (
               p.topLoad + u.weight > p.maxTopLoad + EPS ||
               u.density > p.density + EPS ||
@@ -167,8 +173,6 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
             ancestors.push(p);
             parent = p.support;
           }
-          const layout = packFloor(s.free, 1, u.length, u.width, u.rotate);
-          if (!layout) return;
           // Prefer an allowed stack to consuming more floor. Lower available layer wins.
           const score =
             (s.parent ? 0 : 10000) + s.z * 100 + layout.placements[0].x;
@@ -202,9 +206,10 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
           compartment: bi,
           support: surface.parent,
           topLoad: 0,
-          maxTopLoad: u.stackable && !u.estimated ? u.maxTopLoad : 0,
+          maxTopLoad: u.stackable ? u.maxTopLoad : 0,
         };
         bin.placements.push(placed);
+        byUnit.set(placed.unit, placed);
         if (placed.maxTopLoad > 0)
           bin.surfaces.push({
             parent: placed.unit,

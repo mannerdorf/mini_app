@@ -13,9 +13,13 @@ export function PackageEditor({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [groups, setGroups] = useState(() =>
-    structuredClone(packageGroups(cargo, options).groups),
-  );
+  const [groups, setGroups] = useState(() => {
+    const { groups, estimated } = packageGroups(cargo, options);
+    // An assumed compression limit must never silently become a verified one.
+    return structuredClone(groups).map((g) =>
+      estimated ? { ...g, stackable: false, maxTopLoad: 0 } : g,
+    );
+  });
   const [confirmed, setConfirmed] = useState(
     !packageGroups(cargo, options).estimated,
   );

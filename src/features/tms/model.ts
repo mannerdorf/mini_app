@@ -88,6 +88,8 @@ export type PackageGroup = {
 export type PlanOptions = {
   packages?: Record<string, PackageGroup[]>;
   requireDimensions?: boolean;
+  // Preliminary assumption only; 0 disables estimated supports. Measured rules take precedence.
+  estimatedTopLoadFactor?: number;
   vehicle: Vehicle;
   order: "fifo" | "lifo";
   strictSelection: boolean;

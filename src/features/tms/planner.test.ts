@@ -192,7 +192,7 @@ it("uses mixed pallet orientations to fit 11 EUR pallets into a 20 foot containe
   );
   expect(p.pallets).toBe(11);
 });
-it("keeps mixed rotated pallets and volume zones within each floor without overlap", () => {
+it("keeps mixed pallets and stacked boxes within the vehicle without 3D overlap", () => {
   let seed = 117;
   const random = () => {
     seed = (seed * 16807) % 2147483647;
@@ -221,6 +221,9 @@ it("keeps mixed rotated pallets and volume zones within each floor without overl
       expect(a.y).toBeGreaterThanOrEqual(-1e-6);
       expect(a.x + a.length).toBeLessThanOrEqual(b.length + 1e-6);
       expect(a.y + a.width).toBeLessThanOrEqual(b.width + 1e-6);
+      expect(a.z + a.height).toBeLessThanOrEqual(b.height + 1e-6);
+      if (a.pallet) expect(a.z).toBe(0);
+      expect(a.topLoad).toBeLessThanOrEqual(a.maxTopLoad + 1e-6);
       for (let j = i + 1; j < p.placements.length; j++) {
         const c = p.placements[j];
         if (c.compartment !== a.compartment) continue;
@@ -228,7 +231,9 @@ it("keeps mixed rotated pallets and volume zones within each floor without overl
           a.x + a.length <= c.x + 1e-6 ||
             c.x + c.length <= a.x + 1e-6 ||
             a.y + a.width <= c.y + 1e-6 ||
-            c.y + c.width <= a.y + 1e-6,
+            c.y + c.width <= a.y + 1e-6 ||
+            a.z + a.height <= c.z + 1e-6 ||
+            c.z + c.height <= a.z + 1e-6,
         ).toBe(true);
       }
     }

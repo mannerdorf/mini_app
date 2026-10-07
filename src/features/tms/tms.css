@@ -548,6 +548,9 @@
   align-items: center;
   gap: 8px;
 }
+.tms-rules .tms-fields label {
+  display: grid;
+}
 .tms-scene {
   border: 1px solid var(--tms-border);
   border-radius: 16px;

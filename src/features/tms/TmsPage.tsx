@@ -209,6 +209,7 @@ export function TmsPage({
   const [assigned, setAssigned] = useState(0);
   const [packages, setPackages] = useState<Record<string, PackageGroup[]>>({});
   const [requireDimensions, setRequireDimensions] = useState(false);
+  const [estimatedTopLoadFactor, setEstimatedTopLoadFactor] = useState(2);
   const [editing, setEditing] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
   const workerRef = useRef<Worker | null>(null);
@@ -278,6 +279,7 @@ export function TmsPage({
       vehicle,
       packages,
       requireDimensions,
+      estimatedTopLoadFactor,
       order,
       strictSelection,
       priority,
@@ -291,6 +293,7 @@ export function TmsPage({
       vehicle,
       packages,
       requireDimensions,
+      estimatedTopLoadFactor,
       order,
       strictSelection,
       priority,
@@ -706,10 +709,28 @@ export function TmsPage({
           />{" "}
           Только с проверенными габаритами мест
         </label>
+        {!requireDimensions && (
+          <div className="tms-fields">
+            <label>
+              Укладка без замеров
+              <select
+                value={estimatedTopLoadFactor}
+                onChange={(e) => setEstimatedTopLoadFactor(Number(e.target.value))}
+              >
+                <option value={0}>Только на полу</option>
+                {[1, 2, 3, 5].map((factor) => (
+                  <option key={factor} value={factor}>
+                    Сверху до {factor} масс нижнего места
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         <p className="tms-muted">
           {requireDimensions
             ? "Без введённых габаритов перевозка не попадёт в расчёт. В строгой очереди она остановит подбор."
-            : "Без замеров строим предварительную модель из числа мест, веса и объёма. Расчётные места не служат опорой для других грузов."}
+            : "Без замеров размеры и прочность упаковки — допущения. Для предварительного плана разрешаем ярусы в пределах выбранной нагрузки: суммарная масса сверху ограничена для каждой опоры. Введённые вручную запреты и нагрузки имеют приоритет."}
         </p>
       </section>
       <section className="tms-card">
@@ -981,7 +1002,11 @@ export function TmsPage({
               ? "Строгий отбор: без пропусков в выбранной очереди."
               : "Подобран лучший из шести проверенных вариантов."}
           </p>
-          <LoadScene plan={plan} vehicle={vehicle} />
+          <LoadScene
+            plan={plan}
+            vehicle={vehicle}
+            estimatedTopLoadFactor={estimatedTopLoadFactor}
+          />
           <ResultTable plan={plan} />
           {plan.omitted.length > 0 && (
             <details className="tms-unresolved">

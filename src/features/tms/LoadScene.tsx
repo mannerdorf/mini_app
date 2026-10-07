@@ -17,9 +17,11 @@ const fmt = (n: number, d = 1) =>
 export function LoadScene({
   plan,
   vehicle,
+  estimatedTopLoadFactor = 2,
 }: {
   plan: LoadPlan;
   vehicle: Vehicle;
+  estimatedTopLoadFactor?: number;
 }) {
   const host = useRef<HTMLDivElement>(null),
     sceneRef = useRef<{
@@ -294,7 +296,7 @@ export function LoadScene({
           <h3>Объёмный план загрузки</h3>
           <p className="tms-muted">
             {estimated
-              ? "Предварительная модель · есть расчётные габариты"
+              ? `Предварительная модель · ${estimatedTopLoadFactor > 0 ? `нагрузка сверху до ${estimatedTopLoadFactor} масс места — допущение` : "расчётные места только на полу"}`
               : "Габариты мест введены вручную"}{" "}
             · верх не переворачиваем
           </p>
@@ -467,7 +469,7 @@ export function LoadScene({
         </div>
       </details>
       <p className="tms-muted">
-        Проверены габариты, пересечения, полная опора и заданная нагрузка
+        Проверены границы модели, пересечения, полная опора и заданная нагрузка
         сверху. Крепление, совместимость груза и нагрузки на оси требуют
         отдельной проверки.
       </p>
