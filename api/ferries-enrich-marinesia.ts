@@ -1,3 +1,4 @@
+import { requestMarinesia } from "../lib/marinesiaRequest.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "./_db.js";
 import { verifyAdminToken, getAdminTokenFromRequest } from "../lib/adminAuth.js";
@@ -64,7 +65,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     url.searchParams.set("long_max", String(long_max));
     url.searchParams.set("key", apiKey);
 
-    const resp = await fetch(url.toString(), {
+    const resp = await requestMarinesia(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(20000),

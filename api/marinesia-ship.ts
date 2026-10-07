@@ -1,3 +1,4 @@
+import { requestMarinesia } from "../lib/marinesiaRequest.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
 
@@ -60,7 +61,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const historyUrl = new URL(`${MARINESIA_BASE}/api/v1/vessel/${mmsi}/location`);
       historyUrl.searchParams.set('key', apiKey);
       try {
-        const response = await fetch(historyUrl.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+        const response = await requestMarinesia(historyUrl.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
         const history = await response.json() as Record<string, unknown>;
         const points = response.ok && history.error !== true ? normalizeVesselHistory(history.data, mmsi) : [];
         const filtered = filterAisTrack(points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string })));
@@ -72,11 +73,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         historyError = 'Не удалось загрузить историю движения. Показана последняя позиция.';
       }
     }
-    const resp = historyPayload ? new Response(JSON.stringify({ data: historyPayload }), { status: 200 }) : await fetch(url.toString(), {
+    const resp = historyPayload ? new Response(JSON.stringify({ data: historyPayload }), { status: 200 }) : await requestMarinesia(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(15000),
-    });
+    }, req.query.badge === '1' ? 2 * 60 * 60 * 1000 : 300000);
 
     const data = (await resp.json()) as Record<string, unknown>;
 

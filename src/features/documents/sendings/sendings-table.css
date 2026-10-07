@@ -26,3 +26,10 @@
 }
 .sendings-ferry-map-icon:disabled { opacity: 0.4; cursor: default; }
 .sendings-ferry-map-icon:focus-visible { outline: 2px solid var(--color-primary-blue, #2563eb); outline-offset: 2px; }
+.sendings-ferry-stack { display:flex; flex-direction:column; gap:4px; min-width:0; }
+.sendings-ferry-status { align-self:flex-start; max-width:100%; padding:3px 7px; border:0; border-radius:6px; font-size:.7rem; line-height:1.25; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; }
+.sendings-ferry-status--moving { color:#2454bd; background:#eaf0ff; }
+.sendings-ferry-status--moored { color:#16775f; background:#def5ee; }
+.sendings-ferry-status--anchor { color:#986100; background:#fff3d6; }
+.sendings-ferry-status--muted { color:var(--color-text-secondary); background:var(--color-bg-hover); }
+.sendings-ferry-status:focus-visible { outline:2px solid var(--color-primary-blue,#2563eb); outline-offset:2px; }

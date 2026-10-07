@@ -1,3 +1,4 @@
+vi.mock('../lib/marinesiaRequest.js',()=>({requestMarinesia:(...args:Parameters<typeof fetch>)=>fetch(...args)}));
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('./_lib/observability.js', () => ({ initRequestContext: () => ({ requestId: 'test' }), logError: vi.fn() }));
 import handler, { normalizeVesselHistory } from './marinesia-ship';
