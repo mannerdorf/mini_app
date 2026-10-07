@@ -193,12 +193,15 @@ export function CargoDetailsModal({
         String((item as any).ZayavkaNumber ?? (item as any).zayavkaNumber ?? "").trim() || "-";
     const parseAmount = (val: unknown): number => {
         if (val === undefined || val === null || (typeof val === 'string' && val.trim() === '')) return 0;
-        const num = typeof val === 'string' ? parseFloat(val.replace(',', '.')) : Number(val);
+        const num = typeof val === 'string' ? Number(val.replace(/\s/g, '').replace(',', '.')) : Number(val);
         return Number.isFinite(num) ? num : 0;
     };
     const cargoSum = parseAmount(item.Sum);
     const cargoSumPaid = parseAmount((item as any).Sum_paid ?? (item as any).SumPaid ?? (item as any).sum_paid ?? (item as any).sumPaid);
     const cargoBalance = cargoSum - cargoSumPaid;
+    const pickupSum = parseAmount((item as any).PickupCost);
+    const deliverySum = parseAmount((item as any).LastMileCost ?? (item as any).СтоимостьПоследнейМили);
+    const totalCost = pickupSum + cargoSum + deliverySum;
     const isCustomerRole = getCargoRoleSet(item).has("Customer");
     const roleLabel = getCargoDisplayRoleLabel(item);
     const selfPickup = cargoLastMileIsSelfPickup(item);
@@ -466,17 +469,9 @@ export function CargoDetailsModal({
                             <DetailItem label="Стоимость пикапа" value={renderValue((item as any).PickupCost, "₽")} />
                         </div>
                         </section>
-                        <section className="cargo-details-group" aria-label="Доставка до получателя">
-                            <h3>Доставка до получателя</h3>
-                            <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
-                                <DetailItem label="Последняя миля" value={<span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>{selfPickup ? "Самовывоз" : "Доставка"}</span>} />
-                                <DetailItem label="Номер доставки" value={String((item as any).LastMileNumber ?? (item as any).НомерДоставки ?? "").trim() || "-"} />
-                                <DetailItem label="Стоимость доставки" value={renderValue((item as any).LastMileCost ?? (item as any).СтоимостьПоследнейМили, "₽")} />
-                            </div>
-                        </section>
                         {isCustomerRole && showSums && (
-                            <section className="cargo-details-group" aria-label="Оплата">
-                            <h3>Оплата</h3>
+                            <section className="cargo-details-group" aria-label="Магистраль">
+                            <h3>Магистраль</h3>
                             <div className="cargo-details-tiles-row cargo-details-tiles-row--finance">
                                 <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
                                 <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
@@ -487,6 +482,26 @@ export function CargoDetailsModal({
                                 />
                                 <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
                             </div>
+                            </section>
+                        )}
+                        <section className="cargo-details-group" aria-label="Доставка до получателя">
+                            <h3>Доставка до получателя</h3>
+                            <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
+                                <DetailItem label="Последняя миля" value={<span className={`max-badge ${selfPickup ? "cargo-last-mile-self" : "cargo-last-mile-delivery"}`}>{selfPickup ? "Самовывоз" : "Доставка"}</span>} />
+                                <DetailItem label="Номер доставки" value={String((item as any).LastMileNumber ?? (item as any).НомерДоставки ?? "").trim() || "-"} />
+                                <DetailItem label="Стоимость доставки" value={renderValue((item as any).LastMileCost ?? (item as any).СтоимостьПоследнейМили, "₽")} />
+                            </div>
+                        </section>
+
+                        {isCustomerRole && showSums && (
+                            <section className="cargo-details-group" aria-label="Итого">
+                                <h3>Итого</h3>
+                                <div className="cargo-details-tiles-row cargo-details-tiles-row--finance">
+                                    <DetailItem label="Забор груза" value={formatCurrency(pickupSum)} />
+                                    <DetailItem label="Магистраль" value={formatCurrency(cargoSum)} />
+                                    <DetailItem label="Доставка до получателя" value={formatCurrency(deliverySum)} />
+                                    <DetailItem label="Общая стоимость" value={formatCurrency(totalCost)} highlighted />
+                                </div>
                             </section>
                         )}
                     </div>

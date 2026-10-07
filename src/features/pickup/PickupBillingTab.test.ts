@@ -213,3 +213,14 @@ it('shows the awaiting invoice status in yellow without matching actions',async(
  expect(status.children.join('')).toBe('Стоимость передана — ожидается счёт');
  expect(status.props.style.color).toBe('var(--pk-awaiting-invoice-text)');
 });
+
+it('opens each transport and order separately from a multi-document billing row',async()=>{
+ vi.stubGlobal('document',{activeElement:null});
+ const onOpenCargo=vi.fn(),onOpenOrder=vi.fn();
+ const call=vi.fn(async()=>({rows:[{...row,matchedTransportNumbers:['000142509','000142508'],source:{orderNumbers:['00018166','00018165']}}]}));
+ await act(async()=>{root=create(React.createElement(PickupBillingTab,{city:'moscow',date:row.date,jobs:[],routes:[],call,onOpenCargo,onOpenOrder}));});
+ for(const number of ['000142509','000142508'])await act(async()=>root.root.findByProps({'aria-label':`Открыть перевозку ${number}`}).props.onClick());
+ for(const number of ['00018166','00018165'])await act(async()=>root.root.findByProps({'aria-label':`Открыть заявку ${number}`}).props.onClick());
+ expect(onOpenCargo.mock.calls).toEqual([['000142509'],['000142508']]);
+ expect(onOpenOrder.mock.calls).toEqual([['00018166'],['00018165']]);
+});

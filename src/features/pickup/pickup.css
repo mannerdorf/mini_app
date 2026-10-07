@@ -3009,3 +3009,9 @@ body:has(.pk-driver--mobile) .tabbar-container { display: none; }
 }
 .pk-root .pk-billing-action-icon:hover { color: var(--color-primary, #2563eb); }
 .pk-root .pk-billing-action-icon:focus-visible { outline: 2px solid var(--color-primary, #2563eb); outline-offset: 2px; }
+
+.pk-root .pk-billing-table button.pk-document-number {
+  border: 0; background: transparent; box-shadow: none; padding: 0;
+  font: inherit; color: var(--color-primary, #2563eb);
+  text-decoration: underline; text-underline-offset: 2px; cursor: pointer;
+}
