@@ -133,6 +133,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Статус доставки</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, lineHeight: 1.15 }}>Плановая дата прибытия<br />на терминал</th>
                                 <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600, cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('vehicle')} title="Сортировка">Транспортное средство {sendingsSortColumn === 'vehicle' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
+                                <th style={{ padding: '0.5rem 0.4rem', textAlign: 'left', fontWeight: 600 }}>Выбор парома</th>
                                 {hasAnalytics && (
                                     <th style={{ padding: '0.5rem 0.4rem', textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSendingsSort('paidWeight')} title="Сортировка">Плат. вес {sendingsSortColumn === 'paidWeight' && (sendingsSortOrder === 'asc' ? <ArrowUp className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} /> : <ArrowDown className="w-3 h-3" style={{ verticalAlign: 'middle', marginLeft: 2, display: 'inline-block' }} />)}</th>
                                 )}
@@ -167,6 +168,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                 const routeFrom = String(row?.ПунктОтправленияГородАэропорт ?? row?.CitySender ?? row?.ГородОтправления ?? '').trim();
                                 const routeTo = String(row?.ПунктНазначенияГородАэропорт ?? row?.CityReceiver ?? row?.ГородНазначения ?? '').trim();
                                 const route = [cityToCode(routeFrom), cityToCode(routeTo)].filter(Boolean).join(' – ') || [routeFrom, routeTo].filter(Boolean).join(' – ') || '—';
+                                const ferryEntry = getSendingsFerryEntry(rowKey, number);
                                 const expanded = expandedSendingRow === rowKey;
                                 const sendingParcelMetrics = getSendingRowParcelMetrics(row, cargoSumByNumber);
                                 return (
@@ -225,6 +227,19 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                                 <SendingPlanDateProgress row={row} fallback={plannedArrivalDate ? <DateText value={plannedArrivalDate.toISOString()} /> : 'нет'} />
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
+                                            <td style={{ padding: '0.5rem 0.4rem' }} onClick={(e) => e.stopPropagation()}>
+                                                <select
+                                                    aria-label={`Выбор парома для отправки ${number || rowKey}`}
+                                                    value={ferryEntry?.ferry_id ?? ''}
+                                                    disabled={!!ferryEtaLoadingByRow[rowKey]}
+                                                    onChange={(e) => { void handleFerrySelect(rowKey, e.target.value, effectiveActiveInn ?? null); }}
+                                                    style={{ maxWidth: 220, padding: '0.35rem', color: 'var(--color-text-primary)', background: 'var(--color-bg-primary)', border: '1px solid var(--color-border)', borderRadius: 6 }}
+                                                >
+                                                    <option value="">Не выбран</option>
+                                                    {ferryEntry && !ferriesList.some((ferry: { id: number }) => Number(ferry.id) === Number(ferryEntry.ferry_id)) && <option value={ferryEntry.ferry_id}>{ferryEntry.ferry_name}</option>}
+                                                    {ferriesList.map((ferry: { id: number; name: string }) => <option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}
+                                                </select>
+                                            </td>
                                             {hasAnalytics && (
                                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
                                                     {formatSendingMetricNum(sendingParcelMetrics.paidWeight)}

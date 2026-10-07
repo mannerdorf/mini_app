@@ -21,7 +21,7 @@ export function SendingsTableExpandedRow(props: SendingsTableExpandedRowProps) {
 
   return (
     <tr>
-      <td colSpan={9 + sendingsAnalyticsExtraColCount + (canSelectSendingRows ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
+      <td colSpan={10 + sendingsAnalyticsExtraColCount + (canSelectSendingRows ? 1 : 0)} style={{ padding: 0, borderBottom: '1px solid var(--color-border)', verticalAlign: 'top', background: 'var(--color-bg-primary)' }}>
         <div style={{ padding: '0.5rem', overflowX: 'auto' }}>
           <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <Button
