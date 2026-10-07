@@ -19,14 +19,14 @@ const PORT_CODE_TO_NAME: Record<string, string> = {
   LVRIX: "Рига",
 };
 
-function formatPortDest(code: string): string {
-  const upper = String(code ?? "").trim().toUpperCase();
+export function formatPortDest(code: string): string {
+  const upper = String(code ?? "").trim().toUpperCase().replace(/\s+/g, "");
   if (!upper) return "";
   const name = PORT_CODE_TO_NAME[upper];
   return name ? `${name} (${upper})` : upper;
 }
 
-const NAV_STATUS_LABELS: Record<number, string> = {
+export const NAV_STATUS_LABELS: Record<number, string> = {
   0: "В движении (двигатель)",
   1: "На якоре",
   2: "Не под управлением",

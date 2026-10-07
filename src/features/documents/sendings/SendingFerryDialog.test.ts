@@ -24,12 +24,13 @@ it('loads the selected ferry in a modal, showing map and independent course fiel
   const close = await mount();
   expect(fetchShip).toHaveBeenCalledWith(ferry.mmsi);
   expect(root.root.findByType('dialog').props['aria-label']).toContain('ALISA');
-  expect(root.root.findByType('iframe').props.src).toContain('54.6,19.9');
+  expect(root.root.findByType('iframe').props.srcDoc).toContain('[54.6,19.9]');
+  expect(root.root.findByType('iframe').props.srcDoc).toContain('heading=86');
   const text = JSON.stringify(root.toJSON());
-  expect(text).toContain('Курс относительно земли:');
-  expect(text).toContain('Истинный курс (нос судна):');
+  expect(text).toContain('Курс относительно земли (COG)');
+  expect(text).toContain('Направление носа (HDT)');
   expect(text).toContain('Балтийск (RUBLI)');
-  expect(text).toContain('Последнее обновление (UTC):');
+  expect(text).toContain('Последнее обновление (UTC)');
   act(() => root.root.findByProps({ 'aria-label': 'Закрыть карту парома' }).props.onClick());
   expect(close).toHaveBeenCalledOnce();
 });
@@ -47,4 +48,11 @@ it('handles an empty vessel response', async () => {
   fetchShip.mockResolvedValue({ ok: true });
   await mount();
   expect(root.root.findByProps({ role: 'alert' }).children.join('')).toContain('Судно не найдено');
+});
+
+it('does not render a false ship position when coordinates are invalid', async () => {
+  fetchShip.mockResolvedValue({ ok: true, vessel: { ...vessel, lat: 100 } });
+  await mount();
+  expect(root.root.findAllByType('iframe')).toHaveLength(0);
+  expect(JSON.stringify(root.toJSON())).toContain('Координаты судна недоступны');
 });
