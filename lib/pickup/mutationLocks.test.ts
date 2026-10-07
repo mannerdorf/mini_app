@@ -18,3 +18,15 @@ it('serializes job operations by parent route and route starts by driver and veh
   await lockPickupMutation({query} as any,'driver',{action:'start',id,requestId:'b'});
   expect(query.mock.calls.filter(c => c[0].includes('(106,')).map(c => c[1][0])).toEqual(['driver:d',`route:${id}`,'vehicle:v']);
 });
+it('serializes all order writers across routes before locking job rows', async () => {
+  for (const action of ['save_job','deposit','set_job_order','set_job_status']) {
+    const query = vi.fn().mockResolvedValue({rows:[]});
+    await lockPickupMutation({query} as any,'actor',{action,id,requestId:action});
+    const sql = query.mock.calls.map(c => c[0]);
+    expect(sql[2]).toBe('SELECT pg_advisory_xact_lock(130,1)');
+    const jobRead = sql.findIndex(s => s.includes('SELECT route_id'));
+    if (jobRead >= 0) expect(jobRead).toBeGreaterThan(2);
+    const routeLock = sql.findIndex(s => s.includes('(106,'));
+    if (routeLock >= 0) expect(routeLock).toBeGreaterThan(2);
+  }
+});

@@ -11,6 +11,10 @@ export async function lockPickupMutation(db: PoolClient, actor: string, body: Re
   await db.query(scoped ? "SELECT pg_advisory_xact_lock_shared(104,1)" : "SELECT pg_advisory_xact_lock(104,1)");
   // A replay must serialize even if an invalid caller reuses an ID for another route.
   await db.query("SELECT pg_advisory_xact_lock(105,hashtext($1))", [JSON.stringify([actor, body.requestId])]);
+  // Serialize order assignments across routes before taking any job row locks.
+  if (["save_job", "deposit", "set_job_order", "set_job_status"].includes(action)) {
+    await db.query("SELECT pg_advisory_xact_lock(130,1)");
+  }
   if (!scoped) return;
   const id = uuid(body.id);
   let routeId = id;

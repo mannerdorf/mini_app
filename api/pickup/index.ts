@@ -1,3 +1,4 @@
+import { assertPickupOrderAvailable } from '../../lib/pickup/orderAssignment.js';
 import { validatePickupOrder } from '../../lib/pickup/validateOrder.js';
 import { billingDiagnostics, billingMatchTransport, billingMatchInvoice, billingQuote, billingPreview, billingJournal, billingEdit, billingSend, resolvePickupTransportNumbers } from "../../lib/pickup/billing.js";
 import { backfillPickupJobCoordinates } from "../../lib/pickup/backfillJobCoords.js";
@@ -801,6 +802,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           );
         }
       }
+      await assertPickupOrderAvailable(db, { id, number: data.zayavkaNumber, customerInn: data.customerInn, jobNumber: job.job_number, serviceKind: data.serviceKind });
       await db.query(
         `UPDATE pickup_jobs SET data=$2,city=$3,date=$4,
           zayavka_number=$5,cargo_number=$6,customer_inn=$7,sender_inn=$8,
@@ -839,6 +841,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       const search = pickupJobSearchColumns(jobData);
       const allocatedNumber = await allocatePickupJobNumber(db);
       const jobNumber = data.serviceKind === "last_mile" ? allocatedNumber.replace(/^ZB-/, "DL-") : allocatedNumber;
+      await assertPickupOrderAvailable(db, { id: jobId, number: jobData.zayavkaNumber, customerInn: jobData.customerInn, jobNumber, serviceKind: jobData.serviceKind });
       await db.query(
         `INSERT INTO pickup_jobs(id,city,date,data,zayavka_number,cargo_number,customer_inn,sender_inn,job_number)
          VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
@@ -1233,6 +1236,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
           "Введите номер заявки: от 1 до 100 символов",
         );
         const validated=await validatePickupOrder(db,entry.number.trim(),String(job.data.customerInn??''));
+        await assertPickupOrderAvailable(db, { id: job.id, number: validated.number, customerInn: String(job.data.customerInn ?? ""), jobNumber: job.job_number });
         numbers.set(job.id, validated.number);
       }
       requireValue(
@@ -1257,6 +1261,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
         );
       }
       for (const job of jobs.filter((j) => ["picked_up", "partial"].includes(j.status))) {
+        await assertPickupOrderAvailable(db, { id: job.id, number: numbers.get(job.id) || String(job.data.zayavkaNumber ?? ""), customerInn: String(job.data.customerInn ?? ""), jobNumber: job.job_number, serviceKind: job.data.serviceKind });
         await event(db, actor, "Груз сдан на склад", route.id, job.id, { from: job.status, to: "deposited" });
       }
       await db.query(
@@ -1408,7 +1413,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
       typeof body.zayavkaNumber === "string" && body.zayavkaNumber.trim().length > 0 && body.zayavkaNumber.trim().length <= 100,
       "Введите номер заявки: от 1 до 100 символов",
     );
-    const number = body.zayavkaNumber.trim();
+    const number = await assertPickupOrderAvailable(db, { id: job.id, number: body.zayavkaNumber.trim(), customerInn: String(job.data.customerInn ?? ""), jobNumber: job.job_number, serviceKind: job.data.serviceKind });
     await db.query(
       `UPDATE pickup_jobs SET data=jsonb_set(data,'{zayavkaNumber}',to_jsonb($2::text)),
        zayavka_number=$2,version=version+1,updated_at=now() WHERE id=$1`,
@@ -1436,6 +1441,7 @@ async function perform(db: PoolClient, actor: Actor, body: any): Promise<any> {
     );
     const target = parseDispatcherManualJobStatus(body.status);
     const update = buildDispatcherManualJobUpdate(job, target, body);
+    if (update.zayavkaNumber) update.zayavkaNumber = await assertPickupOrderAvailable(db, { id: job.id, number: update.zayavkaNumber, customerInn: String(job.data.customerInn ?? ""), jobNumber: job.job_number, serviceKind: job.data.serviceKind });
     await db.query(
       `UPDATE pickup_jobs SET status=$2, actual_places=$3, note=$4, resolution=$5,
        data=CASE WHEN $6::text IS NULL THEN data ELSE jsonb_set(data,'{zayavkaNumber}',to_jsonb($6::text)) END,
@@ -1616,6 +1622,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       checkRouteAccess(actor,await routeById(db,job.route_id));
       checkVersion(job,body.version);
       const result=await validatePickupOrder(db,String(body.number??''),String(job.data.customerInn??''));
+      await assertPickupOrderAvailable(db, { id: job.id, number: result.number, customerInn: String(job.data.customerInn ?? ""), jobNumber: job.job_number });
       return res.status(200).json({ok:true,...result});
     }
     if (body.action === "backfill_job_coords") {

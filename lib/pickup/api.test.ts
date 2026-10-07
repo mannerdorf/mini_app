@@ -78,7 +78,7 @@ const snapshot = (login = "dispatch") =>
 const data = () => ({
   customerInn: "100",
   senderInn: "200",
-  zayavkaNumber: "ЗАЯВКА-001",
+  zayavkaNumber: `ЗАЯВКА-${randomUUID()}`,
   address: "Москва, тестовый склад",
   windowFrom: "10:00",
   windowTo: "16:00",
@@ -1463,4 +1463,27 @@ it("partial last-mile delivery needs dispatcher resolution and cannot be deposit
   const done=await snapshot();
   expect(done.jobs[0].status).toBe('deposited');
   expect(done.routes[0].status).toBe('completed');
+});
+
+it('rejects an occupied order for driver validation and depot handoff without changing the job', async () => {
+  const ids = await setup(); await publishAndStart();
+  await state.db.query("UPDATE pickup_jobs SET status='picked_up',data=jsonb_set(data,'{zayavkaNumber}','\"\"'),zayavka_number=NULL WHERE id=$1", [ids.job.id]);
+  const occupiedId = randomUUID();
+  await state.db.query("INSERT INTO pickup_jobs(id,city,date,data,job_number) VALUES($1,'moscow','2026-09-15',$2,'ZB-OCCUPIED')", [occupiedId, JSON.stringify({...data(),zayavkaNumber:'З-001'})]);
+  const s = await snapshot(); const job = s.jobs.find((j:any)=>j.id===ids.job.id); const route=s.routes.find((r:any)=>r.id===ids.route.id);
+  const check=await request('driver',{action:'validate_pickup_order',id:job.id,version:job.version,number:'З-001'});
+  expect(check.status).toBe(409); expect(check.body.error).toContain('ZB-OCCUPIED');
+  const save=await request('driver',{action:'deposit',id:route.id,version:route.version,zayavka_numbers:[{id:job.id,version:job.version,number:'З-001'}]});
+  expect(save.status).toBe(409);
+  const after=(await snapshot()).jobs.find((j:any)=>j.id===job.id);
+  expect(after.data.zayavkaNumber).toBe('');expect(after.status).toBe('picked_up');
+});
+it('rejects duplicate orders during dispatcher creation and reassignment',async()=>{
+  const ids=await setup();const s=await snapshot();const job=s.jobs.find((j:any)=>j.id===ids.job.id);
+  const duplicate=await request('dispatch',{action:'save_job',city:'moscow',date:'2026-09-15',data:{...data(),zayavkaNumber:job.data.zayavkaNumber}});
+  expect(duplicate.status).toBe(409);expect(duplicate.body.error).toContain(job.job_number);
+  const other=await ok('dispatch',{action:'save_job',city:'moscow',date:'2026-09-15',data:data()});
+  const otherJob=(await snapshot()).jobs.find((j:any)=>j.id===other.id);
+  const reassignment=await request('dispatch',{action:'set_job_order',id:other.id,version:otherJob.version,zayavkaNumber:job.data.zayavkaNumber});
+  expect(reassignment.status).toBe(409);
 });
