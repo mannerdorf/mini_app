@@ -469,21 +469,6 @@ export function CargoDetailsModal({
                             <DetailItem label="Стоимость пикапа" value={renderValue((item as any).PickupCost, "₽")} />
                         </div>
                         </section>
-                        {isCustomerRole && showSums && (
-                            <section className="cargo-details-group" aria-label="Магистраль">
-                            <h3>Магистраль</h3>
-                            <div className="cargo-details-tiles-row cargo-details-tiles-row--finance">
-                                <DetailItem label="Стоимость" value={formatCurrency(item.Sum)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
-                                <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
-                                <DetailItem
-                                    label="Остаток"
-                                    value={formatCurrency(cargoBalance)}
-                                    textColor={getSumColorByPaymentStatus(item.StateBill)}
-                                />
-                                <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
-                            </div>
-                            </section>
-                        )}
                         <section className="cargo-details-group" aria-label="Доставка до получателя">
                             <h3>Доставка до получателя</h3>
                             <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
@@ -501,6 +486,11 @@ export function CargoDetailsModal({
                                     <DetailItem label="Магистраль" value={formatCurrency(cargoSum)} />
                                     <DetailItem label="Доставка до получателя" value={formatCurrency(deliverySum)} />
                                     <DetailItem label="Общая стоимость" value={formatCurrency(totalCost)} highlighted />
+                                </div>
+                                <div className="cargo-details-tiles-row cargo-details-tiles-row--logistics">
+                                    <DetailItem label="Оплачено" value={formatCurrency(cargoSumPaid)} />
+                                    <DetailItem label="Остаток" value={formatCurrency(cargoBalance)} textColor={getSumColorByPaymentStatus(item.StateBill)} />
+                                    <DetailItem label="Статус Счета" value={<StatusBillBadge status={item.StateBill} />} highlighted />
                                 </div>
                             </section>
                         )}

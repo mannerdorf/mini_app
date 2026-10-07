@@ -897,6 +897,7 @@
 
 /* Semantic groups keep related fields together at every viewport width. */
 .cargo-details-group { min-width: 0; width: 100%; }
+.cargo-details-group > .cargo-details-tiles-row + .cargo-details-tiles-row { margin-top: var(--element-gap, 16px); }
 .cargo-details-group > h3 {
     margin: 0 0 0.6rem;
     font-size: 0.9rem;

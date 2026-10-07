@@ -245,7 +245,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                             </td>
                                             <td style={{ padding: '0.5rem 0.4rem' }}>{vehicle || '—'}</td>
                                             <td style={{ padding: '0.5rem 0.4rem' }} onClick={(e) => e.stopPropagation()}>
-                                                <div className="sendings-ferry-control">
+                                                {transportType !== 'auto' && <div className="sendings-ferry-control">
                                                 <select
                                                     aria-label={`Выбор парома для отправки ${number || rowKey}`}
                                                     value={ferryEntry?.ferry_id ?? ''}
@@ -268,7 +268,7 @@ export function SendingsTableView(props: SendingsSectionViewProps) {
                                                     ><MapPin size={18} aria-hidden="true" /></button>
                                                 )}
                                                 {ferryEntry && trackingProvider && <button type="button" className="sendings-ferry-map-icon" title={`Трекинг ${trackingProvider}`} aria-label={`Открыть трекинг ${trackingProvider} для отправки ${number}`} onClick={() => setTracking({ id: ferryEntry.ferry_id, name: ferryEntry.ferry_name, provider: trackingProvider, number: extractContainerNumber(vehicle) })}><PackageSearch size={18} aria-hidden="true" /></button>}
-                                                </div>
+                                                </div>}
                                             </td>
                                             {hasAnalytics && (
                                                 <td style={{ padding: '0.5rem 0.4rem', textAlign: 'right', whiteSpace: 'nowrap' }}>
