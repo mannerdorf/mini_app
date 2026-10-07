@@ -1,0 +1,14 @@
+.client-tariffs { margin: 0 0 1.25rem; padding: 1rem; border: 1px solid var(--color-border); border-radius: 14px; min-width: 0; }
+.client-tariffs-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.client-tariffs-heading h3 { margin:0; font-size:1rem; }
+.client-tariffs-heading p { margin:4px 0 0; color:var(--color-text-secondary); font-size:.85rem; }
+.client-tariffs-refresh { padding:6px; border:0; background:transparent; color:var(--color-primary, #2454ed); cursor:pointer; flex-shrink:0; }
+.client-tariffs-refresh:disabled { opacity:.45; cursor:default; }
+.client-tariff { padding:10px 0; border-top:1px solid var(--color-border); }
+.client-tariff-summary { display:flex; align-items:center; flex-wrap:wrap; gap:8px 20px; font-size:.9rem; overflow-wrap:anywhere; }
+.client-tariff-summary > strong:first-child { flex:1 1 240px; }
+.client-tariff-flags { display:flex; flex-wrap:wrap; gap:8px; margin:6px 0; color:var(--color-text-secondary); font-size:.8rem; }
+.client-tariff summary { font-size:.8rem; cursor:pointer; color:var(--color-text-secondary); }
+.client-tariff-fields { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr)); gap:10px 16px; margin:12px 0 0; }
+.client-tariff-fields dt { color:var(--color-text-secondary); font-size:.75rem; }
+.client-tariff-fields dd { margin:3px 0 0; font-size:.85rem; overflow-wrap:anywhere; }

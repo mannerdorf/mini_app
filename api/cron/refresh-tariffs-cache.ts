@@ -1,3 +1,4 @@
+import { clientTariffs1cHeaders } from "../../lib/clientTariffs1c.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getPool } from "../_db.js";
 import { normalizeTariffs } from "../../lib/tariffsParser.js";
@@ -5,8 +6,6 @@ import { requireCronAuth } from "../_lib/cronAuth.js";
 import { initRequestContext, logError, logInfo } from "../_lib/observability.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const TARIFS_AUTH_HEADER = "Basic Info@haulz.pro:Y2ME42XyI_";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctx = initRequestContext(req, res, "cron/refresh-tariffs-cache");
@@ -25,10 +24,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const upstreamUrl = `${GETAPI_URL}?metod=GETTarifs`;
     const upstream = await fetch(upstreamUrl, {
       method: "GET",
-      headers: {
-        Auth: TARIFS_AUTH_HEADER,
-        Authorization: SERVICE_AUTH,
-      },
+      headers: clientTariffs1cHeaders(),
     });
     const text = await upstream.text();
     if (!upstream.ok) {

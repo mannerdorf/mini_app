@@ -215,6 +215,9 @@ export function DocumentsPage(props: DocumentsPageProps) {
                 {...page.sendingsPage}
             />
             <DocumentsTariffsSection
+                auth={page.auth}
+                inn={page.effectiveActiveInn}
+                customerName={page.activeCustomerName}
                 active={page.docSection === 'Тарифы'}
                 effectiveServiceMode={page.effectiveServiceMode}
                 tableModeEffective={page.tableModeEffective}

@@ -14,10 +14,15 @@ import {
 } from "../views/documentsViewBlocks";
 import { shareDocumentLines } from "./useDocFavorites";
 import type { TariffsSortColumn } from "./useDocumentsTariffs";
+import type { AuthData } from '../../../types';
+import { DocumentsClientTariffs } from './DocumentsClientTariffs';
 
 type MotionProps = Pick<SharedMotionProps, "initial" | "animate" | "exit" | "transition">;
 
 type Props = {
+  auth: AuthData;
+  inn: string;
+  customerName?: string;
   active: boolean;
   effectiveServiceMode: boolean;
   tableModeEffective: boolean;
@@ -34,6 +39,7 @@ type Props = {
 };
 
 export function DocumentsTariffsSection({
+  auth, inn, customerName,
   active,
   effectiveServiceMode,
   tableModeEffective,
@@ -52,6 +58,7 @@ export function DocumentsTariffsSection({
 
   return (
     <DocumentsToolbarBelowSticky>
+      {effectiveServiceMode && <DocumentsClientTariffs auth={auth} inn={inn} customerName={customerName}/>}
       {tariffsLoading ? (
         <Flex align="center" gap="0.5rem" className="documents-section-empty-state documents-tariffs-empty-state">
           <Loader2 className="w-4 h-4 animate-spin" />

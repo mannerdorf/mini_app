@@ -1,3 +1,4 @@
+import { clientTariffs1cHeaders } from "../lib/clientTariffs1c.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { getAdminTokenFromRequest, getAdminTokenPayload } from "../lib/adminAuth.js";
 import { normalizeTariffs } from "../lib/tariffsParser.js";
@@ -5,8 +6,6 @@ import { getPool } from "./_db.js";
 import { initRequestContext, logError, logInfo } from "./_lib/observability.js";
 
 const GETAPI_URL = "https://tdn.postb.ru/workbase/hs/DeliveryWebService/GETAPI";
-const TARIFS_AUTH_HEADER = "Basic Info@haulz.pro:Y2ME42XyI_";
-const SERVICE_AUTH = "Basic YWRtaW46anVlYmZueWU=";
 
 /**
  * POST /api/admin-refresh-tariffs-cache
@@ -31,10 +30,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const upstreamRes = await fetch(upstreamUrl, {
       method: "GET",
-      headers: {
-        Auth: TARIFS_AUTH_HEADER,
-        Authorization: SERVICE_AUTH,
-      },
+      headers: clientTariffs1cHeaders(),
     });
     const upstreamText = await upstreamRes.text().catch(() => "");
     if (!upstreamRes.ok) {
