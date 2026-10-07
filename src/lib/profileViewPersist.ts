@@ -38,6 +38,7 @@ const PROFILE_VIEWS = new Set<ProfileView>([
   "haulzSendingsAnalysis",
   "haulzDeliveredWithoutApp",
   "haulzCargoTimeline",
+  "haulzTms",
   "haulzRuler",
   "admin",
   "tinyurl-test",

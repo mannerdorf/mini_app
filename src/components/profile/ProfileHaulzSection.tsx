@@ -28,6 +28,9 @@ export function ProfileHaulzSection({
                 <Typography.Headline className="text-page-title">HAULZ</Typography.Headline>
             </Flex>
             <Flex align="center" gap="0.6rem" wrap="wrap">
+                {activeAccount?.permissions?.haulz === true && (
+                    <Button type="button" className="button-primary" onClick={() => navigateTo("haulzTms")}>TMS — планирование</Button>
+                )}
                 {activeAccount?.permissions?.dispatcher === true && (
                     <Button type="button" className="button-primary" onClick={() => navigateTo("pickupDispatch")}>
                         Диспетчеризация

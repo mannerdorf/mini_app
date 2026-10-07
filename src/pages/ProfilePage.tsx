@@ -38,6 +38,9 @@ import { useProfileEmployees, ProfileEmployeesSection, useDepartmentTimesheet, P
 const HaulzSendingsAnalysisPage = lazy(() =>
   import("./HaulzSendingsAnalysisPage").then((m) => ({ default: m.HaulzSendingsAnalysisPage })),
 );
+const TmsPage = lazy(() =>
+  import("../features/tms/TmsPage").then((m) => ({ default: m.TmsPage })),
+);
 const PickupPage = lazy(() => import("../features/pickup/PickupPage").then(m => ({ default: m.PickupPage })));
 const HaulzDeliveredWithoutAppPage = lazy(() =>
   import("./HaulzDeliveredWithoutAppPage").then((m) => ({ default: m.HaulzDeliveredWithoutAppPage })),
@@ -182,7 +185,8 @@ export function ProfilePage({
         if (
             (currentView === "haulzSendingsAnalysis" ||
                 currentView === "haulzDeliveredWithoutApp" ||
-                currentView === "haulzCargoTimeline") &&
+                currentView === "haulzCargoTimeline" ||
+                currentView === "haulzTms") &&
             activeAccount?.permissions?.haulz !== true
         ) {
             setCurrentView("haulz");
@@ -266,7 +270,8 @@ export function ProfilePage({
     if (
         currentView === "haulzSendingsAnalysis" ||
         currentView === "haulzDeliveredWithoutApp" ||
-        currentView === "haulzCargoTimeline"
+        currentView === "haulzCargoTimeline" ||
+        currentView === "haulzTms"
     ) {
         if (!activeAccount || activeAccount.permissions?.haulz !== true) {
             return null;
@@ -278,6 +283,13 @@ export function ProfilePage({
             ...(activeAccount.isRegisteredUser === true ? { isRegisteredUser: true } : {}),
         };
         const useServiceRequest = activeAccount.permissions?.service_mode === true;
+        if (currentView === "haulzTms") {
+            return (
+                <Suspense fallback={<HaulzAnalyticsPageLoader />}>
+                    <TmsPage auth={auth} onBack={() => setCurrentView("haulz")} />
+                </Suspense>
+            );
+        }
         if (currentView === "haulzSendingsAnalysis") {
             return (
                 <Suspense fallback={<HaulzAnalyticsPageLoader />}>

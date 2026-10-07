@@ -36,11 +36,12 @@ function normalizePerevozkaNumberForLookup(num: string): string {
   return trimmed;
 }
 
-async function fetchTimelineFrom1C(
+export async function fetchTimelineFrom1C(
   number: string,
   inn: string | undefined,
   login: string,
   password: string,
+  timeoutMs = UPSTREAM_TIMEOUT_MS,
 ): Promise<unknown | null> {
   const haulzAuth = process.env.POSTB_HAULZ_AUTH?.trim() || `Basic ${login}:${password}`;
   const norm = normalizePerevozkaNumberForLookup(number);
@@ -60,7 +61,7 @@ async function fetchTimelineFrom1C(
             Accept: "application/json",
           },
         },
-        UPSTREAM_TIMEOUT_MS,
+        timeoutMs,
       );
       if (!upstream.ok) continue;
       const text = await upstream.text();
