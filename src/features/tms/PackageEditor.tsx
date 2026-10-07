@@ -104,19 +104,26 @@ export function PackageEditor({
                 [
                   ["pallet", "Палета"],
                   ["floorOnly", "Только на полу"],
-                  ["stackable", "Можно ставить сверху"],
+                  ["stackable", "Можно ставить коробки сверху"],
                   ["rotate", "Разворот на 90° по полу"],
                 ] as const
               ).map(([key, label]) => (
                 <label key={key}>
                   <input
                     type="checkbox"
-                    checked={g[key]}
+                    checked={!!g[key]}
                     onChange={(e) => update(i, { [key]: e.target.checked })}
                   />
                   {label}
                 </label>
               ))}
+              {g.pallet && (
+                <label>
+                  <input type="checkbox" checked={!!g.palletStacking}
+                    onChange={(e) => update(i, { palletStacking: e.target.checked })} />
+                  Разрешена укладка палета на палету
+                </label>
+              )}
               <button
                 onClick={() => setGroups(groups.filter((_, j) => j !== i))}
               >
@@ -128,7 +135,7 @@ export function PackageEditor({
               {Number.isFinite(g.weight / (g.length * g.width * g.height))
                 ? Math.round(g.weight / (g.length * g.width * g.height))
                 : "—"}{" "}
-              кг/м³. {g.pallet ? "Палета всегда на полу. " : ""}
+              кг/м³. {g.pallet ? (g.palletStacking ? "Палета на палету — при разрешении обеих групп и снятом запрете «Только на полу». " : "Палета на палету запрещена; коробки сверху — по отдельному разрешению. ") : ""}
               {!g.stackable || !g.maxTopLoad
                 ? "Верхняя поверхность закрыта для других грузов."
                 : "Суммарная масса всех верхних ярусов ограничена указанной нагрузкой."}

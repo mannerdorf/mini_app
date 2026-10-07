@@ -16,6 +16,7 @@ export function packageGroups(
   const v = (c.volume ?? 0) / count;
   const weight = (c.weight ?? 0) / count;
   const factor = o.estimatedTopLoadFactor ?? 2;
+  const byHeight = o.estimatedStacking === "height";
   // An explicit estimate, never a claim about actual individual package dimensions.
   const width = pallet
     ? o.palletWidth
@@ -35,8 +36,9 @@ export function packageGroups(
         weight,
         pallet,
         floorOnly: pallet,
-        stackable: factor > 0,
-        maxTopLoad: weight * factor,
+        stackable: byHeight || factor > 0,
+        // Vehicle payload is only a numeric bound here, not verified packaging strength.
+        maxTopLoad: byHeight ? o.vehicle.payload : weight * factor,
         rotate: true,
       },
     ],
@@ -110,7 +112,7 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
           ...g,
           pallet: g.pallet || o.floorCustomers.includes(c.customerId),
           floorOnly:
-            g.floorOnly || g.pallet || o.floorCustomers.includes(c.customerId),
+            g.floorOnly || (g.pallet && !g.palletStacking) || o.floorCustomers.includes(c.customerId),
           cargoId: c.id,
           unit: `${c.id}/${i}/${j}`,
           estimated,
@@ -160,6 +162,10 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
             return;
           const layout = packFloor(s.free, 1, u.length, u.width, u.rotate);
           if (!layout) return;
+          if (u.pallet && s.parent) {
+            const base = byUnit.get(s.parent)!;
+            if (!u.palletStacking || !base.pallet || !base.palletStacking) return;
+          }
           const ancestors: Placement[] = [];
           let parent = s.parent;
           while (parent) {
@@ -202,6 +208,7 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
           cargoId: u.cargoId,
           unit: u.unit,
           pallet: u.pallet,
+          palletStacking: !!u.palletStacking,
           estimated: u.estimated,
           compartment: bi,
           support: surface.parent,
@@ -225,26 +232,7 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
     }
     if (!fitted) return null;
   }
-  // Translate the packed cluster as a whole toward the longitudinal mass center.
-  // Support relationships are unchanged; this does not claim axle-load compliance.
-  bins.forEach((bin, i) => {
-    if (!bin.placements.length) return;
-    const mass = bin.placements.reduce((s, p) => s + p.weight, 0);
-    const cx =
-      bin.placements.reduce((s, p) => s + (p.x + p.length / 2) * p.weight, 0) /
-      mass;
-    const left = Math.min(...bin.placements.map((p) => p.x));
-    const right = Math.max(...bin.placements.map((p) => p.x + p.length));
-    const shift = Math.max(
-      -left,
-      Math.min(
-        o.vehicle.compartments[i].length - right,
-        o.vehicle.compartments[i].length / 2 - cx,
-      ),
-    );
-    bin.placements.forEach((p) => {
-      p.x += shift;
-    });
-  });
+  // x = 0 is the front wall. Keep the packing origin instead of moving cargo
+  // toward the center: a mass-center estimate is not an axle-load calculation.
   return bins.flatMap((b) => b.placements);
 }

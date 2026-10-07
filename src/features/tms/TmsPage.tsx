@@ -210,6 +210,7 @@ export function TmsPage({
   const [packages, setPackages] = useState<Record<string, PackageGroup[]>>({});
   const [requireDimensions, setRequireDimensions] = useState(false);
   const [estimatedTopLoadFactor, setEstimatedTopLoadFactor] = useState(2);
+  const [estimatedStacking, setEstimatedStacking] = useState<"height" | "load">("height");
   const [editing, setEditing] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
   const workerRef = useRef<Worker | null>(null);
@@ -280,6 +281,7 @@ export function TmsPage({
       packages,
       requireDimensions,
       estimatedTopLoadFactor,
+      estimatedStacking,
       order,
       strictSelection,
       priority,
@@ -294,6 +296,7 @@ export function TmsPage({
       packages,
       requireDimensions,
       estimatedTopLoadFactor,
+      estimatedStacking,
       order,
       strictSelection,
       priority,
@@ -713,24 +716,30 @@ export function TmsPage({
           <div className="tms-fields">
             <label>
               Укладка без замеров
-              <select
-                value={estimatedTopLoadFactor}
-                onChange={(e) => setEstimatedTopLoadFactor(Number(e.target.value))}
-              >
-                <option value={0}>Только на полу</option>
-                {[1, 2, 3, 5].map((factor) => (
-                  <option key={factor} value={factor}>
-                    Сверху до {factor} масс нижнего места
-                  </option>
-                ))}
+              <select value={estimatedStacking} onChange={(e) => setEstimatedStacking(e.target.value as "height" | "load")}>
+                <option value="height">До потолка · предварительный расчёт</option>
+                <option value="load">Ограничить массу сверху</option>
               </select>
+            </label>
+            <label>
+              Нагрузка сверху · ×{Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : "—"} собственного веса
+              <input type="range" aria-label="Нагрузка сверху в собственных массах"
+                min={0} max={20} step={0.5} value={Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : 0}
+                onChange={(e) => { setEstimatedTopLoadFactor(+e.target.value); setEstimatedStacking("load"); }} />
+              <input type="number" aria-label="Множитель нагрузки сверху" min={0} max={20} step={0.5}
+                value={Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : ""} onChange={(e) => {
+                  setEstimatedTopLoadFactor(e.target.value === "" ? NaN : +e.target.value); setEstimatedStacking("load");
+                }} />
+              <small>{estimatedStacking === "height"
+                ? "Без ограничения прочности в предварительной модели. Бегунок включит ограничение массы."
+                : `Место 10 кг: суммарно сверху до ${Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor * 10 : "—"} кг. 0 — ничего сверху.`}</small>
             </label>
           </div>
         )}
         <p className="tms-muted">
           {requireDimensions
             ? "Без введённых габаритов перевозка не попадёт в расчёт. В строгой очереди она остановит подбор."
-            : "Без замеров размеры и прочность упаковки — допущения. Для предварительного плана разрешаем ярусы в пределах выбранной нагрузки: суммарная масса сверху ограничена для каждой опоры. Введённые вручную запреты и нагрузки имеют приоритет."}
+            : "Без замеров размеры мест расчётные. В режиме «До потолка» прочность упаковки не подтверждена: учитываем высоту, опоры, плотность и грузоподъёмность ТС. Бегунок задаёт суммарную массу всех верхних ярусов. Ручные запреты и нагрузки имеют приоритет. Палета на палету — только с явным разрешением."}
         </p>
       </section>
       <section className="tms-card">
@@ -1006,6 +1015,7 @@ export function TmsPage({
             plan={plan}
             vehicle={vehicle}
             estimatedTopLoadFactor={estimatedTopLoadFactor}
+            estimatedStacking={estimatedStacking}
           />
           <ResultTable plan={plan} />
           {plan.omitted.length > 0 && (

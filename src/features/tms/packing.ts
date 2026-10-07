@@ -46,7 +46,7 @@ export function packFloor(
   count: number,
   length: number,
   width: number,
-  pallet: boolean,
+  allowRotation: boolean,
 ): { free: FloorRect[]; placements: FloorRect[] } | null {
   let remaining = free;
   const placements: FloorRect[] = [];
@@ -54,7 +54,7 @@ export function packFloor(
     let best: FloorRect | null = null,
       bestScore = Infinity;
     for (const r of remaining) {
-      for (const [l, w] of pallet
+      for (const [l, w] of allowRotation
         ? [
             [length, width],
             [width, length],
@@ -68,7 +68,7 @@ export function packFloor(
         if (score < bestScore) {
           bestScore = score;
           best = {
-            x: pallet ? r.x + r.length - l : r.x,
+            x: r.x,
             y: r.y,
             length: l,
             width: w,

@@ -80,6 +80,7 @@ export type PackageGroup = {
   height: number;
   weight: number;
   pallet: boolean;
+  palletStacking?: boolean;
   floorOnly: boolean;
   stackable: boolean;
   maxTopLoad: number;
@@ -90,6 +91,7 @@ export type PlanOptions = {
   requireDimensions?: boolean;
   // Preliminary assumption only; 0 disables estimated supports. Measured rules take precedence.
   estimatedTopLoadFactor?: number;
+  estimatedStacking?: "height" | "load";
   vehicle: Vehicle;
   order: "fifo" | "lifo";
   strictSelection: boolean;
@@ -108,6 +110,7 @@ export type Placement = {
   length: number;
   width: number;
   pallet: boolean;
+  palletStacking?: boolean;
   z: number;
   height: number;
   weight: number;

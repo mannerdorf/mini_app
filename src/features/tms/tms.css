@@ -717,3 +717,9 @@
     flex-wrap: wrap;
   }
 }
+
+.tms-density-legend { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--border-color, #cbd5e1); border-radius: 14px; }
+.tms-density-scale { display: flex; margin: .7rem 0; }
+.tms-density-scale span { flex: 1; border-top: 10px solid; padding-top: .4rem; text-align: center; }
+.tms-density-bands { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
+.tms-density-bands > div { flex: 1; min-width: 160px; display: grid; gap: .35rem; }

@@ -27,8 +27,8 @@ export function validateOptions(o: PlanOptions): string | null {
   )
     return "Резерв должен быть от 0 до 99%";
   const factor = o.estimatedTopLoadFactor ?? 2;
-  if (!Number.isFinite(factor) || factor < 0 || factor > 5)
-    return "Расчётная нагрузка сверху должна быть от 0 до 5 масс нижнего места";
+  if (!Number.isFinite(factor) || factor < 0 || factor > 20)
+    return "Расчётная нагрузка сверху должна быть от 0 до 20 масс нижнего места";
   return null;
 }
 export function cargoProblem(c: TmsCargo, o: PlanOptions): string | null {

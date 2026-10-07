@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { LoadPlan, Vehicle, Placement } from "./model";
+import { densityBands, densityHue, densityScale } from "./density";
 export const COLORS = [
   "#2563eb",
   "#059669",
@@ -18,10 +19,12 @@ export function LoadScene({
   plan,
   vehicle,
   estimatedTopLoadFactor = 2,
+  estimatedStacking = "load",
 }: {
   plan: LoadPlan;
   vehicle: Vehicle;
   estimatedTopLoadFactor?: number;
+  estimatedStacking?: "height" | "load";
 }) {
   const host = useRef<HTMLDivElement>(null),
     sceneRef = useRef<{
@@ -32,10 +35,12 @@ export function LoadScene({
   const [active, setActive] = useState<string>(""),
     [cut, setCut] = useState(100),
     [shown, setShown] = useState(plan.placements.length);
-  const [density, setDensity] = useState(false),
+  const [density, setDensity] = useState(true),
     [fullscreen, setFullscreen] = useState(false),
     [error, setError] = useState("");
   const maxHeight = Math.max(...vehicle.compartments.map((b) => b.height));
+  const scale = densityScale(plan.placements);
+  const bands = densityBands(plan.placements, maxHeight);
   const selected = plan.selected.find((c) => c.id === active);
   const estimated = plan.placements.some((p) => p.estimated);
   const center =
@@ -269,7 +274,7 @@ export function LoadScene({
       mat.color.set(
         density
           ? new THREE.Color().setHSL(
-              0.58 - Math.min(1, p.density / 1000) * 0.58,
+              densityHue(p.density, scale.min, scale.max),
               0.8,
               0.48,
             )
@@ -280,7 +285,7 @@ export function LoadScene({
       mat.emissive.set(active === p.cargoId ? 0x223344 : 0x000000);
     });
     scene.render();
-  }, [plan, active, cut, shown, density, maxHeight]);
+  }, [plan, active, cut, shown, density, maxHeight, scale.min, scale.max]);
   useEffect(() => {
     if (!fullscreen) return;
     const close = (e: KeyboardEvent) => {
@@ -296,7 +301,7 @@ export function LoadScene({
           <h3>Объёмный план загрузки</h3>
           <p className="tms-muted">
             {estimated
-              ? `Предварительная модель · ${estimatedTopLoadFactor > 0 ? `нагрузка сверху до ${estimatedTopLoadFactor} масс места — допущение` : "расчётные места только на полу"}`
+              ? `Предварительная модель · ${estimatedStacking === "height" ? "до потолка · прочность упаковки не подтверждена" : estimatedTopLoadFactor > 0 ? `нагрузка сверху до ${estimatedTopLoadFactor} масс места — допущение` : "расчётные места только на полу"}`
               : "Габариты мест введены вручную"}{" "}
             · верх не переворачиваем
           </p>
@@ -324,9 +329,27 @@ export function LoadScene({
             checked={density}
             onChange={(e) => setDensity(e.target.checked)}
           />{" "}
-          По плотности
+          Карта плотности
         </label>
       </div>
+      {density && (
+        <section className="tms-density-legend" aria-label="Карта плотности груза">
+          <b>Плотность груза · кг/м³</b>
+          <div className="tms-density-scale">
+            {[0, 0.25, 0.5, 0.75, 1].map((fraction) => {
+              const value = scale.min + fraction * (scale.max - scale.min);
+              return <span key={fraction} style={{ borderTopColor: `hsl(${densityHue(value, scale.min, scale.max) * 360} 80% 48%)` }}>{fmt(value)}</span>;
+            })}
+          </div>
+          <small>Синий — менее плотный, красный — более плотный в этом плане. Верхнее место не плотнее и не тяжелее своих опор. Палета на палету — только по разрешению.</small>
+          <div className="tms-density-bands">
+            {bands.map((band) => <div key={band.label}>
+              <b>{band.label} · {fmt(band.from, 2)}–{fmt(band.to, 2)} м</b>
+              <span>{band.density === null ? "Нет груза" : `${fmt(band.density)} кг/м³ · ${fmt(band.mass)} кг`}</span>
+            </div>)}
+          </div>
+        </section>
+      )}
       <div className="tms-scene-canvas" ref={host}>
         {error && <p role="alert">{error}</p>}
       </div>
@@ -400,7 +423,7 @@ export function LoadScene({
       </div>
       <p className="tms-muted">
         Вращайте мышью или пальцем, приближайте колёсиком или двумя пальцами.{" "}
-        {density ? "Синий — малая плотность, красный — от 1000 кг/м³." : ""}
+        {density ? "Шкала плотности соответствует грузам текущего плана." : "Цвета обозначают перевозки."}
       </p>
       <div className="tms-scene-cargo">
         <label>
@@ -460,7 +483,7 @@ export function LoadScene({
                   </td>
                   <td>{p.support ? `Место ${p.support}` : "Пол"}</td>
                   <td>
-                    {fmt(p.topLoad)} / {fmt(p.maxTopLoad)}
+                    {fmt(p.topLoad)} / {p.estimated && estimatedStacking === "height" ? "прочность не задана" : fmt(p.maxTopLoad)}
                   </td>
                 </tr>
               ))}

@@ -232,3 +232,77 @@ it("never overrides a measured no-stacking rule with an estimated load factor", 
   expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(1);
   expect(() => planLoad([], { ...o, estimatedTopLoadFactor: NaN })).toThrow("нагрузка");
 });
+
+
+it("starts partial loads at the front wall in every compartment, with and without rotation", () => {
+  for (const rotate of [true, false]) {
+    const o = options({
+      a: [box({ length: 2, width: 1, height: 1, rotate, weight: 100, stackable: true, maxTopLoad: 50 })],
+      b: [box({ length: 1, width: 1, height: 1, rotate, weight: 10 })],
+      c: [box({ length: 4.5, width: 1, height: 1, rotate, weight: 100, floorOnly: true })],
+    });
+    o.vehicle.compartments = [
+      { length: 5, width: 1, height: 3 },
+      { length: 5, width: 1, height: 3 },
+    ];
+    const p = pack3d([cargo("a"), cargo("b", 10), cargo("c")], o)!;
+    expect(p).not.toBeNull();
+    expect(new Set(p.map((p) => p.compartment)).size).toBe(2);
+    for (const compartment of [0, 1]) {
+      expect(Math.min(...p.filter((p) => p.compartment === compartment).map((p) => p.x))).toBe(0);
+    }
+    const upper = p.find((p) => p.cargoId === "b")!;
+    const lower = p.find((p) => p.unit === upper.support)!;
+    expect(lower).toBeDefined();
+    expect(upper.x).toBe(lower.x);
+    expect(upper.z).toBe(lower.z + lower.height);
+  }
+});
+
+it("fills estimated cargo to the roof without an invented layer limit, while retaining a chosen load factor", () => {
+  const o = { ...options({}), requireDimensions: false, estimatedStacking: "height" as const };
+  o.vehicle.compartments = [{ length: 1, width: 1, height: 6 }];
+  o.vehicle.volume = 6;
+  const rows = [cargo("1", 600, { volume: 6, places: 6 })];
+  const p = planLoad(rows, o);
+  expect(p.selected).toHaveLength(1);
+  expect(p.placements.map(p => p.z)).toEqual([0, 1, 2, 3, 4, 5]);
+  expect(p.placements[0].topLoad).toBe(500);
+  expect(planLoad(rows, { ...o, estimatedStacking: "load", estimatedTopLoadFactor: 2 }).selected).toHaveLength(0);
+  expect(planLoad(rows, { ...o, estimatedStacking: "load", estimatedTopLoadFactor: 5 }).selected).toHaveLength(1);
+});
+
+it("fills above an estimated floor pallet to the roof, without placing another pallet above it", () => {
+  const o = { ...options({}), requireDimensions: false, estimatedStacking: "height" as const,
+    floorCustomers: ["pallet"], pallets: { p: 1 }, palletLength: 1, palletWidth: 1 };
+  o.vehicle.compartments = [{ length: 1, width: 1, height: 5 }];
+  o.vehicle.volume = 5;
+  const p = planLoad([cargo("p", 500, { customerId: "pallet" }), cargo("b", 40, { places: 4, volume: 4 })], o);
+  expect(p.selected).toHaveLength(2);
+  expect(p.placements.filter(p => p.pallet).every(p => p.z === 0)).toBe(true);
+  expect(Math.max(...p.placements.map(p => p.z + p.height))).toBe(5);
+});
+
+it("requires explicit pallet stacking permission on both pallets and respects floor-only rules", () => {
+  for (const [baseAllowed, upperAllowed, floorOnly, expected] of [
+    [false, false, false, 1], [true, false, false, 1], [false, true, false, 1],
+    [true, true, true, 1], [true, true, false, 2],
+  ] as const) {
+    const o = options({
+      base: [box({ pallet: true, palletStacking: baseAllowed, stackable: true, maxTopLoad: 200 })],
+      upper: [box({ pallet: true, palletStacking: upperAllowed, floorOnly, weight: 50 })],
+    });
+    const p = planLoad([cargo("base"), cargo("upper", 50)], o);
+    expect(p.selected).toHaveLength(expected);
+    if (expected === 2) expect(p.placements.find(p => p.cargoId === "upper")?.z).toBe(1);
+  }
+});
+
+it("does not place an allowed pallet on loose boxes, or override measured compression limits in height mode", () => {
+  const o = options({ base: [box({ stackable: true, maxTopLoad: 20 })],
+    top: [box({ pallet: true, palletStacking: true, weight: 10 })] });
+  o.estimatedStacking = "height";
+  expect(planLoad([cargo("base"), cargo("top", 10)], o).selected).toHaveLength(1);
+  o.packages!.top = [box({ weight: 30 })];
+  expect(planLoad([cargo("base"), cargo("top", 30)], o).selected).toHaveLength(1);
+});
