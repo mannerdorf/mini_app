@@ -699,7 +699,7 @@ export function TmsPage({
         <div>
           <h2>Правила размещения · 3D</h2>
           <p className="tms-muted">
-            Палеты на полу. Плотный и тяжёлый груз — ниже; лёгкий — на
+            Палеты на полу, если не разрешена укладка друг на друга. Плотный и тяжёлый груз — ниже; лёгкий — на
             разрешённых опорах. Учитываем суммарную нагрузку всех верхних
             ярусов.
           </p>
@@ -722,7 +722,7 @@ export function TmsPage({
               </select>
             </label>
             <label>
-              Нагрузка сверху · ×{Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : "—"} собственного веса
+              Нагрузка сверху · ×{Number.isFinite(estimatedTopLoadFactor) ? fmt(estimatedTopLoadFactor, 2) : "—"} собственного веса
               <input type="range" aria-label="Нагрузка сверху в собственных массах"
                 min={0} max={20} step={0.5} value={Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : 0}
                 onChange={(e) => { setEstimatedTopLoadFactor(+e.target.value); setEstimatedStacking("load"); }} />
@@ -732,7 +732,7 @@ export function TmsPage({
                 }} />
               <small>{estimatedStacking === "height"
                 ? "Без ограничения прочности в предварительной модели. Бегунок включит ограничение массы."
-                : `Место 10 кг: суммарно сверху до ${Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor * 10 : "—"} кг. 0 — ничего сверху.`}</small>
+                : `Место 10 кг: суммарно сверху до ${Number.isFinite(estimatedTopLoadFactor) ? fmt(estimatedTopLoadFactor * 10, 2) : "—"} кг. 0 — ничего сверху.`}</small>
             </label>
           </div>
         )}

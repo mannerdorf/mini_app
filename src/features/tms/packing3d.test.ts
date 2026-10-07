@@ -306,3 +306,10 @@ it("does not place an allowed pallet on loose boxes, or override measured compre
   o.packages!.top = [box({ weight: 30 })];
   expect(planLoad([cargo("base"), cargo("top", 30)], o).selected).toHaveLength(1);
 });
+
+
+it("ignores an inactive load factor in height mode but validates it when enabled", () => {
+  const o = { ...options({}), estimatedTopLoadFactor: NaN };
+  expect(() => planLoad([], { ...o, estimatedStacking: "height" })).not.toThrow();
+  expect(() => planLoad([], { ...o, estimatedStacking: "load" })).toThrow("нагрузка");
+});

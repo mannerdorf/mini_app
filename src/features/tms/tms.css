@@ -550,6 +550,7 @@
 }
 .tms-rules .tms-fields label {
   display: grid;
+  align-content: start;
 }
 .tms-scene {
   border: 1px solid var(--tms-border);
