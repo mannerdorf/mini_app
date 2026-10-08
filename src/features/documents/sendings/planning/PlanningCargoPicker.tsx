@@ -54,9 +54,8 @@ function CandidateGroup({ group, selected, locked, onSelect, nested = false }: S
   </details>;
 }
 
-export function PlanningCargoPicker({ candidates, cargoNumbers, locked, search, onSearch, onSelect }: {
-  candidates: TmsCargo[]; cargoNumbers: string[]; locked: Set<string>; search: string;
-  onSearch: (search: string) => void; onSelect: Selection['onSelect'];
+export function PlanningCargoPicker({ candidates, cargoNumbers, locked, onSelect }: {
+  candidates: TmsCargo[]; cargoNumbers: string[]; locked: Set<string>; onSelect: Selection['onSelect'];
 }) {
   const [view, setView] = useState<PlanningPickerView>('cargo');
   const [limit, setLimit] = useState(100);
@@ -65,7 +64,6 @@ export function PlanningCargoPicker({ candidates, cargoNumbers, locked, search, 
   const groups = useMemo(() => view === 'cargo' ? [] : groupPickerHierarchy(candidates, view), [candidates, view]);
   const hasMore = limit < (view === 'cargo' ? candidates.length : groups.length);
   return <section className="sending-planning__picker" aria-label="Неотправленные перевозки">
-    <input type="search" aria-label="Поиск перевозок" placeholder="Номер, участник перевозки или дата" value={search} onChange={event => onSearch(event.target.value)} />
     <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
       {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
     </div>
