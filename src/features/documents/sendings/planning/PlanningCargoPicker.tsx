@@ -1,22 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Scale, CheckSquare } from 'lucide-react';
+import { ChevronDown, Scale, CheckSquare, Info } from 'lucide-react';
 import type { TmsCargo, Vehicle } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
 import { groupPickerHierarchy, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
-import type { RecommendationMode, RecommendationRequest, RecommendationResult } from './planningRecommendations';
+import { recommendationPaidRanks, type RecommendationMode, type RecommendationContext, type RecommendationComparison, type RecommendationReason } from './planningRecommendations';
 
 type Selection = {
   selected: Set<string>;
   locked: Set<string>;
   recommended: Set<string>;
+  reasons?: Record<string, RecommendationReason>;
   onSelect: (numbers: string[], include: boolean) => void;
 };
 
-function Candidate({ cargo, selected, locked, recommended, onSelect }: Selection & { cargo: TmsCargo }) {
+function Candidate({ cargo, selected, locked, recommended, reasons, onSelect }: Selection & { cargo: TmsCargo }) {
+  const reason = reasons?.[cargo.number];
   return <label className={`sending-planning__candidate${recommended.has(cargo.number) ? ' is-recommended' : ''}`}>
     <input type="checkbox" aria-label={`Добавить перевозку ${cargo.number}`} checked={selected.has(cargo.number)}
       disabled={locked.has(cargo.number)} onChange={event => onSelect([cargo.number], event.target.checked)} />
-    <span><b>{cargo.number}</b><span>{cargo.customer}</span><small>{cargo.receiver}</small>
+    <span><span className="sending-planning__candidate-number"><b>{cargo.number}</b>{reason && <span className="sending-planning__recommendation-reason" role="img" tabIndex={0}
+      aria-label={`Причина подбора перевозки ${cargo.number}: ${reason.text}`} title={reason.text}
+      onClick={event => { event.preventDefault(); event.stopPropagation(); }}><Info size={16} aria-hidden="true"/></span>}</span><span>{cargo.customer}</span><small>{cargo.receiver}</small>
       {cargo.sender && <small>Отправитель: {cargo.sender}</small>}
       {cargo.slaDeadline && <small>Срок по SLA: {receiptDateLabel(cargo.slaDeadline.slice(0,10))}{cargo.slaPlanDays?` · ${cargo.slaPlanDays} дн.`:''}</small>}
       {cargo.plannedDeliveryDate && <small>Плановая дата доставки: {receiptDateLabel(cargo.plannedDeliveryDate)}</small>}
@@ -30,7 +34,7 @@ function Candidate({ cargo, selected, locked, recommended, onSelect }: Selection
   </label>;
 }
 
-function CandidateGroup({ group, selected, locked, recommended, onSelect, nested = false }: Selection & { group: PlanningPickerGroup; nested?: boolean }) {
+function CandidateGroup({ group, selected, locked, recommended, reasons, onSelect, nested = false }: Selection & { group: PlanningPickerGroup; nested?: boolean }) {
   const [limit, setLimit] = useState(100);
   const checkbox = useRef<HTMLInputElement>(null);
   useEffect(() => setLimit(100), [group.cargo]);
@@ -55,31 +59,47 @@ function CandidateGroup({ group, selected, locked, recommended, onSelect, nested
         onClick={() => onSelect(editable.map(cargo => cargo.number), !allIncluded)}>{allIncluded ? 'Убрать группу' : 'Добавить группу'}</button>
     </div>
     {group.children ? <div className="sending-planning__picker-children">
-      {group.children.slice(0, limit).map(child => <CandidateGroup key={child.key} group={child} selected={selected} locked={locked} recommended={recommended} onSelect={onSelect} nested />)}
-    </div> : group.cargo.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} recommended={recommended} onSelect={onSelect} />)}
+      {group.children.slice(0, limit).map(child => <CandidateGroup key={child.key} group={child} selected={selected} locked={locked} recommended={recommended} reasons={reasons} onSelect={onSelect} nested />)}
+    </div> : group.cargo.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} recommended={recommended} reasons={reasons} onSelect={onSelect} />)}
     {hasMore && <button type="button" className="filter-button" onClick={() => setLimit(value => value + 100)}>{group.children ? 'Показать ещё группы' : 'Показать ещё перевозки'}</button>}
   </details>;
 }
 
-export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoNumbers, locked, onSelect }: {
-  candidates: TmsCargo[]; selectedCargo: TmsCargo[]; vehicle?: Vehicle; cargoNumbers: string[]; locked: Set<string>; onSelect: Selection['onSelect'];
+export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoNumbers, locked, initialSlaCutoff, onSelect }: {
+  candidates: TmsCargo[]; selectedCargo: TmsCargo[]; vehicle?: Vehicle; cargoNumbers: string[]; locked: Set<string>; initialSlaCutoff: string; onSelect: Selection['onSelect'];
 }) {
   const [view, setView] = useState<PlanningPickerView>('cargo');
   const [limit, setLimit] = useState(100);
   const [mode, setMode] = useState<RecommendationMode | null>(null);
-  const [recommendation, setRecommendation] = useState<{ request: RecommendationRequest; result?: RecommendationResult; error?: string } | null>(null);
-  const request = useMemo<RecommendationRequest | null>(() => mode ? { mode, candidates, selected: selectedCargo, locked: [...locked], vehicle } : null,
-    [mode, candidates, selectedCargo, vehicle, [...locked].join(',')]);
+  const [cutoffOverride, setCutoffOverride] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
+  const slaCutoff = cutoffOverride ?? initialSlaCutoff;
+  const [recommendation, setRecommendation] = useState<{ request: RecommendationContext; results?: RecommendationComparison; error?: string } | null>(null);
+  const request = useMemo<RecommendationContext>(() => ({ candidates, selected: selectedCargo, locked: [...locked], vehicle, slaCutoff }),
+    [candidates, selectedCargo, vehicle, [...locked].join(','), slaCutoff]);
   useEffect(() => {
-    if (!request) { setRecommendation(null); return; }
+    setRecommendation(null);
     const worker = new Worker(new URL('./planningRecommendations.worker.ts', import.meta.url), { type: 'module' });
     worker.onmessage = event => setRecommendation({ request, ...event.data });
     worker.onerror = () => setRecommendation({ request, error: 'Не удалось подобрать перевозки. Повторите выбор режима.' });
     worker.postMessage(request);
     return () => worker.terminate();
-  }, [request]);
+  }, [request, retry]);
   const current = recommendation?.request === request ? recommendation : null;
-  const recommended = useMemo(() => new Set(current?.result?.numbers || []), [current]);
+  const result = mode ? current?.results?.[mode] : undefined;
+  const recommended = useMemo(() => new Set(result?.numbers || []), [result]);
+  const ranks = useMemo(() => current?.results ? recommendationPaidRanks(current.results) : {}, [current]);
+  const modeClass = (value: RecommendationMode) => `filter-button${ranks[value] ? ` sending-planning__paid-rank--${ranks[value]}` : ''}`;
+  const chooseMode = (value: RecommendationMode) => {
+    setMode(previous => previous === value && !current?.error ? null : value);
+    if (current?.error) setRetry(previous => previous + 1);
+  };
+  const modeTitle = (value: RecommendationMode, description: string) => {
+    const variant = current?.results?.[value];
+    if (!variant || variant.message) return description;
+    if (variant.missingPaid) return `${description}. Платный вес известен не у всех рекомендованных перевозок; сравнить его нельзя.`;
+    return `${description}. Добавляемый платный вес: ${planningNumber(variant.paidWeight)} кг.${ranks[value] === 'max' ? ' Зелёная полоска: наибольший среди найденных вариантов.' : ranks[value] === 'min' ? ' Красная полоска: наименьший среди найденных вариантов.' : ''}`;
+  };
   useEffect(() => setLimit(100), [candidates, view]);
   const selected = useMemo(() => new Set(cargoNumbers), [cargoNumbers]);
   const groups = useMemo(() => view === 'cargo' ? [] : groupPickerHierarchy(candidates, view), [candidates, view]);
@@ -87,30 +107,38 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
   return <section className="sending-planning__picker" aria-label="Неотправленные перевозки">
     <div className="sending-planning__recommendation-modes" role="group" aria-label="Режим подбора перевозок">
       <span>Подбор</span>
-      <button type="button" className="filter-button" aria-pressed={mode === 'fifo'} onClick={() => setMode(value => value === 'fifo' ? null : 'fifo')} title="Сначала ранние поступления, с учётом свободного веса и объёма ТС">FIFO</button>
-      <button type="button" className="filter-button sending-planning__paid-mode" aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => setMode(value => value === 'paid' ? null : 'paid')} title="Максимальный суммарный платный вес в пределах веса и объёма ТС"><Scale size={18}/></button>
-      <button type="button" className="filter-button" aria-pressed={mode === 'delivery'} onClick={() => setMode(value => value === 'delivery' ? null : 'delivery')} title="Сначала перевозки с ближайшим сроком по SLA, в пределах веса и объёма ТС">SLA</button>
+      <div className="sending-planning__recommendation-controls">
+        <button type="button" className={modeClass('fifo')} aria-pressed={mode === 'fifo'} onClick={() => chooseMode('fifo')} title={modeTitle('fifo','Сначала ранние поступления, с учётом свободного веса и объёма ТС')}>FIFO</button>
+        <button type="button" className={`${modeClass('paid')} sending-planning__paid-mode`} aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => chooseMode('paid')} title={modeTitle('paid','Максимальный суммарный платный вес в пределах веса и объёма ТС')}><Scale size={18}/></button>
+        <button type="button" className={modeClass('delivery')} aria-pressed={mode === 'delivery'} onClick={() => chooseMode('delivery')} title={modeTitle('delivery','Сначала перевозки с ближайшим сроком по SLA, в пределах веса и объёма ТС')}>SLA</button>
+        <button type="button" className={modeClass('sla-paid')} aria-label="Подбор SLA и платный вес" aria-pressed={mode === 'sla-paid'} onClick={() => chooseMode('sla-paid')} title={modeTitle('sla-paid','Сначала сроки до даты «SLA до», затем дозагрузка по платному весу')}>SLA + <Scale size={16}/></button>
+        <button type="button" className="button-primary sending-planning__apply-recommendation" aria-label="Проставить чекбоксы" disabled={!recommended.size || !!current?.error || !!result?.message} onClick={() => onSelect([...recommended], true)} title="Проставить чекбоксы: добавить подсвеченные рекомендации к уже выбранным перевозкам"><CheckSquare size={18}/><span>Проставить чекбоксы</span></button>
+      </div>
     </div>
-    {request && <div className="sending-planning__recommendation-summary" role="status">
-      {!current ? 'Подбираем перевозки…' : current.error || current.result?.message || <>
-        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'SLA · сначала ближайшие сроки' : current.result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
-        <span>Подсвечено: {recommended.size} перев. · +{planningNumber(current.result!.weight)} кг · +{planningNumber(current.result!.volume, 2)} м³ · платный вес +{planningNumber(current.result!.paidWeight)} кг</span>
-        {mode==='delivery'?<>
-          {!!current.result?.missingDelivery&&<span>Не удалось рассчитать срок по SLA: {current.result.missingDelivery} перев.</span>}
-          {!!current.result?.missingMetrics&&<span>Вес или объём не заполнены: {current.result.missingMetrics} перев.</span>}
-        </>:!!current.result?.excluded&&<span>Не хватает данных для подбора: {current.result.excluded} перев.</span>}
-        {!!current.result?.missingPaid && <span>Платный вес не заполнен: {current.result.missingPaid} перев.</span>}
+    {mode === 'sla-paid' && <label className="sending-planning__sla-cutoff">SLA до<input type="date" aria-label="SLA до" value={slaCutoff} onChange={event => setCutoffOverride(event.target.value)}/><small>Сроки до этой даты включительно — первыми. Остаток ТС — по платному весу.</small></label>}
+    {mode && <div className="sending-planning__recommendation-summary" role="status">
+      {!current ? 'Подбираем перевозки…' : current.error || result?.message || <>
+        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'SLA · сначала ближайшие сроки' : mode === 'sla-paid' ? 'SLA + платный вес · приоритет срокам, затем дозагрузка' : result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
+        <div className="sending-planning__recommendation-metrics">
+          <span>Подсвечено: {recommended.size} перев.</span>
+          <span>Вес: +{planningNumber(result!.weight)} кг</span>
+          <span>Объём: +{planningNumber(result!.volume, 2)} м³</span>
+          <span>Платный вес: +{planningNumber(result!.paidWeight)} кг</span>
+        </div>
+        {(mode==='delivery'||mode==='sla-paid')&&!!result?.missingDelivery&&<span>Не удалось рассчитать срок по SLA: {result.missingDelivery} перев.</span>}
+        {!!result?.excluded&&<span>Не хватает данных для подбора: {result.excluded} перев. Причина — у значка ⓘ рядом с номером.</span>}
+        {!!result?.missingPaid && <span>Платный вес не заполнен: {result.missingPaid} перев.</span>}
+        {mode==='sla-paid'&&!result?.optimal&&<span>Дозагрузка: лучший найденный вариант по платному весу.</span>}
       </>}
     </div>}
-    <div className="sending-planning__recommendation-actions"><button type="button" className="button-primary" disabled={!recommended.size || !!current?.error || !!current?.result?.message} onClick={() => onSelect([...recommended], true)} title="Добавить подсвеченные рекомендации к уже выбранным перевозкам"><CheckSquare size={16}/> Проставить чекбоксы</button></div>
     <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
       {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
     </div>
     <p className="sending-planning__muted">Доступные перевозки по маршруту: {candidates.length}</p>
     {view === 'date' && <p className="sending-planning__muted">По дате поступления на склад</p>}
     <div className="sending-planning__picker-list">
-      {view === 'cargo' ? candidates.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} recommended={recommended} onSelect={onSelect} />)
-        : groups.slice(0, limit).map(group => <CandidateGroup key={`${view}:${group.key}`} group={group} selected={selected} locked={locked} recommended={recommended} onSelect={onSelect} />)}
+      {view === 'cargo' ? candidates.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} recommended={recommended} reasons={result?.reasons} onSelect={onSelect} />)
+        : groups.slice(0, limit).map(group => <CandidateGroup key={`${view}:${group.key}`} group={group} selected={selected} locked={locked} recommended={recommended} reasons={result?.reasons} onSelect={onSelect} />)}
       {!candidates.length && <p className="sending-planning__muted">Нет перевозок по выбранным условиям</p>}
       {hasMore && <button type="button" className="filter-button" onClick={() => setLimit(value => value + 100)}>{view === 'cargo' ? 'Показать ещё' : 'Показать ещё группы'}</button>}
     </div>

@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import type { TmsCargo } from '../../../tms/model';
-import { recommendPlanningCargo, type RecommendationRequest } from './planningRecommendations';
+import { recommendPlanningCargo, comparePlanningRecommendations, recommendationPaidRanks, type RecommendationRequest } from './planningRecommendations';
 
 const cargo = (number: string, weight: number | null, volume: number | null, paidWeight: number | null = weight, received = '2026-10-06'): TmsCargo => ({
   id: number, number, weight, volume, paidWeight, received, customer: 'Клиент', customerId: '1', receiver: 'Склад', route: 'MSK → KGD', places: 1, readiness: 'ready', reason: '', updatedAt: null,
@@ -70,4 +70,64 @@ it('explains when delivery recommendations are blocked by missing deadlines, rat
  expect(result).toMatchObject({numbers:[],missingDelivery:2,missingMetrics:0,excluded:2});expect(result.message).toContain('нет корректной даты поступления');
  const partial=recommendPlanningCargo(request([{...cargo('1',1,1),slaDeadline:'2026-10-09T00:00:00Z',plannedDeliveryDate:'2026-10-20'},cargo('2',2,2)],{mode:'delivery'}));
  expect(partial).toMatchObject({numbers:['1'],missingDelivery:1,missingMetrics:0});expect(partial.message).toBeUndefined();
+});
+
+it('protects SLA through the inclusive cutoff before maximizing PW in the remaining capacity', () => {
+  const candidates = [
+    { ...cargo('urgent', 4, 4, 5), slaDeadline: '2026-10-09T23:59:59Z' },
+    { ...cargo('heavy', 5, 1, 40), slaDeadline: '2026-10-15T00:00:00Z' },
+    { ...cargo('bulky', 1, 5, 40), slaDeadline: '2026-10-16T00:00:00Z' },
+    { ...cargo('large', 10, 10, 200), slaDeadline: '2026-10-10T00:00:00Z' },
+  ];
+  const result = recommendPlanningCargo(request(candidates, { mode: 'sla-paid', slaCutoff: '2026-10-09' }));
+  expect(result).toMatchObject({ numbers: ['urgent', 'bulky', 'heavy'], weight: 10, volume: 10, paidWeight: 85, optimal: true });
+  expect(result.reasons.urgent.text).toContain('Приоритет по SLA');
+  expect(result.reasons.bulky.text).toContain('Дозагрузка после');
+  expect(result.reasons.large.text).toContain('Не помещается');
+  const purePaid = recommendPlanningCargo(request(candidates));
+  expect(purePaid).toMatchObject({ numbers: ['large'], paidWeight: 200 });
+  const laterCutoff = recommendPlanningCargo(request(candidates, { mode: 'sla-paid', slaCutoff: '2026-10-16' }));
+  expect(laterCutoff).toMatchObject({ numbers: ['urgent', 'heavy', 'bulky'], paidWeight: 85 });
+});
+
+it('combined SLA respects existing selections, skips unknown SLA and permits urgent cargo with unknown PW', () => {
+  const selected = cargo('selected', 5, 1, 10);
+  const result = recommendPlanningCargo(request([
+    selected,
+    { ...cargo('shipped', 1, 1, 500), slaDeadline: '2026-10-07' },
+    { ...cargo('urgent', 1, 1, null), slaDeadline: '2026-10-08' },
+    { ...cargo('fill', 4, 8, 100), slaDeadline: '2026-10-20' },
+    cargo('unknown-sla', 1, 1, 1000),
+    { ...cargo('unknown-pw', 1, 1, null), slaDeadline: '2026-10-20' },
+  ], { mode: 'sla-paid', slaCutoff: '2026-10-09', selected: [selected, selected], locked: ['shipped'] }));
+  expect(result).toMatchObject({ numbers: ['urgent', 'fill'], weight: 5, volume: 9, paidWeight: 100, missingPaid: 1, excluded: 2 });
+  expect(result.reasons.selected.kind).toBe('selected');
+  expect(result.reasons.shipped.kind).toBe('locked');
+  expect(result.reasons['unknown-sla'].text).toContain('срок по SLA');
+  expect(result.reasons['unknown-pw'].text).toContain('платный вес');
+  expect(recommendPlanningCargo(request([], { mode: 'sla-paid', slaCutoff: '2026-02-30' })).message).toContain('SLA до');
+});
+
+it('explains both capacity deficits and missing data for each candidate without changing any selection', () => {
+  const candidates = [cargo('1', 8, 9, 100), cargo('2', 4, 3, 1), cargo('3', null, 1, null)];
+  const result = recommendPlanningCargo(request(candidates));
+  expect(result.reasons['1']).toMatchObject({ kind: 'recommended' });
+  expect(result.reasons['2'].text).toContain('2 кг грузоподъёмности и 2 м³ объёма');
+  expect(result.reasons['3'].text).toBe('Не хватает данных: вес, платный вес.');
+  expect(candidates[0]).toMatchObject({ weight: 8, volume: 9, paidWeight: 100 });
+});
+
+it('compares the same free capacity, ranks all tied extrema and does not rank unknown PW as zero', () => {
+  const candidates = [
+    { ...cargo('1', 10, 10, 10, '2026-10-01'), slaDeadline: '2026-10-09' },
+    { ...cargo('2', 10, 10, 200, '2026-10-02'), slaDeadline: '2026-10-20' },
+  ];
+  const results = comparePlanningRecommendations(request(candidates, { slaCutoff: '2026-10-09' }));
+  expect(recommendationPaidRanks(results)).toEqual({ fifo: 'min', paid: 'max', delivery: 'min', 'sla-paid': 'min' });
+  expect(results['sla-paid'].numbers).toEqual(['1']);
+  const equal = comparePlanningRecommendations(request([candidates[0]], { slaCutoff: '2026-10-09' }));
+  expect(recommendationPaidRanks(equal)).toEqual({});
+  const unknown = comparePlanningRecommendations(request([{ ...candidates[0], paidWeight: null }, candidates[1]], { slaCutoff: '2026-10-09' }));
+  expect(recommendationPaidRanks(unknown)).toEqual({});
+  expect(unknown['sla-paid'].missingPaid).toBe(1);
 });

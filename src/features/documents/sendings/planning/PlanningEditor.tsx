@@ -54,7 +54,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
     <h4 id="planning-pick" className="sending-planning__section-heading"><span>3</span>Подбор перевозок</h4>
     <PlanningPeriodFilter filter={period}/>
     <div className="sending-planning__cargo-heading"><span>По выбранному маршруту и периоду</span><button type="button" className="button-primary" disabled={!draft.route} onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
-    {pickerOpen&&<PlanningCargoPicker candidates={candidates} selectedCargo={selected} vehicle={vehicle} cargoNumbers={draft.cargoNumbers} locked={actual} onSelect={select}/>}
+    {pickerOpen&&<PlanningCargoPicker candidates={candidates} selectedCargo={selected} vehicle={vehicle} cargoNumbers={draft.cargoNumbers} locked={actual} initialSlaCutoff={draft.departureDate||draft.date} onSelect={select}/>}
    </section>
    <PlanningSelectedCargo draft={draft} cargo={selected} actual={actual} ferryName={draft.ferryId?ferries.find(ferry=>ferry.id===draft.ferryId)?.name||(plan?.ferryId===draft.ferryId?plan.ferryName:''):''} onRemove={numbers=>select(numbers,false)}/>
    <section className="sending-planning__form-section" aria-labelledby="planning-comment">
