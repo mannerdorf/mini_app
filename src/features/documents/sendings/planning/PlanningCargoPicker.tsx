@@ -18,7 +18,8 @@ function Candidate({ cargo, selected, locked, recommended, onSelect }: Selection
       disabled={locked.has(cargo.number)} onChange={event => onSelect([cargo.number], event.target.checked)} />
     <span><b>{cargo.number}</b><span>{cargo.customer}</span><small>{cargo.receiver}</small>
       {cargo.sender && <small>Отправитель: {cargo.sender}</small>}
-      {cargo.plannedDeliveryDate && <small>Доставка: {receiptDateLabel(cargo.plannedDeliveryDate)}</small>}
+      {cargo.slaDeadline && <small>Срок по SLA: {receiptDateLabel(cargo.slaDeadline.slice(0,10))}{cargo.slaPlanDays?` · ${cargo.slaPlanDays} дн.`:''}</small>}
+      {cargo.plannedDeliveryDate && <small>Плановая дата доставки: {receiptDateLabel(cargo.plannedDeliveryDate)}</small>}
       {cargo.received && <small>Поступление: {receiptDateLabel(cargo.received)}</small>}
       {cargo.readiness === 'unreceived' && <small>Поступление на склад пока не подтверждено</small>}
       {recommended.has(cargo.number) && <small className="sending-planning__recommendation-label">Рекомендуется добавить</small>}
@@ -88,13 +89,16 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       <span>Подбор</span>
       <button type="button" className="filter-button" aria-pressed={mode === 'fifo'} onClick={() => setMode(value => value === 'fifo' ? null : 'fifo')} title="Сначала ранние поступления, с учётом свободного веса и объёма ТС">FIFO</button>
       <button type="button" className="filter-button sending-planning__paid-mode" aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => setMode(value => value === 'paid' ? null : 'paid')} title="Максимальный суммарный платный вес в пределах веса и объёма ТС"><Scale size={18}/></button>
-      <button type="button" className="filter-button" aria-pressed={mode === 'delivery'} onClick={() => setMode(value => value === 'delivery' ? null : 'delivery')} title="Сначала перевозки с ближайшей плановой датой доставки, в пределах веса и объёма ТС">По дате доставки</button>
+      <button type="button" className="filter-button" aria-pressed={mode === 'delivery'} onClick={() => setMode(value => value === 'delivery' ? null : 'delivery')} title="Сначала перевозки с ближайшим сроком по SLA, в пределах веса и объёма ТС">SLA</button>
     </div>
     {request && <div className="sending-planning__recommendation-summary" role="status">
       {!current ? 'Подбираем перевозки…' : current.error || current.result?.message || <>
-        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'По дате доставки · сначала ближайшие' : current.result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
+        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'SLA · сначала ближайшие сроки' : current.result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
         <span>Подсвечено: {recommended.size} перев. · +{planningNumber(current.result!.weight)} кг · +{planningNumber(current.result!.volume, 2)} м³ · платный вес +{planningNumber(current.result!.paidWeight)} кг</span>
-        {!!current.result?.excluded && <span>Не хватает данных для подбора: {current.result.excluded} перев.</span>}
+        {mode==='delivery'?<>
+          {!!current.result?.missingDelivery&&<span>Не удалось рассчитать срок по SLA: {current.result.missingDelivery} перев.</span>}
+          {!!current.result?.missingMetrics&&<span>Вес или объём не заполнены: {current.result.missingMetrics} перев.</span>}
+        </>:!!current.result?.excluded&&<span>Не хватает данных для подбора: {current.result.excluded} перев.</span>}
         {!!current.result?.missingPaid && <span>Платный вес не заполнен: {current.result.missingPaid} перев.</span>}
       </>}
     </div>}

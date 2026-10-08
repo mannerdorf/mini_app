@@ -1,7 +1,9 @@
-import React from 'react';
+import React,{useState} from 'react';
 import {ChevronDown,ChevronUp} from 'lucide-react';
-import {MODE_LABELS,vehicleName,groupPlansByVehicle,type PlanningView,type SendingPlan} from './planningModel';
+import {MODE_LABELS,vehicleName,groupPlansByVehicle,planProgress,type PlanningView,type SendingPlan} from './planningModel';
 import {PlanningCargoTable} from './PlanningCargoTable';
+import {PlanningSortHeader,sortPlanningRows,type PlanningSort} from './PlanningSortHeader';
+type Column='date'|'route'|'vehicle'|'ferry'|'execution'|'comment';
 
 const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('ru-RU');
 function Cell({children,title}:{children:React.ReactNode;title?:string}) {
@@ -11,10 +13,18 @@ export function PlanningPlansTable({plans,view,busy,expanded,onEdit,onExpand,ren
  plans:SendingPlan[];view:PlanningView;busy:boolean;expanded:Set<string>;
  onEdit:(plan:SendingPlan)=>void;onExpand:(id:string)=>void;renderExecution:(plan:SendingPlan)=>React.ReactNode;
 }) {
- const rows=view==='vehicle'?groupPlansByVehicle(plans).flatMap(group=>group.plans.map((plan,index)=>({plan,group:index===0?group:null}))):plans.map(plan=>({plan,group:null}));
+ const [sort,setSort]=useState<PlanningSort<Column>>({key:'date',direction:'asc'});
+ const onSort=(key:Column)=>setSort(previous=>({key,direction:previous.key===key&&previous.direction==='asc'?'desc':'asc'}));
+ const sorted=sortPlanningRows(plans,sort,(plan,key)=>{
+  if(key==='vehicle')return[MODE_LABELS[plan.mode],vehicleName(plan.vehicleId)];
+  if(key==='ferry')return[plan.ferryName,plan.departureDate||''];
+  if(key==='execution'){const progress=planProgress(plan);return[progress.percent,progress.actual,progress.planned];}
+  return[plan[key]];
+ });
+ const rows=view==='vehicle'?groupPlansByVehicle(sorted).flatMap(group=>sortPlanningRows(group.plans,sort,(plan,key)=>key==='execution'?[planProgress(plan).percent]:[key==='vehicle'?vehicleName(plan.vehicleId):key==='ferry'?plan.ferryName:plan[key]]).map((plan,index)=>({plan,group:index===0?group:null}))):sorted.map(plan=>({plan,group:null}));
  return <div className="sending-planning__table-scroll"><table className="sending-planning__plans-table">
   <colgroup><col style={{width:110}}/><col style={{width:'23%'}}/><col style={{width:'16%'}}/><col style={{width:'13%'}}/><col style={{width:'20%'}}/><col style={{width:'14%'}}/><col style={{width:52}}/></colgroup>
-  <thead><tr><th>Дата</th><th>Маршрут</th><th>Тип / ТС</th><th>Паром / выход</th><th>Исполнение</th><th>Комментарий</th><th/></tr></thead>
+  <thead><tr>{([['date','Дата'],['route','Маршрут'],['vehicle','Тип / ТС'],['ferry','Паром / выход'],['execution','Исполнение'],['comment','Комментарий']] as const).map(([column,label])=><PlanningSortHeader key={column} column={column} label={label} sort={sort} onSort={onSort}/>)}<th/></tr></thead>
   <tbody>{rows.map(({plan,group})=><React.Fragment key={plan.id}>
    {group&&<tr className="sending-planning__vehicle-group"><th colSpan={7}><Cell title={group.label}>{group.label} · {group.plans.length} план.</Cell></th></tr>}
    <tr className="sending-planning__plan-row">

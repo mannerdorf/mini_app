@@ -1,8 +1,10 @@
 import {expect,it} from 'vitest';
 import {calendarDays,calendarWeekDays,localDateKey,planProgress,groupPlannedCargo,groupPlansByVehicle,planningVehicle,type SendingPlan} from './planningModel';
 const plan:SendingPlan={id:'id',revision:1,date:'2026-10-09',route:'MSK → KGD',mode:'auto',vehicleId:'tent',ferryId:null,ferryName:'',comment:'',cargo:[{id:'1:10',number:'10',customer:'Клиент',customerId:'1',receiver:'Получатель А',route:'MSK → KGD',received:'',weight:10,volume:1,places:2,readiness:'ready',reason:'',updatedAt:null},{id:'1:11',number:'11',customer:'Клиент',customerId:'1',receiver:'Получатель Б',route:'MSK → KGD',received:'',weight:20,volume:2,places:3,readiness:'ready',reason:'',updatedAt:null}],actualCargoNumbers:['10','10','other']};
-it('builds a Monday-first six-week calendar including cross-year dates and leap days',()=>{
- const days=calendarDays(new Date(2026,9,1));expect(days).toHaveLength(42);expect(days[0].getDay()).toBe(1);expect(localDateKey(days[0])).toBe('2026-09-28');expect(localDateKey(days[41])).toBe('2026-11-08');
+it('builds only the weeks covering the month, including cross-year dates and leap days',()=>{
+ const days=calendarDays(new Date(2026,9,1));expect(days).toHaveLength(35);expect(days[0].getDay()).toBe(1);expect(localDateKey(days[0])).toBe('2026-09-28');expect(localDateKey(days.at(-1)!)).toBe('2026-11-01');
+ expect(calendarDays(new Date(2027,1,1))).toHaveLength(28);
+ expect(calendarDays(new Date(2026,10,1))).toHaveLength(42);
  expect(calendarDays(new Date(2024,1,1)).map(localDateKey)).toContain('2024-02-29');
  expect(localDateKey(calendarDays(new Date(2027,0,1))[0])).toBe('2026-12-28');
 });

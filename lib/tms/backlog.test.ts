@@ -71,3 +71,9 @@ it('normalizes the planned delivery deadline from existing plan fields without u
  expect(normalizeCargo({DateArrivalPlan:'2026-10-12T00:00:00',DateDeliveryPlan:'09.10.2026',DatePrih:'2026-10-01'},null).plannedDeliveryDate).toBe('2026-10-09');
  expect(normalizeCargo({DateArrivalPlan:'0001-01-01',DateDeliveryPlan:'1900-01-01',DatePrih:'2026-10-01',DateVr:'2026-10-08'},null).plannedDeliveryDate).toBe('');
 });
+
+it('provides the shared SLA deadline even when the manual delivery date is empty',()=>{
+ expect(normalizeCargo({DatePrih:'2026-10-01',AK:true,CitySender:'Москва',CityReceiver:'Калининград'},null))
+  .toMatchObject({plannedDeliveryDate:'',slaDeadline:'2026-10-21T00:00:00.000Z',slaPlanDays:20});
+ expect(normalizeCargo({DatePrih:'0001-01-01',DateArrivalPlan:'2026-10-12'},null).slaDeadline).toBe('');
+});

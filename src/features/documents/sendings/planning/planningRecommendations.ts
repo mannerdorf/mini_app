@@ -15,6 +15,8 @@ export type RecommendationResult = {
   paidWeight: number;
   excluded: number;
   missingPaid: number;
+  missingDelivery?: number;
+  missingMetrics?: number;
   optimal: boolean;
   message?: string;
 };
@@ -26,7 +28,8 @@ const validDateKey = (value: string | undefined): boolean => {
   const date = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value;
 };
-const deliveryOrder = (a: TmsCargo, b: TmsCargo) => (a.plannedDeliveryDate || '9999').localeCompare(b.plannedDeliveryDate || '9999') || fifoOrder(a,b);
+const validSlaDeadline = (value: string | undefined) => !!value && validDateKey(value.slice(0,10)) && Number.isFinite(Date.parse(value));
+const deliveryOrder = (a: TmsCargo, b: TmsCargo) => Date.parse(a.slaDeadline!) - Date.parse(b.slaDeadline!) || fifoOrder(a,b);
 type Item = { cargo: TmsCargo; w: number; v: number; p: number };
 type SelectedNode = { item: Item; previous: SelectedNode | null };
 type State = { index: number; w: number; v: number; p: number; pick: SelectedNode | null };
@@ -96,12 +99,15 @@ export function recommendPlanningCargo(request: RecommendationRequest, maxNodes 
     return { ...empty, message: 'ТС переполнено — освободите место для подбора' };
   const excludedNumbers = new Set([...selected.map(cargo => cargo.number), ...request.locked]);
   const available = [...new Map(request.candidates.map(cargo => [cargo.number, cargo])).values()].filter(cargo => !excludedNumbers.has(cargo.number));
+  const missingDelivery=mode==='delivery'?available.filter(cargo=>!validSlaDeadline(cargo.slaDeadline)).length:0;
+  const missingMetrics=available.filter(cargo=>!known(cargo.weight)||!known(cargo.volume)).length;
   let excluded = 0;
   const eligible = available.filter(cargo => {
-    const valid = known(cargo.weight) && known(cargo.volume) && (mode === 'paid' ? known(cargo.paidWeight) : validDateKey(mode === 'delivery' ? cargo.plannedDeliveryDate : cargo.received));
+    const valid = known(cargo.weight) && known(cargo.volume) && (mode === 'paid' ? known(cargo.paidWeight) : mode === 'delivery' ? validSlaDeadline(cargo.slaDeadline) : validDateKey(cargo.received));
     if (!valid) excluded++;
     return valid;
   }).sort(mode === 'delivery' ? deliveryOrder : fifoOrder);
+  if(mode==='delivery'&&available.length>0&&missingDelivery===available.length)return {...empty,excluded,missingDelivery,missingMetrics,message:'Не удалось рассчитать срок по SLA: у доступных перевозок нет корректной даты поступления на склад отправления.'};
   const weight = Math.max(0, vehicle.payload - usedWeight), volume = Math.max(0, vehicle.volume - usedVolume);
   let recommended: TmsCargo[] = [], optimal = true;
   if (mode === 'fifo' || mode === 'delivery') {
@@ -117,5 +123,5 @@ export function recommendPlanningCargo(request: RecommendationRequest, maxNodes 
   }
   return { numbers: recommended.map(cargo => cargo.number), weight: recommended.reduce((sum, cargo) => sum + cargo.weight!, 0),
     volume: recommended.reduce((sum, cargo) => sum + cargo.volume!, 0), paidWeight: recommended.reduce((sum, cargo) => sum + (cargo.paidWeight || 0), 0),
-    excluded, missingPaid: recommended.filter(cargo => !known(cargo.paidWeight)).length, optimal };
+    excluded, missingDelivery, missingMetrics, missingPaid: recommended.filter(cargo => !known(cargo.paidWeight)).length, optimal };
 }

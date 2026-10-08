@@ -43,7 +43,7 @@ export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<
  ]);
  const ids=planResult.rows.map(plan=>plan.id);
  let cargo=ids.length?(await pool.query<{plan_id:string;snapshot:TmsCargo;cargo_number:string}>('SELECT plan_id,cargo_number,snapshot FROM sending_plan_cargo WHERE plan_id=ANY($1::uuid[]) ORDER BY position',[ids])).rows:[];
- const missingDetails=cargo.filter(item=>!item.snapshot.sender?.trim()||item.snapshot.paidWeight===undefined||item.snapshot.plannedDeliveryDate===undefined).map(item=>item.cargo_number);
+ const missingDetails=cargo.filter(item=>!item.snapshot.sender?.trim()||item.snapshot.paidWeight===undefined||item.snapshot.plannedDeliveryDate===undefined||item.snapshot.slaDeadline===undefined).map(item=>item.cargo_number);
  if(missingDetails.length){
   // Enrich legacy snapshots only where these fields were absent; preserve their recorded metrics.
   const cached=(await pool.query<{number:string;sender:string|null;paid_weight:unknown;payload:Record<string,unknown>}>(`SELECT DISTINCT ON (ltrim(btrim(doc_number),'0')) ltrim(btrim(doc_number),'0') AS number,
@@ -51,9 +51,13 @@ export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<
    FROM cache_perevozki_rows WHERE ltrim(btrim(doc_number),'0')=ANY($1::text[])
    ORDER BY ltrim(btrim(doc_number),'0'),updated_at DESC NULLS LAST`,[missingDetails])).rows;
   const details=new Map(cached.map(item=>[item.number,item]));
-  cargo=cargo.map(item=>({...item,snapshot:{...item.snapshot,sender:item.snapshot.sender?.trim()||details.get(item.cargo_number)?.sender||'',
-   paidWeight:item.snapshot.paidWeight===undefined?amount(details.get(item.cargo_number)?.paid_weight):item.snapshot.paidWeight,
-   plannedDeliveryDate:item.snapshot.plannedDeliveryDate===undefined?cargoPlannedDeliveryDateFromItem(details.get(item.cargo_number)?.payload||{}):item.snapshot.plannedDeliveryDate}}));
+  cargo=cargo.map(item=>{
+   const detail=details.get(item.cargo_number),normalized=item.snapshot.slaDeadline===undefined?normalizeCargo(detail?.payload||{},null):null;
+   return {...item,snapshot:{...item.snapshot,sender:item.snapshot.sender?.trim()||detail?.sender||'',
+    paidWeight:item.snapshot.paidWeight===undefined?amount(detail?.paid_weight):item.snapshot.paidWeight,
+    plannedDeliveryDate:item.snapshot.plannedDeliveryDate===undefined?cargoPlannedDeliveryDateFromItem(detail?.payload||{}):item.snapshot.plannedDeliveryDate,
+    ...(normalized?{slaDeadline:normalized.slaDeadline,slaPlanDays:normalized.slaPlanDays}:{})}};
+  });
  }
  const actual=await actualNumbers(pool,cargo.map(item=>item.cargo_number));
  const reserved=new Set(reservations.rows.map(row=>row.cargo_number));

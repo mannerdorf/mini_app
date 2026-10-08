@@ -63,6 +63,17 @@ it('reads paid weight from PW and enriches only missing legacy fields without ch
  const snapshot=(await db.query<{snapshot:Record<string,unknown>}>('SELECT snapshot FROM sending_plan_cargo WHERE cargo_number=$1',['142701'])).rows[0].snapshot;
  expect(snapshot).not.toHaveProperty('paidWeight');
 });
+
+it('enriches absent legacy SLA fields from cache without replacing recorded metrics or writing the snapshot',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ await db.query("UPDATE sending_plan_cargo SET snapshot=snapshot-'slaDeadline'-'slaPlanDays' WHERE plan_id=$1",[id]);
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({AK:true,W:999}),'000142701']);
+ const plan=(await list()).plans[0];
+ expect(plan.cargo[0]).toMatchObject({slaDeadline:'2026-10-26T00:00:00.000Z',slaPlanDays:20,weight:10});
+ expect(plan.cargo[1]).toMatchObject({slaDeadline:'2026-10-13T00:00:00.000Z',slaPlanDays:7});
+ const snapshot=(await db.query<{snapshot:Record<string,unknown>}>('SELECT snapshot FROM sending_plan_cargo WHERE cargo_number=$1',['142701'])).rows[0].snapshot;
+ expect(snapshot).not.toHaveProperty('slaDeadline');
+});
 it('validates actual sending membership, route, transport preset and active ferry at save time',async()=>{
  for(const invalid of [draft({cargoNumbers:['142705']}),draft({cargoNumbers:['142706']}),draft({cargoNumbers:['142704']}),draft({vehicleId:'20dc'}),draft({date:'2026-02-30'}),draft({mode:'ferry',vehicleId:'40hc',ferryId:2})])await expect(saveSendingPlan(pool,invalid,'staff')).rejects.toThrow();
  expect((await list()).plans).toHaveLength(0);

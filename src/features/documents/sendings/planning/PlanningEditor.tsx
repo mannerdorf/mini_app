@@ -1,8 +1,9 @@
 import React,{useMemo,useState} from 'react';
-import {Plus,Trash2,Pencil} from 'lucide-react';
+import {Plus,Pencil} from 'lucide-react';
 import {VEHICLES,type TmsCargo} from '../../../tms/model';
 import {MODE_LABELS,planningVehicle,missingPlanFields,needsFerry,usesRoadVehicle,type PlanDraft,type PlanningMode,type SendingPlan} from './planningModel';
 import {PlanningCargoPicker} from './PlanningCargoPicker';
+import {PlanningSelectedCargo} from './PlanningSelectedCargo';
 import {PlanningVehicleDimensions} from './PlanningVehicleDimensions';
 import {PlanningLoadSummary} from './PlanningLoadSummary';
 import {PlanningPeriodFilter,usePlanningPeriodFilter} from './PlanningPeriodFilter';
@@ -31,7 +32,6 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
   const editable=new Set(numbers.filter(number=>!actual.has(number)));
   onChange({...draft,cargoNumbers:include?[...new Set([...draft.cargoNumbers,...editable])]:draft.cargoNumbers.filter(number=>!editable.has(number))});
  };
- const toggle=(number:string)=>select([number],!draft.cargoNumbers.includes(number));
  return <form className="sending-planning__editor" onSubmit={event=>{event.preventDefault();onSave();}}>
   <fieldset disabled={busy}>
    {partial&&missing.length>0&&<p className="sending-planning__draft-notice">Черновик из Битрикса. Заполните: {missing.join(', ')}.</p>}
@@ -56,11 +56,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
     <div className="sending-planning__cargo-heading"><span>По выбранному маршруту и периоду</span><button type="button" className="button-primary" disabled={!draft.route} onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
     {pickerOpen&&<PlanningCargoPicker candidates={candidates} selectedCargo={selected} vehicle={vehicle} cargoNumbers={draft.cargoNumbers} locked={actual} onSelect={select}/>}
    </section>
-   <section className="sending-planning__form-section" aria-labelledby="planning-selected">
-    <h4 id="planning-selected" className="sending-planning__section-heading"><span>4</span>Выбранные перевозки · {selected.length}</h4>
-    <div className="sending-planning__selected">{selected.map(cargo=><div key={cargo.number}><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver}{actual.has(cargo.number)?' · Отправлена по данным 1С':''}</small></span>{!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>toggle(cargo.number)}><Trash2 size={16}/></button>}</div>)}</div>
-    {!selected.length&&<p className="sending-planning__muted">Добавьте перевозки в блоке подбора</p>}
-   </section>
+   <PlanningSelectedCargo draft={draft} cargo={selected} actual={actual} ferryName={draft.ferryId?ferries.find(ferry=>ferry.id===draft.ferryId)?.name||(plan?.ferryId===draft.ferryId?plan.ferryName:''):''} onRemove={numbers=>select(numbers,false)}/>
    <section className="sending-planning__form-section" aria-labelledby="planning-comment">
     <h4 id="planning-comment" className="sending-planning__section-heading"><span>5</span>Комментарий</h4>
     <textarea aria-label="Комментарий" maxLength={4000} rows={3} value={draft.comment} onChange={event=>onChange({...draft,comment:event.target.value})} placeholder="Указания кладовщику"/>

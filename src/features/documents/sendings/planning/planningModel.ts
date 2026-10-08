@@ -26,7 +26,9 @@ export function localDateKey(date:Date):string {
 export function calendarDays(month:Date):Date[] {
  const start=new Date(month.getFullYear(),month.getMonth(),1);
  start.setDate(start.getDate()-(start.getDay()+6)%7);
- return Array.from({length:42},(_,index)=>new Date(start.getFullYear(),start.getMonth(),start.getDate()+index));
+ const last=new Date(month.getFullYear(),month.getMonth()+1,0);
+ const length=Math.ceil(((new Date(month.getFullYear(),month.getMonth(),1).getDay()+6)%7+last.getDate())/7)*7;
+ return Array.from({length},(_,index)=>new Date(start.getFullYear(),start.getMonth(),start.getDate()+index));
 }
 export function planProgress(plan:SendingPlan) {
  const numbers=new Set(plan.cargo.map(cargo=>cargo.number));

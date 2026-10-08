@@ -2,6 +2,8 @@
  * Загрузка деталей перевозки (Getperevozka): статусы, номенклатура, мета (авто, водитель).
  */
 import { cityToCode } from "./formatUtils";
+import { mapTimelineStageLabel } from "../../lib/cargoTimelineLabels.js";
+export { mapTimelineStageLabel } from "../../lib/cargoTimelineLabels.js";
 import { formatPerevozkaNumberForApi } from "./perevozkaNumber";
 import type { AuthData, CargoItem, PerevozkaTimelineStep } from "../types";
 import { PROXY_API_GETPEREVOZKA_URL } from "../constants/config";
@@ -22,27 +24,6 @@ const NOMENCLATURE_KEYS = ['Packages', 'Nomenclature', 'Goods', 'CargoNomenclatu
 const GETPEREVOZKA_CLIENT_TIMEOUT_MS = 58_000;
 
 const TIMELINE_NEST_KEYS = ['Response', 'Data', 'Result', 'result', 'data'];
-
-function normalizeStageKey(s: string): string {
-    return s.replace(/\s+/g, '').toLowerCase();
-}
-
-export function mapTimelineStageLabel(raw: string, item: CargoItem): string {
-    const key = normalizeStageKey(raw);
-    const from = cityToCode(item.CitySender) || '—';
-    const to = cityToCode(item.CityReceiver) || '—';
-    if (/полученаинформация|получена\s*информация/.test(key)) return 'Получена информация';
-    if (/полученаотзаказчика|получена\s*от\s*заказчика/.test(key)) return `Получена в ${from}`;
-    if (/полученанаскладе|получена\s*на\s*складе/.test(key)) return `Получена в ${from}`;
-    if (/упакована/.test(key)) return 'Измерена';
-    if (/консолидация/.test(key)) return 'Консолидация';
-    if (/отправленаваэропорт|отправлена\s*в\s*аэропорт|загружена/.test(key)) return 'Загружена в ТС';
-    if (/улетела/.test(key)) return 'Отправлена';
-    if (/квручению|к\s*вручению/.test(key)) return `Прибыла в ${to}`;
-    if (/поставленанадоставку|поставлена\s*на\s*доставку|в\s*месте\s*прибытия/.test(key)) return 'Запланирована доставка';
-    if (/доставлена/.test(key)) return 'Доставлена';
-    return raw;
-}
 
 export function getTimelineStepColor(label: string): 'success' | 'warning' | 'danger' | 'purple' | 'default' {
     const lower = (label || '').toLowerCase();

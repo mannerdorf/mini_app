@@ -1,6 +1,7 @@
 import type { Pool } from "pg";
 import type { TmsCargo, Readiness } from "../../src/features/tms/model.js";
 import { cargoPlannedDeliveryDateFromItem } from "../cargoDateFilter.js";
+import { getSlaPlanDeadlineMs, getPlanDays } from "../cargoSla.js";
 import { cityToCode } from "../cityToCode.js";
 export const cleanNumber = (n: unknown) =>
   String(n ?? "")
@@ -48,6 +49,7 @@ export function normalizeCargo(
   const number = cleanNumber(item.Number),
     inn = text(item.INN),
     customer = text(item.Customer) || "Без заказчика";
+  const slaDeadline=getSlaPlanDeadlineMs(item);
   return {
     id: `${inn}:${number}`,
     number,
@@ -59,6 +61,8 @@ export function normalizeCargo(
       ? String(item.DatePrih).slice(0, 10)
       : "",
     plannedDeliveryDate: cargoPlannedDeliveryDateFromItem(item),
+    slaDeadline: slaDeadline>0&&new Date(slaDeadline).getUTCFullYear()>1900?new Date(slaDeadline).toISOString():'',
+    slaPlanDays: getPlanDays(item),
     route: `${cityToCode(item.CitySender) || "?"} → ${cityToCode(item.CityReceiver) || "?"}`,
     weight: amount(item.W),
     paidWeight: amount(item.PW),

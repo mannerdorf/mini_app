@@ -50,17 +50,24 @@ it('returns a feasible best-known set and does not claim an optimum when its sea
   const result = recommendPlanningCargo(request([cargo('1', 6, 6, 900), cargo('2', 8, 2, 700), cargo('3', 2, 8, 700)]), 0);
   expect(result.optimal).toBe(false); expect(result.weight).toBeLessThanOrEqual(10); expect(result.volume).toBeLessThanOrEqual(10);
 });
-it('prioritizes actual planned delivery deadlines, excludes undated cargo and respects remaining capacities', () => {
+it('prioritizes SLA deadlines over manual planned dates, excludes unknown SLA and respects remaining capacities', () => {
   const candidates=[
-    {...cargo('1',8,2,100,'2026-10-01'),plannedDeliveryDate:'2026-10-12'},
-    {...cargo('2',2,8,20,'2026-10-07'),plannedDeliveryDate:'2026-10-09'},
-    {...cargo('3',1,1,500,'2026-10-01'),plannedDeliveryDate:''},
-    {...cargo('4',1,1,500),plannedDeliveryDate:'2026-02-30'},
-    {...cargo('5',1,1,500,''),plannedDeliveryDate:'2026-10-08'},
-    {...cargo('6',1,1,500),plannedDeliveryDate:'2026-10-07'},
+    {...cargo('1',8,2,100,'2026-10-01'),slaDeadline:'2026-10-12T00:00:00Z',plannedDeliveryDate:'2026-10-01'},
+    {...cargo('2',2,8,20,'2026-10-07'),slaDeadline:'2026-10-09T00:00:00Z',plannedDeliveryDate:'2026-10-20'},
+    {...cargo('3',1,1,500,'2026-10-01'),slaDeadline:'',plannedDeliveryDate:'2026-10-01'},
+    {...cargo('4',1,1,500),slaDeadline:'2026-02-30'},
+    {...cargo('5',1,1,500,''),slaDeadline:'2026-10-08T00:00:00Z'},
+    {...cargo('6',1,1,500),slaDeadline:'2026-10-07T00:00:00Z'},
   ];
   const result=recommendPlanningCargo(request(candidates,{mode:'delivery',locked:['6']}));
   expect(result).toMatchObject({numbers:['5','2'],weight:3,volume:9,excluded:2});
   expect(recommendPlanningCargo(request(candidates,{mode:'delivery',selected:[cargo('outside',8,2)],locked:['5','6']})))
     .toMatchObject({numbers:['2'],weight:2,volume:8});
+});
+
+it('explains when delivery recommendations are blocked by missing deadlines, rather than by capacity',()=>{
+ const result=recommendPlanningCargo(request([cargo('1',1,1),cargo('2',2,2)],{mode:'delivery'}));
+ expect(result).toMatchObject({numbers:[],missingDelivery:2,missingMetrics:0,excluded:2});expect(result.message).toContain('нет корректной даты поступления');
+ const partial=recommendPlanningCargo(request([{...cargo('1',1,1),slaDeadline:'2026-10-09T00:00:00Z',plannedDeliveryDate:'2026-10-20'},cargo('2',2,2)],{mode:'delivery'}));
+ expect(partial).toMatchObject({numbers:['1'],missingDelivery:1,missingMetrics:0});expect(partial.message).toBeUndefined();
 });
