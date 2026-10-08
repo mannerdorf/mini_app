@@ -115,8 +115,9 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
   return (
                 <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <div className="cargo-list">
-                        {(canEditPlanDate || canRunSanctionsCheck) && (
+                        {(canEditPlanDate || canRunSanctionsCheck || showEorColumn) && (
                             <SendingsBulkActionsBar
+                                planningAuth={canEditPlanDate || showEorColumn ? auth : undefined}
                                 selectedCount={selectedVisibleSendingCount}
                                 canEditEor={canEditEor}
                                 canEditPlanDate={canEditPlanDate}

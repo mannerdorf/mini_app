@@ -2,8 +2,11 @@ import React from "react";
 import { Button, Typography } from "@maxhub/max-ui";
 import { Loader2 } from "lucide-react";
 import { EOR_STATUS_OPTIONS, type EorStatus } from "./sendingsTypes";
+import type {DocumentsAuth} from '../../../api/client/documentsAuth';
+import {SendingsPlanningButton} from './planning/SendingsPlanningButton';
 
 type Props = {
+  planningAuth?: DocumentsAuth | null;
   selectedCount: number;
   canEditEor: boolean;
   canEditPlanDate: boolean;
@@ -35,6 +38,7 @@ const dropdownStyle: React.CSSProperties = {
 };
 
 export function SendingsBulkActionsBar({
+  planningAuth,
   selectedCount,
   canEditEor,
   canEditPlanDate,
@@ -52,7 +56,7 @@ export function SendingsBulkActionsBar({
   onApplyPlanDate,
   onApplySanctionsCheck,
 }: Props) {
-  if (!canEditPlanDate && !canRunSanctionsCheck) return null;
+  if (!canEditPlanDate && !canRunSanctionsCheck && !planningAuth) return null;
 
   return (
     <div className="cargo-card sendings-bulk-actions-bar" style={{ overflow: "visible" }}>
@@ -155,6 +159,7 @@ export function SendingsBulkActionsBar({
             Санкции
           </Button>
         )}
+        {planningAuth && <SendingsPlanningButton auth={planningAuth} />}
       </div>
       {(actionError || actionInfo) && (
         <Typography.Body

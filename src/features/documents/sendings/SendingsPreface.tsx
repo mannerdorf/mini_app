@@ -5,6 +5,7 @@ import { formatCurrency } from "../../../lib/formatUtils";
 import { formatSendingMetricNum, type SendingVehicleTotalRow } from "./sendingsMetrics";
 import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { EorStatus } from "./sendingsTypes";
+import type {DocumentsAuth} from '../../../api/client/documentsAuth';
 
 type TableTotals = {
   sendingsCount: number;
@@ -14,6 +15,7 @@ type TableTotals = {
 };
 
 type Props = {
+  planningAuth?: DocumentsAuth | null;
   hasAnalytics: boolean;
   showSums: boolean;
   tableModeEffective: boolean;
@@ -43,6 +45,7 @@ type Props = {
 };
 
 export function SendingsPreface({
+  planningAuth,
   hasAnalytics,
   showSums,
   tableModeEffective,
@@ -72,8 +75,9 @@ export function SendingsPreface({
 }: Props) {
   return (
     <>
-      {(canEditPlanDate || canRunSanctionsCheck) && tableModeEffective && (
+      {(canEditPlanDate || canRunSanctionsCheck || planningAuth) && tableModeEffective && (
         <SendingsBulkActionsBar
+          planningAuth={planningAuth}
           selectedCount={selectedVisibleSendingCount}
           canEditEor={canEditEor}
           canEditPlanDate={canEditPlanDate}

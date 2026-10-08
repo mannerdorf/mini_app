@@ -7,6 +7,7 @@ import { SendingsSection } from "./SendingsSection";
 import { DocumentsStateBlocks } from "../views/documentsViewBlocks";
 import type { useDocumentsSendingsPage } from "./useDocumentsSendingsPage";
 import type { CargoStatusFilterKey } from "../../../lib/sharedListFilters";
+import {SendingsPlanningButton} from './planning/SendingsPlanningButton';
 
 type SendingsPageReturn = ReturnType<typeof useDocumentsSendingsPage>;
 
@@ -70,6 +71,7 @@ export function DocumentsSendingsSection({
             setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
           />
           <SendingsPreface
+            planningAuth={canEditPlanDate || sendingsSectionProps.showEorColumn ? sendingsSectionProps.auth : undefined}
             hasAnalytics={hasAnalytics}
             showSums={showSums}
             tableModeEffective={tableModeEffective}
@@ -103,9 +105,12 @@ export function DocumentsSendingsSection({
         </>
       )}
       {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
+        <>
+        {(canEditPlanDate || sendingsSectionProps.showEorColumn) && sendingsSectionProps.auth && <div className="cargo-card sendings-bulk-actions-bar"><SendingsPlanningButton auth={sendingsSectionProps.auth}/></div>}
         <Typography.Body className="text-empty-state" style={{ padding: "2rem 0" }}>
           Нет отправок за выбранный период
         </Typography.Body>
+        </>
       )}
     </>
   );
