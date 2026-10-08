@@ -1,11 +1,22 @@
 import {VEHICLES,type TmsCargo} from '../../../tms/model.js';
 
-export type PlanningMode='auto'|'ferry'|'air';
+export type PlanningMode='roro'|'ferry'|'auto'|'air'|'';
 export type PlanningView='cargo'|'customer'|'receiver';
-export type PlanDraft={id?:string;revision?:number;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
+export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
 export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[]};
 export type PlanningData={plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
-export const MODE_LABELS:Record<PlanningMode,string>={auto:'Авто',ferry:'Паром',air:'Авиа'};
+// Keep the persisted ferry value for existing container plans.
+export const MODE_LABELS:Record<PlanningMode,string>={roro:'RoRo',ferry:'Контейнер',auto:'Авто',air:'Авиа','':'Тип не указан'};
+export const needsFerry=(mode:PlanningMode)=>mode==='ferry'||mode==='roro';
+export const usesRoadVehicle=(mode:PlanningMode)=>mode==='auto'||mode==='roro';
+export function missingPlanFields(draft:PlanDraft):string[] {
+ const missing:string[]=[];
+ if(!draft.route)missing.push('маршрут');
+ if(!draft.mode)missing.push('тип транспорта');
+ if(draft.mode&&draft.mode!=='air'&&!draft.vehicleId)missing.push(usesRoadVehicle(draft.mode)?'тип ТС':'тип контейнера');
+ if(needsFerry(draft.mode)&&!draft.ferryId)missing.push('паром');
+ return missing;
+}
 export const DEFAULT_ROUTES=['MSK → KGD','KGD → MSK'];
 export const vehicleName=(id:string)=>VEHICLES.find(vehicle=>vehicle.id===id)?.name||'—';
 export function localDateKey(date:Date):string {

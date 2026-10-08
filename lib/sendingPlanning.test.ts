@@ -9,6 +9,7 @@ beforeAll(async()=>{
  db=new PGlite();
  await db.exec('CREATE TABLE ferries(id bigint PRIMARY KEY,name text,active boolean); CREATE TABLE sendings_metrics(cargo_numbers jsonb); CREATE TABLE cache_perevozki_rows(doc_number text PRIMARY KEY,doc_date timestamp,payload jsonb,updated_at timestamp);');
  await db.exec(readFileSync('migrations/130_sending_planning.sql','utf8'));
+ await db.exec(readFileSync('migrations/131_sending_planning_transport.sql','utf8'));
  await db.exec("INSERT INTO ferries VALUES(1,'FESCO NAVARIN',true),(2,'Неактивный паром',false)");
  const query=(sql:string,args?:any[])=>db.query(sql,args);
  pool={query,connect:async()=>({query,release(){}})};
@@ -67,6 +68,34 @@ it('validates actual sending membership, route, transport preset and active ferr
  expect((await list()).plans[0]).toMatchObject({mode:'ferry',vehicleId:'40hc',ferryName:'FESCO NAVARIN'});
  await saveSendingPlan(pool,draft({mode:'air',cargoNumbers:['142703']}),'staff');
  expect((await list()).plans.find(plan=>plan.mode==='air')).toMatchObject({vehicleId:'',ferryId:null});
+});
+it('supports RoRo with road presets and a ferry while preserving existing container plans',async()=>{
+ const container=await saveSendingPlan(pool,draft({mode:'ferry',vehicleId:'40hc',ferryId:1}),'staff');
+ await db.exec(readFileSync('migrations/131_sending_planning_transport.sql','utf8'));
+ expect((await list()).plans[0]).toMatchObject({id:container,mode:'ferry',vehicleId:'40hc',ferryId:1,isDraft:false});
+ for(const invalid of [draft({mode:'roro',vehicleId:'40hc',ferryId:1}),draft({mode:'roro',ferryId:null}),draft({mode:'roro',ferryId:2})])await expect(saveSendingPlan(pool,invalid,'staff')).rejects.toThrow();
+ const id=await saveSendingPlan(pool,draft({mode:'roro',vehicleId:'tent',ferryId:1,cargoNumbers:['142703']}),'staff');
+ expect((await list()).plans.find(plan=>plan.id===id)).toMatchObject({mode:'roro',vehicleId:'tent',ferryName:'FESCO NAVARIN',isDraft:false});
+ await saveSendingPlan(pool,draft({id,revision:1,mode:'auto',ferryId:1,cargoNumbers:['142703']}),'staff');
+ expect((await list()).plans.find(plan=>plan.id===id)).toMatchObject({mode:'auto',vehicleId:'tent',ferryId:null,ferryName:''});
+});
+it('retains imported incomplete plans and completes them without losing the source identity',async()=>{
+ const initial=draft({title:'Название из календаря',isDraft:true,route:'',mode:'',vehicleId:'',ferryId:1,cargoNumbers:[]});
+ const id=await saveSendingPlan(pool,initial,'import');
+ await db.query('UPDATE sending_plans SET source_key=$2 WHERE id=$1',[id,'bitrix:calendar:event']);
+ expect((await list()).plans[0]).toMatchObject({id,title:initial.title,isDraft:true,route:'',mode:'',vehicleId:'',ferryId:1});
+ await saveSendingPlan(pool,{...initial,id,revision:1,comment:'Заполню позже'},'staff');
+ expect((await list()).plans[0]).toMatchObject({revision:2,isDraft:true,comment:'Заполню позже'});
+ await saveSendingPlan(pool,draft({id,revision:2,title:initial.title,isDraft:true,mode:'roro',vehicleId:'tent',ferryId:1}),'staff');
+ expect((await list()).plans[0]).toMatchObject({revision:3,title:initial.title,isDraft:false,mode:'roro',route:'MSK → KGD'});
+ expect((await db.query('SELECT source_key FROM sending_plans WHERE id=$1',[id])).rows[0].source_key).toBe('bitrix:calendar:event');
+});
+it('allows only missing draft fields and rejects invalid presets, unnamed drafts and cargo without a route',async()=>{
+ const partial=draft({title:'Рейс',isDraft:true,route:'',mode:'ferry',vehicleId:'',ferryId:null,cargoNumbers:[]});
+ for(const invalid of [{...partial,title:''},{...partial,route:'???'},{...partial,mode:'rail'},{...partial,vehicleId:'tent'},{...partial,ferryId:2},{...partial,cargoNumbers:['142701']}])await expect(saveSendingPlan(pool,invalid,'staff')).rejects.toThrow();
+ expect((await list()).plans).toHaveLength(0);
+ await saveSendingPlan(pool,partial,'staff');
+ expect((await list()).plans[0]).toMatchObject({isDraft:true,mode:'ferry',vehicleId:'',ferryId:null});
 });
 it('calculates plan/fact from deduplicated padded cargo numbers and preserves shipped members',async()=>{
  const id=await saveSendingPlan(pool,draft(),'staff');
