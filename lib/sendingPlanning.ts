@@ -34,7 +34,16 @@ export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<
   pool.query<{id:string;name:string}>('SELECT id,name FROM ferries WHERE active=true ORDER BY name'),
  ]);
  const ids=planResult.rows.map(plan=>plan.id);
- const cargo=ids.length?(await pool.query<{plan_id:string;snapshot:TmsCargo;cargo_number:string}>('SELECT plan_id,cargo_number,snapshot FROM sending_plan_cargo WHERE plan_id=ANY($1::uuid[]) ORDER BY position',[ids])).rows:[];
+ let cargo=ids.length?(await pool.query<{plan_id:string;snapshot:TmsCargo;cargo_number:string}>('SELECT plan_id,cargo_number,snapshot FROM sending_plan_cargo WHERE plan_id=ANY($1::uuid[]) ORDER BY position',[ids])).rows:[];
+ const missingSenders=cargo.filter(item=>!item.snapshot.sender?.trim()).map(item=>item.cargo_number);
+ if(missingSenders.length){
+  // Plans saved before sender support retain their original snapshot; only fill this missing field.
+  const cached=(await pool.query<{number:string;sender:string}>(`SELECT DISTINCT ON (ltrim(btrim(doc_number),'0')) ltrim(btrim(doc_number),'0') AS number,btrim(payload->>'Sender') AS sender
+   FROM cache_perevozki_rows WHERE ltrim(btrim(doc_number),'0')=ANY($1::text[]) AND jsonb_typeof(payload->'Sender')='string' AND nullif(btrim(payload->>'Sender'),'') IS NOT NULL
+   ORDER BY ltrim(btrim(doc_number),'0'),updated_at DESC NULLS LAST`,[missingSenders])).rows;
+  const senders=new Map(cached.map(item=>[item.number,item.sender]));
+  cargo=cargo.map(item=>({...item,snapshot:{...item.snapshot,sender:item.snapshot.sender?.trim()||senders.get(item.cargo_number)||''}}));
+ }
  const actual=await actualNumbers(pool,cargo.map(item=>item.cargo_number));
  const reserved=new Set(reservations.rows.map(row=>row.cargo_number));
  const plans:SendingPlan[]=planResult.rows.map(plan=>({id:plan.id,revision:plan.revision,date:plan.planned_date,route:plan.route,mode:plan.mode,vehicleId:plan.vehicle_id,ferryId:plan.ferry_id?Number(plan.ferry_id):null,ferryName:plan.resolved_ferry_name,comment:plan.comment,cargo:cargo.filter(item=>item.plan_id===plan.id).map(item=>item.snapshot),actualCargoNumbers:cargo.filter(item=>item.plan_id===plan.id&&actual.has(item.cargo_number)).map(item=>item.cargo_number)}));

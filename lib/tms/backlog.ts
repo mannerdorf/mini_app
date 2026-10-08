@@ -53,6 +53,7 @@ export function normalizeCargo(
     customer,
     customerId: inn || customer,
     receiver: text(item.Receiver) || "Без получателя",
+    sender: text(item.Sender),
     received: validDate(item.DatePrih)
       ? String(item.DatePrih).slice(0, 10)
       : "",

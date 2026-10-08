@@ -18,6 +18,8 @@ it("normalizes actual rather than billable weight and does not invent pallets", 
       Number: "000142978",
       INN: "1",
       Customer: "Клиент",
+      Sender: " Отправитель ",
+      Receiver: "Получатель",
       W: "106,50",
       PW: 280,
       Value: "1.40",
@@ -32,6 +34,9 @@ it("normalizes actual rather than billable weight and does not invent pallets", 
   expect(c.route).toBe("MSK → KGD");
   expect(c.number).toBe("142978");
   expect(c.received).toBe("2026-10-07");
+  expect(c.sender).toBe("Отправитель");
+  expect(c.receiver).toBe("Получатель");
+  expect(normalizeCargo({Customer: 'Клиент', Receiver: 'Получатель'}, null).sender).toBe('');
   expect(amount("")).toBeNull();
   expect(amount("no")).toBeNull();
 });

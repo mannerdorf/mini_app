@@ -37,6 +37,16 @@ it('persists shared recommendations and reserves cargo across users and months',
  const outside=await readSendingPlans(pool,'2026-11-01','2026-12-01');
  expect(outside.plans).toHaveLength(0);expect(outside.available.map(cargo=>cargo.number)).not.toContain('142702');
 });
+it('fills missing sender fields in existing plan snapshots without changing their original cargo data',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ await db.query("UPDATE sending_plan_cargo SET snapshot=snapshot-'sender' WHERE plan_id=$1",[id]);
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({Sender:' Склад отправителя ',Customer:'Другое имя',W:999}), '000142701']);
+ const plan=(await list()).plans[0];
+ expect(plan.cargo[0]).toMatchObject({number:'142701',sender:'Склад отправителя',customer:'Клиент А',weight:10});
+ expect(plan.cargo[1].sender).toBe('');
+ const snapshot=(await db.query<{snapshot:Record<string,unknown>}>('SELECT snapshot FROM sending_plan_cargo WHERE cargo_number=$1',['142701'])).rows[0].snapshot;
+ expect(snapshot).not.toHaveProperty('sender');
+});
 it('validates actual sending membership, route, transport preset and active ferry at save time',async()=>{
  for(const invalid of [draft({cargoNumbers:['142705']}),draft({cargoNumbers:['142706']}),draft({cargoNumbers:['142704']}),draft({vehicleId:'20dc'}),draft({date:'2026-02-30'}),draft({mode:'ferry',vehicleId:'40hc',ferryId:2})])await expect(saveSendingPlan(pool,invalid,'staff')).rejects.toThrow();
  expect((await list()).plans).toHaveLength(0);

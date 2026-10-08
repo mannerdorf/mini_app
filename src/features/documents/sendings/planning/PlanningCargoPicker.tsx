@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { TmsCargo } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
-import { groupPickerCargo, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView } from './planningPickerModel';
+import { groupPickerHierarchy, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
 
 type Selection = {
   selected: Set<string>;
@@ -15,6 +15,7 @@ function Candidate({ cargo, selected, locked, onSelect }: Selection & { cargo: T
     <input type="checkbox" aria-label={`Добавить перевозку ${cargo.number}`} checked={selected.has(cargo.number)}
       disabled={locked.has(cargo.number)} onChange={event => onSelect([cargo.number], event.target.checked)} />
     <span><b>{cargo.number}</b><span>{cargo.customer}</span><small>{cargo.receiver}</small>
+      {cargo.sender && <small>Отправитель: {cargo.sender}</small>}
       {cargo.received && <small>Поступление: {receiptDateLabel(cargo.received)}</small>}
       {cargo.readiness === 'unreceived' && <small>Поступление на склад пока не подтверждено</small>}
     </span>
@@ -24,21 +25,24 @@ function Candidate({ cargo, selected, locked, onSelect }: Selection & { cargo: T
   </label>;
 }
 
-function CandidateGroup({ group, selected, locked, onSelect }: Selection & { group: ReturnType<typeof groupPickerCargo>[number] }) {
+function CandidateGroup({ group, selected, locked, onSelect, nested = false }: Selection & { group: PlanningPickerGroup; nested?: boolean }) {
   const [limit, setLimit] = useState(100);
   useEffect(() => setLimit(100), [group.cargo]);
   const editable = group.cargo.filter(cargo => !locked.has(cargo.number));
   const included = group.cargo.filter(cargo => selected.has(cargo.number)).length;
   const allIncluded = editable.length > 0 && editable.every(cargo => selected.has(cargo.number));
-  return <details className="sending-planning__picker-group">
+  const hasMore = limit < (group.children?.length ?? group.cargo.length);
+  return <details className={`sending-planning__picker-group${nested ? ' sending-planning__picker-group--nested' : ''}`}>
     <summary><span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume, 2)} м³</small>
       {included > 0 && <small>Выбрано: {included} из {group.cargo.length}</small>}</span><ChevronDown size={16} /></summary>
     <div className="sending-planning__picker-group-actions">
       <button type="button" className="filter-button" disabled={!editable.length}
         onClick={() => onSelect(editable.map(cargo => cargo.number), !allIncluded)}>{allIncluded ? 'Убрать группу' : 'Добавить группу'}</button>
     </div>
-    {group.cargo.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} onSelect={onSelect} />)}
-    {limit < group.cargo.length && <button type="button" className="filter-button" onClick={() => setLimit(value => value + 100)}>Показать ещё перевозки</button>}
+    {group.children ? <div className="sending-planning__picker-children">
+      {group.children.slice(0, limit).map(child => <CandidateGroup key={child.key} group={child} selected={selected} locked={locked} onSelect={onSelect} nested />)}
+    </div> : group.cargo.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} onSelect={onSelect} />)}
+    {hasMore && <button type="button" className="filter-button" onClick={() => setLimit(value => value + 100)}>{group.children ? 'Показать ещё группы' : 'Показать ещё перевозки'}</button>}
   </details>;
 }
 
@@ -50,10 +54,10 @@ export function PlanningCargoPicker({ candidates, cargoNumbers, locked, search, 
   const [limit, setLimit] = useState(100);
   useEffect(() => setLimit(100), [candidates, view]);
   const selected = useMemo(() => new Set(cargoNumbers), [cargoNumbers]);
-  const groups = useMemo(() => view === 'cargo' ? [] : groupPickerCargo(candidates, view), [candidates, view]);
+  const groups = useMemo(() => view === 'cargo' ? [] : groupPickerHierarchy(candidates, view), [candidates, view]);
   const hasMore = limit < (view === 'cargo' ? candidates.length : groups.length);
   return <section className="sending-planning__picker" aria-label="Неотправленные перевозки">
-    <input type="search" aria-label="Поиск перевозок" placeholder="Поиск по номеру, заказчику, получателю или дате" value={search} onChange={event => onSearch(event.target.value)} />
+    <input type="search" aria-label="Поиск перевозок" placeholder="Номер, участник перевозки или дата" value={search} onChange={event => onSearch(event.target.value)} />
     <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
       {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
     </div>
