@@ -17,7 +17,8 @@ it('deduplicates in-transit ferries in DB and keeps two-hour cadence',async()=>{
  mocks.request.mockResolvedValue(new Response('{}'));const r=res();
  await handler({method:'GET'} as any,r as any);
  expect(mocks.query.mock.calls[1][0]).toContain('SELECT DISTINCT');
- expect(mocks.query.mock.calls[1][0]).toContain('m.first_ready_at IS NULL');
+ expect(mocks.query.mock.calls[1][0]).toContain('m.first_ready_at IS NULL OR EXISTS');
+ expect(mocks.query.mock.calls[1][0]).toContain('cache_perevozki_rows');
  expect(mocks.request.mock.calls[0][2]).toBe(7200000);
  expect(r.status).toHaveBeenCalledWith(200);expect(mocks.release).toHaveBeenCalledOnce();
 });

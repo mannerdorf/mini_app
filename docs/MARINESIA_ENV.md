@@ -32,7 +32,9 @@
 Миграция `126_ferry_ais_cache.sql` добавляет общий кэш последней позиции для API и cron VPS.
 `/api/cron/refresh-ferry-ais` требует существующий CRON_SECRET и выбирает из БД только
 уникальные паромы отправок с началом пути и без прибытия на терминал
-(`sendings_metrics.send_start_at IS NOT NULL`, `first_ready_at IS NULL`). Запросов в 1С нет.
+(`sendings_metrics.send_start_at IS NOT NULL`, `first_ready_at IS NULL`).
+Частично прибывшие отправки остаются в отборе, если в кэше перевозок есть груз
+со статусом «В пути» / «Отправлена» / «Улетела». Запросов в 1С нет.
 Расписание в `deploy/crontab.haulz-cron.example`: один запуск каждые два часа.
 Перед включением применить миграцию, обновить код обоих VPS и установить строку расписания
 на cron VPS. Проверить HTTP-результат и `ferry_ais_cache.checked_at`. Пуш сам по себе

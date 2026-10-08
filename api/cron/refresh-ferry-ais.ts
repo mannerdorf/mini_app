@@ -16,7 +16,12 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
       const rows=(await client.query(`SELECT DISTINCT f.mmsi FROM ferries f
         JOIN sendings_ferry sf ON sf.ferry_id=f.id
         JOIN sendings_metrics m ON ltrim(btrim(sf.row_key),'0')=ltrim(btrim(m.sending_number),'0') AND (sf.inn IS NULL OR sf.inn=m.customer_inn)
-        WHERE m.send_start_at IS NOT NULL AND m.first_ready_at IS NULL
+        WHERE m.send_start_at IS NOT NULL AND (m.first_ready_at IS NULL OR EXISTS (
+            SELECT 1 FROM jsonb_array_elements_text(m.cargo_numbers) cargo(number)
+            JOIN cache_perevozki_rows c ON ltrim(btrim(c.doc_number),'0')=ltrim(btrim(cargo.number),'0')
+            WHERE lower(coalesce(c.payload->>'State',c.payload->>'state',c.payload->>'Статус',c.payload->>'Status',c.payload->>'StatusName','')) ~ '(пути|отправлен|улетела)'
+              AND lower(coalesce(c.payload->>'State',c.payload->>'state',c.payload->>'Статус',c.payload->>'Status',c.payload->>'StatusName','')) !~ '(доставлен|заверш)'
+          ))
           AND f.mmsi ~ '^[0-9]{9}$' ORDER BY f.mmsi`)).rows;
       const results=[];
       for(const {mmsi} of rows) {
