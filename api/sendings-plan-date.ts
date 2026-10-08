@@ -2,7 +2,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getPool } from './_db.js';
 import { respondCorsPreflight } from './_lib/cors.js';
 import { verifyRegisteredUser } from '../lib/verifyRegisteredUser.js';
-import { enqueuePlanDates, planDateNumber, resumePlanDate } from '../lib/planDateQueue.js';
+import { enqueuePlanDates, planDateNumber, resumePlanDate, restartPlanDates } from '../lib/planDateQueue.js';
 import { getSuperAdminRequestContext, isVerifiedSuperAdmin } from '../lib/adminDocumentCacheAccess.js';
 export default async function handler(req:VercelRequest,res:VercelResponse) {
  if(respondCorsPreflight(req,res)) return;
@@ -19,6 +19,10 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
      if(!verified) return res.status(401).json({error:'Войдите в приложение'});
      const user=(await pool.query('SELECT permissions FROM registered_users WHERE login=$1 AND active=true',[login])).rows[0];
      if(user?.permissions?.eor!==true && user?.permissions?.supervisor!==true) return res.status(403).json({error:'Нет права изменять плановую дату'});
+   }
+   if(body?.action==='restart') {
+     const tasks=await restartPlanDates(pool,body.tasks,login||'superadmin');
+     return res.status(202).json({ok:true,tasks});
    }
    if(body?.action==='resume') {
      const task=await resumePlanDate(pool,body.cargoNumber,body.date,body.updatedAt,login||'superadmin');

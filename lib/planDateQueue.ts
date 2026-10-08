@@ -42,6 +42,23 @@ export async function resumePlanDate(pool:Pool, number:unknown, date:unknown, up
   if(!result.rows.length) throw new Error('Запись уже изменилась или обрабатывается. Обновите очередь.');
   return result.rows[0];
 }
+/** Restart the displayed queue without resending confirmed or in-flight writes. */
+export async function restartPlanDates(pool:Pool, tasks:unknown, actor:string) {
+  if(!Array.isArray(tasks) || !tasks.length || tasks.length>500) throw new Error('Выберите от 1 до 500 записей очереди');
+  const requested=tasks.map(task=>{
+    if(!validPlanDate(task?.target_date) || typeof task?.updated_at!=='string' || !Number.isFinite(Date.parse(task.updated_at))) throw new Error('Обновите очередь перед перезапуском');
+    return {cargo_number:planDateNumber(task.cargo_number),target_date:task.target_date,updated_at:task.updated_at};
+  });
+  const result=await pool.query(`UPDATE plan_date_queue AS queue SET
+    state=CASE WHEN queue.state IN ('verifying','uncertain') THEN 'verifying' ELSE 'pending' END,
+    checks=0,last_error=NULL,requested_by=$2,next_at=now(),updated_at=now()
+    FROM jsonb_to_recordset($1::jsonb) AS requested(cargo_number text,target_date text,updated_at timestamptz)
+    WHERE queue.cargo_number=requested.cargo_number AND queue.target_date=requested.target_date
+      AND date_trunc('milliseconds',queue.updated_at)=date_trunc('milliseconds',requested.updated_at)
+      AND queue.state IN ('pending','error','verifying','uncertain') RETURNING queue.*`,[JSON.stringify(requested),actor]);
+  if(!result.rows.length) throw new Error('Записи уже изменились или обрабатываются. Обновите очередь.');
+  return result.rows;
+}
 export async function processPlanDateQueue(pool:Pool, io:PlanDateIO, verificationOnly=false) {
   const db=await pool.connect();
   let locked=false;

@@ -98,3 +98,12 @@ export async function resumePlanDateQueue(auth:DocumentsAuth,task:PlanDateQueueT
  if(!ok)throw new Error(data?.error||'Не удалось продолжить');
  return data.task;
 }
+
+export async function restartPlanDateQueue(auth:DocumentsAuth,tasks:PlanDateQueueTask[]):Promise<PlanDateQueueTask[]> {
+ const {ok,data}=await documentsFetchJson<{tasks:PlanDateQueueTask[];error?:string}>("/api/sendings-plan-date",{
+  method:'POST',headers:documentsAuthHeaders(auth,{'Content-Type':'application/json'}),
+  body:JSON.stringify({action:'restart',tasks:tasks.map(({cargo_number,target_date,updated_at})=>({cargo_number,target_date,updated_at}))})
+ });
+ if(!ok)throw new Error(data?.error||'Не удалось перезапустить очередь');
+ return data.tasks;
+}

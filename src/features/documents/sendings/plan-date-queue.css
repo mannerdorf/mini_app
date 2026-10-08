@@ -1,10 +1,12 @@
 .sending-plan-progress { display: inline-block; vertical-align: middle; max-width: 100%; }
+.sending-plan-progress__row { display: flex; align-items: flex-start; gap: 6px; width: 180px; max-width: 100%; }
+.sending-plan-progress__row details { flex: 1; min-width: 0; max-width: 150px; }
 .sending-plan-progress summary { list-style: none; cursor: pointer; }
 .sending-plan-progress summary::-webkit-details-marker { display: none; }
 .sending-plan-progress__bar {
   display: block;
   position: relative;
-  width: 150px;
+  width: 100%;
   max-width: 100%;
   height: 24px;
   overflow: hidden;
@@ -47,3 +49,8 @@
 
 .sending-plan-progress__resume { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 2px 4px; border: 0; background: transparent; color: var(--color-accent, #2563eb); cursor: pointer; font: inherit; }
 .sending-plan-progress__resume:disabled { opacity: .5; cursor: wait; }
+
+.sending-plan-progress__restart { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 24px; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; box-shadow: none; border-radius: 4px; color: var(--color-text-secondary, #64748b); cursor: pointer; }
+.sending-plan-progress__restart:hover:not(:disabled) { color: var(--color-accent, #2563eb); }
+.sending-plan-progress__restart:focus-visible { outline: 2px solid var(--color-accent, #2563eb); outline-offset: 2px; }
+.sending-plan-progress__restart:disabled { opacity: .45; cursor: default; }

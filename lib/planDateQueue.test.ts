@@ -1,7 +1,7 @@
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {PGlite} from '@electric-sql/pglite';
 import {readFileSync} from 'node:fs';
-import {enqueuePlanDates,processPlanDateQueue,resumePlanDate} from './planDateQueue';
+import {enqueuePlanDates,processPlanDateQueue,resumePlanDate,restartPlanDates} from './planDateQueue';
 import {extractConfirmedPlanDate} from './planDateService';
 let db:PGlite,pool:any;
 beforeEach(async()=>{
@@ -80,4 +80,30 @@ it('reconciles only verification tasks and preserves the actual verification err
  expect(rows[0].state).toBe('pending');
  expect(rows[1].state).toBe('uncertain');
  expect(rows[1].last_error).toContain('не заполнена');
+});
+
+it('restarts the unfinished batch while preserving completed writes and verifying unknown outcomes',async()=>{
+ const states=['done','sending','pending','error','verifying','uncertain'];
+ await enqueuePlanDates(pool,states.map((_,index)=>String(142716+index)),'2026-09-30','user');
+ for(const [index,state] of states.entries()) await db.query("UPDATE plan_date_queue SET state=$2,checks=3,attempts=2,next_at=now()+interval '1 day',last_error='previous' WHERE cargo_number=$1",[String(142716+index).padStart(9,'0'),state]);
+ const before=(await db.query<any>('SELECT * FROM plan_date_queue ORDER BY cargo_number')).rows;
+ const updated=await restartPlanDates(pool,before.map(row=>({...row,updated_at:new Date(row.updated_at).toISOString()})),'dispatcher');
+ expect(updated).toHaveLength(4);
+ const rows=(await db.query<any>('SELECT *,next_at<=now() AS due FROM plan_date_queue ORDER BY cargo_number')).rows;
+ expect(rows.map(row=>row.state)).toEqual(['done','sending','pending','pending','verifying','verifying']);
+ expect(rows.slice(0,2).map(row=>row.requested_by)).toEqual(['user','user']);
+ expect(rows.slice(2).every(row=>row.checks===0&&row.attempts===2&&row.last_error===null&&row.due&&row.requested_by==='dispatcher')).toBe(true);
+ const io={write:vi.fn(async()=>({ok:true})),read:vi.fn(async()=>'2026-09-30')};
+ await processPlanDateQueue(pool,io,true);
+ expect(io.write).not.toHaveBeenCalled();expect(io.read).toHaveBeenCalledTimes(1);
+});
+
+it('rejects stale batch snapshots and malformed requests without replacing a newer date',async()=>{
+ await enqueuePlanDates(pool,['142716'],'2026-09-30','user');
+ const before=await task();before.updated_at=new Date(before.updated_at).toISOString();
+ await enqueuePlanDates(pool,['142716'],'2026-10-01','other');
+ await expect(restartPlanDates(pool,[before],'dispatcher')).rejects.toThrow('изменились');
+ for(const invalid of [null,[],[null],[{...before,updated_at:undefined}],[{...before,target_date:'2026-02-30'}]]) await expect(restartPlanDates(pool,invalid,'dispatcher')).rejects.toThrow();
+ expect((await task()).target_date).toBe('2026-10-01');
+ expect((await task()).requested_by).toBe('other');
 });
