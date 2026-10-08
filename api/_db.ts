@@ -30,9 +30,9 @@ function normalizeConnectionString(connectionString: string, useSsl: boolean): s
   if (!useSsl) return connectionString;
   try {
     const url = new URL(connectionString);
-    if (!url.searchParams.has("sslmode")) {
-      url.searchParams.set("sslmode", "require");
-    }
+    // pg parses sslmode after the explicit ssl object and replaces its options.
+    // Keep the TLS policy from resolvePgSsl instead of losing it to the URL.
+    url.searchParams.delete("sslmode");
     return url.toString();
   } catch {
     return connectionString;
