@@ -1,0 +1,13 @@
+HAULZ browser adaptations of loading algorithms. Modified in October 2026.
+
+LAFF algorithm source: https://github.com/skjolber/3d-bin-container-packing
+Commit: 0206e88f7c394ae58a8e6469b0f4494a1294b718
+License: Apache-2.0 (LAFF-LICENSE.txt)
+
+LoadZa source: https://github.com/HamzaMrA/LoadZa
+Commit: 2b9f0c34570d5fdd67172e4147bdf4658a86d5d4
+License: MIT (LoadZa-LICENSE.txt)
+The original copyright notice is included in LoadZa-LICENSE.txt.
+
+These adaptations are not the unchanged upstream Java or Python software.
+Details: docs/tms-packing-engines.md in the HAULZ repository.

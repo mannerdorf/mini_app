@@ -4,10 +4,12 @@ self.onmessage = (
   event: MessageEvent<{ cargo: TmsCargo[]; options: PlanOptions }>,
 ) => {
   try {
+    const started = performance.now();
+    const plan = planLoad(event.data.cargo, event.data.options, (progress) =>
+      self.postMessage({ progress }),
+    );
     self.postMessage({
-      plan: planLoad(event.data.cargo, event.data.options, (progress) =>
-        self.postMessage({ progress }),
-      ),
+      plan: { ...plan, calculationMs: Math.round(performance.now() - started) },
     });
   } catch (e) {
     self.postMessage({

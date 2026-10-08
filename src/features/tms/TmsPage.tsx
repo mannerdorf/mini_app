@@ -12,12 +12,15 @@ import type { AuthData } from "../../types";
 import { apiFetchJson } from "../../utils";
 import {
   VEHICLES,
+  PACKING_ENGINES,
+  type PackingEngine,
   type TmsCargo,
   type PlanOptions,
   type LoadPlan,
   type Vehicle,
   type PackageGroup,
 } from "./model";
+import { anonymousJob } from "./anonymousJob";
 import { cargoProblem, validateOptions } from "./planner";
 import { LoadScene, COLORS } from "./LoadScene";
 import { PackageEditor } from "./PackageEditor";
@@ -206,16 +209,27 @@ export function TmsPage({
     [error, setError] = useState(""),
     [revision, setRevision] = useState(0),
     [checkedAt, setCheckedAt] = useState("");
+  const [engine, setEngine] = useState<PackingEngine>("laff");
+  const [plans, setPlans] = useState<Partial<Record<PackingEngine, LoadPlan>>>(
+    {},
+  );
+  const plan = plans[engine] ?? null;
   const [assigned, setAssigned] = useState(0);
   const [packages, setPackages] = useState<Record<string, PackageGroup[]>>({});
   const [requireDimensions, setRequireDimensions] = useState(false);
   const [estimatedTopLoadFactor, setEstimatedTopLoadFactor] = useState(2);
-  const [estimatedStacking, setEstimatedStacking] = useState<"height" | "load">("height");
+  const [estimatedStacking, setEstimatedStacking] = useState<"height" | "load">(
+    "height",
+  );
   const [editing, setEditing] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
-  const [planningProgress, setPlanningProgress] = useState<{ completed: number; total: number; bestVolume: number } | null>(null);
+  const [planningProgress, setPlanningProgress] = useState<{
+    completed: number;
+    total: number;
+    bestVolume: number;
+  } | null>(null);
   const workerRef = useRef<Worker | null>(null);
-  const [mode, setMode] = useState<Vehicle["mode"]>("road"),
+  const [mode, setMode] = useState<Vehicle["mode"] | "mixed">("mixed"),
     [vehicle, setVehicle] = useState<Vehicle>(() =>
       structuredClone(VEHICLES[0]),
     );
@@ -231,7 +245,6 @@ export function TmsPage({
     [route, setRoute] = useState(""),
     [grouping, setGrouping] = useState<"customer" | "date">("customer");
   const [excluded, setExcluded] = useState<string[]>([]),
-    [plan, setPlan] = useState<LoadPlan | null>(null),
     [planError, setPlanError] = useState("");
   useEffect(() => {
     setPallets({});
@@ -246,7 +259,7 @@ export function TmsPage({
     setItems([]);
     setLoading(true);
     setError("");
-    setPlan(null);
+    setPlans({});
     const post = (numbers?: string[]) =>
       apiFetchJson<{ items: TmsCargo[]; assigned: number; checkedAt: string }>(
         "/api/tms-backlog",
@@ -308,7 +321,7 @@ export function TmsPage({
     ],
   );
   useEffect(() => {
-    setPlan(null);
+    setPlans({});
     setPlanError("");
     workerRef.current?.terminate();
     workerRef.current = null;
@@ -375,12 +388,24 @@ export function TmsPage({
     setCalculating(true);
     setPlanningProgress(null);
     setPlanError("");
-    setPlan(null);
+    setPlans((current) => {
+      const next = { ...current };
+      delete next[engine];
+      return next;
+    });
+    const job = anonymousJob(candidates, { ...options, engine });
     worker.onmessage = (e) => {
       if (workerRef.current !== worker) return;
-      if (e.data.progress) { setPlanningProgress(e.data.progress); return; }
+      if (e.data.progress) {
+        setPlanningProgress(e.data.progress);
+        return;
+      }
       setCalculating(false);
-      setPlan(e.data.plan ?? null);
+      if (e.data.plan)
+        setPlans((current) => ({
+          ...current,
+          [engine]: job.restore(e.data.plan),
+        }));
       setPlanError(e.data.error ?? "");
       worker.terminate();
       workerRef.current = null;
@@ -392,7 +417,7 @@ export function TmsPage({
       worker.terminate();
       workerRef.current = null;
     };
-    worker.postMessage({ cargo: candidates, options });
+    worker.postMessage({ cargo: job.cargo, options: job.options });
   };
   const export3d = () => {
     if (!plan) return;
@@ -400,7 +425,12 @@ export function TmsPage({
       new Blob(
         [
           JSON.stringify(
-            { version: 1, createdAt: new Date().toISOString(), options, plan },
+            {
+              version: 2,
+              createdAt: new Date().toISOString(),
+              options: { ...options, engine },
+              plan,
+            },
             null,
             2,
           ),
@@ -486,37 +516,160 @@ export function TmsPage({
           Обновить
         </button>
       </header>
+      <section className="tms-card tms-engines">
+        <h2>Метод укладки</h2>
+        <div className="tms-tabs" role="tablist" aria-label="Метод укладки">
+          {PACKING_ENGINES.map((method) => (
+            <button
+              key={method.id}
+              role="tab"
+              id={`tms-engine-${method.id}`}
+              aria-selected={engine === method.id}
+              aria-pressed={engine === method.id}
+              tabIndex={engine === method.id ? 0 : -1}
+              aria-controls="tms-engine-panel"
+              disabled={calculating}
+              onKeyDown={(event) => {
+                if (
+                  !["ArrowLeft", "ArrowRight", "Home", "End"].includes(
+                    event.key,
+                  )
+                )
+                  return;
+                event.preventDefault();
+                const index = PACKING_ENGINES.findIndex((m) => m.id === engine);
+                const next =
+                  event.key === "Home"
+                    ? 0
+                    : event.key === "End"
+                      ? PACKING_ENGINES.length - 1
+                      : (index +
+                          (event.key === "ArrowRight" ? 1 : -1) +
+                          PACKING_ENGINES.length) %
+                        PACKING_ENGINES.length;
+                setEngine(PACKING_ENGINES[next].id);
+                setPlanError("");
+                document
+                  .getElementById(`tms-engine-${PACKING_ENGINES[next].id}`)
+                  ?.focus();
+              }}
+              onClick={() => {
+                setEngine(method.id);
+                setPlanError("");
+              }}
+            >
+              {method.name}
+              {plans[method.id] && (
+                <span> · {fmt(plans[method.id]!.volume)} м³</span>
+              )}
+            </button>
+          ))}
+        </div>
+        <div
+          id="tms-engine-panel"
+          role="tabpanel"
+          aria-labelledby={`tms-engine-${engine}`}
+        >
+          <p>{PACKING_ENGINES.find((m) => m.id === engine)!.description}</p>
+          <p className="tms-muted">
+            Общие параметры и грузы для всех методов. Результаты сохраняются во
+            вкладках до изменения условий.
+          </p>
+          <p className="tms-muted">
+            Без габаритов — одинаковые расчётные места по количеству, весу и
+            объёму. Введённые Д × Ш × В и вес каждого места используются вместо
+            оценки.
+          </p>
+        </div>
+        {Object.keys(plans).length > 0 && (
+          <div className="tms-table-scroll">
+            <table className="tms-comparison">
+              <thead>
+                <tr>
+                  <th>Метод</th>
+                  <th>Объём</th>
+                  <th>Вес</th>
+                  <th>Перевозок / мест</th>
+                  <th>Время</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PACKING_ENGINES.flatMap((m) => {
+                  const result = plans[m.id];
+                  return result
+                    ? [
+                        <tr key={m.id}>
+                          <td>{m.name}</td>
+                          <td>
+                            {fmt(result.volume)} м³ ·{" "}
+                            {fmt((result.volume / result.volumeLimit) * 100)}%
+                          </td>
+                          <td>{fmt(result.weight)} кг</td>
+                          <td>
+                            {result.selected.length} /{" "}
+                            {result.placements.length}
+                          </td>
+                          <td>{fmt((result.calculationMs ?? 0) / 1000)} с</td>
+                        </tr>,
+                      ]
+                    : [];
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
       <section className="tms-card">
         <div className="tms-section-heading">
           <h2>Параметры рейса</h2>
           <div className="tms-tabs">
-            {(["road", "ferry"] as const).map((m) => (
+            {(["mixed", "road", "ferry"] as const).map((m) => (
               <button
                 key={m}
                 aria-pressed={mode === m}
                 onClick={() => {
                   setMode(m);
-                  pickVehicle(VEHICLES.find((v) => v.mode === m)!.id);
+                  if (m !== "mixed" && vehicle.mode !== m)
+                    pickVehicle(VEHICLES.find((v) => v.mode === m)!.id);
                 }}
               >
-                {m === "road" ? <Truck size={16} /> : <Ship size={16} />}{" "}
-                {m === "road" ? "Авто" : "Паром"}
+                {m === "mixed" ? (
+                  <Package size={16} />
+                ) : m === "road" ? (
+                  <Truck size={16} />
+                ) : (
+                  <Ship size={16} />
+                )}{" "}
+                {m === "mixed" ? "Сборный" : m === "road" ? "Авто" : "Паром"}
               </button>
             ))}
           </div>
         </div>
+        {mode === "mixed" && (
+          <p className="tms-muted">
+            Все типы ТС и неотправленные грузы. Отбор по маршруту и периоду
+            сохраняется.
+          </p>
+        )}
         <div className="tms-fields">
           <label>
-            Тип {mode === "road" ? "ТС" : "контейнера"}
+            Тип{" "}
+            {mode === "mixed"
+              ? "ТС / контейнера"
+              : mode === "road"
+                ? "ТС"
+                : "контейнера"}
             <select
               value={vehicle.id}
               onChange={(e) => pickVehicle(e.target.value)}
             >
-              {VEHICLES.filter((v) => v.mode === mode).map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.name}
-                </option>
-              ))}
+              {VEHICLES.filter((v) => mode === "mixed" || v.mode === mode).map(
+                (v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ),
+              )}
             </select>
           </label>
           <label>
@@ -702,9 +855,9 @@ export function TmsPage({
         <div>
           <h2>Правила размещения · 3D</h2>
           <p className="tms-muted">
-            Палеты на полу, если не разрешена укладка друг на друга. Плотный и тяжёлый груз — ниже; лёгкий — на
-            разрешённых опорах. Учитываем суммарную нагрузку всех верхних
-            ярусов.
+            Палеты на полу, если не разрешена укладка друг на друга. Плотный и
+            тяжёлый груз — ниже; лёгкий — на разрешённых опорах. Учитываем
+            суммарную нагрузку всех верхних ярусов.
           </p>
         </div>
         <label>
@@ -719,23 +872,63 @@ export function TmsPage({
           <div className="tms-fields">
             <label>
               Укладка без замеров
-              <select value={estimatedStacking} onChange={(e) => setEstimatedStacking(e.target.value as "height" | "load")}>
-                <option value="height">До потолка · предварительный расчёт</option>
+              <select
+                value={estimatedStacking}
+                onChange={(e) =>
+                  setEstimatedStacking(e.target.value as "height" | "load")
+                }
+              >
+                <option value="height">
+                  До потолка · предварительный расчёт
+                </option>
                 <option value="load">Ограничить массу сверху</option>
               </select>
             </label>
             <label>
-              Нагрузка сверху · ×{Number.isFinite(estimatedTopLoadFactor) ? fmt(estimatedTopLoadFactor, 2) : "—"} собственного веса
-              <input type="range" aria-label="Нагрузка сверху в собственных массах"
-                min={0} max={20} step={0.5} value={Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : 0}
-                onChange={(e) => { setEstimatedTopLoadFactor(+e.target.value); setEstimatedStacking("load"); }} />
-              <input type="number" aria-label="Множитель нагрузки сверху" min={0} max={20} step={0.5}
-                value={Number.isFinite(estimatedTopLoadFactor) ? estimatedTopLoadFactor : ""} onChange={(e) => {
-                  setEstimatedTopLoadFactor(e.target.value === "" ? NaN : +e.target.value); setEstimatedStacking("load");
-                }} />
-              <small>{estimatedStacking === "height"
-                ? "Без ограничения прочности в предварительной модели. Бегунок включит ограничение массы."
-                : `Место 10 кг: суммарно сверху до ${Number.isFinite(estimatedTopLoadFactor) ? fmt(estimatedTopLoadFactor * 10, 2) : "—"} кг. 0 — ничего сверху.`}</small>
+              Нагрузка сверху · ×
+              {Number.isFinite(estimatedTopLoadFactor)
+                ? fmt(estimatedTopLoadFactor, 2)
+                : "—"}{" "}
+              собственного веса
+              <input
+                type="range"
+                aria-label="Нагрузка сверху в собственных массах"
+                min={0}
+                max={20}
+                step={0.5}
+                value={
+                  Number.isFinite(estimatedTopLoadFactor)
+                    ? estimatedTopLoadFactor
+                    : 0
+                }
+                onChange={(e) => {
+                  setEstimatedTopLoadFactor(+e.target.value);
+                  setEstimatedStacking("load");
+                }}
+              />
+              <input
+                type="number"
+                aria-label="Множитель нагрузки сверху"
+                min={0}
+                max={20}
+                step={0.5}
+                value={
+                  Number.isFinite(estimatedTopLoadFactor)
+                    ? estimatedTopLoadFactor
+                    : ""
+                }
+                onChange={(e) => {
+                  setEstimatedTopLoadFactor(
+                    e.target.value === "" ? NaN : +e.target.value,
+                  );
+                  setEstimatedStacking("load");
+                }}
+              />
+              <small>
+                {estimatedStacking === "height"
+                  ? "Без ограничения прочности в предварительной модели. Бегунок включит ограничение массы."
+                  : `Место 10 кг: суммарно сверху до ${Number.isFinite(estimatedTopLoadFactor) ? fmt(estimatedTopLoadFactor * 10, 2) : "—"} кг. 0 — ничего сверху.`}
+              </small>
             </label>
           </div>
         )}
@@ -834,9 +1027,9 @@ export function TmsPage({
                             <span className="tms-priority">Приоритет</span>
                           )}
                           <small>{date(c.received)}</small>
-                          {cargoProblem(c, options) && (
+                          {cargoProblem(c, { ...options, engine }) && (
                             <small className="tms-problem">
-                              {cargoProblem(c, options)}
+                              {cargoProblem(c, { ...options, engine })}
                             </small>
                           )}
                         </td>
@@ -933,7 +1126,11 @@ export function TmsPage({
             onClick={calculate}
           >
             <Package size={18} />
-            {calculating ? planningProgress ? `Вариант ${planningProgress.completed} / ${planningProgress.total}` : "Расчёт 3D…" : "Рассчитать 3D"}
+            {calculating
+              ? planningProgress
+                ? `Вариант ${planningProgress.completed} / ${planningProgress.total}`
+                : "Расчёт 3D…"
+              : `Рассчитать ${PACKING_ENGINES.find((m) => m.id === engine)!.name}`}
           </button>
           {calculating && (
             <button
@@ -947,7 +1144,12 @@ export function TmsPage({
             </button>
           )}
         </div>
-        {calculating && planningProgress && <p className="tms-muted" role="status">Лучшее заполнение пока: {fmt(planningProgress.bestVolume)} м³. Сравниваем способы укладки.</p>}
+        {calculating && planningProgress && (
+          <p className="tms-muted" role="status">
+            Лучшее заполнение пока: {fmt(planningProgress.bestVolume)} м³.
+            Сравниваем способы укладки.
+          </p>
+        )}
         {(planError || validateOptions(options)) && (
           <p role="alert" className="tms-problem">
             {planError || validateOptions(options)}
@@ -958,7 +1160,10 @@ export function TmsPage({
         <section className="tms-card tms-result">
           <div className="tms-section-heading">
             <div>
-              <h2>План загрузки</h2>
+              <h2>
+                План загрузки ·{" "}
+                {PACKING_ENGINES.find((m) => m.id === engine)!.name}
+              </h2>
               <p className="tms-muted">
                 {vehicle.name} · {plan.selected[0]?.route ?? route} ·{" "}
                 {plan.selected.length} перевозок
@@ -1016,6 +1221,7 @@ export function TmsPage({
               : `Сравнили ${plan.variantsChecked ?? 6} вариантов отбора и укладки; выбран наибольший объём с сохранением приоритетов.`}
           </p>
           <LoadScene
+            key={engine}
             plan={plan}
             vehicle={vehicle}
             estimatedTopLoadFactor={estimatedTopLoadFactor}

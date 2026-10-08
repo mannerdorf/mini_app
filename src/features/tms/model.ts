@@ -87,6 +87,7 @@ export type PackageGroup = {
   rotate: boolean;
 };
 export type PlanOptions = {
+  engine?: PackingEngine;
   packages?: Record<string, PackageGroup[]>;
   requireDimensions?: boolean;
   // Preliminary assumption only; 0 disables estimated supports. Measured rules take precedence.
@@ -123,6 +124,9 @@ export type Placement = {
   maxTopLoad: number;
 };
 export type LoadPlan = {
+  engine?: PackingEngine;
+  calculationMs?: number;
+  estimatedPlaces?: number;
   variantsChecked?: number;
   selected: TmsCargo[];
   omitted: { cargo: TmsCargo; reason: string }[];
@@ -134,3 +138,23 @@ export type LoadPlan = {
   payloadLimit: number;
   volumeLimit: number;
 };
+export type PackingEngine = "current" | "laff" | "loadza";
+export const PACKING_ENGINES = [
+  {
+    id: "laff",
+    name: "LAFF",
+    description:
+      "Крупные основания первыми, заполнение пространства внутри ярусов.",
+  },
+  {
+    id: "loadza",
+    name: "LoadZa",
+    description:
+      "Размещение в свободных углах, контакт с соседями и поиск лучшей последовательности.",
+  },
+  {
+    id: "current",
+    name: "Текущий",
+    description: "Предыдущий расчёт для сравнения.",
+  },
+] as const;

@@ -4,8 +4,10 @@ import {
   packageProblem,
   packedVolume,
   packedWeight,
+  packingUnits,
   type PackingStrategy,
 } from "./packing3d";
+import { auditPacking } from "./packingEngines";
 const EPS = 1e-7;
 const positive = (n: unknown): n is number =>
   typeof n === "number" && Number.isFinite(n) && n > 0;
@@ -198,11 +200,12 @@ export function planLoad(
     }
     return false;
   };
-  const modes: PackingStrategy[] = [
-    "density-low",
-    "density-compact",
-    "area-compact",
-  ];
+  const modes: PackingStrategy[] =
+    o.engine === "laff"
+      ? ["laff", "laff-dense"]
+      : o.engine === "loadza"
+        ? ["loadza-layer", "loadza-dbl", "loadza-contact"]
+        : ["density-low", "density-compact", "area-compact"];
   const selectionCount = o.strictSelection ? 1 : 6;
   const total = modes.length * selectionCount;
   let best: LoadPlan | null = null,
@@ -214,5 +217,16 @@ export function planLoad(
       completed++;
       onProgress?.({ completed, total, bestVolume: best.volume });
     }
-  return { ...best!, variantsChecked: completed };
+  const issue = auditPacking(
+    best!.placements,
+    packingUnits(best!.selected, o),
+    o.vehicle.compartments,
+  );
+  if (issue) throw new Error(`План не прошёл проверку: ${issue}`);
+  return {
+    ...best!,
+    variantsChecked: completed,
+    engine: o.engine ?? "current",
+    estimatedPlaces: best!.placements.filter((p) => p.estimated).length,
+  };
 }

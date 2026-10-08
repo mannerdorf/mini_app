@@ -5,6 +5,7 @@ import {
   mergeFloorRects,
   type FloorRect,
 } from "./packing";
+import { packWithEngine, type ExternalStrategy } from "./packingEngines";
 const EPS = 1e-6;
 export function packageGroups(
   c: TmsCargo,
@@ -51,6 +52,13 @@ export function packageGroups(
 }
 export function packageProblem(c: TmsCargo, o: PlanOptions): string | null {
   const { groups, estimated } = packageGroups(c, o);
+  if (
+    estimated &&
+    (o.engine === "laff" || o.engine === "loadza") &&
+    !o.floorCustomers.includes(c.customerId) &&
+    (!Number.isInteger(c.places) || !c.places || c.places < 1)
+  )
+    return "Укажите количество грузовых мест для расчётной модели";
   if (estimated && o.requireDimensions)
     return "Введите габариты и массу грузовых мест";
   if (
@@ -89,7 +97,7 @@ export const packedWeight = (c: TmsCargo, o: PlanOptions) =>
     c.weight ?? 0,
     packageGroups(c, o).groups.reduce((s, g) => s + g.count * g.weight, 0),
   );
-type Unit = PackageGroup & {
+export type Unit = PackageGroup & {
   cargoId: string;
   unit: string;
   estimated: boolean;
@@ -98,7 +106,26 @@ type Unit = PackageGroup & {
 type Surface = { parents: string[]; z: number; free: FloorRect[] };
 type Bin = { surfaces: Surface[]; placements: Placement[] };
 export type PackingStrategy =
-  "density-low" | "density-compact" | "area-compact";
+  "density-low" | "density-compact" | "area-compact" | ExternalStrategy;
+export function packingUnits(cargo: TmsCargo[], o: PlanOptions): Unit[] {
+  return cargo.flatMap((c) => {
+    const { groups, estimated } = packageGroups(c, o);
+    return groups.flatMap((g, i) =>
+      Array.from({ length: g.count }, (_, j) => ({
+        ...g,
+        pallet: g.pallet || o.floorCustomers.includes(c.customerId),
+        floorOnly:
+          g.floorOnly ||
+          (g.pallet && !g.palletStacking) ||
+          o.floorCustomers.includes(c.customerId),
+        cargoId: c.id,
+        unit: `${c.id}/${i}/${j}`,
+        estimated,
+        density: g.weight / (g.length * g.width * g.height),
+      })),
+    );
+  });
+}
 /** Upright packing with full coplanar support and cumulative contact-area load distribution. */
 export function pack3d(
   cargo: TmsCargo[],
@@ -117,23 +144,17 @@ export function pack3d(
   }));
   // Selection remains shipment-atomic in the planner. Placement mixes the
   // individual places of all selected shipments; customer identity is irrelevant.
-  const units: Unit[] = cargo.flatMap((c) => {
-    const { groups, estimated } = packageGroups(c, o);
-    return groups.flatMap((g, i) =>
-      Array.from({ length: g.count }, (_, j) => ({
-        ...g,
-        pallet: g.pallet || o.floorCustomers.includes(c.customerId),
-        floorOnly:
-          g.floorOnly ||
-          (g.pallet && !g.palletStacking) ||
-          o.floorCustomers.includes(c.customerId),
-        cargoId: c.id,
-        unit: `${c.id}/${i}/${j}`,
-        estimated,
-        density: g.weight / (g.length * g.width * g.height),
-      })),
+  const units = packingUnits(cargo, o);
+  if (units.length > 2000)
+    throw new Error(
+      "Для 3D-расчёта выберите до 2000 мест. Сузьте период или маршрут.",
     );
-  });
+  if (strategy.startsWith("laff") || strategy.startsWith("loadza"))
+    return packWithEngine(
+      units,
+      o.vehicle.compartments,
+      strategy as ExternalStrategy,
+    );
   units.sort(
     (a, b) =>
       Number(b.floorOnly) - Number(a.floorOnly) ||

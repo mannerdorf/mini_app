@@ -719,8 +719,43 @@
   }
 }
 
-.tms-density-legend { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--border-color, #cbd5e1); border-radius: 14px; }
-.tms-density-scale { display: flex; margin: .7rem 0; }
-.tms-density-scale span { flex: 1; border-top: 10px solid; padding-top: .4rem; text-align: center; }
-.tms-density-bands { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: .8rem; }
-.tms-density-bands > div { flex: 1; min-width: 160px; display: grid; gap: .35rem; }
+.tms-density-legend {
+  margin: 0 0 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 14px;
+}
+.tms-density-scale {
+  display: flex;
+  margin: 0.7rem 0;
+}
+.tms-density-scale span {
+  flex: 1;
+  border-top: 10px solid;
+  padding-top: 0.4rem;
+  text-align: center;
+}
+.tms-density-bands {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.8rem;
+}
+.tms-density-bands > div {
+  flex: 1;
+  min-width: 160px;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.tms-engines h2 {
+  margin-bottom: 12px;
+}
+.tms-engines [role="tabpanel"] {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.tms-comparison {
+  margin-top: 16px;
+}
