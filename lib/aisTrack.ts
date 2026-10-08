@@ -1,4 +1,4 @@
-export type AisTrackPoint = { lat: number; lon: number; timeUtc: string; breakBefore?: boolean };
+export type AisTrackPoint = { lat: number; lon: number; timeUtc: string; breakBefore?: boolean; sog?: number; status?: number };
 const MAX_SPEED_KMH = 60 * 1.852;
 const MAX_GAP_MS = 6 * 60 * 60 * 1000;
 function distanceKm(a: AisTrackPoint, b: AisTrackPoint) {
@@ -8,7 +8,12 @@ function distanceKm(a: AisTrackPoint, b: AisTrackPoint) {
 }
 function possible(a: AisTrackPoint, b: AisTrackPoint) {
   const elapsed = Date.parse(b.timeUtc) - Date.parse(a.timeUtc);
-  return elapsed >= 0 && distanceKm(a, b) <= 1 + MAX_SPEED_KMH * elapsed / 3_600_000;
+  // Reported speed and moored fixes constrain short-range jumps too. A generous
+  // margin permits ordinary acceleration; this is an anomaly check, not routing.
+  const speeds=[a.sog,b.sog].filter((v):v is number=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<102.3);
+  const moored=a.status===5&&b.status===5;
+  const limit=speeds.length===2 ? (moored ? 2 : Math.min(MAX_SPEED_KMH, Math.max(10,Math.max(...speeds)*1.852*2))) : MAX_SPEED_KMH;
+  return elapsed >= 0 && distanceKm(a, b) <= 1 + limit * elapsed / 3_600_000;
 }
 /** Drop isolated teleport-and-return fixes. Uncertain jumps and long gaps remain separate segments. */
 export function filterAisTrack(input: AisTrackPoint[]) {

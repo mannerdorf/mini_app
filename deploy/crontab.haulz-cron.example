@@ -46,3 +46,6 @@ HAULZ_CRON_API_BASE=http://127.0.0.1:3000
 
 # Durable planned delivery date queue: one write or verification per run.
 * * * * * /opt/haulz/cron-call.sh /api/cron/process-plan-date-queue
+
+# After migration 126: only ferries on sendings in transit, every two hours.
+0 */2 * * * /opt/haulz/cron-call.sh /api/cron/refresh-ferry-ais

@@ -30,7 +30,7 @@ it('loads the selected ferry in a modal, showing map and independent course fiel
   expect(text).toContain('Курс относительно земли (COG)');
   expect(text).toContain('Направление носа (HDT)');
   expect(text).toContain('Балтийск (RUBLI)');
-  expect(text).toContain('Последнее обновление (UTC)');
+  expect(text).toContain('Последнее сообщение AIS (UTC)');
   act(() => root.root.findByProps({ 'aria-label': 'Закрыть карту парома' }).props.onClick());
   expect(close).toHaveBeenCalledOnce();
 });

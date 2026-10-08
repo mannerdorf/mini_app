@@ -42,6 +42,7 @@ export function SendingFerryDialog({ ferry, onClose }: {
       </header>
       {loading && <p role="status" className="sending-vessel-card__notice">Обновляем положение судна…</p>}
       {error && <p role="alert" className="sending-ferry-dialog__error">{error}</p>}
+      {vessel?.positionWarning && <p role="alert" className="sending-ferry-dialog__error">{vessel.positionWarning}</p>}
       {historyError && <p role="status" className="sending-vessel-card__notice">{historyError}</p>}
       {track.length > 0 && <p className="sending-vessel-card__notice">История AIS · {track.length} точек<br />{track[0].timeUtc.replace('T', ' ').replace(/Z$/, '')} — {track[track.length - 1].timeUtc.replace('T', ' ').replace(/Z$/, '')} (UTC)</p>}
       <section className="sending-vessel-card__section">
@@ -63,7 +64,7 @@ export function SendingFerryDialog({ ferry, onClose }: {
         </dl>
       </section>
       <footer className="sending-vessel-card__footer">
-        <div><span>Последнее обновление (UTC)</span><p>{vessel?.timeUtc?.replace('T', ' ').replace(/Z$/, '') || '—'}</p></div>
+        <div><span>Последнее сообщение AIS (UTC)</span><p>{vessel?.timeUtc?.replace('T', ' ').replace(/Z$/, '') || '—'}</p></div>
         <button type="button" className="sending-ferry-dialog__icon" disabled={loading} aria-label="Обновить положение судна" title="Обновить" onClick={() => setRefresh(n => n + 1)}>
           {loading ? <Loader2 size={20} className="animate-spin" /> : <RotateCw size={20} />}
         </button>

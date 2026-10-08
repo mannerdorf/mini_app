@@ -1,3 +1,4 @@
+vi.mock('../lib/ferryAisCache.js',()=>({requestFerryLatest:(...args:Parameters<typeof fetch>)=>fetch(...args)}));
 vi.mock('../lib/marinesiaRequest.js',()=>({requestMarinesia:(...args:Parameters<typeof fetch>)=>fetch(...args)}));
 import { afterEach, expect, it, vi } from 'vitest';
 vi.mock('./_lib/observability.js', () => ({ initRequestContext: () => ({ requestId: 'test' }), logError: vi.fn() }));
@@ -45,4 +46,14 @@ it('removes a teleport fix and reports breaks to the map', async () => {
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ data: fixes }))));
   const res = response(); await handler({ method: 'GET', query: { mmsi, history: '1' } } as any, res as any);
   const result = res.json.mock.calls[0][0]; expect(result.track.map((p: any) => p.lon)).toEqual([19, 19.2, 19.3]); expect(result.track[2].breakBefore).toBe(true); expect(result.historyError).toContain('точек: 1');
+});
+it('flags the actual inland MIA fix and breaks the line without inventing a sea position',async()=>{
+ vi.stubEnv('MARINESIA_API_KEY','test-key');
+ const fixes=[{...old,lat:59.875908,lng:30.193373,ts:'2026-10-07T19:29:00',sog:0,status:5},
+ {...old,lat:59.901325,lng:30.100937,ts:'2026-10-07T20:20:09',sog:9,status:0},
+ {...old,lat:59.879532,lng:30.325514,ts:'2026-10-07T21:32:00',sog:2.2,status:5}];
+ vi.stubGlobal('fetch',vi.fn().mockResolvedValue(Response.json({data:fixes})));
+ const res=response();await handler({method:'GET',query:{mmsi,history:'1'}} as any,res as any);
+ const result=res.json.mock.calls[0][0];expect(result.vessel.lon).toBe(30.325514);
+ expect(result.vessel.positionWarning).toContain('суши');expect(result.track.at(-1).breakBefore).toBe(true);
 });

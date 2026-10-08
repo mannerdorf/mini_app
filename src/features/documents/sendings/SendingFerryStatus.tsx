@@ -10,19 +10,18 @@ function load(mmsi:string) {
   const existing=pending.get(mmsi);if(existing)return existing;
   const task=fetchMarinesiaShip(mmsi,false,true).then(result=>{
     if(cache.size>=256)cache.delete(cache.keys().next().value!);
-    cache.set(mmsi,{expires:Date.now()+REFRESH_MS,result});return result;
+    cache.set(mmsi,{expires:Date.now()+(result.ok?REFRESH_MS:60000),result});return result;
   }).finally(()=>pending.delete(mmsi));
   pending.set(mmsi,task);return task;
 }
 export function ferryStatusBadge(vessel:MarinesiaVessel,now=Date.now()) {
   const ts=vessel.timeUtc;
   const time=ts ? Date.parse(/Z$|[+-]\d{2}:\d{2}$/.test(ts)?ts:`${ts}Z`) : NaN;
-  if(!Number.isFinite(time)||now-time>6*3600000||time-now>5*60000)
-    return {label:'Нет свежих AIS',tone:'muted',title:'Marinesia: свежие данные AIS недоступны'};
+  const stale=!Number.isFinite(time)||now-time>6*3600000||time-now>5*60000;
   const status=vessel.status;
   const label=status===0||status===8 ? 'В движении' : status===1 ? 'На якоре' : status===5 ? 'На причале' : 'Статус AIS';
   const detail=status==null ? 'Не определён' : NAV_STATUS_LABELS[status] || 'Не определён';
-  return {label,tone:status===0||status===8?'moving':status===5?'moored':status===1?'anchor':'muted',title:`Marinesia · ${detail}\nПоследнее сообщение: ${new Date(time).toLocaleString('ru-RU')}\nСкорость: ${vessel.sog ?? '—'} узлов`};
+  return {label:stale?`${label} · старые AIS`:label,tone:stale?'muted':status===0||status===8?'moving':status===5?'moored':status===1?'anchor':'muted',title:`Marinesia · ${detail}${stale?' (последний известный статус; свежего сообщения нет)':''}\nПоследнее сообщение: ${Number.isFinite(time)?new Date(time).toLocaleString('ru-RU'):'Дата неизвестна'}\nСкорость: ${vessel.sog ?? '—'} узлов`};
 }
 export function SendingFerryStatus({mmsi,onOpen}:{mmsi:string;onOpen:()=>void}) {
   const [state,setState]=useState<{mmsi:string;vessel?:MarinesiaVessel;error?:string}>({mmsi:''});

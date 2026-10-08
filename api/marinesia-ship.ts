@@ -1,3 +1,5 @@
+import { aisClearlyInland } from '../lib/aisLandCheck.js';
+import { requestFerryLatest } from '../lib/ferryAisCache.js';
 import { requestMarinesia } from "../lib/marinesiaRequest.js";
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { initRequestContext, logError } from "./_lib/observability.js";
@@ -54,6 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     let track: { lat: number; lon: number; timeUtc: string; breakBefore?: boolean }[] = [];
     let historyError: string | undefined;
+    let positionWarning: string | undefined;
     let historyPayload: Record<string, unknown> | undefined;
     // One history request also supplies the newest position. Fall back to latest
     // when history is unavailable, so the map remains usable.
@@ -64,8 +67,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         const response = await requestMarinesia(historyUrl.toString(), { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
         const history = await response.json() as Record<string, unknown>;
         const points = response.ok && history.error !== true ? normalizeVesselHistory(history.data, mmsi) : [];
-        const filtered = filterAisTrack(points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string })));
-        track = filtered.points;
+        const filtered = filterAisTrack(points.map(p => ({ lat: p.lat as number, lon: p.lng as number, timeUtc: p.ts as string, sog: p.sog as number, status: p.status as number })));
+        track = filtered.points.map((p,i,all)=>({ ...p, ...(aisClearlyInland(p.lat,p.lon) || i>0&&aisClearlyInland(all[i-1].lat,all[i-1].lon) ? {breakBefore:true} : {}) }));
+        if (track.slice(-2).some(p=>p.breakBefore)) positionWarning = 'Последняя позиция AIS содержит скачок, не согласованный со скоростью судна. Координаты требуют проверки; линия маршрута прервана.';
         historyPayload = points.slice().reverse().find(p => p.ts === track.at(-1)?.timeUtc);
         if (filtered.discarded || filtered.breaks) historyError = `Исключено подозрительных точек: ${filtered.discarded}. Разрывов линии: ${filtered.breaks}.`;
         if (!points.length) historyError = 'История движения недоступна. Показана последняя позиция.';
@@ -73,7 +77,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         historyError = 'Не удалось загрузить историю движения. Показана последняя позиция.';
       }
     }
-    const resp = historyPayload ? new Response(JSON.stringify({ data: historyPayload }), { status: 200 }) : await requestMarinesia(url.toString(), {
+    const resp = historyPayload ? new Response(JSON.stringify({ data: historyPayload }), { status: 200 }) : await requestFerryLatest(url.toString(), {
       method: "GET",
       headers: { Accept: "application/json" },
       signal: AbortSignal.timeout(15000),
@@ -126,13 +130,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     const hdt = typeof payload?.hdt === "number" ? payload.hdt : undefined;
     const draught = typeof payload?.draught === "number" ? payload.draught : undefined;
 
+    if(typeof lat==='number'&&typeof lon==='number'&&aisClearlyInland(lat,lon)) positionWarning='Последняя позиция AIS находится глубоко внутри суши по береговой карте. Координаты сомнительны; фактическое положение судна не подтверждено.';
     return res.status(200).json({
       request_id: ctx.requestId,
       source: "Marinesia",
       ...(req.query.history === '1' ? { track, historyError } : {}),
       vessel:
         lat != null && lon != null
-          ? { mmsi: mmsiVal, name, lat: Number(lat), lon: Number(lon), sog, cog, timeUtc, dest, eta, status, hdt, draught }
+          ? { mmsi: mmsiVal, name, lat: Number(lat), lon: Number(lon), sog, cog, timeUtc, dest, eta, status, hdt, draught, positionWarning }
           : null,
       raw: data,
     });

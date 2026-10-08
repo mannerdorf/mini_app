@@ -15,6 +15,7 @@ export type MarinesiaVessel = {
   status?: number;
   hdt?: number;
   draught?: number;
+  positionWarning?: string;
 };
 
 export type MarinesiaTrackPoint = { lat: number; lon: number; timeUtc: string; breakBefore?: boolean };

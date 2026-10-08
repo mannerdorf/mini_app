@@ -18,3 +18,17 @@ it('handles duplicate fixes, date line crossings and invalid coordinates', () =>
   expect(filterAisTrack([point(179.9, 0), point(-179.9, 1)]).breaks).toBe(0);
   expect(filterAisTrack([point(19, 0, 100)]).points).toEqual([]);
 });
+
+it('breaks a short jump inconsistent with a moored ship speed',()=>{
+ const input=[
+  {lat:59.875908,lon:30.193373,timeUtc:'2026-10-07T19:29:00Z',sog:0,status:5},
+  {lat:59.901325,lon:30.100937,timeUtc:'2026-10-07T20:20:09Z',sog:2.2,status:5},
+  {lat:59.879532,lon:30.325514,timeUtc:'2026-10-07T21:29:00Z',sog:2.2,status:5},
+ ];
+ expect(filterAisTrack(input).breaks).toBe(2);
+ expect(splitAisTrack(input)).toEqual([]);
+});
+it('retains ordinary navigation matching reported speed',()=>{
+ const fixes=[{...point(19,0),sog:15,status:0},{...point(19.2,1),sog:15,status:0}];
+ expect(filterAisTrack(fixes).breaks).toBe(0);
+});

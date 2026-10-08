@@ -14,7 +14,7 @@ it('uses AIS navigation status without inferring unloading from zero speed',()=>
 });
 it('does not present an old or invalid timestamp as a current status',()=>{
  for(const timeUtc of ['2026-10-06T14:30:00','bad',undefined,'2026-10-08T14:30:00'])
- expect(ferryStatusBadge({...vessel,status:5,timeUtc},now).label).toBe('Нет свежих AIS');
+ expect(ferryStatusBadge({...vessel,status:5,timeUtc},now).label).toBe('На причале · старые AIS');
 });
 it('shows less common AIS statuses in the tooltip',()=>{
  expect(ferryStatusBadge({...vessel,status:2},now).title).toContain('Не под управлением');
