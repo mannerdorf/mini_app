@@ -1,6 +1,6 @@
 import type { TmsCargo, Vehicle } from '../../../tms/model';
 
-export type RecommendationMode = 'fifo' | 'paid';
+export type RecommendationMode = 'fifo' | 'paid' | 'delivery';
 export type RecommendationRequest = {
   mode: RecommendationMode;
   candidates: TmsCargo[];
@@ -21,6 +21,12 @@ export type RecommendationResult = {
 const EPS = 1e-8;
 const known = (value: number | null | undefined): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const fifoOrder = (a: TmsCargo, b: TmsCargo) => (a.received || '9999').localeCompare(b.received || '9999') || a.number.localeCompare(b.number, 'ru', { numeric: true });
+const validDateKey = (value: string | undefined): boolean => {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value) || value < '1990-01-01') return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0,10) === value;
+};
+const deliveryOrder = (a: TmsCargo, b: TmsCargo) => (a.plannedDeliveryDate || '9999').localeCompare(b.plannedDeliveryDate || '9999') || fifoOrder(a,b);
 type Item = { cargo: TmsCargo; w: number; v: number; p: number };
 type SelectedNode = { item: Item; previous: SelectedNode | null };
 type State = { index: number; w: number; v: number; p: number; pick: SelectedNode | null };
@@ -92,13 +98,13 @@ export function recommendPlanningCargo(request: RecommendationRequest, maxNodes 
   const available = [...new Map(request.candidates.map(cargo => [cargo.number, cargo])).values()].filter(cargo => !excludedNumbers.has(cargo.number));
   let excluded = 0;
   const eligible = available.filter(cargo => {
-    const valid = known(cargo.weight) && known(cargo.volume) && (mode === 'paid' ? known(cargo.paidWeight) : /^\d{4}-\d{2}-\d{2}$/.test(cargo.received));
+    const valid = known(cargo.weight) && known(cargo.volume) && (mode === 'paid' ? known(cargo.paidWeight) : validDateKey(mode === 'delivery' ? cargo.plannedDeliveryDate : cargo.received));
     if (!valid) excluded++;
     return valid;
-  }).sort(fifoOrder);
+  }).sort(mode === 'delivery' ? deliveryOrder : fifoOrder);
   const weight = Math.max(0, vehicle.payload - usedWeight), volume = Math.max(0, vehicle.volume - usedVolume);
   let recommended: TmsCargo[] = [], optimal = true;
-  if (mode === 'fifo') {
+  if (mode === 'fifo' || mode === 'delivery') {
     let w = 0, v = 0;
     for (const cargo of eligible) if (w + cargo.weight! <= weight + EPS && v + cargo.volume! <= volume + EPS) {
       recommended.push(cargo); w += cargo.weight!; v += cargo.volume!;

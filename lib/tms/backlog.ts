@@ -1,5 +1,6 @@
 import type { Pool } from "pg";
 import type { TmsCargo, Readiness } from "../../src/features/tms/model.js";
+import { cargoPlannedDeliveryDateFromItem } from "../cargoDateFilter.js";
 import { cityToCode } from "../cityToCode.js";
 export const cleanNumber = (n: unknown) =>
   String(n ?? "")
@@ -57,6 +58,7 @@ export function normalizeCargo(
     received: validDate(item.DatePrih)
       ? String(item.DatePrih).slice(0, 10)
       : "",
+    plannedDeliveryDate: cargoPlannedDeliveryDateFromItem(item),
     route: `${cityToCode(item.CitySender) || "?"} → ${cityToCode(item.CityReceiver) || "?"}`,
     weight: amount(item.W),
     paidWeight: amount(item.PW),

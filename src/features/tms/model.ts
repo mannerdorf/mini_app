@@ -8,6 +8,7 @@ export type TmsCargo = {
   receiver: string;
   sender?: string;
   received: string;
+  plannedDeliveryDate?: string;
   route: string;
   weight: number | null;
   paidWeight?: number | null;

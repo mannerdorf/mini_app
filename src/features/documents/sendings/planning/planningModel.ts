@@ -1,8 +1,9 @@
-import {VEHICLES,type TmsCargo} from '../../../tms/model.js';
+import {VEHICLES,type TmsCargo,type Vehicle} from '../../../tms/model.js';
 
 export type PlanningMode='roro'|'ferry'|'auto'|'air'|'';
 export type PlanningView='cargo'|'customer'|'receiver'|'vehicle';
-export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;departureDate?:string;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
+export type VehicleDimensions={length:number;width:number;height:number};
+export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;departureDate?:string;vehicleDimensions?:VehicleDimensions|null;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
 export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[]};
 export type PlanningData={plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
 // Keep the persisted ferry value for existing container plans.
@@ -56,4 +57,13 @@ export function groupPlansByVehicle(plans:SendingPlan[]) {
   group.plans.push(plan);groups.set(key,group);
  }
  return [...groups.values()].sort((a,b)=>a.label.localeCompare(b.label,'ru')).map(group=>({...group,plans:group.plans.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))}));
+}
+
+export function planningVehicle(draft:Pick<PlanDraft,'mode'|'vehicleId'|'vehicleDimensions'>):Vehicle|undefined {
+ if(!draft.mode||draft.mode==='air')return undefined;
+ const preset=VEHICLES.find(item=>item.id===draft.vehicleId);
+ if(!preset||!draft.vehicleDimensions)return preset;
+ const dimensions=draft.vehicleDimensions;
+ if(![dimensions.length,dimensions.width,dimensions.height].every(value=>Number.isFinite(value)&&value>0&&value<=100))return undefined;
+ return {...preset,compartments:preset.compartments.map(()=>({...dimensions})),volume:dimensions.length*dimensions.width*dimensions.height*preset.compartments.length};
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Scale } from 'lucide-react';
+import { ChevronDown, Scale, CheckSquare } from 'lucide-react';
 import type { TmsCargo, Vehicle } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
 import { groupPickerHierarchy, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
@@ -18,6 +18,7 @@ function Candidate({ cargo, selected, locked, recommended, onSelect }: Selection
       disabled={locked.has(cargo.number)} onChange={event => onSelect([cargo.number], event.target.checked)} />
     <span><b>{cargo.number}</b><span>{cargo.customer}</span><small>{cargo.receiver}</small>
       {cargo.sender && <small>Отправитель: {cargo.sender}</small>}
+      {cargo.plannedDeliveryDate && <small>Доставка: {receiptDateLabel(cargo.plannedDeliveryDate)}</small>}
       {cargo.received && <small>Поступление: {receiptDateLabel(cargo.received)}</small>}
       {cargo.readiness === 'unreceived' && <small>Поступление на склад пока не подтверждено</small>}
       {recommended.has(cargo.number) && <small className="sending-planning__recommendation-label">Рекомендуется добавить</small>}
@@ -87,15 +88,17 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       <span>Подбор</span>
       <button type="button" className="filter-button" aria-pressed={mode === 'fifo'} onClick={() => setMode(value => value === 'fifo' ? null : 'fifo')} title="Сначала ранние поступления, с учётом свободного веса и объёма ТС">FIFO</button>
       <button type="button" className="filter-button sending-planning__paid-mode" aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => setMode(value => value === 'paid' ? null : 'paid')} title="Максимальный суммарный платный вес в пределах веса и объёма ТС"><Scale size={18}/></button>
+      <button type="button" className="filter-button" aria-pressed={mode === 'delivery'} onClick={() => setMode(value => value === 'delivery' ? null : 'delivery')} title="Сначала перевозки с ближайшей плановой датой доставки, в пределах веса и объёма ТС">По дате доставки</button>
     </div>
     {request && <div className="sending-planning__recommendation-summary" role="status">
       {!current ? 'Подбираем перевозки…' : current.error || current.result?.message || <>
-        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : current.result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
+        <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'По дате доставки · сначала ближайшие' : current.result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
         <span>Подсвечено: {recommended.size} перев. · +{planningNumber(current.result!.weight)} кг · +{planningNumber(current.result!.volume, 2)} м³ · платный вес +{planningNumber(current.result!.paidWeight)} кг</span>
         {!!current.result?.excluded && <span>Не хватает данных для подбора: {current.result.excluded} перев.</span>}
         {!!current.result?.missingPaid && <span>Платный вес не заполнен: {current.result.missingPaid} перев.</span>}
       </>}
     </div>}
+    <div className="sending-planning__recommendation-actions"><button type="button" className="button-primary" disabled={!recommended.size || !!current?.error || !!current?.result?.message} onClick={() => onSelect([...recommended], true)} title="Добавить подсвеченные рекомендации к уже выбранным перевозкам"><CheckSquare size={16}/> Проставить чекбоксы</button></div>
     <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
       {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
     </div>

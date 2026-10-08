@@ -1,6 +1,6 @@
 import React from 'react';
-import { VEHICLES, type TmsCargo, type Vehicle } from '../../../tms/model';
-import type { PlanDraft } from './planningModel';
+import { type TmsCargo, type Vehicle } from '../../../tms/model';
+import {planningVehicle,type PlanDraft} from './planningModel';
 import { planningNumber } from './PlanningCargoTable';
 
 function Capacity({ label, value, limit, unit, digits = 1, missing }: {
@@ -21,7 +21,7 @@ function Capacity({ label, value, limit, unit, digits = 1, missing }: {
 }
 
 export function PlanningLoadSummary({ cargo, draft }: { cargo: TmsCargo[]; draft: PlanDraft }) {
-  const vehicle: Vehicle | undefined = draft.mode === 'air' ? undefined : VEHICLES.find(item => item.id === draft.vehicleId);
+  const vehicle: Vehicle | undefined = planningVehicle(draft);
   const total = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.reduce((sum, item) => sum + (item[field] ?? 0), 0);
   const missing = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.filter(item => item[field] == null).length;
   const paidMissing = missing('paidWeight');

@@ -11,6 +11,7 @@ beforeAll(async()=>{
  await db.exec(readFileSync('migrations/130_sending_planning.sql','utf8'));
  await db.exec(readFileSync('migrations/131_sending_planning_transport.sql','utf8'));
  await db.exec(readFileSync('migrations/132_sending_planning_departure.sql','utf8'));
+ await db.exec(readFileSync('migrations/133_sending_planning_dimensions.sql','utf8'));
  await db.exec("INSERT INTO ferries VALUES(1,'FESCO NAVARIN',true),(2,'Неактивный паром',false)");
  const query=(sql:string,args?:any[])=>db.query(sql,args);
  pool={query,connect:async()=>({query,release(){}})};
@@ -133,4 +134,28 @@ it('uses the database uniqueness constraint as the final guard and rolls back th
  await expect(saveSendingPlan(racedPool,draft({cargoNumbers:['142703','142701']}),'other')).rejects.toMatchObject({status:409});
  expect((await list()).plans).toHaveLength(1);
  expect((await list()).available.map(cargo=>cargo.number)).toContain('142703');
+});
+it('reads planned delivery deadlines for available cargo and legacy snapshots without overwriting their recorded metrics',async()=>{
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({DateArrivalPlan:'2026-10-09'}),'000142701']);
+ expect((await list()).available.find(cargo=>cargo.number==='142701')?.plannedDeliveryDate).toBe('2026-10-09');
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ await db.query("UPDATE sending_plan_cargo SET snapshot=snapshot-'plannedDeliveryDate' WHERE plan_id=$1",[id]);
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({DateArrivalPlan:'2026-10-10',W:999}),'000142701']);
+ expect((await list()).plans[0].cargo[0]).toMatchObject({plannedDeliveryDate:'2026-10-10',weight:10});
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({DateDeliveryPlan:'2026-10-11'}),'000142703']);
+ expect((await list()).available.find(cargo=>cargo.number==='142703')?.plannedDeliveryDate).toBe('2026-10-11');
+});
+
+it('persists custom internal dimensions, preserves them for older clients and clears them on explicit reset or changed preset',async()=>{
+ const dimensions={length:10,width:2,height:2};
+ const id=await saveSendingPlan(pool,draft({vehicleDimensions:dimensions}),'staff');
+ expect((await list()).plans[0].vehicleDimensions).toEqual(dimensions);
+ await saveSendingPlan(pool,draft({id,revision:1}),'legacy');
+ expect((await list()).plans[0].vehicleDimensions).toEqual(dimensions);
+ await saveSendingPlan(pool,draft({id,revision:2,vehicleDimensions:null}),'staff');
+ expect((await list()).plans[0].vehicleDimensions).toBeNull();
+ await saveSendingPlan(pool,draft({id,revision:3,vehicleDimensions:dimensions}),'staff');
+ await saveSendingPlan(pool,draft({id,revision:4,vehicleId:'rigid'}),'legacy');
+ expect((await list()).plans[0].vehicleDimensions).toBeNull();
+ for(const vehicleDimensions of [{length:0,width:2,height:2},{length:101,width:2,height:2},{length:10,width:'bad',height:2}])await expect(saveSendingPlan(pool,draft({vehicleDimensions:vehicleDimensions as any}),'staff')).rejects.toThrow('внутренние размеры');
 });

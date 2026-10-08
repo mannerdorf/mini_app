@@ -67,3 +67,7 @@ it('excludes sending members with padded numbers directly in the database, acros
     expect(result.assigned).toBe(1);expect(result.rows.map(r=>r.payload.Number)).toEqual(['000142945','142948']);
   }finally{await db.close();}
 }, 30000);
+it('normalizes the planned delivery deadline from existing plan fields without using the receipt or actual delivery date',()=>{
+ expect(normalizeCargo({DateArrivalPlan:'2026-10-12T00:00:00',DateDeliveryPlan:'09.10.2026',DatePrih:'2026-10-01'},null).plannedDeliveryDate).toBe('2026-10-09');
+ expect(normalizeCargo({DateArrivalPlan:'0001-01-01',DateDeliveryPlan:'1900-01-01',DatePrih:'2026-10-01',DateVr:'2026-10-08'},null).plannedDeliveryDate).toBe('');
+});
