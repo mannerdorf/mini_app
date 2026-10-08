@@ -4,6 +4,7 @@ import {
   packageProblem,
   packedVolume,
   packedWeight,
+  type PackingStrategy,
 } from "./packing3d";
 const EPS = 1e-7;
 const positive = (n: unknown): n is number =>
@@ -27,7 +28,10 @@ export function validateOptions(o: PlanOptions): string | null {
   )
     return "Резерв должен быть от 0 до 99%";
   const factor = o.estimatedTopLoadFactor ?? 2;
-  if (o.estimatedStacking !== "height" && (!Number.isFinite(factor) || factor < 0 || factor > 20))
+  if (
+    o.estimatedStacking !== "height" &&
+    (!Number.isFinite(factor) || factor < 0 || factor > 20)
+  )
     return "Расчётная нагрузка сверху должна быть от 0 до 20 масс нижнего места";
   return null;
 }
@@ -45,8 +49,17 @@ export function cargoProblem(c: TmsCargo, o: PlanOptions): string | null {
   }
   return packageProblem(c, o);
 }
-/** Repeatable, bounded multi-start packing. Whole consignments; priorities first, FIFO/LIFO with a small lookahead. */
-export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
+export type PlanningProgress = {
+  completed: number;
+  total: number;
+  bestVolume: number;
+};
+/** Compare selection and physical layouts independently. Customer priority is a selection rule. */
+export function planLoad(
+  cargo: TmsCargo[],
+  o: PlanOptions,
+  onProgress?: (progress: PlanningProgress) => void,
+): LoadPlan {
   const error = validateOptions(o);
   if (error) throw new Error(error);
   const routes = new Set(
@@ -71,7 +84,7 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
         a.number.localeCompare(b.number, undefined, { numeric: true }),
     );
   const layoutCache = new Map<string, ReturnType<typeof pack3d>>();
-  const run = (strategy: number): LoadPlan => {
+  const run = (strategy: number, packing: PackingStrategy): LoadPlan => {
     const result: LoadPlan = {
       selected: [],
       omitted: [],
@@ -91,15 +104,17 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
         result.volume + volume > volumeLimit + EPS
       )
         return false;
-      const key = JSON.stringify(
-        [...result.selected.map((c) => c.id), c.id].sort(),
-      );
+      const key = JSON.stringify([
+        packing,
+        ...[...result.selected.map((c) => c.id), c.id].sort(),
+      ]);
       if (!layoutCache.has(key))
         layoutCache.set(
           key,
           pack3d(
             [...result.selected, c].sort((a, b) => a.id.localeCompare(b.id)),
             o,
+            packing,
           ),
         );
       const placements = layoutCache.get(key);
@@ -131,29 +146,28 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
       const window = remaining
         .slice(0, strategy === 0 ? 1 : 12)
         .filter((c) => priority.has(c.customerId) === tier);
-      let candidate = window[0],
-        score = -Infinity;
-      for (let i = 0; i < window.length; i++) {
-        const c = window[i];
-        if (!tryFit(c, false)) continue;
-        const w = c.weight! / payloadLimit,
-          v = c.volume! / volumeLimit;
-        const value =
-          (strategy === 1
-            ? w
-            : strategy === 2
-              ? v
-              : strategy === 3
-                ? Math.min(w, v)
-                : strategy === 4
-                  ? 1 / (w + v)
-                  : w + v) /
-          (1 + i * 0.12);
-        if (value > score) {
-          score = value;
-          candidate = c;
-        }
-      }
+      // Ranking depends only on cargo totals and queue position. Try it in that
+      // order instead of repacking all 12 candidates before choosing the best fit.
+      const ranked = window
+        .map((c, i) => {
+          const w = c.weight! / payloadLimit,
+            v = c.volume! / volumeLimit;
+          const value =
+            (strategy === 1
+              ? w
+              : strategy === 2
+                ? v
+                : strategy === 3
+                  ? Math.min(w, v)
+                  : strategy === 4
+                    ? 1 / (w + v)
+                    : w + v) /
+            (1 + i * 0.12);
+          return { c, value };
+        })
+        .sort((a, b) => b.value - a.value);
+      const candidate =
+        ranked.find(({ c }) => tryFit(c, false))?.c ?? window[0];
       remaining.splice(remaining.indexOf(candidate), 1);
       tryFit(candidate, true);
     }
@@ -166,21 +180,39 @@ export function planLoad(cargo: TmsCargo[], o: PlanOptions): LoadPlan {
           stoppedAt && c.id !== stoppedAt.id
             ? `Строгий отбор: очередь остановлена на перевозке ${stoppedAt.number}`
             : cargoProblem(c, o) ||
-              "Не помещается по весу, габаритам или условиям опоры и штабелирования",
+              "Не включена в найденный план с учётом вместимости, опоры и штабелирования",
       }));
     return result;
   };
   const score = (p: LoadPlan) => [
     p.selected.filter((c) => priority.has(c.customerId)).length,
-    p.weight / payloadLimit + p.volume / volumeLimit,
+    // Maximise occupied volume after priority obligations, not the number of small consignments.
+    p.volume,
+    p.weight,
   ];
-  let best = run(0);
-  if (o.strictSelection) return best;
-  for (let i = 1; i < 6; i++) {
-    const p = run(i),
-      a = score(p),
-      b = score(best);
-    if (a[0] > b[0] || (a[0] === b[0] && a[1] > b[1] + EPS)) best = p;
-  }
-  return best;
+  const better = (a: LoadPlan, b: LoadPlan) => {
+    const left = score(a),
+      right = score(b);
+    for (let i = 0; i < left.length; i++) {
+      if (Math.abs(left[i] - right[i]) > EPS) return left[i] > right[i];
+    }
+    return false;
+  };
+  const modes: PackingStrategy[] = [
+    "density-low",
+    "density-compact",
+    "area-compact",
+  ];
+  const selectionCount = o.strictSelection ? 1 : 6;
+  const total = modes.length * selectionCount;
+  let best: LoadPlan | null = null,
+    completed = 0;
+  for (const packing of modes)
+    for (let selection = 0; selection < selectionCount; selection++) {
+      const candidate = run(selection, packing);
+      if (!best || better(candidate, best)) best = candidate;
+      completed++;
+      onProgress?.({ completed, total, bestVolume: best.volume });
+    }
+  return { ...best!, variantsChecked: completed };
 }

@@ -123,6 +123,7 @@ export type Placement = {
   maxTopLoad: number;
 };
 export type LoadPlan = {
+  variantsChecked?: number;
   selected: TmsCargo[];
   omitted: { cargo: TmsCargo; reason: string }[];
   placements: Placement[];

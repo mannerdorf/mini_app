@@ -1,6 +1,7 @@
 import { it, expect } from "vitest";
 import { planLoad } from "./planner";
 import { pack3d, packageProblem } from "./packing3d";
+import mixedLoadShapes from "./__fixtures__/mixed-load-shapes.json";
 import type { PlanOptions, TmsCargo, PackageGroup } from "./model";
 const box = (extra: Partial<PackageGroup> = {}): PackageGroup => ({
   count: 1,
@@ -593,4 +594,98 @@ it("tries another support when the first tight fit cannot bear the load", () => 
   const p = pack3d([cargo("a"), cargo("b", 90), cargo("c", 20)], o);
   expect(p).not.toBeNull();
   expect(p!.find((p) => p.cargoId === "c")!.support).toBe("b/0/0");
+});
+
+it("compacts dense small boxes vertically to leave floor for tall light cargo", () => {
+  const o = options({
+    dense: [
+      box({
+        count: 4,
+        length: 0.5,
+        width: 1,
+        height: 0.5,
+        weight: 100,
+        rotate: false,
+        stackable: true,
+        maxTopLoad: 1000,
+      }),
+    ],
+    tall: [
+      box({ length: 1, width: 1, height: 1.6, weight: 20, rotate: false }),
+    ],
+  });
+  o.vehicle.compartments = [{ length: 2, width: 1, height: 2 }];
+  o.vehicle.volume = 4;
+  const rows = [
+    cargo("dense", 400, { volume: 1 }),
+    cargo("tall", 20, { volume: 1.6 }),
+  ];
+  expect(pack3d(rows, o, "density-low")).toBeNull();
+  const p = planLoad(rows, o);
+  expect(p.selected.map((c) => c.id)).toEqual(["dense", "tall"]);
+  expect(p.volume).toBeCloseTo(2.6);
+  expect(p.placements.find((p) => p.cargoId === "tall")!.z).toBe(0);
+  expect(
+    p.placements.filter((p) => p.cargoId === "dense").map((p) => p.z),
+  ).toEqual([0, 0.5, 1, 1.5]);
+  o.packages!.dense[0].maxTopLoad = 99;
+  expect(planLoad(rows, o).selected.map((c) => c.id)).toEqual(["dense"]);
+});
+
+it("packs over 61 cubic metres of mixed shapes while retaining all physical constraints", () => {
+  // Anonymous shape totals only: no customer, shipment number or address.
+  const rows = mixedLoadShapes.map(([weight, volume, places], i) =>
+    cargo(`shape-${i}`, weight, { volume, places }),
+  );
+  const o = {
+    ...options({}),
+    requireDimensions: false,
+    estimatedStacking: "height" as const,
+  };
+  o.vehicle = {
+    id: "40hc",
+    name: "40HC",
+    mode: "ferry",
+    payload: 26000,
+    volume: 76,
+    compartments: [{ length: 12.03, width: 2.35, height: 2.69 }],
+  };
+  const p = pack3d(rows, o, "area-compact")!;
+  expect(p).not.toBeNull();
+  expect(
+    p.reduce((sum, p) => sum + p.length * p.width * p.height, 0),
+  ).toBeGreaterThan(61);
+  const byUnit = new Map(p.map((p) => [p.unit, p]));
+  for (let i = 0; i < p.length; i++) {
+    const a = p[i];
+    expect(
+      a.x >= -1e-6 &&
+        a.y >= -1e-6 &&
+        a.z >= -1e-6 &&
+        a.x + a.length <= 12.030001 &&
+        a.y + a.width <= 2.350001 &&
+        a.z + a.height <= 2.690001,
+    ).toBe(true);
+    expect(a.topLoad).toBeLessThanOrEqual(a.maxTopLoad + 1e-6);
+    if (a.z > 1e-6) {
+      expect(a.supports!.reduce((s, p) => s + p.share, 0)).toBeCloseTo(1);
+      for (const support of a.supports!) {
+        const base = byUnit.get(support.unit)!;
+        expect(base.z + base.height).toBeCloseTo(a.z);
+        expect(a.density).toBeLessThanOrEqual(base.density + 1e-6);
+      }
+    }
+    const overlaps = p
+      .slice(i + 1)
+      .some(
+        (b) =>
+          a.x < b.x + b.length - 1e-6 &&
+          a.x + a.length > b.x + 1e-6 &&
+          a.y < b.y + b.width - 1e-6 &&
+          a.y + a.width > b.y + 1e-6 &&
+          a.z < b.z + b.height - 1e-6 &&
+          a.z + a.height > b.z + 1e-6,
+      );
+    expect(overlaps).toBe(false);
+  }
 });

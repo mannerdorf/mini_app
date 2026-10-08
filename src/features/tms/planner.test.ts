@@ -308,3 +308,27 @@ describe("strict selection", () => {
     expect(p.selected.map((c) => c.id)).toEqual(["1"]);
   });
 });
+
+it("reports monotonic progress for layout variants, including strict selection", () => {
+  for (const strictSelection of [false, true]) {
+    const events: { completed: number; total: number; bestVolume: number }[] =
+      [];
+    const plan = planLoad(
+      [cargo("a", 100, 1)],
+      options({ strictSelection }),
+      (p) => events.push(p),
+    );
+    const total = strictSelection ? 3 : 18;
+    expect(events.map((e) => e.completed)).toEqual(
+      Array.from({ length: total }, (_, i) => i + 1),
+    );
+    expect(events.every((e) => e.total === total)).toBe(true);
+    expect(events.at(-1)!.bestVolume).toBe(plan.volume);
+    expect(plan.variantsChecked).toBe(total);
+    expect(
+      events.every(
+        (e, i) => i === 0 || e.bestVolume >= events[i - 1].bestVolume,
+      ),
+    ).toBe(true);
+  }
+});

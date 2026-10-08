@@ -97,8 +97,14 @@ type Unit = PackageGroup & {
 };
 type Surface = { parents: string[]; z: number; free: FloorRect[] };
 type Bin = { surfaces: Surface[]; placements: Placement[] };
+export type PackingStrategy =
+  "density-low" | "density-compact" | "area-compact";
 /** Upright packing with full coplanar support and cumulative contact-area load distribution. */
-export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
+export function pack3d(
+  cargo: TmsCargo[],
+  o: PlanOptions,
+  strategy: PackingStrategy = "density-low",
+): Placement[] | null {
   const bins: Bin[] = o.vehicle.compartments.map((b) => ({
     placements: [],
     surfaces: [
@@ -131,6 +137,9 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
   units.sort(
     (a, b) =>
       Number(b.floorOnly) - Number(a.floorOnly) ||
+      (strategy === "area-compact"
+        ? b.length * b.width - a.length * a.width
+        : 0) ||
       b.density - a.density ||
       b.weight - a.weight ||
       Number(b.stackable) - Number(a.stackable) ||
@@ -149,6 +158,9 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
     loads: Map<string, number>;
     supports: { unit: string; share: number }[];
   };
+  // Compact variants favour a smaller occupied length, then lower placement.
+  const compactCost = (bin: number, end: number, z: number) =>
+    bin * 10000 + end * 100 + z;
   for (const u of units) {
     let best: Candidate | null = null;
     for (let bi = 0; bi < bins.length; bi++) {
@@ -160,7 +172,19 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
           !s.free.length ||
           (u.floorOnly && s.z > EPS) ||
           s.z + u.height > bounds.height + EPS ||
-          (best && s.z > best.z + EPS)
+          (strategy === "density-low" && best && s.z > best.z + EPS)
+        )
+          continue;
+        if (
+          strategy !== "density-low" &&
+          best &&
+          compactCost(
+            bi,
+            Math.min(...s.free.map((r) => r.x)) +
+              (u.rotate ? Math.min(u.length, u.width) : u.length),
+            s.z,
+          ) >=
+            compactCost(best.bi, best.rect.x + best.rect.length, best.z) - EPS
         )
           continue;
         // A merged face may contain both weak and strong supports. Keep their
@@ -185,6 +209,13 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
         const candidates = floorCandidates(free, u.length, u.width, u.rotate);
         if (s.z > EPS) candidates.sort((a, b) => a.x - b.x || a.y - b.y);
         for (const rect of candidates) {
+          if (
+            strategy !== "density-low" &&
+            best &&
+            compactCost(bi, rect.x + rect.length, s.z) >=
+              compactCost(best.bi, best.rect.x + best.rect.length, best.z) - EPS
+          )
+            continue;
           if (
             bin.placements.some(
               (p) =>
@@ -248,13 +279,19 @@ export function pack3d(cargo: TmsCargo[], o: PlanOptions): Placement[] | null {
             }
           }
           if (!allowed) continue;
-          // Fill the lowest feasible level across the vehicle before building higher.
-          // Use front-to-rear order only to break ties at the same height.
+          // Compare a low centre-of-mass layout with compact front-to-rear layouts.
+          // Spreading every dense small box across the floor can block tall cargo;
+          // compact layouts reuse valid supports before consuming more floor.
           if (
             !best ||
-            s.z < best.z - EPS ||
-            (Math.abs(s.z - best.z) <= EPS &&
-              (bi < best.bi || (bi === best.bi && rect.x < best.rect.x - EPS)))
+            (strategy === "density-low"
+              ? s.z < best.z - EPS ||
+                (Math.abs(s.z - best.z) <= EPS &&
+                  (bi < best.bi ||
+                    (bi === best.bi && rect.x < best.rect.x - EPS)))
+              : compactCost(bi, rect.x + rect.length, s.z) <
+                compactCost(best.bi, best.rect.x + best.rect.length, best.z) -
+                  EPS)
           ) {
             best = { bi, si, z: s.z, rect, loads, supports };
           }

@@ -213,6 +213,7 @@ export function TmsPage({
   const [estimatedStacking, setEstimatedStacking] = useState<"height" | "load">("height");
   const [editing, setEditing] = useState<string | null>(null);
   const [calculating, setCalculating] = useState(false);
+  const [planningProgress, setPlanningProgress] = useState<{ completed: number; total: number; bestVolume: number } | null>(null);
   const workerRef = useRef<Worker | null>(null);
   const [mode, setMode] = useState<Vehicle["mode"]>("road"),
     [vehicle, setVehicle] = useState<Vehicle>(() =>
@@ -372,10 +373,12 @@ export function TmsPage({
     });
     workerRef.current = worker;
     setCalculating(true);
+    setPlanningProgress(null);
     setPlanError("");
     setPlan(null);
     worker.onmessage = (e) => {
       if (workerRef.current !== worker) return;
+      if (e.data.progress) { setPlanningProgress(e.data.progress); return; }
       setCalculating(false);
       setPlan(e.data.plan ?? null);
       setPlanError(e.data.error ?? "");
@@ -930,7 +933,7 @@ export function TmsPage({
             onClick={calculate}
           >
             <Package size={18} />
-            {calculating ? "Расчёт 3D…" : "Рассчитать 3D"}
+            {calculating ? planningProgress ? `Вариант ${planningProgress.completed} / ${planningProgress.total}` : "Расчёт 3D…" : "Рассчитать 3D"}
           </button>
           {calculating && (
             <button
@@ -944,6 +947,7 @@ export function TmsPage({
             </button>
           )}
         </div>
+        {calculating && planningProgress && <p className="tms-muted" role="status">Лучшее заполнение пока: {fmt(planningProgress.bestVolume)} м³. Сравниваем способы укладки.</p>}
         {(planError || validateOptions(options)) && (
           <p role="alert" className="tms-problem">
             {planError || validateOptions(options)}
@@ -1009,7 +1013,7 @@ export function TmsPage({
             {plan.pallets}.{" "}
             {strictSelection
               ? "Строгий отбор: без пропусков в выбранной очереди."
-              : "Подобран лучший из шести проверенных вариантов."}
+              : `Сравнили ${plan.variantsChecked ?? 6} вариантов отбора и укладки; выбран наибольший объём с сохранением приоритетов.`}
           </p>
           <LoadScene
             plan={plan}
