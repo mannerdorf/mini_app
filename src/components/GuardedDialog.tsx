@@ -27,7 +27,7 @@ export function GuardedDialog({ children, title, onClose, className }: {
         event.preventDefault(); (target || event.currentTarget).focus();
       }
     }}
-    onCancel={event => { event.preventDefault(); onClose(); }}
+    onCancel={event => { event.preventDefault(); event.stopPropagation(); onClose(); }}
     onClick={event => { if (event.target === event.currentTarget) {
       const box = event.currentTarget.getBoundingClientRect();
       if (className === "modal-overlay" || event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();

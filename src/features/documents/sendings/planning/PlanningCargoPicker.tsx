@@ -66,7 +66,7 @@ export function PlanningCargoPicker({ candidates, cargoNumbers, locked, search, 
     <div className="sending-planning__picker-list">
       {view === 'cargo' ? candidates.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} onSelect={onSelect} />)
         : groups.slice(0, limit).map(group => <CandidateGroup key={`${view}:${group.key}`} group={group} selected={selected} locked={locked} onSelect={onSelect} />)}
-      {!candidates.length && <p className="sending-planning__muted">Нет свободных перевозок по этому маршруту</p>}
+      {!candidates.length && <p className="sending-planning__muted">Нет перевозок по выбранным условиям</p>}
       {hasMore && <button type="button" className="filter-button" onClick={() => setLimit(value => value + 100)}>{view === 'cargo' ? 'Показать ещё' : 'Показать ещё группы'}</button>}
     </div>
   </section>;

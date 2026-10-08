@@ -6,9 +6,10 @@ type FilterDropdownPortalProps = {
     isOpen: boolean;
     onClose?: () => void;
     children: React.ReactNode;
+    container?: HTMLElement | null;
 };
 
-export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: FilterDropdownPortalProps) {
+export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, container }: FilterDropdownPortalProps) {
     const [rect, setRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const ignoreNextOutsideRef = useRef(false);
@@ -85,6 +86,6 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children }: 
         >
             {children}
         </div>,
-        document.body
+        container ?? document.body
     );
 }

@@ -5,17 +5,20 @@ import {MODE_LABELS,type PlanDraft,type PlanningMode,type SendingPlan} from './p
 import {planningNumber} from './PlanningCargoTable';
 import {PlanningCargoPicker} from './PlanningCargoPicker';
 import {matchesPickerSearch} from './planningPickerModel';
+import {PlanningPeriodFilter,usePlanningPeriodFilter} from './PlanningPeriodFilter';
+import {isDateInRange} from '../../../../lib/dateUtils';
 
 export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChange,onSave,onCancel,onDelete}:{
  draft:PlanDraft;plan?:SendingPlan;available:TmsCargo[];ferries:{id:number;name:string}[];routes:string[];busy:boolean;
  onChange:(draft:PlanDraft)=>void;onSave:()=>void;onCancel:()=>void;onDelete?:()=>void;
 }) {
  const [pickerOpen,setPickerOpen]=useState(false),[search,setSearch]=useState('');
+ const period=usePlanningPeriodFilter();
  const all=useMemo(()=>[...new Map([...available,...(plan?.cargo||[])].map(cargo=>[cargo.number,cargo])).values()],[available,plan]);
  const byNumber=useMemo(()=>new Map(all.map(cargo=>[cargo.number,cargo])),[all]);
  const actual=new Set(plan?.actualCargoNumbers||[]);
  const selected=draft.cargoNumbers.map(number=>byNumber.get(number)).filter((cargo):cargo is TmsCargo=>!!cargo);
- const candidates=useMemo(()=>all.filter(cargo=>cargo.route===draft.route&&matchesPickerSearch(cargo,search)),[all,draft.route,search]);
+ const candidates=useMemo(()=>all.filter(cargo=>cargo.route===draft.route&&matchesPickerSearch(cargo,search)&&(period.state.dateFilter==='все'||isDateInRange(cargo.received,period.range.dateFrom,period.range.dateTo))),[all,draft.route,search,period.state.dateFilter,period.range.dateFrom,period.range.dateTo]);
  const changeMode=(mode:PlanningMode)=>onChange({...draft,mode,vehicleId:mode==='air'?'':VEHICLES.find(vehicle=>vehicle.mode===(mode==='auto'?'road':'ferry'))!.id,ferryId:null});
  const select=(numbers:string[],include:boolean)=>{
   const editable=new Set(numbers.filter(number=>!actual.has(number)));
@@ -32,6 +35,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
     <label>Тип транспорта<select aria-label="Тип транспорта" value={draft.mode} onChange={event=>changeMode(event.target.value as PlanningMode)}>{Object.entries(MODE_LABELS).map(([mode,label])=><option key={mode} value={mode}>{label}</option>)}</select></label>
     {draft.mode!=='air'&&<label>{draft.mode==='auto'?'Тип ТС':'Тип контейнера'}<select required aria-label={draft.mode==='auto'?'Тип ТС':'Тип контейнера'} value={draft.vehicleId} onChange={event=>onChange({...draft,vehicleId:event.target.value})}>{VEHICLES.filter(vehicle=>vehicle.mode===(draft.mode==='auto'?'road':'ferry')).map(vehicle=><option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select></label>}
     {draft.mode==='ferry'&&<label>Паром<select required aria-label="Паром" value={draft.ferryId||''} onChange={event=>onChange({...draft,ferryId:event.target.value?Number(event.target.value):null})}><option value="">Выберите паром</option>{ferries.map(ferry=><option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}{plan?.ferryId&&!ferries.some(ferry=>ferry.id===plan.ferryId)&&<option value={plan.ferryId}>{plan.ferryName} (неактивен)</option>}</select></label>}
+    <PlanningPeriodFilter filter={period}/>
    </div>
    <div className="sending-planning__cargo-heading"><h4>Перевозки · {selected.length}</h4><button type="button" className="filter-button" onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
    {pickerOpen&&<PlanningCargoPicker candidates={candidates} cargoNumbers={draft.cargoNumbers} locked={actual} search={search} onSearch={setSearch} onSelect={select}/>}

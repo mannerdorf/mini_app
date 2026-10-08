@@ -1,4 +1,5 @@
 import React, { useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronDown } from "lucide-react";
 import { Button, Typography } from "@maxhub/max-ui";
 import * as dateUtils from "../../lib/dateUtils";
@@ -18,6 +19,10 @@ export type ListDateFilterControlProps = PersistedDateFilterControls & {
   showReset?: boolean;
   /** Только выбор календарной недели (пн–вс), без месяца/года/произвольного периода. */
   weekOnly?: boolean;
+  /** Embed in a native modal form: keep the dropdown in its top layer and portal the period dialog. */
+  embedded?: boolean;
+  includeAll?: boolean;
+  label?: string;
 };
 
 export function ListDateFilterControl({
@@ -40,6 +45,9 @@ export function ListDateFilterControl({
   onResetFilters,
   showReset = true,
   weekOnly = false,
+  embedded = false,
+  includeAll = false,
+  label = "Дата",
 }: ListDateFilterControlProps) {
   const [isDateDropdownOpen, setIsDateDropdownOpen] = useState(false);
   const [dateDropdownMode, setDateDropdownMode] = useState<"main" | "months" | "quarters" | "years" | "weeks">("main");
@@ -53,20 +61,35 @@ export function ListDateFilterControl({
   const weekWasLongPressRef = useRef(false);
   const quarterLongPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const quarterWasLongPressRef = useRef(false);
+  const customDialog = <FilterDialog
+    isOpen={isCustomModalOpen}
+    onClose={() => setIsCustomModalOpen(false)}
+    dateFrom={customDateFrom}
+    dateTo={customDateTo}
+    onApply={(from, to) => {
+      setCustomDateFrom(from);
+      setCustomDateTo(to);
+    }}
+  />;
 
   return (
     <>
       {showReset && <ResetAllFiltersButton onReset={onResetFilters} />}
-      <div className={className ?? "filter-group"} style={{ flexShrink: 0 }}>
+      <div className={className ?? "filter-group"} style={{ flexShrink: 0 }} onKeyDown={event => {
+        if (isDateDropdownOpen && event.key === "Escape") {
+          event.preventDefault(); event.stopPropagation(); setIsDateDropdownOpen(false);
+        }
+      }}>
         <div ref={dateButtonRef} style={{ display: "inline-flex" }}>
           <Button
+            type="button"
             className="filter-button"
             onClick={() => {
               setIsDateDropdownOpen(!isDateDropdownOpen);
               if (!weekOnly) setDateDropdownMode("main");
             }}
           >
-            Дата:{" "}
+            {label}:{" "}
             {formatDateFilterButtonLabel({
               dateFilter,
               apiDateRange,
@@ -79,6 +102,7 @@ export function ListDateFilterControl({
           </Button>
         </div>
         <FilterDropdownPortal
+          container={embedded ? dateButtonRef.current?.closest("dialog") : undefined}
           triggerRef={dateButtonRef}
           isOpen={isDateDropdownOpen}
           onClose={() => setIsDateDropdownOpen(false)}
@@ -188,7 +212,7 @@ export function ListDateFilterControl({
               ))}
             </>
           ) : (
-            (["сегодня", "вчера", "неделя", "месяц", "квартал", "год", "период"] as const).map((key) => {
+            (includeAll ? ["все", "сегодня", "вчера", "неделя", "месяц", "квартал", "год", "период"] as const : ["сегодня", "вчера", "неделя", "месяц", "квартал", "год", "период"] as const).map((key) => {
               const isMonth = key === "месяц";
               const isQuarter = key === "квартал";
               const isYear = key === "год";
@@ -306,16 +330,7 @@ export function ListDateFilterControl({
           )}
         </FilterDropdownPortal>
       </div>
-      <FilterDialog
-        isOpen={isCustomModalOpen}
-        onClose={() => setIsCustomModalOpen(false)}
-        dateFrom={customDateFrom}
-        dateTo={customDateTo}
-        onApply={(from, to) => {
-          setCustomDateFrom(from);
-          setCustomDateTo(to);
-        }}
-      />
+      {embedded && typeof document !== "undefined" ? createPortal(customDialog, document.body) : customDialog}
     </>
   );
 }

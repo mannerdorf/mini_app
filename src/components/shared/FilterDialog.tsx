@@ -28,7 +28,7 @@ export function FilterDialog({ isOpen, onClose, dateFrom, dateTo, onApply, title
                     <Typography.Headline>{title}</Typography.Headline>
                     <Button className="modal-close-button" onClick={onClose} aria-label="Закрыть"><X size={20} /></Button>
                 </div>
-                <form onSubmit={e => { e.preventDefault(); if (!tempFrom || !tempTo || tempFrom > tempTo) return; onApply(tempFrom, tempTo); onClose(); }}>
+                <form onSubmit={e => { e.preventDefault(); e.stopPropagation(); if (!tempFrom || !tempTo || tempFrom > tempTo) return; onApply(tempFrom, tempTo); onClose(); }}>
                     <div style={{ marginBottom: '1rem' }}><label className="detail-item-label" htmlFor={`${fieldId}-from`}>Дата начала:</label><Input id={`${fieldId}-from`} aria-label="Дата начала" max={tempTo || undefined} type="date" className="login-input date-input" value={tempFrom} onChange={e => setTempFrom(e.target.value)} required /></div>
                     <div style={{ marginBottom: '1rem' }}><label className="detail-item-label" htmlFor={`${fieldId}-to`}>Дата окончания:</label><Input id={`${fieldId}-to`} aria-label="Дата окончания" min={tempFrom || undefined} type="date" className="login-input date-input" value={tempTo} onChange={e => setTempTo(e.target.value)} required /></div>
                     <div className="calendar-quick-today-mobile-only" style={{ marginBottom: '1rem' }}>

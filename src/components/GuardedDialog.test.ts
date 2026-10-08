@@ -13,9 +13,10 @@ it('opens a named native modal, handles Escape and restores focus', () => {
   expect(dialog.showModal).toHaveBeenCalledTimes(1);
   const node=root.root.findByType('dialog');
   expect(node.props['aria-label']).toBe('Редактор');
-  const preventDefault=vi.fn();
-  act(() => node.props.onCancel({preventDefault}));
+  const preventDefault=vi.fn(),stopPropagation=vi.fn();
+  act(() => node.props.onCancel({preventDefault,stopPropagation}));
   expect(preventDefault).toHaveBeenCalled(); expect(close).toHaveBeenCalled();
+  expect(stopPropagation).toHaveBeenCalledTimes(1);
   act(() => root.unmount());
   expect(previous.focus).toHaveBeenCalled();
 });

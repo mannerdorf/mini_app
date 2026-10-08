@@ -11,9 +11,11 @@ it('labels both date fields and rejects a reversed interval',()=>{
  expect(root.root.findByType('dialog').props['aria-label']).toBe('Произвольный диапазон');
  const fields=root.root.findAllByType('input');
  expect(fields.map(f=>f.props['aria-label'])).toEqual(['Дата начала','Дата окончания']);
- act(()=>root.root.findByType('form').props.onSubmit({preventDefault:vi.fn()}));
+ const stopPropagation=vi.fn();
+ act(()=>root.root.findByType('form').props.onSubmit({preventDefault:vi.fn(),stopPropagation}));
  expect(onApply).not.toHaveBeenCalled();expect(onClose).not.toHaveBeenCalled();
  act(()=>fields[0].props.onChange({target:{value:'2026-09-18'}}));
- act(()=>root.root.findByType('form').props.onSubmit({preventDefault:vi.fn()}));
+ act(()=>root.root.findByType('form').props.onSubmit({preventDefault:vi.fn(),stopPropagation}));
  expect(onApply).toHaveBeenCalledWith('2026-09-18','2026-09-19');expect(onClose).toHaveBeenCalledTimes(1);
+ expect(stopPropagation).toHaveBeenCalledTimes(2);
 });
