@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {VEHICLES,type TmsCargo} from '../src/features/tms/model.js';
 import type {PlanDraft,PlanningData,SendingPlan} from '../src/features/documents/sendings/planning/planningModel.js';
-import {cleanNumber,normalizeCargo,readBacklog} from './tms/backlog.js';
+import {amount,cleanNumber,normalizeCargo,readBacklog} from './tms/backlog.js';
 import {validPlanDate} from './planDateQueue.js';
 
 export class PlanningError extends Error {constructor(message:string,public status=400){super(message);}}
@@ -35,14 +35,16 @@ export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<
  ]);
  const ids=planResult.rows.map(plan=>plan.id);
  let cargo=ids.length?(await pool.query<{plan_id:string;snapshot:TmsCargo;cargo_number:string}>('SELECT plan_id,cargo_number,snapshot FROM sending_plan_cargo WHERE plan_id=ANY($1::uuid[]) ORDER BY position',[ids])).rows:[];
- const missingSenders=cargo.filter(item=>!item.snapshot.sender?.trim()).map(item=>item.cargo_number);
- if(missingSenders.length){
-  // Plans saved before sender support retain their original snapshot; only fill this missing field.
-  const cached=(await pool.query<{number:string;sender:string}>(`SELECT DISTINCT ON (ltrim(btrim(doc_number),'0')) ltrim(btrim(doc_number),'0') AS number,btrim(payload->>'Sender') AS sender
-   FROM cache_perevozki_rows WHERE ltrim(btrim(doc_number),'0')=ANY($1::text[]) AND jsonb_typeof(payload->'Sender')='string' AND nullif(btrim(payload->>'Sender'),'') IS NOT NULL
-   ORDER BY ltrim(btrim(doc_number),'0'),updated_at DESC NULLS LAST`,[missingSenders])).rows;
-  const senders=new Map(cached.map(item=>[item.number,item.sender]));
-  cargo=cargo.map(item=>({...item,snapshot:{...item.snapshot,sender:item.snapshot.sender?.trim()||senders.get(item.cargo_number)||''}}));
+ const missingDetails=cargo.filter(item=>!item.snapshot.sender?.trim()||item.snapshot.paidWeight===undefined).map(item=>item.cargo_number);
+ if(missingDetails.length){
+  // Enrich legacy snapshots only where these fields were absent; preserve their recorded metrics.
+  const cached=(await pool.query<{number:string;sender:string|null;paid_weight:unknown}>(`SELECT DISTINCT ON (ltrim(btrim(doc_number),'0')) ltrim(btrim(doc_number),'0') AS number,
+   CASE WHEN jsonb_typeof(payload->'Sender')='string' THEN btrim(payload->>'Sender') END AS sender,payload->'PW' AS paid_weight
+   FROM cache_perevozki_rows WHERE ltrim(btrim(doc_number),'0')=ANY($1::text[])
+   ORDER BY ltrim(btrim(doc_number),'0'),updated_at DESC NULLS LAST`,[missingDetails])).rows;
+  const details=new Map(cached.map(item=>[item.number,item]));
+  cargo=cargo.map(item=>({...item,snapshot:{...item.snapshot,sender:item.snapshot.sender?.trim()||details.get(item.cargo_number)?.sender||'',
+   paidWeight:item.snapshot.paidWeight===undefined?amount(details.get(item.cargo_number)?.paid_weight):item.snapshot.paidWeight}}));
  }
  const actual=await actualNumbers(pool,cargo.map(item=>item.cargo_number));
  const reserved=new Set(reservations.rows.map(row=>row.cargo_number));

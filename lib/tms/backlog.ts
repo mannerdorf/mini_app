@@ -59,6 +59,7 @@ export function normalizeCargo(
       : "",
     route: `${cityToCode(item.CitySender) || "?"} → ${cityToCode(item.CityReceiver) || "?"}`,
     weight: amount(item.W),
+    paidWeight: amount(item.PW),
     volume: amount(item.Value),
     places: amount(item.Mest),
     ...readiness(item),

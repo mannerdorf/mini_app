@@ -4,7 +4,7 @@ import { normalizeDateFilterState, resolveDateFilterToRange, type DateFilterStat
 import { receiptDateLabel } from './planningPickerModel';
 
 export function usePlanningPeriodFilter() {
-  const [state, setState] = useState<DateFilterState>(() => ({ ...normalizeDateFilterState(null), dateFilter: 'все' }));
+  const [state, setState] = useState<DateFilterState>(() => normalizeDateFilterState({ dateFilter: 'месяц' }));
   const range = useMemo(() => resolveDateFilterToRange(state.dateFilter, state), [state]);
   const update = <K extends keyof DateFilterState>(key: K) => (value: DateFilterState[K]) => setState(current => ({ ...current, [key]: value }));
   const controls = {

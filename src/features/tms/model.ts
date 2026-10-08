@@ -10,6 +10,7 @@ export type TmsCargo = {
   received: string;
   route: string;
   weight: number | null;
+  paidWeight?: number | null;
   volume: number | null;
   places: number | null;
   readiness: Readiness;

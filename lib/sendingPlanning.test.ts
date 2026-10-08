@@ -47,6 +47,19 @@ it('fills missing sender fields in existing plan snapshots without changing thei
  const snapshot=(await db.query<{snapshot:Record<string,unknown>}>('SELECT snapshot FROM sending_plan_cargo WHERE cargo_number=$1',['142701'])).rows[0].snapshot;
  expect(snapshot).not.toHaveProperty('sender');
 });
+it('reads paid weight from PW and enriches only missing legacy fields without changing recorded weights',async()=>{
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({PW:' 1 250,5 '}),'000142701']);
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ expect((await list()).plans[0].cargo[0].paidWeight).toBe(1250.5);
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||$1::jsonb WHERE doc_number=$2",[JSON.stringify({PW:800,W:999}),'000142701']);
+ expect((await list()).plans[0].cargo[0]).toMatchObject({paidWeight:1250.5,weight:10});
+ await db.query("UPDATE sending_plan_cargo SET snapshot=snapshot-'paidWeight' WHERE plan_id=$1 AND cargo_number='142701'",[id]);
+ const plan=(await list()).plans[0];
+ expect(plan.cargo[0]).toMatchObject({paidWeight:800,weight:10});
+ expect(plan.cargo[1].paidWeight).toBeNull();
+ const snapshot=(await db.query<{snapshot:Record<string,unknown>}>('SELECT snapshot FROM sending_plan_cargo WHERE cargo_number=$1',['142701'])).rows[0].snapshot;
+ expect(snapshot).not.toHaveProperty('paidWeight');
+});
 it('validates actual sending membership, route, transport preset and active ferry at save time',async()=>{
  for(const invalid of [draft({cargoNumbers:['142705']}),draft({cargoNumbers:['142706']}),draft({cargoNumbers:['142704']}),draft({vehicleId:'20dc'}),draft({date:'2026-02-30'}),draft({mode:'ferry',vehicleId:'40hc',ferryId:2})])await expect(saveSendingPlan(pool,invalid,'staff')).rejects.toThrow();
  expect((await list()).plans).toHaveLength(0);

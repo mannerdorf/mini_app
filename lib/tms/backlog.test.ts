@@ -31,6 +31,8 @@ it("normalizes actual rather than billable weight and does not invent pallets", 
     null,
   );
   expect(c.weight).toBe(106.5);
+  expect(c.paidWeight).toBe(280);
+  expect(normalizeCargo({ W: 100, Value: 2 }, null).paidWeight).toBeNull();
   expect(c.route).toBe("MSK → KGD");
   expect(c.number).toBe("142978");
   expect(c.received).toBe("2026-10-07");

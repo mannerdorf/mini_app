@@ -2,8 +2,8 @@ import React,{useMemo,useState} from 'react';
 import {Plus,Trash2} from 'lucide-react';
 import {VEHICLES,type TmsCargo} from '../../../tms/model';
 import {MODE_LABELS,type PlanDraft,type PlanningMode,type SendingPlan} from './planningModel';
-import {planningNumber} from './PlanningCargoTable';
 import {PlanningCargoPicker} from './PlanningCargoPicker';
+import {PlanningLoadSummary} from './PlanningLoadSummary';
 import {matchesPickerSearch} from './planningPickerModel';
 import {PlanningPeriodFilter,usePlanningPeriodFilter} from './PlanningPeriodFilter';
 import {isDateInRange} from '../../../../lib/dateUtils';
@@ -25,9 +25,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
   onChange({...draft,cargoNumbers:include?[...new Set([...draft.cargoNumbers,...editable])]:draft.cargoNumbers.filter(number=>!editable.has(number))});
  };
  const toggle=(number:string)=>select([number],!draft.cargoNumbers.includes(number));
- const total=(field:'weight'|'volume'|'places')=>selected.reduce((sum,cargo)=>sum+(cargo[field]||0),0);
  return <form className="sending-planning__editor" onSubmit={event=>{event.preventDefault();onSave();}}>
-  <header><div><h3>{plan?'План отправки':'Новый план отправки'}</h3><p>Рекомендация кладовщику</p></div></header>
   <fieldset disabled={busy}>
    <div className="sending-planning__fields">
     <label>Дата планирования<input required type="date" aria-label="Дата планирования" value={draft.date} onChange={event=>onChange({...draft,date:event.target.value})}/></label>
@@ -38,9 +36,9 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
     <PlanningPeriodFilter filter={period}/>
    </div>
    <div className="sending-planning__cargo-heading"><h4>Перевозки · {selected.length}</h4><button type="button" className="filter-button" onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
+   <PlanningLoadSummary cargo={selected} draft={draft}/>
    {pickerOpen&&<PlanningCargoPicker candidates={candidates} cargoNumbers={draft.cargoNumbers} locked={actual} search={search} onSearch={setSearch} onSelect={select}/>}
    <div className="sending-planning__selected">{selected.map(cargo=><div key={cargo.number}><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver}{actual.has(cargo.number)?' · Отправлена по данным 1С':''}</small></span>{!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>toggle(cargo.number)}><Trash2 size={16}/></button>}</div>)}</div>
-   <p className="sending-planning__totals">{planningNumber(total('places'),0)} мест · {planningNumber(total('weight'))} кг · {planningNumber(total('volume'),2)} м³</p>
    <label>Комментарий<textarea maxLength={4000} rows={3} value={draft.comment} onChange={event=>onChange({...draft,comment:event.target.value})} placeholder="Указания кладовщику"/></label>
   </fieldset>
   <footer>{onDelete&&<button type="button" className="sending-planning__delete" disabled={busy} onClick={onDelete}>Удалить план</button>}<span/><button type="button" className="filter-button" disabled={busy} onClick={onCancel}>Отмена</button><button type="submit" className="button-primary" disabled={busy||!draft.date||(draft.mode==='ferry'&&!draft.ferryId)}>{busy?'Сохраняем…':'Сохранить план'}</button></footer>
