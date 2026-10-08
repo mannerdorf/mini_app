@@ -22,7 +22,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
  const road=usesRoadVehicle(draft.mode),showFerry=needsFerry(draft.mode)||partial&&!draft.mode;
  const changeMode=(mode:PlanningMode)=>{
   const presets=VEHICLES.filter(vehicle=>vehicle.mode===(usesRoadVehicle(mode)?'road':'ferry'));
-  onChange({...draft,mode,vehicleId:mode==='air'||!mode?'':presets.some(vehicle=>vehicle.id===draft.vehicleId)?draft.vehicleId:presets[0].id,ferryId:needsFerry(mode)||!mode?draft.ferryId:null});
+  onChange({...draft,mode,vehicleId:mode==='air'||!mode?'':presets.some(vehicle=>vehicle.id===draft.vehicleId)?draft.vehicleId:presets[0].id,ferryId:needsFerry(mode)||!mode?draft.ferryId:null,departureDate:needsFerry(mode)||!mode?draft.departureDate:''});
  };
  const select=(numbers:string[],include:boolean)=>{
   const editable=new Set(numbers.filter(number=>!actual.has(number)));
@@ -32,21 +32,36 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
  return <form className="sending-planning__editor" onSubmit={event=>{event.preventDefault();onSave();}}>
   <fieldset disabled={busy}>
    {partial&&missing.length>0&&<p className="sending-planning__draft-notice">Черновик из Битрикса. Заполните: {missing.join(', ')}.</p>}
-   <div className="sending-planning__fields">
-    {(plan?.title||partial)&&<label className="sending-planning__title-field">Название<input type="text" aria-label="Название плана" maxLength={200} required={partial} value={draft.title||''} onChange={event=>onChange({...draft,title:event.target.value})}/></label>}
-    <label>Дата планирования<input required type="date" aria-label="Дата планирования" value={draft.date} onChange={event=>onChange({...draft,date:event.target.value})}/></label>
-    <label>Маршрут<select required={!partial} aria-label="Маршрут" value={draft.route} disabled={actual.size>0} onChange={event=>onChange({...draft,route:event.target.value,cargoNumbers:draft.cargoNumbers.filter(number=>byNumber.get(number)?.route===event.target.value)})}>{partial&&<option value="">Выберите маршрут</option>}{routes.map(route=><option key={route}>{route}</option>)}</select></label>
-    <label>Тип транспорта<select aria-label="Тип транспорта" value={draft.mode} onChange={event=>changeMode(event.target.value as PlanningMode)}>{partial&&<option value="">Выберите тип транспорта</option>}{Object.entries(MODE_LABELS).filter(([mode])=>!!mode).map(([mode,label])=><option key={mode} value={mode}>{label}</option>)}</select></label>
-    {draft.mode&&draft.mode!=='air'&&<label>{road?'Тип ТС':'Тип контейнера'}<select required={!partial} aria-label={road?'Тип ТС':'Тип контейнера'} value={draft.vehicleId} onChange={event=>onChange({...draft,vehicleId:event.target.value})}>{partial&&<option value="">{road?'Выберите тип ТС':'Выберите тип контейнера'}</option>}{VEHICLES.filter(vehicle=>vehicle.mode===(road?'road':'ferry')).map(vehicle=><option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select></label>}
-    {showFerry&&<label>Паром<select required={!partial} aria-label="Паром" value={draft.ferryId||''} onChange={event=>onChange({...draft,ferryId:event.target.value?Number(event.target.value):null})}><option value="">Выберите паром</option>{ferries.map(ferry=><option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}{plan?.ferryId&&!ferries.some(ferry=>ferry.id===plan.ferryId)&&<option value={plan.ferryId}>{plan.ferryName} (неактивен)</option>}</select></label>}
-    <PlanningPeriodFilter filter={period}/>
-   </div>
-   <div className="sending-planning__cargo-heading"><h4>Перевозки · {selected.length}</h4><button type="button" className="filter-button" disabled={!draft.route} onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
+   <section className="sending-planning__form-section" aria-labelledby="planning-parameters">
+    <h4 id="planning-parameters" className="sending-planning__section-heading"><span>1</span>Параметры отправки</h4>
+    <div className="sending-planning__fields">
+     <label>Дата планирования<input required type="date" aria-label="Дата планирования" value={draft.date} onChange={event=>onChange({...draft,date:event.target.value})}/></label>
+     <label>Маршрут<select required={!partial} aria-label="Маршрут" value={draft.route} disabled={actual.size>0} onChange={event=>onChange({...draft,route:event.target.value,cargoNumbers:draft.cargoNumbers.filter(number=>byNumber.get(number)?.route===event.target.value)})}>{partial&&<option value="">Выберите маршрут</option>}{routes.map(route=><option key={route}>{route}</option>)}</select></label>
+     <label>Тип транспорта<select aria-label="Тип транспорта" value={draft.mode} onChange={event=>changeMode(event.target.value as PlanningMode)}>{partial&&<option value="">Выберите тип транспорта</option>}{Object.entries(MODE_LABELS).filter(([mode])=>!!mode).map(([mode,label])=><option key={mode} value={mode}>{label}</option>)}</select></label>
+     {draft.mode&&draft.mode!=='air'&&<label>{road?'Тип ТС':'Тип контейнера'}<select required={!partial} aria-label={road?'Тип ТС':'Тип контейнера'} value={draft.vehicleId} onChange={event=>onChange({...draft,vehicleId:event.target.value})}>{partial&&<option value="">{road?'Выберите тип ТС':'Выберите тип контейнера'}</option>}{VEHICLES.filter(vehicle=>vehicle.mode===(road?'road':'ferry')).map(vehicle=><option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}</select></label>}
+     {showFerry&&<>
+      <label>Паром<select required={!partial} aria-label="Паром" value={draft.ferryId||''} onChange={event=>onChange({...draft,ferryId:event.target.value?Number(event.target.value):null})}><option value="">Выберите паром</option>{ferries.map(ferry=><option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}{plan?.ferryId&&!ferries.some(ferry=>ferry.id===plan.ferryId)&&<option value={plan.ferryId}>{plan.ferryName} (неактивен)</option>}</select></label>
+      <label>Дата выхода<input type="date" aria-label="Дата выхода парома" value={draft.departureDate||''} onChange={event=>onChange({...draft,departureDate:event.target.value})}/></label>
+     </>}
+    </div>
+   </section>
    <PlanningLoadSummary cargo={selected} draft={draft}/>
-   {pickerOpen&&<PlanningCargoPicker candidates={candidates} cargoNumbers={draft.cargoNumbers} locked={actual} onSelect={select}/>}
-   <div className="sending-planning__selected">{selected.map(cargo=><div key={cargo.number}><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver}{actual.has(cargo.number)?' · Отправлена по данным 1С':''}</small></span>{!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>toggle(cargo.number)}><Trash2 size={16}/></button>}</div>)}</div>
-   <label>Комментарий<textarea aria-label="Комментарий" maxLength={4000} rows={3} value={draft.comment} onChange={event=>onChange({...draft,comment:event.target.value})} placeholder="Указания кладовщику"/></label>
+   <section className="sending-planning__form-section sending-planning__form-section--pick" aria-labelledby="planning-pick">
+    <h4 id="planning-pick" className="sending-planning__section-heading"><span>3</span>Подбор перевозок</h4>
+    <PlanningPeriodFilter filter={period}/>
+    <div className="sending-planning__cargo-heading"><span>По выбранному маршруту и периоду</span><button type="button" className="button-primary" disabled={!draft.route} onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
+    {pickerOpen&&<PlanningCargoPicker candidates={candidates} selectedCargo={selected} vehicle={draft.mode==='air'?undefined:VEHICLES.find(vehicle=>vehicle.id===draft.vehicleId)} cargoNumbers={draft.cargoNumbers} locked={actual} onSelect={select}/>}
+   </section>
+   <section className="sending-planning__form-section" aria-labelledby="planning-selected">
+    <h4 id="planning-selected" className="sending-planning__section-heading"><span>4</span>Выбранные перевозки · {selected.length}</h4>
+    <div className="sending-planning__selected">{selected.map(cargo=><div key={cargo.number}><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver}{actual.has(cargo.number)?' · Отправлена по данным 1С':''}</small></span>{!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>toggle(cargo.number)}><Trash2 size={16}/></button>}</div>)}</div>
+    {!selected.length&&<p className="sending-planning__muted">Добавьте перевозки в блоке подбора</p>}
+   </section>
+   <section className="sending-planning__form-section" aria-labelledby="planning-comment">
+    <h4 id="planning-comment" className="sending-planning__section-heading"><span>5</span>Комментарий</h4>
+    <textarea aria-label="Комментарий" maxLength={4000} rows={3} value={draft.comment} onChange={event=>onChange({...draft,comment:event.target.value})} placeholder="Указания кладовщику"/>
+   </section>
   </fieldset>
-  <footer>{onDelete&&<button type="button" className="sending-planning__delete" disabled={busy} onClick={onDelete}>Удалить план</button>}<span/><button type="button" className="filter-button" disabled={busy} onClick={onCancel}>Отмена</button><button type="submit" className="button-primary" disabled={busy||!draft.date||(!partial&&needsFerry(draft.mode)&&!draft.ferryId)}>{busy?'Сохраняем…':partial&&missing.length?'Сохранить черновик':'Сохранить план'}</button></footer>
+  <footer>{onDelete&&<button type="button" className="sending-planning__delete" disabled={busy} onClick={onDelete}>Удалить план</button>}<span/><button type="button" className="filter-button" disabled={busy} onClick={onCancel}>Отмена</button><button type="submit" className="button-primary" disabled={busy||!draft.date||(!partial&&needsFerry(draft.mode)&&!draft.ferryId)}>{busy?'Сохраняем…':'Сохранить'}</button></footer>
  </form>;
 }

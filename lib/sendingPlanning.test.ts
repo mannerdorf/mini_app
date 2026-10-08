@@ -10,6 +10,7 @@ beforeAll(async()=>{
  await db.exec('CREATE TABLE ferries(id bigint PRIMARY KEY,name text,active boolean); CREATE TABLE sendings_metrics(cargo_numbers jsonb); CREATE TABLE cache_perevozki_rows(doc_number text PRIMARY KEY,doc_date timestamp,payload jsonb,updated_at timestamp);');
  await db.exec(readFileSync('migrations/130_sending_planning.sql','utf8'));
  await db.exec(readFileSync('migrations/131_sending_planning_transport.sql','utf8'));
+ await db.exec(readFileSync('migrations/132_sending_planning_departure.sql','utf8'));
  await db.exec("INSERT INTO ferries VALUES(1,'FESCO NAVARIN',true),(2,'Неактивный паром',false)");
  const query=(sql:string,args?:any[])=>db.query(sql,args);
  pool={query,connect:async()=>({query,release(){}})};
@@ -96,6 +97,15 @@ it('allows only missing draft fields and rejects invalid presets, unnamed drafts
  expect((await list()).plans).toHaveLength(0);
  await saveSendingPlan(pool,partial,'staff');
  expect((await list()).plans[0]).toMatchObject({isDraft:true,mode:'ferry',vehicleId:'',ferryId:null});
+});
+it('persists a separate ferry departure date, preserves it for older clients and clears it for road or air',async()=>{
+ await expect(saveSendingPlan(pool,draft({mode:'roro',ferryId:1,departureDate:'2026-02-30'}),'staff')).rejects.toThrow('дату выхода');
+ const id=await saveSendingPlan(pool,draft({mode:'roro',ferryId:1,departureDate:'2026-10-14'}),'staff');
+ expect((await list()).plans[0]).toMatchObject({date:'2026-10-09',departureDate:'2026-10-14'});
+ await saveSendingPlan(pool,draft({id,revision:1,mode:'roro',ferryId:1}),'staff');
+ expect((await list()).plans[0].departureDate).toBe('2026-10-14');
+ await saveSendingPlan(pool,draft({id,revision:2,mode:'auto',departureDate:'2026-10-14'}),'staff');
+ expect((await list()).plans[0].departureDate).toBe('');
 });
 it('calculates plan/fact from deduplicated padded cargo numbers and preserves shipped members',async()=>{
  const id=await saveSendingPlan(pool,draft(),'staff');

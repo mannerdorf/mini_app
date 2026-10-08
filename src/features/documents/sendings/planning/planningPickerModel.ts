@@ -1,6 +1,6 @@
 import type { TmsCargo } from '../../../tms/model';
 
-export type PlanningPickerView = 'customer' | 'cargo' | 'receiver' | 'sender' | 'date';
+export type PlanningPickerView = 'customer' | 'cargo' | 'receiver' | 'date';
 export type PlanningPickerGroup = {
   key: string;
   label: string;
@@ -14,23 +14,17 @@ export const PICKER_VIEWS: { value: PlanningPickerView; label: string }[] = [
   { value: 'cargo', label: 'По перевозкам' },
   { value: 'receiver', label: 'По получателю' },
   { value: 'date', label: 'По датам' },
-  { value: 'sender', label: 'По отправителю' },
 ];
 
 export function receiptDateLabel(value: string): string {
   return value ? value.split('-').reverse().join('.') : 'Без даты поступления';
 }
 
-export function matchesPickerSearch(cargo: TmsCargo, search: string): boolean {
-  return [cargo.number, cargo.customer, cargo.receiver, cargo.sender, cargo.received, receiptDateLabel(cargo.received)]
-    .join(' ').toLocaleLowerCase('ru').includes(search.trim().toLocaleLowerCase('ru'));
-}
-
 export function groupPickerCargo(candidates: TmsCargo[], view: Exclude<PlanningPickerView, 'cargo'>) {
   const groups = new Map<string, PlanningPickerGroup>();
   for (const cargo of candidates) {
-    const key = view === 'customer' ? cargo.customerId || cargo.customer : view === 'receiver' ? cargo.receiver : view === 'sender' ? cargo.sender?.trim() || '' : cargo.received;
-    const label = view === 'customer' ? cargo.customer : view === 'receiver' ? cargo.receiver : view === 'sender' ? cargo.sender?.trim() || 'Без отправителя' : receiptDateLabel(cargo.received);
+    const key = view === 'customer' ? cargo.customerId || cargo.customer : view === 'receiver' ? cargo.receiver : cargo.received;
+    const label = view === 'customer' ? cargo.customer : view === 'receiver' ? cargo.receiver : receiptDateLabel(cargo.received);
     let group = groups.get(key);
     if (!group) {
       group = { key, label, cargo: [], weight: 0, volume: 0 };

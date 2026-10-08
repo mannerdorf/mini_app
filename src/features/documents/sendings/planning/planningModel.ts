@@ -1,8 +1,8 @@
 import {VEHICLES,type TmsCargo} from '../../../tms/model.js';
 
 export type PlanningMode='roro'|'ferry'|'auto'|'air'|'';
-export type PlanningView='cargo'|'customer'|'receiver';
-export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
+export type PlanningView='cargo'|'customer'|'receiver'|'vehicle';
+export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;departureDate?:string;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
 export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[]};
 export type PlanningData={plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
 // Keep the persisted ferry value for existing container plans.
@@ -45,4 +45,15 @@ export function groupPlannedCargo(plan:SendingPlan,view:PlanningView) {
   cargo,actual:cargo.filter(item=>actual.has(item.number)).length,
   places:cargo.reduce((sum,item)=>sum+(item.places||0),0),weight:cargo.reduce((sum,item)=>sum+(item.weight||0),0),volume:cargo.reduce((sum,item)=>sum+(item.volume||0),0),
  }));
+}
+
+export function groupPlansByVehicle(plans:SendingPlan[]) {
+ const groups=new Map<string,{key:string;label:string;plans:SendingPlan[]}>();
+ for(const plan of plans){
+  const key=`${plan.mode}:${plan.mode==='air'?'':plan.vehicleId}`;
+  const label=MODE_LABELS[plan.mode]+(plan.mode&&plan.mode!=='air'?` · ${vehicleName(plan.vehicleId)==='—'?'Тип ТС не выбран':vehicleName(plan.vehicleId)}`:'');
+  const group=groups.get(key)||{key,label,plans:[]};
+  group.plans.push(plan);groups.set(key,group);
+ }
+ return [...groups.values()].sort((a,b)=>a.label.localeCompare(b.label,'ru')).map(group=>({...group,plans:group.plans.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))}));
 }

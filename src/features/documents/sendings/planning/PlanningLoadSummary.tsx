@@ -25,8 +25,8 @@ export function PlanningLoadSummary({ cargo, draft }: { cargo: TmsCargo[]; draft
   const total = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.reduce((sum, item) => sum + (item[field] ?? 0), 0);
   const missing = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.filter(item => item[field] == null).length;
   const paidMissing = missing('paidWeight');
-  return <section className="sending-planning__load-summary" aria-label="Итоги выбранных перевозок">
-    <div className="sending-planning__load-heading"><b>Заполнение ТС</b>{vehicle && <small>{vehicle.name}</small>}</div>
+  return <section className="sending-planning__load-summary sending-planning__form-section" aria-label="Итоги выбранных перевозок">
+    <div className="sending-planning__load-heading"><h4 className="sending-planning__section-heading"><span>2</span>Заполнение ТС и итоги</h4>{vehicle && <small>{vehicle.name}</small>}</div>
     <div className="sending-planning__capacities">
       <Capacity label="Вес" value={total('weight')} limit={vehicle?.payload} unit="кг" missing={missing('weight')} />
       <Capacity label="Объём" value={total('volume')} limit={vehicle?.volume} unit="м³" digits={2} missing={missing('volume')} />

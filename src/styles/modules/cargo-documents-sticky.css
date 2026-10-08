@@ -406,6 +406,24 @@
 .sendings-bulk-actions-bar__label {
     font-size: 0.9rem;
 }
+.sendings-bulk-actions-bar__row .filter-button {
+    min-height: 44px;
+    padding: 10px 12px !important;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.3;
+}
+:root .sendings-bulk-actions-bar__row .filter-button.sendings-planning-trigger {
+    background: #f3f76b;
+    border-color: #dbe246;
+    color: #222600;
+}
+:root .sendings-bulk-actions-bar__row .filter-button.sendings-planning-trigger:hover {
+    background: #e9ef4e;
+    border-color: #cbd333;
+    color: #222600;
+}
 @media (max-width: 768px) {
     /* Мобильная «Отправки»: панель bulk — читаемые размеры, единая высота chip */
     .sendings-bulk-actions-bar {
