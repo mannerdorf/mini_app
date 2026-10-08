@@ -1,5 +1,7 @@
-/** Internal ruler codes: six-digit namespace + position in whole centimetres. */
-const PREFIX = '200000';
+import { MAX_WEIGHT_GRAMS, weightGrams } from './haulzWeightRuler';
+
+/** Fourth scale (weight): internal namespace 2004 + eight digits of weight in grams. */
+const PREFIX = '2004';
 const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
 const G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
 const PARITY = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
@@ -10,9 +12,10 @@ export function ean13CheckDigit(payload: string): string {
   return String((10 - sum % 10) % 10);
 }
 
-export function rulerEan13(positionCm: number): string {
-  if (!Number.isInteger(positionCm) || positionCm < 0 || positionCm > 5000) throw new Error('Invalid ruler position');
-  const payload = PREFIX + String(positionCm).padStart(6, '0');
+export function rulerEan13(weightKg: number): string {
+  const grams = weightGrams(weightKg);
+  if (grams == null) throw new Error('Invalid ruler weight');
+  const payload = PREFIX + String(grams).padStart(8, '0');
   return payload + ean13CheckDigit(payload);
 }
 
@@ -31,10 +34,8 @@ export function parseRulerScan(raw: string): number | null {
     // Some scanners omit the check digit; accept only this ruler's namespace.
     if (!value.startsWith(PREFIX)) return null;
     if (value.length === 13 && ean13CheckDigit(value.slice(0, 12)) !== value[12]) return null;
-    const cm = Number(value.slice(6, 12));
-    return cm <= 5000 ? cm : null;
+    const grams = Number(value.slice(4, 12));
+    return grams <= MAX_WEIGHT_GRAMS ? grams / 1000 : null;
   }
-  if (!/^\d+(?:[.,]\d+)?$/.test(value)) return null;
-  const cm = Number(value.replace(',', '.'));
-  return Number.isFinite(cm) && cm <= 5000 ? cm : null;
+  return null;
 }

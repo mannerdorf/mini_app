@@ -1,197 +1,96 @@
-/** Калибровка линейки веса: позиция на ленте (см) → кг. */
-
-export type HaulzWeightRulerConfig = {
-  /** Вес при 0 см, кг */
-  start: number;
-  /** Максимальный вес, кг */
-  end: number;
-  /** Шаг веса на 1 см ленты, кг/см */
-  step: number;
-};
-
-export const HAULZ_WEIGHT_RULER_STORAGE_KEY = "haulz.weightRuler.config";
-
-export const DEFAULT_WEIGHT_RULER_CONFIG: HaulzWeightRulerConfig = {
-  start: 0,
-  end: 100,
-  step: 1,
-};
+/** The fourth barcode scale: each division carries an explicit weight, in grams. */
+export type HaulzWeightRulerConfig = { start: number; end: number; step: number };
+export const HAULZ_WEIGHT_RULER_STORAGE_KEY = "haulz.weightRuler.config.v2";
+export const DEFAULT_WEIGHT_RULER_CONFIG: HaulzWeightRulerConfig = { start: 0, end: 100, step: 1 };
+export const MAX_WEIGHT_GRAMS = 99_999_999;
+export const MAX_RULER_INTERVALS = 5000;
+export const RULER_PITCH_MM = 5;
+export const PRINT_STRIP_MM = 250;
+export const PRINT_INTERVALS_PER_STRIP = PRINT_STRIP_MM / RULER_PITCH_MM;
+export const PRINT_STRIPS_PER_PAGE = 3;
 
 export function parseWeightRulerNumber(raw: string): number | null {
-  const s = String(raw ?? "").trim().replace(",", ".");
-  if (!s) return null;
-  const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  return n;
+  const value = raw.trim().replace(",", ".");
+  if (!/^\d+(?:\.\d{1,3})?$/.test(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
 }
 
-export function validateWeightRulerConfig(cfg: HaulzWeightRulerConfig): string | null {
-  if (!Number.isFinite(cfg.start) || !Number.isFinite(cfg.end) || !Number.isFinite(cfg.step)) {
-    return "Заполните начало, конец и шаг числами";
-  }
-  if (cfg.step <= 0) return "Шаг должен быть больше 0";
-  if (cfg.end <= cfg.start) return "Конец должен быть больше начала";
-  const lengthCm = stripLengthCm(cfg);
-  if (lengthCm > 5000) return "Слишком длинная лента (больше 50 м). Увеличьте шаг или уменьшите диапазон.";
-  if (lengthCm < 1) return "Длина ленты меньше 1 см — проверьте шаг";
+export function weightGrams(weightKg: number): number | null {
+  if (typeof weightKg !== "number") return null;
+  const grams = weightKg * 1000;
+  return Number.isFinite(grams) && grams >= 0 && grams <= MAX_WEIGHT_GRAMS &&
+    Math.abs(grams - Math.round(grams)) < 1e-6 ? Math.round(grams) : null;
+}
+
+export function validateWeightRulerConfig(config: HaulzWeightRulerConfig): string | null {
+  const start = weightGrams(config.start);
+  const end = weightGrams(config.end);
+  const step = weightGrams(config.step);
+  if (start == null || end == null || step == null) return "Укажите вес от 0 до 99 999,999 кг с точностью до 1 г.";
+  if (step <= 0) return "Шаг должен быть больше 0.";
+  if (end <= start) return "Конец должен быть больше начала.";
+  if ((end - start) % step !== 0) return "Диапазон должен делиться на шаг без остатка.";
+  if ((end - start) / step > MAX_RULER_INTERVALS) return "Больше 5000 делений. Увеличьте шаг или уменьшите диапазон.";
   return null;
 }
 
-/** Длина печатной ленты в см: (end − start) / step */
-export function stripLengthCm(cfg: HaulzWeightRulerConfig): number {
-  return (cfg.end - cfg.start) / cfg.step;
-}
-
-/** Вес по позиции сканера (см от нуля ленты). */
-export function weightFromPositionCm(cfg: HaulzWeightRulerConfig, positionCm: number): number {
-  return cfg.start + positionCm * cfg.step;
-}
-
-/** Позиция см для заданного веса. */
-export function positionCmFromWeight(cfg: HaulzWeightRulerConfig, weightKg: number): number {
-  return (weightKg - cfg.start) / cfg.step;
-}
-
-export function formatWeightKg(n: number): string {
-  if (!Number.isFinite(n)) return "—";
-  const rounded = Math.round(n * 1000) / 1000;
-  return String(rounded);
+export function formatWeightKg(value: number): string {
+  return Number.isFinite(value) ? new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 3 }).format(value) : "—";
 }
 
 export function loadWeightRulerConfig(): HaulzWeightRulerConfig {
   try {
     const raw = localStorage.getItem(HAULZ_WEIGHT_RULER_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_WEIGHT_RULER_CONFIG };
-    const parsed = JSON.parse(raw) as Partial<HaulzWeightRulerConfig>;
-    return {
-      start: Number(parsed.start) || 0,
-      end: Number(parsed.end) || DEFAULT_WEIGHT_RULER_CONFIG.end,
-      step: Number(parsed.step) || DEFAULT_WEIGHT_RULER_CONFIG.step,
-    };
-  } catch {
-    return { ...DEFAULT_WEIGHT_RULER_CONFIG };
-  }
+    if (raw) {
+      const config = JSON.parse(raw) as HaulzWeightRulerConfig;
+      if (config && !validateWeightRulerConfig(config)) return config;
+    }
+  } catch { /* Use defaults if storage is unavailable or damaged. */ }
+  // The old kg/cm calibration has different semantics and is not a weight interval.
+  return { ...DEFAULT_WEIGHT_RULER_CONFIG };
 }
 
-export function saveWeightRulerConfig(cfg: HaulzWeightRulerConfig): void {
-  localStorage.setItem(HAULZ_WEIGHT_RULER_STORAGE_KEY, JSON.stringify(cfg));
+export function saveWeightRulerConfig(config: HaulzWeightRulerConfig): void {
+  const error = validateWeightRulerConfig(config);
+  if (error) throw new Error(error);
+  localStorage.setItem(HAULZ_WEIGHT_RULER_STORAGE_KEY, JSON.stringify(config));
 }
 
-function toGray(n: number): number {
-  return n ^ (n >> 1);
-}
+export type RulerTick = { index: number; weightKg: number; label: string; major: boolean };
 
-/** Число бит absolute-дорожек для покрытия lengthCm позиций (по 1 см). */
-export function absoluteTrackCount(lengthCm: number): number {
-  const positions = Math.max(1, Math.ceil(lengthCm) + 1);
-  return Math.max(5, Math.ceil(Math.log2(positions)));
-}
-
-/** Бинарные подшкалы с периодом 1, 2, 4, 8… см (как на заводской ДШВ-ленте). */
-export const FINE_SUBDIVISION_TRACKS = 8;
-
-export type RulerStripLayerKind = "absolute" | "fine" | "decimeter" | "row-sync";
-
-export type RulerStripLayer = {
-  kind: RulerStripLayerKind;
-  /** Индекс внутри kind (номер бита / периода). */
-  index: number;
-  /** Относительная высота полосы (1 = базовая). */
-  weight: number;
-};
-
-/**
- * Absolute-паттерн (Gray) для позиции cmIndex (0…N).
- * Возвращает массив бит сверху вниз: true = чёрный.
- */
-export function absoluteBitsAtCm(cmIndex: number, trackCount: number): boolean[] {
-  const gray = toGray(Math.max(0, Math.floor(cmIndex)));
-  const bits: boolean[] = [];
-  for (let t = trackCount - 1; t >= 0; t--) {
-    bits.push(((gray >> t) & 1) === 1);
-  }
-  return bits;
-}
-
-/** Бит бинарной подшкалы: период 2^trackIndex см, локально в строке. */
-export function fineSubdivisionBitAtCm(localCmIndex: number, trackIndex: number): boolean {
-  const cm = Math.max(0, Math.floor(localCmIndex));
-  const period = 1 << Math.max(0, trackIndex);
-  return Math.floor(cm / period) % 2 === 0;
-}
-
-/** Все дорожки ленты сверху вниз (absolute + синхро + fine). */
-export function buildRulerStripLayers(totalLengthCm: number): RulerStripLayer[] {
-  const absolute = absoluteTrackCount(totalLengthCm);
-  const layers: RulerStripLayer[] = [];
-  for (let i = 0; i < absolute; i++) {
-    layers.push({ kind: "absolute", index: i, weight: 1.1 });
-  }
-  layers.push({ kind: "decimeter", index: 0, weight: 1.4 });
-  layers.push({ kind: "row-sync", index: 0, weight: 1.2 });
-  for (let i = 0; i < FINE_SUBDIVISION_TRACKS; i++) {
-    layers.push({ kind: "fine", index: i, weight: i < 4 ? 0.85 : 0.7 });
-  }
-  return layers;
-}
-
-export function rulerStripLayerCount(totalLengthCm: number): number {
-  return buildRulerStripLayers(totalLengthCm).length;
-}
-
-/** Чёрная ячейка на дорожке layer для позиции cm. */
-export function rulerStripCellBlack(
-  layer: RulerStripLayer,
-  cmGlobal: number,
-  cmLocal: number,
-  absoluteTracks: number,
-): boolean {
-  if (layer.kind === "absolute") {
-    return absoluteBitsAtCm(cmGlobal, absoluteTracks)[layer.index] === true;
-  }
-  if (layer.kind === "fine") {
-    return fineSubdivisionBitAtCm(cmLocal, layer.index);
-  }
-  if (layer.kind === "decimeter") {
-    return cmGlobal % 10 === 0;
-  }
-  return cmLocal === 0;
-}
-
-export type RulerTick = {
-  cm: number;
-  weightKg: number;
-  label: string;
-  major: boolean;
-};
-
-/** Метки для превью/печати: каждый см, major каждые 5/10 см. */
-export function buildRulerTicks(cfg: HaulzWeightRulerConfig): RulerTick[] {
-  const len = stripLengthCm(cfg);
-  const maxCm = Math.ceil(len);
+export function buildRulerTicks(config: HaulzWeightRulerConfig): RulerTick[] {
+  if (validateWeightRulerConfig(config)) return [];
+  const start = weightGrams(config.start)!;
+  const end = weightGrams(config.end)!;
+  const step = weightGrams(config.step)!;
   const ticks: RulerTick[] = [];
-  for (let cm = 0; cm <= maxCm; cm++) {
-    const weightKg = weightFromPositionCm(cfg, cm);
-    if (weightKg > cfg.end + cfg.step * 0.001) break;
-    ticks.push({
-      cm,
-      weightKg,
-      label: formatWeightKg(Math.min(weightKg, cfg.end)),
-      major: cm % 5 === 0,
-    });
+  for (let grams = start, index = 0; grams <= end; grams += step, index++) {
+    ticks.push({ index, weightKg: grams / 1000, label: formatWeightKg(grams / 1000), major: index % 5 === 0 });
   }
   return ticks;
 }
 
-/** Разбить ленту на строки по ширине листа (см в строке). */
-export function chunkRulerTicks<T>(ticks: T[], cmPerRow: number): T[][] {
-  const size = Math.max(1, Math.floor(cmPerRow));
-  const rows: T[][] = [];
-  for (let i = 0; i < ticks.length; i += size) {
-    rows.push(ticks.slice(i, i + size));
+/** A shared endpoint lets printed strips be joined without shifting the scale. */
+export function chunkRulerTicks(ticks: RulerTick[]): RulerTick[][] {
+  const strips: RulerTick[][] = [];
+  for (let i = 0; i < ticks.length - 1; i += PRINT_INTERVALS_PER_STRIP) {
+    strips.push(ticks.slice(i, i + PRINT_INTERVALS_PER_STRIP + 1));
   }
-  return rows;
+  return strips;
 }
 
-/** Сколько см помещается в строку печати (A4 landscape ≈ 27 см полезных). */
-export const PRINT_CM_PER_ROW = 25;
+export function rulerPrintPages(strips: RulerTick[][]): RulerTick[][][] {
+  const pages: RulerTick[][][] = [];
+  for (let i = 0; i < strips.length; i += PRINT_STRIPS_PER_PAGE) pages.push(strips.slice(i, i + PRINT_STRIPS_PER_PAGE));
+  return pages;
+}
+
+export function isWeightOnRuler(config: HaulzWeightRulerConfig, weightKg: number): boolean {
+  if (validateWeightRulerConfig(config)) return false;
+  const grams = weightGrams(weightKg);
+  const start = weightGrams(config.start)!;
+  const end = weightGrams(config.end)!;
+  const step = weightGrams(config.step)!;
+  return grams != null && grams >= start && grams <= end && (grams - start) % step === 0;
+}

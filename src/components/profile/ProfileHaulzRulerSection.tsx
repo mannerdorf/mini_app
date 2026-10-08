@@ -1,256 +1,208 @@
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowLeft, Printer } from "lucide-react";
 import { Button, Flex, Typography } from "@maxhub/max-ui";
 import {
-  buildRulerTicks,
-  chunkRulerTicks,
-  DEFAULT_WEIGHT_RULER_CONFIG,
-  formatWeightKg,
-  loadWeightRulerConfig,
-  parseWeightRulerNumber,
-  PRINT_CM_PER_ROW,
-  saveWeightRulerConfig,
-  stripLengthCm,
-  validateWeightRulerConfig,
-  weightFromPositionCm,
-  type HaulzWeightRulerConfig,
-  type RulerTick,
+  buildRulerTicks, chunkRulerTicks, formatWeightKg, isWeightOnRuler,
+  loadWeightRulerConfig, parseWeightRulerNumber, rulerPrintPages,
+  RULER_PITCH_MM, saveWeightRulerConfig, validateWeightRulerConfig,
+  type HaulzWeightRulerConfig, type RulerTick,
 } from "../../lib/haulzWeightRuler";
-
 import { ean13Modules, parseRulerScan, rulerEan13 } from "../../lib/rulerEan13";
 
-type Props = {
-  onBack: () => void;
-};
+type Props = { onBack: () => void };
 
-const PREVIEW_CM_PER_ROW = 20;
-const PREVIEW_MAX_CM = 80;
-
-/** HAULZ → Линейка веса: калибровка начало/конец/шаг + печать EAN-13. */
+/** A barcode weight scale, using the same scan-a-division principle as dimension rulers. */
 export function ProfileHaulzRulerSection({ onBack }: Props) {
-  const [startStr, setStartStr] = useState(() => String(loadWeightRulerConfig().start));
-  const [endStr, setEndStr] = useState(() => String(loadWeightRulerConfig().end));
-  const [stepStr, setStepStr] = useState(() => String(loadWeightRulerConfig().step));
-  const [scanCm, setScanCm] = useState("");
+  const [initialConfig] = useState(loadWeightRulerConfig);
+  const [startStr, setStartStr] = useState(String(initialConfig.start));
+  const [endStr, setEndStr] = useState(String(initialConfig.end));
+  const [stepStr, setStepStr] = useState(String(initialConfig.step));
+  const [scan, setScan] = useState("");
   const [savedHint, setSavedHint] = useState<string | null>(null);
-
-  const config: HaulzWeightRulerConfig = useMemo(() => {
-    return {
-      start: parseWeightRulerNumber(startStr) ?? DEFAULT_WEIGHT_RULER_CONFIG.start,
-      end: parseWeightRulerNumber(endStr) ?? DEFAULT_WEIGHT_RULER_CONFIG.end,
-      step: parseWeightRulerNumber(stepStr) ?? DEFAULT_WEIGHT_RULER_CONFIG.step,
-    };
-  }, [startStr, endStr, stepStr]);
-
+  const config: HaulzWeightRulerConfig = useMemo(() => ({
+    start: parseWeightRulerNumber(startStr) ?? NaN,
+    end: parseWeightRulerNumber(endStr) ?? NaN,
+    step: parseWeightRulerNumber(stepStr) ?? NaN,
+  }), [startStr, endStr, stepStr]);
   const validationError = validateWeightRulerConfig(config);
-  const lengthCm = validationError ? 0 : stripLengthCm(config);
-  const ticks = useMemo(
-    () => (validationError ? [] : buildRulerTicks(config)),
-    [config, validationError],
-  );
-
-  const printRows = useMemo(
-    () => chunkRulerTicks(ticks, PRINT_CM_PER_ROW),
-    [ticks],
-  );
-
-  const previewTicks = useMemo(
-    () => ticks.filter((t) => t.cm <= Math.min(PREVIEW_MAX_CM, Math.ceil(lengthCm))),
-    [ticks, lengthCm],
-  );
-  const previewRows = useMemo(
-    () => chunkRulerTicks(previewTicks, PREVIEW_CM_PER_ROW),
-    [previewTicks],
-  );
-
+  const ticks = useMemo(() => buildRulerTicks(config), [config]);
+  const strips = useMemo(() => chunkRulerTicks(ticks), [ticks]);
+  const pages = useMemo(() => rulerPrintPages(strips), [strips]);
   const scannedWeight = useMemo(() => {
-    const cm = parseRulerScan(scanCm);
-    if (cm == null || validationError || cm > lengthCm) return null;
-    return weightFromPositionCm(config, cm);
-  }, [scanCm, config, validationError, lengthCm]);
+    const weight = parseRulerScan(scan);
+    return weight != null && isWeightOnRuler(config, weight) ? weight : null;
+  }, [scan, config]);
+
+  useEffect(() => { setSavedHint(null); }, [startStr, endStr, stepStr]);
+  useEffect(() => {
+    const beforePrint = () => {
+      if (!validationError) {
+        document.body.classList.add("haulz-ruler-printing");
+        document.documentElement.classList.add("haulz-ruler-printing");
+      }
+    };
+    const afterPrint = () => {
+      document.body.classList.remove("haulz-ruler-printing");
+      document.documentElement.classList.remove("haulz-ruler-printing");
+    };
+    window.addEventListener("beforeprint", beforePrint);
+    window.addEventListener("afterprint", afterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", beforePrint);
+      window.removeEventListener("afterprint", afterPrint);
+      afterPrint();
+    };
+  }, [validationError]);
 
   const handleSave = useCallback(() => {
-    if (validationError) {
-      setSavedHint(validationError);
-      return;
+    try {
+      saveWeightRulerConfig(config);
+      setSavedHint("Настройки сохранены");
+    } catch {
+      setSavedHint(validationError ?? "Не удалось сохранить настройки в этом браузере.");
     }
-    saveWeightRulerConfig(config);
-    setSavedHint("Сохранено");
   }, [config, validationError]);
 
   const handlePrint = useCallback(() => {
-    if (validationError) {
-      setSavedHint(validationError);
-      return;
-    }
-    saveWeightRulerConfig(config);
-    // Дать браузеру отрисовать print-root до диалога печати
+    if (validationError) return;
+    document.body.classList.add("haulz-ruler-printing");
+    document.documentElement.classList.add("haulz-ruler-printing");
     requestAnimationFrame(() => {
-      window.print();
+      try { window.print(); }
+      catch {
+        document.body.classList.remove("haulz-ruler-printing");
+        document.documentElement.classList.remove("haulz-ruler-printing");
+      }
     });
-  }, [config, validationError]);
+  }, [validationError]);
 
   return (
     <div className="w-full haulz-weight-ruler">
-      <Flex align="center" className="haulz-weight-ruler__toolbar no-print" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
-        <Button className="filter-button" onClick={onBack} style={{ padding: "0.5rem" }} type="button">
+      <Flex align="center" className="haulz-weight-ruler__toolbar" style={{ marginBottom: "1rem", gap: "0.75rem" }}>
+        <Button className="filter-button" onClick={onBack} aria-label="Назад" type="button" style={{ padding: "0.5rem" }}>
           <ArrowLeft className="w-4 h-4" />
         </Button>
-        <Typography.Headline className="text-page-title">Линейка веса</Typography.Headline>
+        <Typography.Headline className="text-page-title">Штрихкодовая линейка веса</Typography.Headline>
       </Flex>
 
-      <div className="haulz-weight-ruler__panel no-print" style={{ padding: "1rem", marginBottom: "1rem" }}>
-        <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-text-secondary)", fontSize: "0.9rem" }}>
-          Линейка с кодами EAN-13: сканер читает код позиции, приложение переводит её в кг.
-          Шаг — сколько кг на 1 см ленты. Коды расположены в трёх рядах. Печать — строки по {PRINT_CM_PER_ROW} см, масштаб 100% без подгонки к странице.
-          {" "}Линия сканера должна пересекать полосы кода.
+      <div className="haulz-weight-ruler__panel">
+        <Typography.Body className="haulz-weight-ruler__description">
+          Каждое деление обозначает вес и имеет свой штрихкод. Найдите нужное значение на шкале
+          и отсканируйте его — приложение получит вес, указанный на делении.
+        </Typography.Body>
+        <div className="haulz-weight-ruler__fields">
+          {[
+            { label: "Начало, кг", value: startStr, set: setStartStr },
+            { label: "Конец, кг", value: endStr, set: setEndStr },
+            { label: "Шаг, кг", value: stepStr, set: setStepStr },
+          ].map(field => (
+            <label className="haulz-weight-ruler__field" key={field.label}>
+              <span>{field.label}</span>
+              <input className="haulz-weight-ruler__input" value={field.value} onChange={event => field.set(event.target.value)} inputMode="decimal" />
+            </label>
+          ))}
+        </div>
+        <Typography.Body className="haulz-weight-ruler__description">
+          Шаг задаёт интервал между значениями веса. Расстояние между делениями на бумаге — 5 мм.
         </Typography.Body>
 
-        <Flex gap="0.75rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
-          <label className="haulz-weight-ruler__field">
-            <span>Начало, кг</span>
-            <input className="haulz-weight-ruler__input" value={startStr} onChange={(e) => setStartStr(e.target.value)} inputMode="decimal" />
-          </label>
-          <label className="haulz-weight-ruler__field">
-            <span>Конец, кг</span>
-            <input className="haulz-weight-ruler__input" value={endStr} onChange={(e) => setEndStr(e.target.value)} inputMode="decimal" />
-          </label>
-          <label className="haulz-weight-ruler__field">
-            <span>Шаг, кг/см</span>
-            <input className="haulz-weight-ruler__input" value={stepStr} onChange={(e) => setStepStr(e.target.value)} inputMode="decimal" />
-          </label>
-        </Flex>
-
-        {!validationError ? (
-          <Typography.Body style={{ marginBottom: "0.75rem", fontSize: "0.9rem" }}>
-            Длина ленты: <strong>{formatWeightKg(lengthCm)} см</strong>
-            {" · "}
-            точек: <strong>{ticks.length}</strong>
-            {" · "}
-            строк печати: <strong>{printRows.length}</strong>
-            {" · "}
-            пример: 10 см → <strong>{formatWeightKg(weightFromPositionCm(config, 10))} кг</strong>
-          </Typography.Body>
-        ) : (
-          <Typography.Body style={{ marginBottom: "0.75rem", color: "var(--color-error)", fontSize: "0.9rem" }}>
-            {validationError}
-          </Typography.Body>
+        {validationError ? <p className="haulz-weight-ruler__error" role="alert">{validationError}</p> : (
+          <p className="haulz-weight-ruler__summary">
+            <strong>{formatWeightKg(config.start)}–{formatWeightKg(config.end)} кг</strong>
+            {" · "}значений: {ticks.length}{" · "}полос: {strips.length}{" · "}листов A4: {pages.length}
+          </p>
         )}
-
-        <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "1rem" }}>
-          <Button type="button" className="button-primary" onClick={handleSave} disabled={Boolean(validationError)}>
-            Сохранить
-          </Button>
-          <Button
-            type="button"
-            className="button-primary"
-            onClick={handlePrint}
-            disabled={Boolean(validationError)}
-            style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}
-          >
-            <Printer className="w-4 h-4" aria-hidden />
-            Печать
+        <Flex gap="0.5rem" wrap="wrap" style={{ marginBottom: "0.75rem" }}>
+          <Button type="button" className="button-primary" onClick={handleSave} disabled={Boolean(validationError)}>Сохранить</Button>
+          <Button type="button" className="button-primary" onClick={handlePrint} disabled={Boolean(validationError)} style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+            <Printer className="w-4 h-4" aria-hidden />Печать
           </Button>
         </Flex>
-        {savedHint ? (
-          <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-text-secondary)", marginBottom: "0.75rem" }}>
-            {savedHint}
-          </Typography.Body>
-        ) : null}
-
-        <Typography.Label style={{ display: "block", marginBottom: "0.35rem" }}>
-          Проверка скана (EAN-13 или см)
-        </Typography.Label>
-        <Flex gap="0.5rem" align="center" wrap="wrap">
-          <input
-            className="haulz-weight-ruler__input"
-            aria-label="Проверка скана (EAN-13 или см)"
-            value={scanCm}
-            onChange={(e) => setScanCm(e.target.value)}
-            placeholder="сканируйте код"
-            inputMode="numeric"
-            style={{ maxWidth: "14rem" }}
-          />
-          <Typography.Body style={{ fontSize: "0.95rem" }}>
-            → вес: <strong>{scannedWeight == null ? "—" : `${formatWeightKg(scannedWeight)} кг`}</strong>
-          </Typography.Body>
-        </Flex>
-        {scanCm.trim() && scannedWeight == null && !validationError ? (
-          <Typography.Body style={{ color: "var(--color-error)", fontSize: "0.85rem", marginTop: "0.5rem" }}>
-            Код не принадлежит этой линейке, повреждён или выходит за её диапазон.
-          </Typography.Body>
-        ) : null}
+        {savedHint && <p className="haulz-weight-ruler__description" role="status">{savedHint}</p>}
+        <p className="haulz-weight-ruler__description">
+          Печать: A4, альбомная ориентация, масштаб 100%. Полосы соединяйте по одинаковым крайним
+          значениям. Перед использованием проверьте контрольный отрезок 10 см.
+        </p>
       </div>
 
-      {!validationError && previewRows.length > 0 ? (
-        <div className="haulz-weight-ruler__preview no-print" aria-label="Превью линейки">
-          <Typography.Label style={{ marginBottom: "0.35rem", display: "block" }}>
-            Превью (до {previewTicks[previewTicks.length - 1]?.cm ?? 0} см, перенос по {PREVIEW_CM_PER_ROW} см)
-          </Typography.Label>
-          <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--preview">
-            <RulerWrappedStrip rows={previewRows} cellPx={38} />
-          </div>
-        </div>
-      ) : null}
+      <div className="haulz-weight-ruler__panel">
+        <label className="haulz-weight-ruler__field">
+          <span>Проверка сканирования</span>
+          <input className="haulz-weight-ruler__input" aria-label="Проверка сканирования" value={scan}
+            onChange={event => setScan(event.target.value)} onFocus={event => event.currentTarget.select()}
+            onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); event.currentTarget.select(); } }}
+            placeholder="Сканируйте штрихкод деления" inputMode="numeric" />
+        </label>
+        <p className="haulz-weight-ruler__scan-result" aria-live="polite">
+          Вес: <strong>{scannedWeight == null ? "—" : `${formatWeightKg(scannedWeight)} кг`}</strong>
+        </p>
+        {scan.trim() && scannedWeight == null && !validationError && (
+          <p className="haulz-weight-ruler__error" role="alert">Код повреждён или не относится к значениям этой шкалы.</p>
+        )}
+      </div>
 
-      {!validationError && printRows.length > 0 ? (
-        <div className="haulz-weight-ruler__print-root" aria-hidden>
-          <div className="haulz-weight-ruler__print-header">
-            HAULZ линейка веса EAN-13 · {formatWeightKg(config.start)}–{formatWeightKg(config.end)} кг · шаг{" "}
-            {formatWeightKg(config.step)} кг/см · печать 100% · длина {formatWeightKg(lengthCm)} см · {printRows.length} стр. строк по{" "}
-            {PRINT_CM_PER_ROW} см
-          </div>
-          <div className="haulz-weight-ruler-frame haulz-weight-ruler-frame--print">
-            <RulerWrappedStrip rows={printRows} cellCm={1} />
-          </div>
-        </div>
-      ) : null}
+      {strips.length > 0 && (
+        <section className="haulz-weight-ruler__panel" aria-label="Превью линейки веса">
+          <Typography.Headline className="haulz-weight-ruler__preview-title">Первая полоса</Typography.Headline>
+          <p className="haulz-weight-ruler__description">Коды идут одним рядом. Наводите линию сканера поперёк полос штрихкода выбранного деления.</p>
+          <div className="haulz-weight-ruler__preview-scroll"><WeightRulerStrip ticks={strips[0]} preview /></div>
+        </section>
+      )}
+
+      {typeof document !== "undefined" && pages.length > 0 && createPortal(
+        <div className="haulz-weight-ruler__print-root" aria-hidden="true">
+          {pages.map((page, pageIndex) => (
+            <section className="haulz-weight-ruler__print-page" key={pageIndex}>
+              <div className="haulz-weight-ruler__print-header">
+                HAULZ · Шкала 4 — вес · {formatWeightKg(config.start)}–{formatWeightKg(config.end)} кг · шаг {formatWeightKg(config.step)} кг · лист {pageIndex + 1}/{pages.length}
+              </div>
+              <div className="haulz-weight-ruler__print-instructions">A4 · альбомная · 100% · соединяйте одинаковые крайние значения</div>
+              {page.map((strip, index) => <WeightRulerStrip key={strip[0].index} ticks={strip} number={pageIndex * 3 + index + 1} />)}
+              <svg className="haulz-weight-ruler__control" width="120mm" height="9mm" viewBox="0 0 120 9" aria-label="Контрольный отрезок 10 см">
+                <path d="M 10 3 V 7 M 10 5 H 110 M 110 3 V 7" fill="none" stroke="black" strokeWidth="0.25" />
+                <text x="60" y="2.5" textAnchor="middle" fontSize="2.5">Контроль: 10 см</text>
+              </svg>
+            </section>
+          ))}
+        </div>, document.body,
+      )}
     </div>
   );
 }
 
-function RulerWrappedStrip({ rows, cellPx, cellCm }: { rows: RulerTick[][]; cellPx?: number; cellCm?: number }) {
+export function WeightRulerStrip({ ticks, preview = false, number }: { ticks: RulerTick[]; preview?: boolean; number?: number }) {
+  const widthMm = (ticks.length - 1) * RULER_PITCH_MM + 20;
+  const heightMm = 51;
   return (
-    <div className="haulz-weight-ruler-rows">
-      {rows.map((row, rowIdx) => {
-        const widthMm = (row.length - 1) * 10 + 30;
-        const heightMm = 142;
-        return (
-          <div key={`row-${rowIdx}`} className="haulz-weight-ruler-row">
-            <div className="haulz-weight-ruler-row__meta">
-              строка {rowIdx + 1}: {row[0]?.cm}–{row[row.length - 1]?.cm} см
-            </div>
-            <svg className="haulz-weight-ruler-row__svg" xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${widthMm} ${heightMm}`}
-              aria-label="Линейка EAN-13" role="img"
-              style={{ display: "block", width: cellCm ? `${widthMm}mm` : widthMm * (cellPx ?? 10) / 10,
-                height: cellCm ? `${heightMm}mm` : heightMm * (cellPx ?? 10) / 10 }}>
-              <rect width={widthMm} height={heightMm} fill="white" />
-              {row.map((tick, i) => {
-                const x = 15 + i * 10;
-                const y = 3 + (i % 3) * 43;
-                const code = rulerEan13(tick.cm);
-                const modules = ean13Modules(code);
-                return (
-                  <g key={tick.cm}>
-                    <g transform={`translate(${x - 12.965} ${y + 37.29}) rotate(-90)`}>
-                      <rect width="37.29" height="25.93" fill="white" />
-                      {[...modules].map((bit, index) => bit === '1' ?
-                        <rect key={index} x={index * 0.33} y="0" width="0.33"
-                          height={(index >= 11 && index < 14) || (index >= 56 && index < 61) || (index >= 103 && index < 106) ? 24.5 : 22.85}
-                          fill="black" /> : null)}
-                      <text x="18.645" y="25.6" textAnchor="middle" fontFamily="monospace" fontSize="2.6" fill="black">{code}</text>
-                    </g>
-                    <text x={x} y={y + 40.5} textAnchor="middle" fontSize="2.5" fill="black">{tick.cm} см</text>
-                    <line x1={x} x2={x} y1="133" y2={tick.major ? 136 : 135} stroke="black" strokeWidth="0.2" />
-                    <text x={x} y="140" textAnchor="middle" fontSize="2.5" fill="black">{tick.label}</text>
-                  </g>
-                );
-              })}
-              <line x1="15" x2={widthMm - 15} y1="133" y2="133" stroke="black" strokeWidth="0.2" />
-            </svg>
-          </div>
-        );
-      })}
+    <div className="haulz-weight-ruler__strip">
+      <div className="haulz-weight-ruler__strip-label">
+        {number != null ? `Полоса ${number} · ` : ""}Вес · {ticks[0].label}–{ticks[ticks.length - 1].label} кг
+      </div>
+      <svg className="haulz-weight-ruler__strip-svg" xmlns="http://www.w3.org/2000/svg" viewBox={`0 0 ${widthMm} ${heightMm}`}
+        width={preview ? widthMm * 2.5 : `${widthMm}mm`} height={preview ? heightMm * 2.5 : `${heightMm}mm`}
+        aria-label={`Шкала веса ${ticks[0].label}–${ticks[ticks.length - 1].label} кг`} role="img">
+        <rect width={widthMm} height={heightMm} fill="white" />
+        {ticks.map((tick, index) => {
+          const x = 10 + index * RULER_PITCH_MM;
+          const code = rulerEan13(tick.weightKg);
+          const modules = ean13Modules(code);
+          return (
+            <g key={tick.index} data-weight-kg={tick.weightKg} data-code={code}>
+              <g transform={`translate(${x - 2} 38.79) rotate(-90)`}>
+                <rect width="37.29" height="4" fill="white" />
+                {[...modules].map((bit, moduleIndex) => bit === "1" ? (
+                  <rect key={moduleIndex} x={moduleIndex * 0.33} y="0" width="0.33" height="4" fill="black" />
+                ) : null)}
+              </g>
+              <line x1={x} x2={x} y1="40" y2={tick.major ? 43 : 41.5} stroke="black" strokeWidth="0.2" />
+              <text x={x + 0.75} y="49" transform={`rotate(-90 ${x + 0.75} 49)`} fontFamily="Arial, sans-serif" fontSize={tick.label.length > 7 ? "1.65" : "2.3"} fontWeight={tick.major ? "700" : "400"} fill="black">{tick.label}</text>
+            </g>
+          );
+        })}
+        <line x1="10" x2={widthMm - 10} y1="40" y2="40" stroke="black" strokeWidth="0.2" />
+        {[10, widthMm - 10].map(x => <path key={x} d={`M ${x} 0 V 1 M ${x} 50 V 51`} stroke="black" strokeWidth="0.2" />)}
+      </svg>
     </div>
   );
 }
