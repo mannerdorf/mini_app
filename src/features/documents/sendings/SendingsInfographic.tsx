@@ -21,11 +21,12 @@ export type SendingsInfographicData = {
 
 type Props = {
   data: SendingsInfographicData;
+  actions?: React.ReactNode;
   deliveryStatusFilterSet: Set<StatusFilter>;
   setDeliveryStatusFilterSet: React.Dispatch<React.SetStateAction<Set<StatusFilter>>>;
 };
 
-export function SendingsInfographic({ data, deliveryStatusFilterSet, setDeliveryStatusFilterSet }: Props) {
+export function SendingsInfographic({ data, actions, deliveryStatusFilterSet, setDeliveryStatusFilterSet }: Props) {
   return (
     <div className="cargo-card documents-sendings-infographic" style={{ padding: "0.6rem 0.75rem", marginBottom: "0.5rem" }}>
       <div className="documents-sendings-infographic-row">
@@ -69,6 +70,7 @@ export function SendingsInfographic({ data, deliveryStatusFilterSet, setDelivery
             </button>
           );
         })}
+        {actions}
       </div>
     </div>
   );

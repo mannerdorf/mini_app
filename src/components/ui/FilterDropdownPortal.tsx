@@ -7,9 +7,10 @@ type FilterDropdownPortalProps = {
     onClose?: () => void;
     children: React.ReactNode;
     container?: HTMLElement | null;
+    popupWidth?: number;
 };
 
-export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, container }: FilterDropdownPortalProps) {
+export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, container, popupWidth }: FilterDropdownPortalProps) {
     const [rect, setRect] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
     const containerRef = useRef<HTMLDivElement | null>(null);
     const ignoreNextOutsideRef = useRef(false);
@@ -35,10 +36,11 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, co
             const maxHeight = Math.max(160, Math.min(desiredMaxHeight, openDown ? spaceBelow : spaceAbove));
             const top = openDown ? (r.bottom + gap) : Math.max(margin, r.top - gap - maxHeight);
 
+            const width = popupWidth == null ? Math.max(r.width, 160) : Math.min(popupWidth, window.innerWidth - margin * 2);
             setRect({
                 top,
-                left: r.left,
-                width: Math.max(r.width, 160),
+                left: popupWidth == null ? r.left : Math.max(margin, Math.min(r.left, window.innerWidth - width - margin)),
+                width,
                 maxHeight,
             });
         };
@@ -50,7 +52,7 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, co
             window.removeEventListener("resize", updatePosition);
             window.removeEventListener("scroll", updatePosition, true);
         };
-    }, [isOpen, triggerRef]);
+    }, [isOpen, triggerRef, popupWidth]);
 
     useEffect(() => {
         if (!isOpen || !onClose) return;
@@ -82,7 +84,7 @@ export function FilterDropdownPortal({ triggerRef, isOpen, onClose, children, co
         <div
             ref={containerRef}
             className="filter-dropdown filter-dropdown-portal"
-            style={{ top: rect.top, left: rect.left, minWidth: rect.width, maxHeight: rect.maxHeight }}
+            style={{ top: rect.top, left: rect.left, minWidth: rect.width, width: popupWidth == null ? undefined : rect.width, boxSizing: popupWidth == null ? undefined : "border-box", maxHeight: rect.maxHeight }}
         >
             {children}
         </div>,

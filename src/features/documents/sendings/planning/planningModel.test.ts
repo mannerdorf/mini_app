@@ -1,5 +1,5 @@
 import {expect,it} from 'vitest';
-import {calendarDays,localDateKey,planProgress,groupPlannedCargo,groupPlansByVehicle,planningVehicle,type SendingPlan} from './planningModel';
+import {calendarDays,calendarWeekDays,localDateKey,planProgress,groupPlannedCargo,groupPlansByVehicle,planningVehicle,type SendingPlan} from './planningModel';
 const plan:SendingPlan={id:'id',revision:1,date:'2026-10-09',route:'MSK → KGD',mode:'auto',vehicleId:'tent',ferryId:null,ferryName:'',comment:'',cargo:[{id:'1:10',number:'10',customer:'Клиент',customerId:'1',receiver:'Получатель А',route:'MSK → KGD',received:'',weight:10,volume:1,places:2,readiness:'ready',reason:'',updatedAt:null},{id:'1:11',number:'11',customer:'Клиент',customerId:'1',receiver:'Получатель Б',route:'MSK → KGD',received:'',weight:20,volume:2,places:3,readiness:'ready',reason:'',updatedAt:null}],actualCargoNumbers:['10','10','other']};
 it('builds a Monday-first six-week calendar including cross-year dates and leap days',()=>{
  const days=calendarDays(new Date(2026,9,1));expect(days).toHaveLength(42);expect(days[0].getDay()).toBe(1);expect(localDateKey(days[0])).toBe('2026-09-28');expect(localDateKey(days[41])).toBe('2026-11-08');
@@ -33,4 +33,9 @@ it('uses internal dimensions for volume and all compartments without mutating th
  expect(planningVehicle(plan)?.volume).toBe(89.9);
  expect(planningVehicle({...plan,mode:'air'})).toBeUndefined();
  expect(planningVehicle({...plan,vehicleDimensions:{length:0,width:2,height:2}})).toBeUndefined();
+});
+
+it('shows seven Monday-first days for a week across month and year boundaries',()=>{
+ const days=calendarWeekDays(new Date(2026,9,1));expect(days).toHaveLength(7);expect(days[0].getDay()).toBe(1);expect(days[6].getDay()).toBe(0);expect(days.map(localDateKey)).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04']);
+ expect(calendarWeekDays(new Date(2027,0,1)).map(localDateKey)).toContain('2026-12-28');
 });

@@ -414,16 +414,6 @@
     font-size: 14px;
     line-height: 1.3;
 }
-:root .sendings-bulk-actions-bar__row .filter-button.sendings-planning-trigger {
-    background: #f3f76b;
-    border-color: #dbe246;
-    color: #222600;
-}
-:root .sendings-bulk-actions-bar__row .filter-button.sendings-planning-trigger:hover {
-    background: #e9ef4e;
-    border-color: #cbd333;
-    color: #222600;
-}
 @media (max-width: 768px) {
     /* Мобильная «Отправки»: панель bulk — читаемые размеры, единая высота chip */
     .sendings-bulk-actions-bar {
@@ -1057,3 +1047,16 @@
 .documents-page--with-orders-section.documents-page--saas-analytics .documents-zayavki-below-new-order {
     margin-top: 1rem;
 }
+
+/* Inline sending actions share the totals row; dropdown is rendered in a portal. */
+.sendings-inline-actions { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+:root .sendings-action-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; min-width: 36px; padding: 5px; margin: 0; border: 0; background: transparent; box-shadow: none; cursor: pointer; border-radius: 0; }
+:root .sendings-action-icon--date { color: #4ade80; }
+:root .sendings-action-icon--planning { color: #f3f76b; }
+.light-mode .sendings-action-icon--date { color: #16a34a; }
+.light-mode .sendings-action-icon--planning { color: #b9a400; }
+:root .sendings-action-icon:hover:not(:disabled) { filter: brightness(.85); }
+:root .sendings-action-icon:disabled { opacity: .4; cursor: default; }
+:root .sendings-action-icon:focus-visible { outline: 2px solid var(--color-primary-blue); outline-offset: 1px; }
+.sendings-plan-date-popup { display: flex; flex-direction: column; gap: 8px; width: 100%; box-sizing: border-box; padding: 8px; white-space: normal; }
+.sendings-plan-date-popup label { display: flex; flex-direction: column; gap: 6px; }

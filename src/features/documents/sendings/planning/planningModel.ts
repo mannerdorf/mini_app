@@ -67,3 +67,9 @@ export function planningVehicle(draft:Pick<PlanDraft,'mode'|'vehicleId'|'vehicle
  if(![dimensions.length,dimensions.width,dimensions.height].every(value=>Number.isFinite(value)&&value>0&&value<=100))return undefined;
  return {...preset,compartments:preset.compartments.map(()=>({...dimensions})),volume:dimensions.length*dimensions.width*dimensions.height*preset.compartments.length};
 }
+
+export function calendarWeekDays(anchor:Date):Date[] {
+ const start=new Date(anchor.getFullYear(),anchor.getMonth(),anchor.getDate());
+ start.setDate(start.getDate()-(start.getDay()+6)%7);
+ return Array.from({length:7},(_,index)=>new Date(start.getFullYear(),start.getMonth(),start.getDate()+index));
+}

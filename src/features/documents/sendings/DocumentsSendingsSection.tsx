@@ -7,7 +7,7 @@ import { SendingsSection } from "./SendingsSection";
 import { DocumentsStateBlocks } from "../views/documentsViewBlocks";
 import type { useDocumentsSendingsPage } from "./useDocumentsSendingsPage";
 import type { CargoStatusFilterKey } from "../../../lib/sharedListFilters";
-import {SendingsPlanningButton} from './planning/SendingsPlanningButton';
+import {SendingsBulkActionsBar} from './SendingsBulkActionsBar';
 
 type SendingsPageReturn = ReturnType<typeof useDocumentsSendingsPage>;
 
@@ -58,6 +58,12 @@ export function DocumentsSendingsSection({
 }: Props) {
   if (!active) return null;
 
+  const actions=<SendingsBulkActionsBar
+    planningAuth={canEditPlanDate||sendingsSectionProps.showEorColumn?sendingsSectionProps.auth:undefined}
+    selectedCount={selectedVisibleSendingCount} canEditEor={canEditEor} canEditPlanDate={canEditPlanDate} canRunSanctionsCheck={canRunSanctionsCheck}
+    actionLoading={bulkSendingActionLoading} eorMenuOpen={bulkEorMenuOpen} setEorMenuOpen={setBulkEorMenuOpen}
+    planDateOpen={bulkPlanDateOpen} setPlanDateOpen={setBulkPlanDateOpen} planDateValue={bulkPlanDateValue} setPlanDateValue={setBulkPlanDateValue}
+    actionError={bulkSendingActionError} actionInfo={bulkSendingActionInfo} onApplyEorStatus={applyBulkEorStatus} onApplyPlanDate={applyBulkPlanDate} onApplySanctionsCheck={applyBulkSanctionsCheck}/>;
   return (
     <>
       {(sendingsInitialLoading || !!sendingsError) && (
@@ -67,6 +73,7 @@ export function DocumentsSendingsSection({
         <>
           <SendingsInfographic
             data={sendingsInfographic}
+            actions={actions}
             deliveryStatusFilterSet={deliveryStatusFilterSet}
             setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}
           />
@@ -106,7 +113,7 @@ export function DocumentsSendingsSection({
       )}
       {!sendingsLoading && !sendingsError && sendingRowsSorted.length === 0 && (
         <>
-        {(canEditPlanDate || sendingsSectionProps.showEorColumn) && sendingsSectionProps.auth && <div className="cargo-card sendings-bulk-actions-bar"><SendingsPlanningButton auth={sendingsSectionProps.auth}/></div>}
+        <SendingsInfographic data={sendingsInfographic} actions={actions} deliveryStatusFilterSet={deliveryStatusFilterSet} setDeliveryStatusFilterSet={setDeliveryStatusFilterSet}/>
         <Typography.Body className="text-empty-state" style={{ padding: "2rem 0" }}>
           Нет отправок за выбранный период
         </Typography.Body>

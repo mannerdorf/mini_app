@@ -29,7 +29,6 @@ import {
   getSendingRowKey,
 } from "./sendingsRowHelpers";
 import { DocumentsRouteBadge } from "../views/documentsViewBlocks";
-import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { SendingsSectionViewProps } from "./sendingsSectionProps";
 
 export function SendingsCardsView(props: SendingsSectionViewProps) {
@@ -115,27 +114,6 @@ export function SendingsCardsView(props: SendingsSectionViewProps) {
   return (
                 <motion.div key="docs-send-cards" className="documents-cards-offset-desktop" {...(docsMotionEnabled ? cargoModeSwitchMotion : { initial: false })}>
                     <div className="cargo-list">
-                        {(canEditPlanDate || canRunSanctionsCheck || showEorColumn) && (
-                            <SendingsBulkActionsBar
-                                planningAuth={canEditPlanDate || showEorColumn ? auth : undefined}
-                                selectedCount={selectedVisibleSendingCount}
-                                canEditEor={canEditEor}
-                                canEditPlanDate={canEditPlanDate}
-                                canRunSanctionsCheck={canRunSanctionsCheck}
-                                actionLoading={bulkSendingActionLoading}
-                                eorMenuOpen={bulkEorMenuOpen}
-                                setEorMenuOpen={setBulkEorMenuOpen}
-                                planDateOpen={bulkPlanDateOpen}
-                                setPlanDateOpen={setBulkPlanDateOpen}
-                                planDateValue={bulkPlanDateValue}
-                                setPlanDateValue={setBulkPlanDateValue}
-                                actionError={bulkSendingActionError}
-                                actionInfo={bulkSendingActionInfo}
-                                onApplyEorStatus={applyBulkEorStatus}
-                                onApplyPlanDate={applyBulkPlanDate}
-                                onApplySanctionsCheck={applyBulkSanctionsCheck}
-                            />
-                        )}
                         {sendingRowsSorted.map((row: any, idx: number) => {
                             const rawDate = row?.Дата ?? row?.Date ?? row?.date ?? '';
                             const number = String(row?.Номер ?? row?.Number ?? row?.number ?? '');

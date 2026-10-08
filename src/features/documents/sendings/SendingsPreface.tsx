@@ -3,7 +3,6 @@ import { Flex, Typography } from "@maxhub/max-ui";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { formatCurrency } from "../../../lib/formatUtils";
 import { formatSendingMetricNum, type SendingVehicleTotalRow } from "./sendingsMetrics";
-import { SendingsBulkActionsBar } from "./SendingsBulkActionsBar";
 import type { EorStatus } from "./sendingsTypes";
 import type {DocumentsAuth} from '../../../api/client/documentsAuth';
 
@@ -75,27 +74,6 @@ export function SendingsPreface({
 }: Props) {
   return (
     <>
-      {(canEditPlanDate || canRunSanctionsCheck || planningAuth) && tableModeEffective && (
-        <SendingsBulkActionsBar
-          planningAuth={planningAuth}
-          selectedCount={selectedVisibleSendingCount}
-          canEditEor={canEditEor}
-          canEditPlanDate={canEditPlanDate}
-          canRunSanctionsCheck={canRunSanctionsCheck}
-          actionLoading={bulkSendingActionLoading}
-          eorMenuOpen={bulkEorMenuOpen}
-          setEorMenuOpen={setBulkEorMenuOpen}
-          planDateOpen={bulkPlanDateOpen}
-          setPlanDateOpen={setBulkPlanDateOpen}
-          planDateValue={bulkPlanDateValue}
-          setPlanDateValue={setBulkPlanDateValue}
-          actionError={bulkSendingActionError}
-          actionInfo={bulkSendingActionInfo}
-          onApplyEorStatus={onApplyEorStatus}
-          onApplyPlanDate={onApplyPlanDate}
-          onApplySanctionsCheck={onApplySanctionsCheck}
-        />
-      )}
       {sendingsFerryActionError && (
         <div style={{ marginBottom: "0.5rem" }}>
           <Typography.Body style={{ fontSize: "0.85rem", color: "var(--color-error)" }}>
