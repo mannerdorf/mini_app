@@ -47,6 +47,10 @@
 .sending-planning__link { border: 0; background: transparent; color: var(--color-primary-blue); font: inherit; cursor: pointer; padding: 0; }
 .sending-planning__editor { color: var(--color-text-primary); min-width: 0; align-self: start; padding: 14px; border: 1px solid var(--color-border); border-radius: 16px; background: var(--color-bg-hover); }
 .sending-planning__editor fieldset { display: grid; gap: 14px; padding: 0; margin: 0; border: 0; min-width: 0; }
+.sending-planning__reconciliation { overflow-wrap: anywhere; }
+.sending-planning__reconciliation h4,.sending-planning__reconciliation p { margin: 0; }
+.sending-planning__reconciliation select { width: 100%; min-width: 0; }
+.sending-planning__reconciliation button { white-space: normal; }
 .sending-planning__form-section { min-width: 0; padding: 14px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg-card); }
 .sending-planning__section-heading { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--color-text-primary); }
 .sending-planning .sending-planning__section-heading { margin-bottom: 14px; }

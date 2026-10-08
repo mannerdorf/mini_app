@@ -15,7 +15,7 @@ export function PlanningCargoTable({plan,view}:{plan:SendingPlan;view:PlanningVi
   <thead><tr>{([['label',view==='cargo'?'Перевозка':view==='customer'?'Заказчик':'Получатель'],['party',view==='cargo'?'Заказчик / получатель':'Перевозки'],['places','Мест'],['weight','Вес, кг'],['volume','Объём, м³'],['execution','План / факт']] as [Column,string][]).map(([column,label])=><PlanningSortHeader key={column} column={column} label={label} sort={sort} onSort={onSort}/>)}</tr></thead>
   <tbody>{groups.map(group=><tr key={group.key}>
    <td><div className="sending-planning__table-cell" title={group.label}>{group.label}</div></td><td><div className="sending-planning__table-cell">{view==='cargo'?<>{group.cargo[0].customer}<small>{group.cargo[0].receiver}</small></>:group.cargo.map(cargo=>cargo.number).join(', ')}</div></td>
-   <td>{planningNumber(group.places,0)}</td><td>{planningNumber(group.weight)}</td><td>{planningNumber(group.volume,2)}</td><td>{group.cargo.length} / {group.actual}</td>
+   <td>{planningNumber(group.places,0)}</td><td>{planningNumber(group.weight)}</td><td>{planningNumber(group.volume,2)}</td><td><div className="sending-planning__table-cell">{group.cargo.length} / {group.actual}{view==='cargo'&&plan.reconciliation?.releasedCargoNumbers.includes(group.key)&&<small>Освобождена для другого дня</small>}{view==='cargo'&&plan.reconciliation?.otherActualCargoNumbers.includes(group.key)&&<small>Отправлена другой отправкой</small>}</div></td>
   </tr>)}</tbody>
  </table>{!groups.length&&<p className="sending-planning__muted">Перевозки пока не добавлены</p>}</div>;
 }

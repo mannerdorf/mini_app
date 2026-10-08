@@ -1,5 +1,6 @@
 import { installOneCRequestGate, withOneCPriority } from "../lib/oneCRequestGate.js";
 import { getPool } from "../api/_db.js";
+import { startSendingPlanningReconciliation } from "./sendingPlanningReconcile.js";
 import http from "node:http";
 import { withRequestSignal } from "../lib/requestCancellation.js";
 import fs from "node:fs";
@@ -181,6 +182,7 @@ server.keepAliveTimeout = 65_000;
 server.maxRequestsPerSocket = 100;
 
 server.listen(PORT, HOST, () => {
+  startSendingPlanningReconciliation();
   console.log(
     JSON.stringify({
       level: "info",

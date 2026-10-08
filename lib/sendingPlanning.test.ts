@@ -1,24 +1,27 @@
 import {readFileSync} from 'node:fs';
 import {PGlite} from '@electric-sql/pglite';
-import {afterAll,beforeAll,beforeEach,expect,it} from 'vitest';
+import {afterAll,beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {readSendingPlans,saveSendingPlan,deleteSendingPlan} from './sendingPlanning';
 import {planProgress} from '../src/features/documents/sendings/planning/planningModel';
+import {chooseSendingPlanFact,reconcileSendingPlans} from './sendingPlanningReconciliation';
 import type {PlanDraft} from '../src/features/documents/sendings/planning/planningModel';
 let db:PGlite,pool:any;
 beforeAll(async()=>{
  db=new PGlite();
- await db.exec('CREATE TABLE ferries(id bigint PRIMARY KEY,name text,active boolean); CREATE TABLE sendings_metrics(cargo_numbers jsonb); CREATE TABLE cache_perevozki_rows(doc_number text PRIMARY KEY,doc_date timestamp,payload jsonb,updated_at timestamp);');
+ await db.exec('CREATE TABLE ferries(id bigint PRIMARY KEY,name text,active boolean); CREATE TABLE sendings_metrics(cargo_numbers jsonb); CREATE TABLE cache_perevozki_rows(doc_number text PRIMARY KEY,doc_date timestamp,payload jsonb,updated_at timestamp); CREATE TABLE cache_sendings_rows(item_key text PRIMARY KEY,doc_number text,doc_date date,payload jsonb,updated_at timestamptz);');
  await db.exec(readFileSync('migrations/130_sending_planning.sql','utf8'));
  await db.exec(readFileSync('migrations/131_sending_planning_transport.sql','utf8'));
  await db.exec(readFileSync('migrations/132_sending_planning_departure.sql','utf8'));
  await db.exec(readFileSync('migrations/133_sending_planning_dimensions.sql','utf8'));
+ await db.exec(readFileSync('migrations/134_sending_planning_reconciliation.sql','utf8'));
  await db.exec("INSERT INTO ferries VALUES(1,'FESCO NAVARIN',true),(2,'Неактивный паром',false)");
- const query=(sql:string,args?:any[])=>db.query(sql,args);
+ const query=(sql:string,args?:any[])=>sql.includes('pg_try_advisory_lock')?Promise.resolve({rows:[{locked:true}]}):sql.includes('pg_advisory_unlock')?Promise.resolve({rows:[{pg_advisory_unlock:true}]}):db.query(sql,args);
  pool={query,connect:async()=>({query,release(){}})};
 },30000);
-afterAll(async()=>{await db.close();});
+afterAll(async()=>{vi.useRealTimers();await db.close();});
 beforeEach(async()=>{
- await db.exec('TRUNCATE sending_plans CASCADE; TRUNCATE cache_perevozki_rows,sendings_metrics;');
+ vi.useFakeTimers({toFake:['Date']});vi.setSystemTime(new Date('2026-10-09T10:00:00+03:00'));
+ await db.exec('TRUNCATE sending_plans CASCADE; TRUNCATE cache_perevozki_rows,sendings_metrics,cache_sendings_rows;');
  for(let index=1;index<=7;index++){
   const number=String(142700+index),payload={Number:number,INN:index===3?'2':'1',Customer:index===3?'Клиент Б':'Клиент А',Receiver:index===2?'Получатель Б':'Получатель А',CitySender:index===4?'Калининград':'Москва',CityReceiver:index===4?'Москва':'Калининград',DatePrih:index===7?'':'2026-10-06',State:index===6?'Доставлена':'В пути',W:index*10,Value:index,Mest:index};
   await db.query('INSERT INTO cache_perevozki_rows VALUES($1,$2,$3,now())',[`000${number}`,'2026-10-06',JSON.stringify(payload)]);
@@ -169,4 +172,108 @@ it('persists custom internal dimensions, preserves them for older clients and cl
  await saveSendingPlan(pool,draft({id,revision:4,vehicleId:'rigid'}),'legacy');
  expect((await list()).plans[0].vehicleDimensions).toBeNull();
  for(const vehicleDimensions of [{length:0,width:2,height:2},{length:101,width:2,height:2},{length:10,width:'bad',height:2}])await expect(saveSendingPlan(pool,draft({vehicleDimensions:vehicleDimensions as any}),'staff')).rejects.toThrow('внутренние размеры');
+});
+
+const nextDay=()=>vi.setSystemTime(new Date('2026-10-10T10:00:00+03:00'));
+async function sending(key:string,numbers:string[],options:{date?:string;updated?:string;route?:string;metrics?:boolean}={}) {
+ const route=options.route==='reverse'?{CitySender:'Калининград',CityReceiver:'Москва'}:{CitySender:'Москва',CityReceiver:'Калининград'};
+ await db.query('INSERT INTO cache_sendings_rows VALUES($1,$2,$3,$4,$5)',[key,`ТС-${key}`,options.date||'2026-10-09',JSON.stringify({...route,Посылки:numbers.map(number=>({НомерПеревозки:number})),АвтомобильCMRНаименование:'Тестовый автомобиль'}),options.updated||'2026-10-10T09:00:00+03:00']);
+ if(options.metrics!==false)await db.query('INSERT INTO sendings_metrics VALUES($1)',[JSON.stringify(numbers)]);
+}
+it('blocks new cargo on past dates and moving a filled future plan into the past, while allowing today and future',async()=>{
+ await expect(saveSendingPlan(pool,draft({date:'2026-10-08'}),'staff')).rejects.toThrow('прошедшие даты');
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ await expect(saveSendingPlan(pool,draft({id,revision:1,date:'2026-10-08'}),'staff')).rejects.toThrow('прошедшие даты');
+ nextDay();
+ await expect(saveSendingPlan(pool,draft({id,revision:1,cargoNumbers:['142701','142702','142703']}),'staff')).rejects.toThrow('прошедшие даты');
+ await saveSendingPlan(pool,draft({id,revision:1,comment:'Уточнение прошлого плана'}),'staff');
+ await saveSendingPlan(pool,draft({id,revision:2,cargoNumbers:['142701']}),'staff');
+ await saveSendingPlan(pool,draft({date:'2026-10-10',cargoNumbers:['142702']}),'staff');
+ await saveSendingPlan(pool,draft({date:'2026-10-11',cargoNumbers:['142703']}),'staff');
+ expect((await list()).plans).toHaveLength(3);
+});
+it('reconciles a single fresh actual sending after the planning date and frees only unshipped reservations',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ await sending('one',[' 000142701 ','142701']);
+ expect((await list()).plans[0].reconciliation).toBeUndefined();
+ nextDay();
+ const data=await list(),plan=data.plans[0];
+ expect(plan).toMatchObject({id,revision:2,actualCargoNumbers:['142701'],reconciliation:{actualCargoNumbers:['142701'],releasedCargoNumbers:['142702'],otherActualCargoNumbers:[],sending:{key:'one',matched:1}}});
+ expect(plan.cargo.map(cargo=>cargo.number)).toEqual(['142701']);
+ expect(plan.reconciliation?.originalCargo.map(cargo=>cargo.number)).toEqual(['142701','142702']);
+ expect(planProgress(plan)).toEqual({planned:2,actual:1,percent:50});
+ expect(data.available.map(cargo=>cargo.number)).toContain('142702');
+ expect(data.available.map(cargo=>cargo.number)).not.toContain('142701');
+ await reconcileSendingPlans(pool);expect((await list()).plans[0].revision).toBe(2);
+ await saveSendingPlan(pool,draft({date:'2026-10-11',cargoNumbers:['142702']}),'other');
+ await sending('later',['142702'],{date:'2026-10-10'});
+ const original=(await list()).plans.find(plan=>plan.id===id)!;
+ expect(planProgress(original)).toEqual({planned:2,actual:1,percent:50});
+ expect(original.actualCargoNumbers).toEqual(['142701']);
+});
+it('keeps reservations when the actual sending is absent, unrelated, from another route, or stale',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');nextDay();
+ await sending('unrelated',['142703']);await sending('reverse',['142701'],{route:'reverse',metrics:false});
+ let plan=(await list()).plans[0];expect(plan.reconciliation).toBeUndefined();expect(plan.factCandidates).toEqual([]);
+ await sending('stale',['142701'],{updated:'2026-10-10T06:00:00+03:00',metrics:false});
+ plan=(await list()).plans[0];expect(plan.reconciliation).toBeUndefined();expect(plan.factCandidates).toMatchObject([{key:'stale',fresh:false}]);
+ expect(plan.cargo).toHaveLength(2);expect(plan.id).toBe(id);
+ await expect(chooseSendingPlanFact(pool,id,1,'stale','staff')).rejects.toMatchObject({status:409});
+ expect((await list()).available.map(cargo=>cargo.number)).not.toContain('142702');
+});
+it('requires cache composition to have been refreshed after the planned day before releasing cargo',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');
+ vi.setSystemTime(new Date('2026-10-10T00:01:00+03:00'));
+ await sending('before-midnight',['142701'],{updated:'2026-10-09T23:59:00+03:00'});
+ expect((await list()).plans[0]).toMatchObject({id,revision:1,factCandidates:[{fresh:false}]});
+ await db.query('UPDATE cache_sendings_rows SET updated_at=$1',['2026-10-10T00:00:00+03:00']);
+ expect((await list()).plans[0]).toMatchObject({revision:2,reconciliation:{releasedCargoNumbers:['142702']}});
+});
+it('offers multiple actual sendings for selection and validates the chosen key and plan revision on the server',async()=>{
+ const id=await saveSendingPlan(pool,draft(),'staff');nextDay();
+ await sending('first',['142701']);await sending('second',['142701','142703']);
+ const plan=(await list()).plans[0];expect(plan.reconciliation).toBeUndefined();expect(plan.factCandidates?.map(item=>item.key)).toEqual(['first','second']);
+ await expect(chooseSendingPlanFact(pool,id,2,'first','staff')).rejects.toMatchObject({status:409});
+ await expect(chooseSendingPlanFact(pool,id,1,'forged','staff')).rejects.toMatchObject({status:409});
+ expect(await chooseSendingPlanFact(pool,id,1,'second','staff')).toEqual({released:1,actual:1});
+ const closed=(await list()).plans[0];expect(closed.reconciliation?.sending.key).toBe('second');expect(closed.reconciliation?.originalCargo).toHaveLength(2);
+ await expect(chooseSendingPlanFact(pool,id,2,'first','staff')).rejects.toThrow('уже сверён');
+});
+it('never returns cargo already present in another actual sending to future planning',async()=>{
+ const id=await saveSendingPlan(pool,draft({cargoNumbers:['142701','142702','142703']}),'staff');nextDay();
+ await sending('one',['142701']);await db.query('INSERT INTO sendings_metrics VALUES($1)',[JSON.stringify(['142702'])]);
+ const plan=(await list()).plans[0];
+ expect(plan.reconciliation).toMatchObject({releasedCargoNumbers:['142703'],otherActualCargoNumbers:['142702'],actualCargoNumbers:['142701']});
+ expect(plan.cargo.map(item=>item.number)).toEqual(['142701','142702']);expect(planProgress(plan)).toEqual({planned:3,actual:1,percent:33});
+ await expect(saveSendingPlan(pool,draft({date:'2026-10-11',cargoNumbers:['142702']}),'staff')).rejects.toMatchObject({status:409});
+ expect((await list()).available.map(item=>item.number)).toContain('142703');expect(plan.id).toBe(id);
+});
+it('preserves reconciled history on comment edits and rejects parameter changes, deletion and adding released cargo back',async()=>{
+ const dimensions={length:10,width:2,height:2};
+ const id=await saveSendingPlan(pool,draft({vehicleDimensions:dimensions}),'staff');nextDay();await sending('one',['142701']);
+ const plan=(await list()).plans[0];
+ await db.query("UPDATE cache_perevozki_rows SET payload=payload||'{\"W\":999}'::jsonb WHERE doc_number='000142701'");
+ await saveSendingPlan(pool,draft({id,revision:2,cargoNumbers:['142701'],vehicleDimensions:dimensions,comment:'Комментарий к истории'}),'staff');
+ const edited=(await list()).plans[0];expect(edited).toMatchObject({revision:3,comment:'Комментарий к истории'});
+ expect(edited.reconciliation).toEqual(plan.reconciliation);expect(edited.cargo[0].weight).toBe(10);
+ await expect(saveSendingPlan(pool,draft({id,revision:3,date:'2026-10-11',cargoNumbers:['142701']}),'staff')).rejects.toMatchObject({status:409});
+ await expect(deleteSendingPlan(pool,id,3)).rejects.toMatchObject({status:409});
+ await expect(saveSendingPlan(pool,draft({id,revision:3,cargoNumbers:['142701','142702']}),'staff')).rejects.toThrow();
+ expect((await list()).plans).toHaveLength(1);
+});
+it('rolls back all releases and the audit when the reconciliation update fails',async()=>{
+ await saveSendingPlan(pool,draft(),'staff');nextDay();await sending('one',['142701']);
+ const query=async(sql:string,args?:any[])=>{
+  if(sql.startsWith('UPDATE sending_plans SET revision=revision+1'))throw new Error('fixture update failure');
+  return pool.query(sql,args);
+ };
+ await expect(reconcileSendingPlans({connect:async()=>({query,release(){}})} as any)).rejects.toThrow('fixture update failure');
+ expect((await db.query('SELECT * FROM sending_plan_reconciliations')).rows).toHaveLength(0);
+ expect((await db.query('SELECT * FROM sending_plan_cargo')).rows).toHaveLength(2);
+});
+it('skips an overlapping automatic check without releasing another process lock',async()=>{
+ const query=vi.fn().mockResolvedValue({rows:[{locked:false}]}),release=vi.fn();
+ expect(await reconcileSendingPlans({connect:async()=>({query,release})} as any)).toMatchObject({skipped:true});
+ expect(query).toHaveBeenCalledTimes(1);expect(release).toHaveBeenCalledOnce();
+ await db.exec(readFileSync('migrations/134_sending_planning_reconciliation.sql','utf8'));
 });

@@ -41,3 +41,9 @@ it('shows seven Monday-first days for a week across month and year boundaries',(
  const days=calendarWeekDays(new Date(2026,9,1));expect(days).toHaveLength(7);expect(days[0].getDay()).toBe(1);expect(days[6].getDay()).toBe(0);expect(days.map(localDateKey)).toEqual(['2026-09-28','2026-09-29','2026-09-30','2026-10-01','2026-10-02','2026-10-03','2026-10-04']);
  expect(calendarWeekDays(new Date(2027,0,1)).map(localDateKey)).toContain('2026-12-28');
 });
+
+it('keeps the original denominator and rows after releasing unmatched cargo',()=>{
+ const closed={...plan,cargo:[plan.cargo[0]],reconciliation:{checkedAt:'2026-10-10',sending:{key:'one',number:'ТС1',date:'2026-10-09',vehicle:'',matched:1,cargoCount:1,fresh:true},originalCargo:plan.cargo,actualCargoNumbers:['10'],releasedCargoNumbers:['11'],otherActualCargoNumbers:[]}};
+ expect(planProgress(closed)).toEqual({planned:2,actual:1,percent:50});
+ expect(groupPlannedCargo(closed,'cargo').map(group=>group.key)).toEqual(['10','11']);
+});

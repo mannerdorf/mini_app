@@ -4,7 +4,9 @@ export type PlanningMode='roro'|'ferry'|'auto'|'air'|'';
 export type PlanningView='cargo'|'customer'|'receiver'|'vehicle';
 export type VehicleDimensions={length:number;width:number;height:number};
 export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolean;departureDate?:string;vehicleDimensions?:VehicleDimensions|null;date:string;route:string;mode:PlanningMode;vehicleId:string;ferryId:number|null;comment:string;cargoNumbers:string[]};
-export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[]};
+export type PlanningFactCandidate={key:string;number:string;date:string;vehicle:string;matched:number;cargoCount:number;fresh:boolean};
+export type PlanningReconciliation={checkedAt:string;sending:PlanningFactCandidate;originalCargo:TmsCargo[];actualCargoNumbers:string[];releasedCargoNumbers:string[];otherActualCargoNumbers:string[]};
+export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[];reconciliation?:PlanningReconciliation;factCandidates?:PlanningFactCandidate[]};
 export type PlanningData={plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
 // Keep the persisted ferry value for existing container plans.
 export const MODE_LABELS:Record<PlanningMode,string>={roro:'RoRo',ferry:'Контейнер',auto:'Авто',air:'Авиа','':'Тип не указан'};
@@ -23,6 +25,9 @@ export const vehicleName=(id:string)=>VEHICLES.find(vehicle=>vehicle.id===id)?.n
 export function localDateKey(date:Date):string {
  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
 }
+// Planning business dates use Moscow, independently of the server/device timezone.
+export const planningToday=(now=new Date())=>new Date(now.getTime()+3*3600000).toISOString().slice(0,10);
+export const comparisonCargo=(plan:SendingPlan)=>plan.reconciliation?.originalCargo??plan.cargo;
 export function calendarDays(month:Date):Date[] {
  const start=new Date(month.getFullYear(),month.getMonth(),1);
  start.setDate(start.getDate()-(start.getDay()+6)%7);
@@ -31,13 +36,13 @@ export function calendarDays(month:Date):Date[] {
  return Array.from({length},(_,index)=>new Date(start.getFullYear(),start.getMonth(),start.getDate()+index));
 }
 export function planProgress(plan:SendingPlan) {
- const numbers=new Set(plan.cargo.map(cargo=>cargo.number));
+ const numbers=new Set(comparisonCargo(plan).map(cargo=>cargo.number));
  const actual=new Set(plan.actualCargoNumbers.filter(number=>numbers.has(number))).size;
  return {planned:numbers.size,actual,percent:numbers.size?Math.round(actual/numbers.size*100):0};
 }
 export function groupPlannedCargo(plan:SendingPlan,view:PlanningView) {
  const groups=new Map<string,TmsCargo[]>();
- for(const cargo of plan.cargo){
+ for(const cargo of comparisonCargo(plan)){
   const key=view==='customer'?cargo.customerId:view==='receiver'?cargo.receiver:cargo.number;
   groups.set(key,[...(groups.get(key)||[]),cargo]);
  }

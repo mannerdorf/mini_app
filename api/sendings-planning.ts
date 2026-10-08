@@ -4,6 +4,7 @@ import {respondCorsPreflight} from './_lib/cors.js';
 import {verifyRegisteredUser} from '../lib/verifyRegisteredUser.js';
 import {getSuperAdminRequestContext,isVerifiedSuperAdmin} from '../lib/adminDocumentCacheAccess.js';
 import {PlanningError,readSendingPlans,saveSendingPlan,deleteSendingPlan} from '../lib/sendingPlanning.js';
+import {chooseSendingPlanFact} from '../lib/sendingPlanningReconciliation.js';
 
 export default async function handler(req:VercelRequest,res:VercelResponse) {
  if(respondCorsPreflight(req,res))return;
@@ -22,6 +23,7 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
   }
   if(body.action==='list')return res.status(200).json(await readSendingPlans(pool,body.from,body.to));
   if(body.action==='save')return res.status(200).json({id:await saveSendingPlan(pool,body.plan,login||'superadmin')});
+  if(body.action==='reconcile')return res.status(200).json(await chooseSendingPlanFact(pool,body.id,body.revision,body.sendingKey,login||'superadmin'));
   if(body.action==='delete'){await deleteSendingPlan(pool,body.id,body.revision);return res.status(200).json({ok:true});}
   return res.status(400).json({error:'Неизвестное действие'});
  }catch(error){

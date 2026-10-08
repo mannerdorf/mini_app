@@ -2,9 +2,9 @@ import React,{useEffect,useMemo,useState} from 'react';
 import {CalendarDays,ChevronLeft,ChevronRight,Table2,X} from 'lucide-react';
 import {GuardedDialog} from '../../../../components/GuardedDialog';
 import type {DocumentsAuth} from '../../../../api/client/documentsAuth';
-import {fetchSendingPlanning,saveSendingPlanning,deleteSendingPlanning} from '../../../../api/client/sendingsPlanning';
+import {fetchSendingPlanning,saveSendingPlanning,deleteSendingPlanning,reconcileSendingPlanning} from '../../../../api/client/sendingsPlanning';
 import {VEHICLES} from '../../../tms/model';
-import {calendarDays,calendarWeekDays,DEFAULT_ROUTES,localDateKey,MODE_LABELS,missingPlanFields,needsFerry,planProgress,vehicleName,type PlanDraft,type PlanningData,type SendingPlan} from './planningModel';
+import {calendarDays,calendarWeekDays,DEFAULT_ROUTES,localDateKey,MODE_LABELS,missingPlanFields,planningToday,planProgress,type PlanDraft,type PlanningData,type SendingPlan} from './planningModel';
 import {PlanningEditor} from './PlanningEditor';
 import {PlanningPlansTable} from './PlanningPlansTable';
 import {PlanningCalendar} from './PlanningCalendar';
@@ -13,7 +13,7 @@ import './sending-planning.css';
 const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('ru-RU');
 function Execution({plan}:{plan:SendingPlan}) {
  const {planned,actual,percent}=planProgress(plan);
- return <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>;
+ return <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}{plan.reconciliation&&<small>Освобождено: {plan.reconciliation.releasedCargoNumbers.length}</small>}{!plan.reconciliation&&(plan.factCandidates?.length||0)>1&&<small>Выберите фактическую отправку</small>}</span>;
 }
 export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClose:()=>void}) {
  const [period,setPeriod]=useState<'month'|'week'>('month'),[weekDate,setWeekDate]=useState(()=>new Date());
@@ -38,6 +38,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
  const dismissEditor=()=>{if(busy)return;if(!dirty||window.confirm('Закрыть форму без сохранения изменений?'))setEditor(null);};
  const close=()=>{if(busy)return;if(!dirty||window.confirm('Закрыть форму без сохранения изменений?'))onClose();};
  const edit=(date:string,plan?:SendingPlan)=>{
+  if(!plan&&date<planningToday())return;
   if(busy)return;if(dirty&&!window.confirm('Перейти к другому плану без сохранения изменений?'))return;
   const draft:PlanDraft=plan?{id:plan.id,revision:plan.revision,title:plan.title,isDraft:plan.isDraft,date:plan.date,route:plan.route,mode:plan.mode,vehicleId:plan.vehicleId,ferryId:plan.ferryId,departureDate:plan.departureDate||'',vehicleDimensions:plan.vehicleDimensions||null,comment:plan.comment,cargoNumbers:plan.cargo.map(cargo=>cargo.number)}:{date,route:DEFAULT_ROUTES[0],mode:'auto',vehicleId:VEHICLES[0].id,ferryId:null,departureDate:'',comment:'',cargoNumbers:[]};
   setEditor({draft,initial:structuredClone(draft),plan});setError('');
@@ -52,6 +53,11 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
   setBusy(true);setError('');
   try{await deleteSendingPlanning(auth,editor.plan.id,editor.plan.revision);setEditor(null);setRefresh(value=>value+1);}
   catch(reason){setError(reason instanceof Error?reason.message:'Не удалось удалить план');}finally{setBusy(false);}
+ };
+ const reconcile=async(sendingKey:string)=>{
+  if(!editor?.plan||busy||dirty)return;setBusy(true);setError('');
+  try{await reconcileSendingPlanning(auth,editor.plan.id,editor.plan.revision,sendingKey);setEditor(null);setRefresh(value=>value+1);}
+  catch(reason){setError(reason instanceof Error?reason.message:'Не удалось сверить план');}finally{setBusy(false);}
  };
  const navigate=(offset:number)=>{if(busy)return;if(dirty&&!window.confirm('Сменить период без сохранения изменений?'))return;setEditor(null);if(period==='week')setWeekDate(previous=>new Date(previous.getFullYear(),previous.getMonth(),previous.getDate()+offset*7));else setMonth(previous=>new Date(previous.getFullYear(),previous.getMonth()+offset,1));};
  const changePeriod=(value:'month'|'week')=>{
@@ -77,7 +83,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
      <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} onEdit={plan=>edit(plan.date,plan)} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
     </>}
    </section>
-   {editor&&<PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined}/>}
+   {editor&&<PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/>}
   </div>
   {data&&<div className="sending-planning__legend" aria-label="Легенда цветов планирования">{(['roro','ferry','auto','air',''] as const).map(mode=><span key={mode}><i className={`sending-planning__swatch sending-planning__event--${mode||'draft'}`} aria-hidden="true"/>{MODE_LABELS[mode]}</span>)}</div>}
   {data&&<p className="sending-planning__footnote">Свободных перевозок: {data.available.length} · Исполнение рассчитано по перевозкам, включённым в фактические отправки 1С</p>}
