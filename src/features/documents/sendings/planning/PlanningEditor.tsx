@@ -1,23 +1,27 @@
-import React,{useEffect,useMemo,useState} from 'react';
+import React,{useMemo,useState} from 'react';
 import {Plus,Trash2} from 'lucide-react';
 import {VEHICLES,type TmsCargo} from '../../../tms/model';
 import {MODE_LABELS,type PlanDraft,type PlanningMode,type SendingPlan} from './planningModel';
 import {planningNumber} from './PlanningCargoTable';
+import {PlanningCargoPicker} from './PlanningCargoPicker';
+import {matchesPickerSearch} from './planningPickerModel';
 
 export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChange,onSave,onCancel,onDelete}:{
  draft:PlanDraft;plan?:SendingPlan;available:TmsCargo[];ferries:{id:number;name:string}[];routes:string[];busy:boolean;
  onChange:(draft:PlanDraft)=>void;onSave:()=>void;onCancel:()=>void;onDelete?:()=>void;
 }) {
  const [pickerOpen,setPickerOpen]=useState(false),[search,setSearch]=useState('');
- const [candidateLimit,setCandidateLimit]=useState(100);
- useEffect(()=>setCandidateLimit(100),[search,draft.route]);
  const all=useMemo(()=>[...new Map([...available,...(plan?.cargo||[])].map(cargo=>[cargo.number,cargo])).values()],[available,plan]);
  const byNumber=useMemo(()=>new Map(all.map(cargo=>[cargo.number,cargo])),[all]);
  const actual=new Set(plan?.actualCargoNumbers||[]);
  const selected=draft.cargoNumbers.map(number=>byNumber.get(number)).filter((cargo):cargo is TmsCargo=>!!cargo);
- const candidates=all.filter(cargo=>cargo.route===draft.route&&[cargo.number,cargo.customer,cargo.receiver].join(' ').toLowerCase().includes(search.trim().toLowerCase()));
+ const candidates=useMemo(()=>all.filter(cargo=>cargo.route===draft.route&&matchesPickerSearch(cargo,search)),[all,draft.route,search]);
  const changeMode=(mode:PlanningMode)=>onChange({...draft,mode,vehicleId:mode==='air'?'':VEHICLES.find(vehicle=>vehicle.mode===(mode==='auto'?'road':'ferry'))!.id,ferryId:null});
- const toggle=(number:string)=>{if(actual.has(number))return;onChange({...draft,cargoNumbers:draft.cargoNumbers.includes(number)?draft.cargoNumbers.filter(item=>item!==number):[...draft.cargoNumbers,number]});};
+ const select=(numbers:string[],include:boolean)=>{
+  const editable=new Set(numbers.filter(number=>!actual.has(number)));
+  onChange({...draft,cargoNumbers:include?[...new Set([...draft.cargoNumbers,...editable])]:draft.cargoNumbers.filter(number=>!editable.has(number))});
+ };
+ const toggle=(number:string)=>select([number],!draft.cargoNumbers.includes(number));
  const total=(field:'weight'|'volume'|'places')=>selected.reduce((sum,cargo)=>sum+(cargo[field]||0),0);
  return <form className="sending-planning__editor" onSubmit={event=>{event.preventDefault();onSave();}}>
   <header><div><h3>{plan?'План отправки':'Новый план отправки'}</h3><p>Рекомендация кладовщику</p></div></header>
@@ -30,15 +34,7 @@ export function PlanningEditor({draft,plan,available,ferries,routes,busy,onChang
     {draft.mode==='ferry'&&<label>Паром<select required aria-label="Паром" value={draft.ferryId||''} onChange={event=>onChange({...draft,ferryId:event.target.value?Number(event.target.value):null})}><option value="">Выберите паром</option>{ferries.map(ferry=><option key={ferry.id} value={ferry.id}>{ferry.name}</option>)}{plan?.ferryId&&!ferries.some(ferry=>ferry.id===plan.ferryId)&&<option value={plan.ferryId}>{plan.ferryName} (неактивен)</option>}</select></label>}
    </div>
    <div className="sending-planning__cargo-heading"><h4>Перевозки · {selected.length}</h4><button type="button" className="filter-button" onClick={()=>setPickerOpen(open=>!open)} aria-expanded={pickerOpen}><Plus size={16}/> Добавить перевозку</button></div>
-   {pickerOpen&&<section className="sending-planning__picker" aria-label="Неотправленные перевозки">
-    <input type="search" aria-label="Поиск перевозок" placeholder="Номер, заказчик или получатель" value={search} onChange={event=>setSearch(event.target.value)}/>
-    <p className="sending-planning__muted">Доступные перевозки по маршруту: {candidates.length}</p>
-    <div className="sending-planning__picker-list">{candidates.slice(0,candidateLimit).map(cargo=><label className="sending-planning__candidate" key={cargo.number}>
-     <input type="checkbox" aria-label={`Добавить перевозку ${cargo.number}`} checked={draft.cargoNumbers.includes(cargo.number)} disabled={actual.has(cargo.number)} onChange={()=>toggle(cargo.number)}/>
-     <span><b>{cargo.number}</b><span>{cargo.customer}</span><small>{cargo.receiver}</small>{cargo.readiness==='unreceived'&&<small>Поступление на склад пока не подтверждено</small>}</span>
-     <span className="sending-planning__candidate-metrics">{cargo.weight===null?'—':planningNumber(cargo.weight)} кг<small>{cargo.volume===null?'—':planningNumber(cargo.volume,2)} м³</small></span>
-    </label>)}{!candidates.length&&<p className="sending-planning__muted">Нет свободных перевозок по этому маршруту</p>}{candidateLimit<candidates.length&&<button type="button" className="filter-button" onClick={()=>setCandidateLimit(limit=>limit+100)}>Показать ещё</button>}</div>
-   </section>}
+   {pickerOpen&&<PlanningCargoPicker candidates={candidates} cargoNumbers={draft.cargoNumbers} locked={actual} search={search} onSearch={setSearch} onSelect={select}/>}
    <div className="sending-planning__selected">{selected.map(cargo=><div key={cargo.number}><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver}{actual.has(cargo.number)?' · Отправлена по данным 1С':''}</small></span>{!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>toggle(cargo.number)}><Trash2 size={16}/></button>}</div>)}</div>
    <p className="sending-planning__totals">{planningNumber(total('places'),0)} мест · {planningNumber(total('weight'))} кг · {planningNumber(total('volume'),2)} м³</p>
    <label>Комментарий<textarea maxLength={4000} rows={3} value={draft.comment} onChange={event=>onChange({...draft,comment:event.target.value})} placeholder="Указания кладовщику"/></label>
