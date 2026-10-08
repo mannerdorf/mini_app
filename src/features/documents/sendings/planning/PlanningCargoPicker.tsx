@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import type { TmsCargo } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
@@ -27,13 +27,21 @@ function Candidate({ cargo, selected, locked, onSelect }: Selection & { cargo: T
 
 function CandidateGroup({ group, selected, locked, onSelect, nested = false }: Selection & { group: PlanningPickerGroup; nested?: boolean }) {
   const [limit, setLimit] = useState(100);
+  const checkbox = useRef<HTMLInputElement>(null);
   useEffect(() => setLimit(100), [group.cargo]);
   const editable = group.cargo.filter(cargo => !locked.has(cargo.number));
   const included = group.cargo.filter(cargo => selected.has(cargo.number)).length;
+  useEffect(() => {
+    if (checkbox.current) checkbox.current.indeterminate = included > 0 && included < group.cargo.length;
+  }, [included, group.cargo.length]);
   const allIncluded = editable.length > 0 && editable.every(cargo => selected.has(cargo.number));
   const hasMore = limit < (group.children?.length ?? group.cargo.length);
   return <details className={`sending-planning__picker-group${nested ? ' sending-planning__picker-group--nested' : ''}`}>
-    <summary><span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume, 2)} м³</small>
+    <summary><input ref={checkbox} type="checkbox" className="sending-planning__group-checkbox"
+      aria-label={`Выбрать группу ${group.label}`} checked={included === group.cargo.length} disabled={!editable.length}
+      onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
+      onChange={event => onSelect(editable.map(cargo => cargo.number), event.target.checked)} />
+      <span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume, 2)} м³</small>
       {included > 0 && <small>Выбрано: {included} из {group.cargo.length}</small>}</span><ChevronDown size={16} /></summary>
     <div className="sending-planning__picker-group-actions">
       <button type="button" className="filter-button" disabled={!editable.length}

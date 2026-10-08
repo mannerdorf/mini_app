@@ -66,7 +66,9 @@
 .sending-planning__picker-group { border-top: 1px solid var(--color-border); }
 .sending-planning__picker-group > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; cursor: pointer; list-style: none; color: var(--color-text-primary); font-size: 12px; }
 .sending-planning__picker-group > summary::-webkit-details-marker { display: none; }
-.sending-planning__picker-group > summary > span { min-width: 0; overflow-wrap: anywhere; }
+.sending-planning__picker-group > summary > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.sending-planning__group-checkbox { flex-shrink: 0; width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary-blue); cursor: pointer; }
+.sending-planning__group-checkbox:disabled { cursor: default; }
 .sending-planning__picker-group > summary small { display: block; margin-top: 4px; color: var(--color-text-secondary); font-size: 11px; }
 .sending-planning__picker-group > summary > svg { flex-shrink: 0; }
 .sending-planning__picker-group[open] > summary > svg { transform: rotate(180deg); }
