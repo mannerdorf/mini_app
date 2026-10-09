@@ -3,6 +3,16 @@ import { type TmsCargo, type Vehicle } from '../../../tms/model';
 import {planningVehicle,type PlanDraft} from './planningModel';
 import { planningNumber } from './PlanningCargoTable';
 
+export function planningLoadTotals(cargo: TmsCargo[]) {
+  const totals = { weight: 0, volume: 0, places: 0, paidWeight: 0 };
+  const missing = { weight: 0, volume: 0, places: 0, paidWeight: 0 };
+  for (const item of cargo) for (const field of ['weight', 'volume', 'places', 'paidWeight'] as const) {
+    const value = item[field];
+    if (value == null) missing[field]++; else totals[field] += value;
+  }
+  return { totals, missing, count: cargo.length };
+}
+
 function Capacity({ label, value, limit, unit, digits = 1, missing }: {
   label: string; value: number; limit?: number; unit: string; digits?: number; missing: number;
 }) {
@@ -22,8 +32,9 @@ function Capacity({ label, value, limit, unit, digits = 1, missing }: {
 
 export function PlanningLoadSummary({ cargo, draft }: { cargo: TmsCargo[]; draft: PlanDraft }) {
   const vehicle: Vehicle | undefined = planningVehicle(draft);
-  const total = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.reduce((sum, item) => sum + (item[field] ?? 0), 0);
-  const missing = (field: 'weight' | 'volume' | 'places' | 'paidWeight') => cargo.filter(item => item[field] == null).length;
+  const summary = planningLoadTotals(cargo);
+  const total = (field: keyof typeof summary.totals) => summary.totals[field];
+  const missing = (field: keyof typeof summary.missing) => summary.missing[field];
   const paidMissing = missing('paidWeight');
   return <section className="sending-planning__load-summary sending-planning__form-section" aria-label="Итоги выбранных перевозок">
     <div className="sending-planning__load-heading"><h4 className="sending-planning__section-heading"><span>2</span>Заполнение ТС и итоги</h4>{vehicle && <small>{vehicle.name}</small>}</div>
