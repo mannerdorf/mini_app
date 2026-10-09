@@ -200,14 +200,19 @@
 .sending-planning__overview { min-height: 0; overflow: hidden; }
 .sending-planning__calendar { width: 100%; height: 100%; min-width: 0; min-height: 0; box-sizing: border-box; }
 .sending-planning__weekday { padding: 3px 0; }
-.sending-planning__day { min-width: 0; min-height: 0; padding: 3px; overflow: hidden; box-sizing: border-box; }
-.sending-planning__day-heading { display: flex; align-items: center; gap: 2px; height: 20px; margin-bottom: 2px; min-width: 0; }
+.sending-planning__day { min-width: 0; min-height: 0; padding: 3px; overflow: hidden; box-sizing: border-box; isolation: isolate; }
+.sending-planning__day-target { position: absolute; inset: 0; z-index: 0; display: block; width: 100%; height: 100%; min-width: 0; min-height: 0; margin: 0; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.sending-planning__day-target:focus-visible { outline: 2px solid var(--color-primary-blue); outline-offset: -2px; }
+.sending-planning__day > :is(.sending-planning__day-heading,.sending-planning__event,.sending-planning__more) { position: relative; z-index: 1; }
+.sending-planning__day-heading { display: flex; align-items: center; gap: 2px; height: 20px; margin-bottom: 2px; min-width: 0; pointer-events: none; }
+.sending-planning__day-heading button { pointer-events: auto; }
+.sending-planning__day-heading svg { pointer-events: none; }
 .sending-planning__date { flex: 1; min-width: 0; width: auto; height: 20px; margin: 0; padding: 0 2px; line-height: 20px; }
 .sending-planning__next-plan,.sending-planning__add-plan { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
 .sending-planning .sending-planning__next-plan { gap: 2px; font-size: 11px; line-height: 20px; white-space: nowrap; }
 .sending-planning__next-plan > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .sending-planning__next-plan svg { flex-shrink: 0; }
-.sending-planning__add-plan { flex-shrink: 0; width: 18px; }
+.sending-planning__add-plan { flex-shrink: 0; width: 24px; }
 .sending-planning__next-plan:hover:not(:disabled),.sending-planning__add-plan:hover:not(:disabled) { color: var(--color-primary-blue); background: var(--color-bg-hover); }
 .sending-planning__day.is-narrow .sending-planning__add-plan { position: absolute; bottom: 3px; right: 3px; background: var(--color-bg-card); }
 .sending-planning .sending-planning__day.is-narrow .sending-planning__next-plan { gap: 0; font-size: 9px; }

@@ -24,7 +24,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
  const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));
  const [data,setData]=useState<PlanningData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
  const {editor,setEditor,switchEditor,resetEditors,dirty,hasUnsavedChanges}=usePlanningEditors();
- const [busy,setBusy]=useState(false);
+ const [busy,setBusy]=useState(false),[newEditorKey,setNewEditorKey]=useState(0);
  const [tab,setTab]=useState<'calendar'|'table'>('calendar'),[expanded,setExpanded]=useState<Set<string>>(()=>new Set());
  const days=useMemo(()=>period==='month'?calendarDays(month):calendarWeekDays(weekDate),[month,weekDate,period]),from=localDateKey(days[0]),to=localDateKey(days.at(-1)!);
  useEffect(()=>{resetEditors();},[auth.login,auth.password,resetEditors]);
@@ -53,6 +53,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
   const preserveCurrent=switchRow&&!!editor?.plan;
   if(dirty&&!preserveCurrent&&!window.confirm('Перейти к другому плану без сохранения изменений?'))return;
   const draft:PlanDraft=plan?{id:plan.id,revision:plan.revision,title:plan.title,isDraft:plan.isDraft,date:plan.date,route:plan.route,mode:plan.mode,vehicleId:plan.vehicleId,ferryId:plan.ferryId,departureDate:plan.departureDate||'',vehicleDimensions:plan.vehicleDimensions||null,comment:plan.comment,cargoNumbers:plan.cargo.map(cargo=>cargo.number)}:{date,route:DEFAULT_ROUTES[0],mode:'auto',vehicleId:VEHICLES[0].id,ferryId:null,departureDate:'',comment:'',cargoNumbers:[]};
+  if(!plan)setNewEditorKey(value=>value+1);
   switchEditor({draft,initial:structuredClone(draft),plan},preserveCurrent);setError('');
  };
  const save=async()=>{
@@ -95,7 +96,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
      <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} selectedPlanId={editor?.plan?.id} onEdit={plan=>edit(plan.date,plan,true)} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
     </>}
    </section>
-   {editor&&<><div className="sending-planning__resizer" {...workspace.separatorProps}><span aria-hidden="true"/></div><PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/></>}
+   {editor&&<><div className="sending-planning__resizer" {...workspace.separatorProps}><span aria-hidden="true"/></div><PlanningEditor key={editor.plan?.id||`new:${newEditorKey}`} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/></>}
   </div>
   {data&&<div className="sending-planning__legend" aria-label="Легенда цветов планирования">{(['roro','ferry','auto','air',''] as const).map(mode=><span key={mode}><i className={`sending-planning__swatch sending-planning__event--${mode||'draft'}`} aria-hidden="true"/>{MODE_LABELS[mode]}</span>)}</div>}
   {data&&<p className="sending-planning__footnote">Свободных перевозок: {data.available.length} · Исполнение рассчитано по перевозкам, включённым в фактические отправки 1С</p>}
