@@ -8,6 +8,7 @@ import {calendarDays,calendarWeekDays,DEFAULT_ROUTES,localDateKey,MODE_LABELS,mi
 import {PlanningEditor} from './PlanningEditor';
 import {PlanningPlansTable} from './PlanningPlansTable';
 import {PlanningCalendar} from './PlanningCalendar';
+import {PlanningLayoutControls,usePlanningLayout} from './PlanningLayout';
 import './sending-planning.css';
 
 const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('ru-RU');
@@ -16,6 +17,7 @@ function Execution({plan}:{plan:SendingPlan}) {
  return <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}{plan.reconciliation&&<small>Освобождено: {plan.reconciliation.releasedCargoNumbers.length}</small>}{!plan.reconciliation&&(plan.factCandidates?.length||0)>1&&<small>Выберите фактическую отправку</small>}</span>;
 }
 export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClose:()=>void}) {
+ const workspace=usePlanningLayout();
  const [period,setPeriod]=useState<'month'|'week'>('month'),[weekDate,setWeekDate]=useState(()=>new Date());
  const [month,setMonth]=useState(()=>new Date(new Date().getFullYear(),new Date().getMonth(),1));
  const [data,setData]=useState<PlanningData|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState(''),[refresh,setRefresh]=useState(0);
@@ -72,18 +74,18 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
  return <GuardedDialog title="Планирование отправок" onClose={close} className={`sending-planning sending-planning--${tab}${editor?' sending-planning--editing':''}`}>
   <header className="sending-planning__header"><h2>Планирование</h2><button type="button" className="sending-planning__icon" aria-label="Закрыть планирование" disabled={busy} onClick={close}><X size={22}/></button></header>
   <div className="sending-planning__toolbar"><div className="sending-planning__tabs"><button type="button" aria-pressed={tab==='calendar'} onClick={()=>setTab('calendar')}><CalendarDays size={16}/> Календарь</button><button type="button" aria-pressed={tab==='table'} onClick={()=>setTab('table')}><Table2 size={16}/> Таблица</button></div></div>
-  <div className="sending-planning__period-row"><div className="sending-planning__tabs" role="group" aria-label="Период отображения планов"><button type="button" aria-pressed={period==='month'} disabled={busy} onClick={()=>changePeriod('month')}>Месяц</button><button type="button" aria-pressed={period==='week'} disabled={busy} onClick={()=>changePeriod('week')}>Неделя</button></div></div>
+  <div className="sending-planning__period-row"><div className="sending-planning__tabs" role="group" aria-label="Период отображения планов"><button type="button" aria-pressed={period==='month'} disabled={busy} onClick={()=>changePeriod('month')}>Месяц</button><button type="button" aria-pressed={period==='week'} disabled={busy} onClick={()=>changePeriod('week')}>Неделя</button></div><PlanningLayoutControls layout={workspace.layout} onSelect={workspace.select}/></div>
   <div className="sending-planning__month" aria-label={monthLabel}><div><button type="button" className="sending-planning__icon" aria-label={period==='week'?'Предыдущая неделя':'Предыдущий месяц'} disabled={busy} onClick={()=>navigate(-1)}><ChevronLeft size={20}/></button><button type="button" className="filter-button" title={period==='week'?'Вернуться к текущей неделе':'Вернуться к текущему месяцу'} disabled={busy} onClick={()=>{if(dirty&&!window.confirm('Вернуться к текущему периоду без сохранения изменений?'))return;setEditor(null);setMonth(new Date(new Date().getFullYear(),new Date().getMonth(),1));setWeekDate(new Date());}}>{monthLabel}</button><button type="button" className="sending-planning__icon" aria-label={period==='week'?'Следующая неделя':'Следующий месяц'} disabled={busy} onClick={()=>navigate(1)}><ChevronRight size={20}/></button></div></div>
   {loading&&<p role="status" className="sending-planning__muted">Загружаем планы и свободные перевозки…</p>}
   {error&&<p role="alert" className="sending-planning__error">{error}{!data&&!loading&&<button type="button" className="filter-button" onClick={()=>setRefresh(value=>value+1)}>Повторить</button>}</p>}
-  <div className={`sending-planning__body${editor?' sending-planning__body--editing':''}`}>
+  <div ref={workspace.bodyRef} style={workspace.style} className={`sending-planning__body${editor?' sending-planning__body--editing':''}${editor&&workspace.layout.full?' sending-planning__body--editor-only':''}${workspace.resizing?' sending-planning__body--resizing':''}`}>
    <section className="sending-planning__overview" aria-label={tab==='calendar'?'Календарь планирования':'Таблица планирования'}>
     {tab==='calendar'?<PlanningCalendar days={days} month={month} period={period} plans={data?.plans||[]} selectedDate={editor?.draft.date} loaded={!!data} busy={busy} onEdit={edit}/>:<>
 
      <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} onEdit={plan=>edit(plan.date,plan)} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
     </>}
    </section>
-   {editor&&<PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/>}
+   {editor&&<><div className="sending-planning__resizer" {...workspace.separatorProps}><span aria-hidden="true"/></div><PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/></>}
   </div>
   {data&&<div className="sending-planning__legend" aria-label="Легенда цветов планирования">{(['roro','ferry','auto','air',''] as const).map(mode=><span key={mode}><i className={`sending-planning__swatch sending-planning__event--${mode||'draft'}`} aria-hidden="true"/>{MODE_LABELS[mode]}</span>)}</div>}
   {data&&<p className="sending-planning__footnote">Свободных перевозок: {data.available.length} · Исполнение рассчитано по перевозкам, включённым в фактические отправки 1С</p>}

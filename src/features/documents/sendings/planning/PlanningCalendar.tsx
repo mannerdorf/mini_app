@@ -42,14 +42,14 @@ function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy
   </>}
  </button>;
 }
-function CalendarDay({day,plans,cellHeight,month,period,selectedDate,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;month:Date;period:'month'|'week';selectedDate?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
+function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;cellWidth:number;month:Date;period:'month'|'week';selectedDate?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
  const measurement=useRef<HTMLDivElement>(null),[weekVisible,setWeekVisible]=useState(0);
  useLayoutEffect(()=>{
   if(period!=='week'||!measurement.current)return;
   const cards=Array.from(measurement.current.children);let used=0,count=0;
   for(const card of cards){const size=card.getBoundingClientRect().height+4,reserve=count+1<plans.length?28:0;if(used+size+reserve>cellHeight-26)break;used+=size;count++;}
   setWeekVisible(count);
- },[plans,cellHeight,period]);
+ },[plans,cellHeight,cellWidth,period]);
  const date=localDateKey(day),lines=Math.max(1,Math.min(4,Math.floor((cellHeight-34)/20))),slots=Math.max(0,Math.floor((cellHeight-26)/(28+(lines-1)*20)));
  const visible=period==='week'?weekVisible:plans.length>slots?Math.max(0,slots-1):slots;
  return <div className={`sending-planning__day${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget&&loaded&&!busy&&date>=today)onEdit(date);}}>
@@ -61,16 +61,17 @@ function CalendarDay({day,plans,cellHeight,month,period,selectedDate,loaded,busy
 }
 export function PlanningCalendar({days,month,period,plans,selectedDate,loaded,busy,onEdit}:{days:Date[];month:Date;period:'month'|'week';plans:SendingPlan[];selectedDate?:string;loaded:boolean;busy:boolean;onEdit:(date:string,plan?:SendingPlan)=>void}) {
  const today=usePlanningToday();
- const ref=useRef<HTMLDivElement>(null),[height,setHeight]=useState(0),[openDay,setOpenDay]=useState<string|null>(null);
+ const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({height:0,width:0}),[openDay,setOpenDay]=useState<string|null>(null);
  useLayoutEffect(()=>{
   const node=ref.current;if(!node)return;
-  const observer=new ResizeObserver(()=>setHeight(node.clientHeight));observer.observe(node);setHeight(node.clientHeight);
+  const update=()=>setSize(previous=>previous.height===node.clientHeight&&previous.width===node.clientWidth?previous:{height:node.clientHeight,width:node.clientWidth});
+  const observer=new ResizeObserver(update);observer.observe(node);update();
   return()=>observer.disconnect();
  },[]);
- const rows=days.length/7,cellHeight=(height-29)/rows;
+ const rows=days.length/7,cellHeight=(size.height-29)/rows,cellWidth=size.width/7;
  return <div ref={ref} className={`sending-planning__calendar sending-planning__calendar--${period}`} style={{gridTemplateRows:`28px repeat(${rows},minmax(0,1fr))`}}>
   {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(day=><div className="sending-planning__weekday" key={day}>{day}</div>)}
-  {days.map(day=><CalendarDay key={localDateKey(day)} day={day} plans={plans.filter(plan=>plan.date===localDateKey(day))} cellHeight={cellHeight} month={month} period={period} selectedDate={selectedDate} loaded={loaded} busy={busy} today={today} onEdit={onEdit} onShowAll={setOpenDay}/>)}
+  {days.map(day=><CalendarDay key={localDateKey(day)} day={day} plans={plans.filter(plan=>plan.date===localDateKey(day))} cellHeight={cellHeight} cellWidth={cellWidth} month={month} period={period} selectedDate={selectedDate} loaded={loaded} busy={busy} today={today} onEdit={onEdit} onShowAll={setOpenDay}/>)}
   {openDay&&<GuardedDialog title={`Планы на ${readableDate(openDay)}`} className="sending-planning-day-dialog" onClose={()=>setOpenDay(null)}>
    <header><b>Планы на {readableDate(openDay)}</b><button type="button" className="sending-planning__icon" aria-label="Закрыть список планов" onClick={()=>setOpenDay(null)}><X size={20}/></button></header>
    {plans.filter(plan=>plan.date===openDay).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full onEdit={(date,value)=>{setOpenDay(null);onEdit(date,value);}}/>)}
