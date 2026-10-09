@@ -100,8 +100,9 @@
 }
 .sending-planning__recommendation-summary { display: flex; flex-direction: column; gap: 6px; min-width: 0; max-width: 100%; box-sizing: border-box; margin-bottom: 12px; padding: 12px; border: 1px solid var(--color-primary-blue); border-radius: 10px; background: color-mix(in srgb,var(--color-primary-blue) 5%,var(--color-bg-card)); overflow-wrap: anywhere; }
 .sending-planning__recommendation-summary > * { min-width: 0; max-width: 100%; }
-.sending-planning__recommendation-metrics { display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.sending-planning__recommendation-metrics > span { min-width: 0; max-width: 100%; }
+.sending-planning__recommendation-metrics { display: flex; flex-direction: column; gap: 4px; }
+.sending-planning__recommendation-metrics-row { display: flex; flex-wrap: wrap; gap: 4px 12px; min-width: 0; max-width: 100%; }
+.sending-planning__recommendation-metrics-row > span { min-width: 0; max-width: 100%; }
 .sending-planning__picker-list { max-height: 350px; overflow: auto; }
 .sending-planning__picker-views { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); }
 .sending-planning__picker-views button { min-width: 0; padding: 8px 5px; }

@@ -122,10 +122,14 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       {!current ? 'Подбираем перевозки…' : current.error || result?.message || <>
         <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'SLA · сначала ближайшие сроки' : mode === 'sla-paid' ? 'SLA + платный вес · приоритет срокам, затем дозагрузка' : result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
         <div className="sending-planning__recommendation-metrics">
-          <span>Подсвечено: {recommended.size} перев. · групп: {result!.recommendedGroups}</span>
-          <span>Вес: +{planningNumber(result!.weight)} кг</span>
-          <span>Объём: +{planningNumber(result!.volume, 2)} м³</span>
-          <span>Платный вес: +{planningNumber(result!.paidWeight)} кг</span>
+          <div className="sending-planning__recommendation-metrics-row">
+            <span>{recommended.size} перев. · групп: {result!.recommendedGroups}</span>
+            <span>Платный вес: {planningNumber(result!.paidWeight)} кг</span>
+          </div>
+          <div className="sending-planning__recommendation-metrics-row">
+            <span>Вес: {planningNumber(result!.weight)} кг</span>
+            <span>Объём: {planningNumber(result!.volume, 2)} м³</span>
+          </div>
         </div>
         {(mode==='delivery'||mode==='sla-paid')&&!!result?.missingDelivery&&<span>Не удалось рассчитать срок по SLA: {result.missingDelivery} перев.</span>}
         {!!result?.excluded&&<span>Не хватает данных для подбора: {result.excluded} перев. Причина — у значка ⓘ рядом с номером.</span>}
