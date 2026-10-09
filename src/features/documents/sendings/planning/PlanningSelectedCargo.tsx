@@ -2,7 +2,8 @@ import React,{useMemo,useState} from 'react';
 import {ChevronDown,Download,ListX,Loader2,Trash2} from 'lucide-react';
 import type {TmsCargo} from '../../../tms/model';
 import type {PlanDraft} from './planningModel';
-import {PICKER_VIEWS,groupPickerHierarchy,receiptDateLabel,type PlanningPickerView,type PlanningPickerGroup} from './planningPickerModel';
+import {groupPickerHierarchy,receiptDateLabel,type PlanningPickerView,type PlanningPickerGroup} from './planningPickerModel';
+import {PlanningCargoViews} from './PlanningCargoViews';
 import {planningNumber} from './PlanningCargoTable';
 import {saveBlobFile} from '../../../../lib/saveBlobFile';
 type SelectedState={actual:Set<string>;readOnly:boolean;released:Set<string>;otherActual:Set<string>;onRemove:(numbers:string[])=>void};
@@ -24,7 +25,7 @@ export function PlanningSelectedCargo({draft,cargo,actual,ferryName,onRemove,rea
  };
  return <section className="sending-planning__form-section" aria-labelledby="planning-selected">
   <div className="sending-planning__selected-heading"><h4 id="planning-selected" className="sending-planning__section-heading"><span>4</span>{readOnly?'Исходный состав':'Выбранные перевозки'} · {cargo.length}</h4><div className="sending-planning__selected-actions">{!readOnly&&<button type="button" className="sending-planning__icon" aria-label="Очистить выбранные перевозки" title="Очистить выбранные перевозки; уже отправленные сохранятся" disabled={!draft.cargoNumbers.some(number=>!actual.has(number))} onClick={()=>onRemove(draft.cargoNumbers)}><ListX size={19}/></button>}<button type="button" className="sending-planning__icon" aria-label="Скачать выбранные перевозки в Excel" title="Скачать выбранные перевозки в Excel" disabled={exporting||!cargo.length} onClick={()=>void download()}>{exporting?<Loader2 size={19} className="animate-spin"/>:<Download size={19}/>}</button></div></div>
-  <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Отображение выбранных перевозок">{PICKER_VIEWS.map(item=><button type="button" key={item.value} aria-pressed={view===item.value} onClick={()=>setView(item.value)}>{item.label}</button>)}</div>
+  <PlanningCargoViews view={view} onChange={setView} label="Отображение выбранных перевозок"/>
   {error&&<p className="sending-planning__error" role="alert">{error}</p>}
   <div className="sending-planning__selected">{view==='cargo'?cargo.map(item=><SelectedRow key={item.number} cargo={item} {...state}/>):groups.map(group=><SelectedGroup key={`${view}:${group.key}`} group={group} {...state}/>)}</div>
   {!cargo.length&&<p className="sending-planning__muted">Добавьте перевозки в блоке подбора</p>}

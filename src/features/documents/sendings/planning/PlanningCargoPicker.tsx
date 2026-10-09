@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, Scale, CheckSquare, Info, Sparkles } from 'lucide-react';
 import type { TmsCargo, Vehicle } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
-import { groupPickerHierarchy, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
+import { groupPickerHierarchy, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
+import {PlanningCargoViews} from './PlanningCargoViews';
 import { recommendationPaidRanks, type RecommendationMode, type RecommendationContext, type RecommendationComparison, type RecommendationReason } from './planningRecommendations';
 
 type Selection = {
@@ -132,9 +133,7 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
         {mode==='sla-paid'&&!result?.optimal&&<span>Дозагрузка: лучший найденный вариант по платному весу.</span>}
       </>}
     </div>}
-    <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
-      {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
-    </div>
+    <PlanningCargoViews view={view} onChange={setView} label="Просмотр доступных перевозок"/>
     <p className="sending-planning__muted">Автоподбор сохраняет вместе перевозки одного заказчика за одну дату поступления. Отдельные перевозки можно выбрать вручную.</p>
     <p className="sending-planning__muted">Доступные перевозки по маршруту: {candidates.length}</p>
     {view === 'date' && <p className="sending-planning__muted">По дате поступления на склад</p>}

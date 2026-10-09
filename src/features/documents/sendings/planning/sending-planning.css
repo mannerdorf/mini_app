@@ -103,8 +103,9 @@
 .sending-planning__recommendation-metrics { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .sending-planning__recommendation-metrics > span { min-width: 0; max-width: 100%; }
 .sending-planning__picker-list { max-height: 350px; overflow: auto; }
-.sending-planning__picker-views { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); }
-.sending-planning__picker-views button { padding: 8px 5px; }
+.sending-planning__picker-views { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); }
+.sending-planning__picker-views button { min-width: 0; padding: 8px 5px; }
+.sending-planning__picker-views button > svg { flex-shrink: 0; }
 .sending-planning__picker-group { border-top: 1px solid var(--color-border); }
 .sending-planning__picker-group > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 4px; cursor: pointer; list-style: none; color: var(--color-text-primary); }
 .sending-planning__picker-group > summary::-webkit-details-marker { display: none; }
