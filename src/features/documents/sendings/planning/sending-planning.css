@@ -128,6 +128,10 @@
 .sending-planning__candidate-metrics { text-align: right; }
 .sending-planning__picker-group.is-recommended > summary,.sending-planning__editor label.sending-planning__candidate.is-recommended { background: color-mix(in srgb,var(--color-primary-blue) 8%,var(--color-bg-card)); box-shadow: inset 3px 0 var(--color-primary-blue); border-radius: 8px; padding-left: 8px; }
 .sending-planning :is(.sending-planning__candidate,.sending-planning__picker-group) .sending-planning__recommendation-label { color: var(--color-primary-blue); font-weight: 600; }
+.sending-planning__picker-group > summary .sending-planning__group-metrics { display: flex; align-items: center; justify-content: space-between; min-width: 0; gap: 8px; margin-top: 4px; }
+.sending-planning__picker-group > summary .sending-planning__group-metrics > small { flex: 1; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sending-planning__recommendation-count { display: inline-flex; align-items: center; flex-shrink: 0; gap: 4px; color: var(--color-primary-blue); font-weight: 600; white-space: nowrap; cursor: help; }
+.sending-planning__recommendation-count:focus-visible { outline: 2px solid var(--color-primary-blue); outline-offset: 2px; border-radius: 4px; }
 .sending-planning__selected { max-height: 260px; overflow: auto; }
 .sending-planning__selected > div { display: flex; justify-content: space-between; align-items: start; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .sending-planning__selected small { display: block; margin-top: 4px; color: var(--color-text-secondary); }

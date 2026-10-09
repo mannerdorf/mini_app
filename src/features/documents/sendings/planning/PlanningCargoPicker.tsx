@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, Scale, CheckSquare, Info } from 'lucide-react';
+import { ChevronDown, Scale, CheckSquare, Info, Sparkles } from 'lucide-react';
 import type { TmsCargo, Vehicle } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
 import { groupPickerHierarchy, PICKER_VIEWS, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
@@ -51,9 +51,10 @@ function CandidateGroup({ group, selected, locked, recommended, reasons, onSelec
       aria-label={`Выбрать группу ${group.label}`} checked={included === group.cargo.length} disabled={!editable.length}
       onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
       onChange={event => onSelect(editable.map(cargo => cargo.number), event.target.checked)} />
-      <span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume, 2)} м³</small>
+      <span><b>{group.label}</b><span className="sending-planning__group-metrics"><small title={`${group.cargo.length} перев. · ${planningNumber(group.weight)} кг · ${planningNumber(group.volume, 2)} м³`}>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume, 2)} м³</small>
+      {suggested > 0 && <span className="sending-planning__recommendation-count" role="img" tabIndex={0} aria-label={`Рекомендуется: ${suggested} из ${group.cargo.length} перевозок`} title={`Рекомендуется: ${suggested} из ${group.cargo.length} перевозок`}><Sparkles size={14} aria-hidden="true"/>{suggested} из {group.cargo.length}</span>}</span>
       {included > 0 && <small>Выбрано: {included} из {group.cargo.length}</small>}
-      {suggested > 0 && <small className="sending-planning__recommendation-label">Рекомендуется: {suggested} из {group.cargo.length}</small>}</span><ChevronDown size={16} /></summary>
+      </span><ChevronDown size={16} /></summary>
     <div className="sending-planning__picker-group-actions">
       <button type="button" className="filter-button" disabled={!editable.length}
         onClick={() => onSelect(editable.map(cargo => cargo.number), !allIncluded)}>{allIncluded ? 'Убрать группу' : 'Добавить группу'}</button>
