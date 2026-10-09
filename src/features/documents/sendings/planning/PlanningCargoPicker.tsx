@@ -109,7 +109,7 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       <span>Подбор</span>
       <div className="sending-planning__recommendation-controls">
         <button type="button" className={modeClass('fifo')} aria-pressed={mode === 'fifo'} onClick={() => chooseMode('fifo')} title={modeTitle('fifo','Сначала ранние поступления, с учётом свободного веса и объёма ТС')}>FIFO</button>
-        <button type="button" className={`${modeClass('paid')} sending-planning__paid-mode`} aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => chooseMode('paid')} title={modeTitle('paid','Максимальный суммарный платный вес в пределах веса и объёма ТС')}><Scale size={18}/></button>
+        <button type="button" className={`${modeClass('paid')} sending-planning__paid-mode`} aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => chooseMode('paid')} title={modeTitle('paid','Максимальный суммарный платный вес целых групп в пределах веса и объёма ТС')}><Scale size={18}/></button>
         <button type="button" className={modeClass('delivery')} aria-pressed={mode === 'delivery'} onClick={() => chooseMode('delivery')} title={modeTitle('delivery','Сначала перевозки с ближайшим сроком по SLA, в пределах веса и объёма ТС')}>SLA</button>
         <button type="button" className={modeClass('sla-paid')} aria-label="Подбор SLA и платный вес" aria-pressed={mode === 'sla-paid'} onClick={() => chooseMode('sla-paid')} title={modeTitle('sla-paid','Сначала сроки до даты «SLA до», затем дозагрузка по платному весу')}>SLA + <Scale size={16}/></button>
         <button type="button" className="button-primary sending-planning__apply-recommendation" aria-label="Проставить чекбоксы" disabled={!recommended.size || !!current?.error || !!result?.message} onClick={() => onSelect([...recommended], true)} title="Проставить чекбоксы: добавить подсвеченные рекомендации к уже выбранным перевозкам"><CheckSquare size={18}/><span>Проставить чекбоксы</span></button>
@@ -120,7 +120,7 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       {!current ? 'Подбираем перевозки…' : current.error || result?.message || <>
         <b>{mode === 'fifo' ? 'FIFO · сначала ранние' : mode === 'delivery' ? 'SLA · сначала ближайшие сроки' : mode === 'sla-paid' ? 'SLA + платный вес · приоритет срокам, затем дозагрузка' : result?.optimal ? 'Максимальный платный вес' : 'Платный вес · лучший найденный вариант'}</b>
         <div className="sending-planning__recommendation-metrics">
-          <span>Подсвечено: {recommended.size} перев.</span>
+          <span>Подсвечено: {recommended.size} перев. · групп: {result!.recommendedGroups}</span>
           <span>Вес: +{planningNumber(result!.weight)} кг</span>
           <span>Объём: +{planningNumber(result!.volume, 2)} м³</span>
           <span>Платный вес: +{planningNumber(result!.paidWeight)} кг</span>
@@ -134,6 +134,7 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
     <div className="sending-planning__tabs sending-planning__picker-views" role="group" aria-label="Просмотр доступных перевозок">
       {PICKER_VIEWS.map(item => <button type="button" key={item.value} aria-pressed={view === item.value} onClick={() => setView(item.value)}>{item.label}</button>)}
     </div>
+    <p className="sending-planning__muted">Автоподбор сохраняет вместе перевозки одного заказчика за одну дату поступления. Отдельные перевозки можно выбрать вручную.</p>
     <p className="sending-planning__muted">Доступные перевозки по маршруту: {candidates.length}</p>
     {view === 'date' && <p className="sending-planning__muted">По дате поступления на склад</p>}
     <div className="sending-planning__picker-list">

@@ -3,7 +3,7 @@ import type { TmsCargo } from '../../../tms/model';
 import { recommendPlanningCargo, comparePlanningRecommendations, recommendationPaidRanks, type RecommendationRequest } from './planningRecommendations';
 
 const cargo = (number: string, weight: number | null, volume: number | null, paidWeight: number | null = weight, received = '2026-10-06'): TmsCargo => ({
-  id: number, number, weight, volume, paidWeight, received, customer: 'Клиент', customerId: '1', receiver: 'Склад', route: 'MSK → KGD', places: 1, readiness: 'ready', reason: '', updatedAt: null,
+  id: number, number, weight, volume, paidWeight, received, customer: `Клиент ${number}`, customerId: number, receiver: 'Склад', route: 'MSK → KGD', places: 1, readiness: 'ready', reason: '', updatedAt: null,
 });
 const request = (candidates: TmsCargo[], options: Partial<RecommendationRequest> = {}): RecommendationRequest => ({
   mode: 'paid', candidates, selected: [], locked: [], vehicle: { payload: 10, volume: 10 }, ...options,
@@ -130,4 +130,67 @@ it('compares the same free capacity, ranks all tied extrema and does not rank un
   const unknown = comparePlanningRecommendations(request([{ ...candidates[0], paidWeight: null }, candidates[1]], { slaCutoff: '2026-10-09' }));
   expect(recommendationPaidRanks(unknown)).toEqual({});
   expect(unknown['sla-paid'].missingPaid).toBe(1);
+});
+
+const batch=(number:string,weight:number|null,volume:number|null,paidWeight:number|null=weight,options:Partial<TmsCargo>={}):TmsCargo=>({
+ ...cargo(number,weight,volume,paidWeight,'2026-10-08'),customer:'РАДОСТЬ ДЕТЯМ ООО',customerId:'batch-customer',sender:`Отправитель ${number}`,slaDeadline:'2026-10-28T00:00:00Z',...options,
+});
+it('keeps the same customer receipt day together in all four modes regardless of sender',()=>{
+ const group=[batch('142981',704,9.6,1000),batch('142982',197,5.45,500)];
+ const other=batch('other',100,1,200,{customerId:'other-customer',customer:'Другой заказчик'});
+ for(const mode of ['fifo','paid','delivery','sla-paid'] as const){
+  const options={mode,vehicle:{payload:2000,volume:18},slaCutoff:'2026-10-28'};
+  const together=recommendPlanningCargo(request([...group,other],options));
+  expect(together.numbers).toEqual(expect.arrayContaining(['142981','142982']));expect(together.weight).toBe(1001);expect(together.volume).toBeCloseTo(16.05);
+  expect(together.reasons['142981'].text).toContain('Подбирается целиком');expect(together.reasons['142982'].text).toContain('2 перев.');
+  const tooLarge=recommendPlanningCargo(request([...group,other],{...options,vehicle:{payload:2000,volume:12}}));
+  expect(tooLarge.numbers).toEqual(['other']);expect(tooLarge.reasons['142981'].text).toContain('целиком');expect(tooLarge.reasons['142982'].kind).toBe('skipped');
+ }
+});
+it('separates different receipt dates, customers and routes, and normalizes a name when the customer ID is absent',()=>{
+ const candidates=[batch('1',6,6,100),batch('2',6,6,90,{received:'2026-10-09'}),batch('3',4,4,60,{customerId:'different'}),batch('4',6,6,80,{route:'KGD → MSK'})];
+ expect(recommendPlanningCargo(request(candidates)).numbers).toEqual(['1','3']);
+ const fallback=[batch('1',6,6,100,{customerId:'',customer:' Радость  детям ООО '}),batch('2',6,6,90,{customerId:'',customer:'РАДОСТЬ ДЕТЯМ ООО'})];
+ expect(recommendPlanningCargo(request(fallback)).numbers).toEqual([]);
+ for(const fields of [{received:''},{customerId:'Без заказчика',customer:'Без заказчика'}]){
+  const separate=recommendPlanningCargo(request([batch('1',6,6,100,fields),batch('2',6,6,90,fields)]));expect(separate.numbers).toEqual(['1']);
+ }
+});
+it('accounts for previously selected members once and adds the remaining whole group when it fits',()=>{
+ const first=batch('1',6,2,100),rest=[batch('2',1,3,20),batch('3',3,5,30)];
+ const result=recommendPlanningCargo(request([first,...rest,rest[0]],{selected:[first,first]}));
+ expect(result).toMatchObject({numbers:['2','3'],weight:4,volume:8,paidWeight:50,recommendedGroups:1});
+ expect(result.reasons['1'].kind).toBe('selected');expect(result.reasons['2'].text).toContain('Уже выбрано: 1');
+ expect(recommendPlanningCargo(request([first,...rest],{selected:[first],vehicle:{payload:9,volume:10}})).numbers).toEqual([]);
+});
+it('excludes the whole remaining group when any member lacks data, with a reason on each member',()=>{
+ const result=recommendPlanningCargo(request([batch('1',4,4,100),batch('2',1,null,20),batch('3',1,1,20,{customerId:'other'})]));
+ expect(result).toMatchObject({numbers:['3'],excluded:2,missingMetrics:1});
+ expect(result.reasons['1'].text).toContain('2: объём');expect(result.reasons['2'].text).toContain('Не подбирается по частям');
+ const missingPW=recommendPlanningCargo(request([batch('1',4,4,100),batch('2',1,1,null)]));expect(missingPW.numbers).toEqual([]);expect(missingPW.reasons['1'].text).toContain('платный вес');
+});
+it('prioritizes the earliest SLA in a group and carries the whole group before filling by PW',()=>{
+ const candidates=[batch('urgent',4,4,5,{slaDeadline:'2026-10-09T23:59:59Z'}),batch('companion',2,2,null,{slaDeadline:'2026-10-28'}),
+  batch('fill',4,4,60,{customerId:'fill',slaDeadline:'2026-10-28'}),batch('large',10,10,200,{customerId:'large',slaDeadline:'2026-10-28'})];
+ const result=recommendPlanningCargo(request(candidates,{mode:'sla-paid',slaCutoff:'2026-10-09'}));
+ expect(result).toMatchObject({numbers:['companion','urgent','fill'],weight:10,volume:10,paidWeight:65,missingPaid:1,recommendedGroups:2});
+ expect(result.reasons.companion.text).toContain('Приоритет по SLA');expect(result.reasons.large.text).toContain('Не помещается');
+ const pureSla=recommendPlanningCargo(request(candidates,{mode:'delivery'}));expect(pureSla.numbers).toEqual(['companion','urgent','fill']);
+});
+it('maximizes actual PW among whole groups, including zero-PW companions, rather than splitting the most profitable rows',()=>{
+ const result=recommendPlanningCargo(request([batch('1',6,6,900),batch('2',5,5,0),batch('3',8,2,700,{customerId:'second'}),batch('4',2,8,700,{customerId:'second'})]));
+ expect(result).toMatchObject({numbers:['3','4'],paidWeight:1400,weight:10,volume:10,recommendedGroups:1,optimal:true});
+ const zeroCompanion=recommendPlanningCargo(request([batch('1',5,5,900),batch('2',5,5,0)]));expect(zeroCompanion).toMatchObject({numbers:['1','2'],paidWeight:900});
+});
+it('matches exhaustive optimal PW over group combinations while respecting both resource limits',()=>{
+ let seed=77;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed;};
+ for(let trial=0;trial<30;trial++){
+  const groups=Array.from({length:6},(_,group)=>Array.from({length:2},(_,member)=>batch(`${group}-${member}`,random()%5,random()%5,random()%30,{customerId:`group-${group}`})));
+  let best=0;for(let mask=0;mask<1<<groups.length;mask++){
+   const chosen=groups.filter((_,i)=>mask&1<<i).flat(),w=chosen.reduce((s,c)=>s+c.weight!,0),v=chosen.reduce((s,c)=>s+c.volume!,0),p=chosen.reduce((s,c)=>s+c.paidWeight!,0);
+   if(w<=10&&v<=10)best=Math.max(best,p);
+  }
+  const result=recommendPlanningCargo(request(groups.flat()));expect(result.paidWeight).toBe(best);expect(result.optimal).toBe(true);expect(result.weight).toBeLessThanOrEqual(10);expect(result.volume).toBeLessThanOrEqual(10);
+  const picked=new Set(result.numbers);for(const group of groups)expect(group.filter(c=>picked.has(c.number)).length===0||group.every(c=>picked.has(c.number))).toBe(true);
+ }
 });

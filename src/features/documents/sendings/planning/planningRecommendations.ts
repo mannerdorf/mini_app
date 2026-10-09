@@ -14,6 +14,7 @@ export type RecommendationContext = Omit<RecommendationRequest, 'mode'>;
 export type RecommendationReason = { kind: 'recommended' | 'skipped' | 'selected' | 'locked'; text: string };
 export type RecommendationResult = {
   numbers: string[];
+  recommendedGroups: number;
   weight: number;
   volume: number;
   paidWeight: number;
@@ -36,11 +37,21 @@ const validDateKey = (value: string | undefined): boolean => {
 };
 const validSlaDeadline = (value: string | undefined) => !!value && validDateKey(value.slice(0,10)) && Number.isFinite(Date.parse(value));
 const deliveryOrder = (a: TmsCargo, b: TmsCargo) => Date.parse(a.slaDeadline!) - Date.parse(b.slaDeadline!) || fifoOrder(a,b);
-type Item = { cargo: TmsCargo; w: number; v: number; p: number };
+// Customer + receipt day + route is one recommendation unit. Unknown identities
+// or dates remain independent rather than joining unrelated cargo.
+const identity = (value: string | undefined) => (value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('ru');
+const groupKey = (cargo: TmsCargo) => {
+  const unknown = (value: string) => !value || ['без заказчика','unknown','-','—'].includes(value) || /^0+$/.test(value);
+  const id=identity(cargo.customerId),name=identity(cargo.customer);
+  const customer = !unknown(id)?id:!unknown(name)?name:'';
+  return validDateKey(cargo.received) && customer && customer !== 'без заказчика'
+    ? JSON.stringify([customer, cargo.route, cargo.received]) : JSON.stringify(['cargo', cargo.number]);
+};
+type Item = { cargo: TmsCargo; members: TmsCargo[]; w: number; v: number; p: number };
 type SelectedNode = { item: Item; previous: SelectedNode | null };
 type State = { index: number; w: number; v: number; p: number; pick: SelectedNode | null };
 
-// Two capacity constraints, one objective: the sum of the cargo's actual PW.
+// Two capacity constraints, one objective: the sum of each whole group's actual PW.
 // Fractional relaxations provide valid upper bounds. A bounded search returns a
 // feasible best-known set when it cannot prove the optimum within its work budget.
 function maximizePaid(items: Item[], weight: number, volume: number, maxNodes: number) {
@@ -87,9 +98,9 @@ function maximizePaid(items: Item[], weight: number, volume: number, maxNodes: n
     if (state.w + item.w <= weight + EPS && state.v + item.v <= volume + EPS)
       stack.push({ index, w: state.w + item.w, v: state.v + item.v, p: state.p + item.p, pick: { item, previous: state.pick } });
   }
-  const cargo: TmsCargo[] = [];
-  for (let pick = best.pick; pick; pick = pick.previous) cargo.push(pick.item.cargo);
-  return { cargo: cargo.sort(fifoOrder), optimal: !stack.length };
+  const groups: Item[] = [];
+  for (let pick = best.pick; pick; pick = pick.previous) groups.push(pick.item);
+  return { groups: groups.sort((a,b)=>fifoOrder(a.cargo,b.cargo)), optimal: !stack.length };
 }
 
 export function recommendPlanningCargo(request: RecommendationRequest, maxNodes = 120000): RecommendationResult {
@@ -100,7 +111,7 @@ export function recommendPlanningCargo(request: RecommendationRequest, maxNodes 
     if (lockedNumbers.has(cargo.number)) explain(cargo, 'locked', 'Уже включена в фактическую отправку; снять выбор нельзя.');
     else if (selectedNumbers.has(cargo.number)) explain(cargo, 'selected', 'Уже выбрана в этот план; её вес и объём учтены в заполнении ТС.');
   }
-  const empty: RecommendationResult = { numbers: [], weight: 0, volume: 0, paidWeight: 0, excluded: 0, missingPaid: 0, optimal: true, reasons };
+  const empty: RecommendationResult = { numbers: [], recommendedGroups: 0, weight: 0, volume: 0, paidWeight: 0, excluded: 0, missingPaid: 0, optimal: true, reasons };
   const blocked = (message: string) => {
     for (const cargo of request.candidates) if (!reasons[cargo.number]) explain(cargo, 'skipped', message);
     return { ...empty, message };
@@ -116,62 +127,84 @@ export function recommendPlanningCargo(request: RecommendationRequest, maxNodes 
     return blocked('ТС переполнено — освободите место для подбора');
   if (mode === 'sla-paid' && !validDateKey(request.slaCutoff)) return blocked('Укажите дату «SLA до» для приоритетных перевозок');
   const slaMode = mode === 'delivery' || mode === 'sla-paid';
-  const urgent = (cargo: TmsCargo) => mode === 'sla-paid' && cargo.slaDeadline!.slice(0,10) <= request.slaCutoff!;
+  const urgent = (cargo: TmsCargo) => mode === 'sla-paid' && validSlaDeadline(cargo.slaDeadline) && cargo.slaDeadline!.slice(0,10) <= request.slaCutoff!;
   const excludedNumbers = new Set([...selected.map(cargo => cargo.number), ...request.locked]);
   const available = [...new Map(request.candidates.map(cargo => [cargo.number, cargo])).values()].filter(cargo => !excludedNumbers.has(cargo.number));
   const missingDelivery=slaMode?available.filter(cargo=>!validSlaDeadline(cargo.slaDeadline)).length:0;
   const missingMetrics=available.filter(cargo=>!known(cargo.weight)||!known(cargo.volume)).length;
+  const grouped=new Map<string,TmsCargo[]>();
+  for(const cargo of available){const key=groupKey(cargo);grouped.set(key,[...(grouped.get(key)||[]),cargo]);}
+  const dateLabel = (value: string) => value.slice(0,10).split('-').reverse().join('.');
+  const format = (value: number) => value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
+  const selectedGroups=new Map<string,TmsCargo[]>();
+  for(const cargo of selected){const key=groupKey(cargo);selectedGroups.set(key,[...(selectedGroups.get(key)||[]),cargo]);}
+  const groupNote=(members:TmsCargo[])=>{
+    const chosen=selectedGroups.get(groupKey(members[0]))?.length||0,total=members.length+chosen;
+    return total>1?`Группа заказчика «${members[0].customer}» за ${dateLabel(members[0].received)}: ${total} перев.${chosen?` Уже выбрано: ${chosen}; остальные подбираются вместе.`:' Подбирается целиком.'} `:'';
+  };
   let excluded = 0;
-  const eligible = available.filter(cargo => {
-    const missing: string[] = [];
-    if (!known(cargo.weight)) missing.push('вес');
-    if (!known(cargo.volume)) missing.push('объём');
-    if (slaMode && !validSlaDeadline(cargo.slaDeadline)) missing.push('срок по SLA');
-    if (mode === 'fifo' && !validDateKey(cargo.received)) missing.push('дата поступления на склад');
-    if ((mode === 'paid' || mode === 'sla-paid' && validSlaDeadline(cargo.slaDeadline) && !urgent(cargo)) && !known(cargo.paidWeight)) missing.push('платный вес');
-    if (missing.length) { excluded++; explain(cargo, 'skipped', `Не хватает данных: ${missing.join(', ')}.`); }
-    return !missing.length;
-  }).sort(slaMode ? deliveryOrder : fifoOrder);
+  const eligible:Item[]=[];
+  for(const members of grouped.values()){
+    const priority=members.some(urgent),missing=new Map<string,string[]>();
+    for(const cargo of members){
+      const fields:string[]=[];
+      if(!known(cargo.weight))fields.push('вес');
+      if(!known(cargo.volume))fields.push('объём');
+      if(slaMode&&!validSlaDeadline(cargo.slaDeadline))fields.push('срок по SLA');
+      if(mode==='fifo'&&!validDateKey(cargo.received))fields.push('дата поступления на склад');
+      if((mode==='paid'||mode==='sla-paid'&&!priority)&&!known(cargo.paidWeight))fields.push('платный вес');
+      if(fields.length)missing.set(cargo.number,fields);
+    }
+    if(missing.size){
+      excluded+=members.length;
+      const problems=[...missing];
+      const detail=problems.slice(0,3).map(([number,fields])=>`${number}: ${fields.join(', ')}`).join('; ')+(problems.length>3?`; ещё ${problems.length-3} перев.`:'');
+      for(const cargo of members)explain(cargo,'skipped',members.length===1?`Не хватает данных: ${missing.get(cargo.number)!.join(', ')}.`
+        :`${groupNote(members)}Не подбирается по частям: не хватает данных у перевозок ${detail}.`);
+      continue;
+    }
+    const anchor=[...members].sort(slaMode?deliveryOrder:fifoOrder)[0];
+    eligible.push({cargo:anchor,members:[...members].sort(fifoOrder),w:members.reduce((sum,c)=>sum+c.weight!,0),v:members.reduce((sum,c)=>sum+c.volume!,0),p:members.reduce((sum,c)=>sum+(known(c.paidWeight)?c.paidWeight:0),0)});
+  }
+  eligible.sort((a,b)=>(slaMode?deliveryOrder:fifoOrder)(a.cargo,b.cargo));
   if(slaMode&&available.length>0&&missingDelivery===available.length)return {...empty,excluded,missingDelivery,missingMetrics,message:'Не удалось рассчитать срок по SLA: у доступных перевозок нет корректной даты поступления на склад отправления.'};
   const weight = Math.max(0, vehicle.payload - usedWeight), volume = Math.max(0, vehicle.volume - usedVolume);
-  let recommended: TmsCargo[] = [], optimal = true;
-  const priorityNumbers = new Set<string>();
+  const recommended:Item[]=[];let optimal=true;
+  const priorityGroups=new Set<Item>();
   if (mode === 'fifo' || mode === 'delivery' || mode === 'sla-paid') {
     let w = 0, v = 0;
-    for (const cargo of eligible) if ((mode !== 'sla-paid' || urgent(cargo)) && w + cargo.weight! <= weight + EPS && v + cargo.volume! <= volume + EPS) {
-      recommended.push(cargo); w += cargo.weight!; v += cargo.volume!; priorityNumbers.add(cargo.number);
+    for (const item of eligible) if ((mode !== 'sla-paid' || item.members.some(urgent)) && w + item.w <= weight + EPS && v + item.v <= volume + EPS) {
+      recommended.push(item);w+=item.w;v+=item.v;priorityGroups.add(item);
     }
   }
   if (mode === 'paid' || mode === 'sla-paid') {
-    const usedW = recommended.reduce((sum, cargo) => sum + cargo.weight!, 0), usedV = recommended.reduce((sum, cargo) => sum + cargo.volume!, 0);
-    const items = eligible.filter(cargo => !priorityNumbers.has(cargo.number) && known(cargo.paidWeight) && cargo.paidWeight > 0 && cargo.weight! <= weight - usedW + EPS && cargo.volume! <= volume - usedV + EPS)
-      .map(cargo => ({ cargo, w: cargo.weight!, v: cargo.volume!, p: cargo.paidWeight! }));
+    const usedW = recommended.reduce((sum, item) => sum + item.w, 0), usedV = recommended.reduce((sum, item) => sum + item.v, 0);
+    const items=eligible.filter(item=>!priorityGroups.has(item)&&item.members.every(cargo=>known(cargo.paidWeight))&&item.p>0&&item.w<=weight-usedW+EPS&&item.v<=volume-usedV+EPS);
     const result = maximizePaid(items, weight - usedW, volume - usedV, maxNodes);
-    recommended.push(...result.cargo); optimal = result.optimal;
+    recommended.push(...result.groups);optimal=result.optimal;
   }
-  const recommendedNumbers = new Set(recommended.map(cargo => cargo.number));
-  const totalW = recommended.reduce((sum, cargo) => sum + cargo.weight!, 0), totalV = recommended.reduce((sum, cargo) => sum + cargo.volume!, 0);
-  const format = (value: number) => value.toLocaleString('ru-RU', { maximumFractionDigits: 2 });
-  const dateLabel = (value: string) => value.slice(0,10).split('-').reverse().join('.');
-  for (const cargo of eligible) {
-    if (recommendedNumbers.has(cargo.number)) {
-      const detail = mode === 'fifo' ? `Раннее поступление: ${dateLabel(cargo.received!)}; добавлена по очереди FIFO.`
-        : mode === 'delivery' ? `Ближайший срок по SLA: ${dateLabel(cargo.slaDeadline!)}; добавлена по очереди сроков.`
-        : mode === 'sla-paid' && priorityNumbers.has(cargo.number) ? `Приоритет по SLA: срок ${dateLabel(cargo.slaDeadline!)} до выбранной границы ${dateLabel(request.slaCutoff!)} включительно.`
+  const recommendedGroups=new Set(recommended),recommendedCargo=recommended.flatMap(item=>item.members);
+  const totalW = recommended.reduce((sum, item) => sum + item.w, 0), totalV = recommended.reduce((sum, item) => sum + item.v, 0);
+  for (const item of eligible) {
+    const note=groupNote(item.members);
+    if (recommendedGroups.has(item)) {
+      const detail = mode === 'fifo' ? `Раннее поступление: ${dateLabel(item.cargo.received)}; добавлена по очереди FIFO.`
+        : mode === 'delivery' ? `Ближайший срок по SLA${item.members.length>1?' в группе':''}: ${dateLabel(item.cargo.slaDeadline!)}; добавлена по очереди сроков.`
+        : mode === 'sla-paid' && priorityGroups.has(item) ? `Приоритет по SLA: срок ${dateLabel(item.cargo.slaDeadline!)} до выбранной границы ${dateLabel(request.slaCutoff!)} включительно.`
         : `${mode === 'sla-paid' ? 'Дозагрузка после приоритетных перевозок SLA' : 'Подбор по платному весу'}: входит в ${optimal ? 'набор с максимальным платным весом' : 'лучший найденный набор'}.`;
-      explain(cargo, 'recommended', `${detail} Занимает ${format(cargo.weight!)} кг и ${format(cargo.volume!)} м³.${known(cargo.paidWeight) ? ` Платный вес: +${format(cargo.paidWeight)} кг.` : ' Платный вес не заполнен.'}`);
+      for(const cargo of item.members)explain(cargo, 'recommended', `${note}${detail} Занимает ${format(cargo.weight!)} кг и ${format(cargo.volume!)} м³.${known(cargo.paidWeight) ? ` Платный вес: +${format(cargo.paidWeight)} кг.` : ' Платный вес не заполнен.'}`);
     } else {
-      const lackW = Math.max(0, cargo.weight! - (weight - totalW)), lackV = Math.max(0, cargo.volume! - (volume - totalV));
+      const lackW = Math.max(0, item.w - (weight - totalW)), lackV = Math.max(0, item.v - (volume - totalV));
       const lacks: string[] = [];
       if (lackW > EPS) lacks.push(`${format(lackW)} кг грузоподъёмности`);
       if (lackV > EPS) lacks.push(`${format(lackV)} м³ объёма`);
-      const prefix = mode === 'sla-paid' && urgent(cargo) ? `Приоритет по SLA: срок ${dateLabel(cargo.slaDeadline!)}. ` : '';
-      explain(cargo, 'skipped', lacks.length ? `${prefix}Не помещается вместе с рекомендованными перевозками: не хватает ${lacks.join(' и ')}.`
-        : `${prefix}${cargo.paidWeight === 0 ? 'Платный вес равен нулю; эта перевозка не увеличивает платный вес набора.' : 'Не вошла в лучший найденный набор по платному весу.'}`);
+      const prefix = mode === 'sla-paid' && item.members.some(urgent) ? `Приоритет по SLA: срок ${dateLabel(item.cargo.slaDeadline!)}. ` : '';
+      for(const cargo of item.members)explain(cargo, 'skipped', `${note}${prefix}`+(lacks.length ? `Не помещается вместе с рекомендованными перевозками${item.members.length>1?' целиком':''}: не хватает ${lacks.join(' и ')}.`
+        : item.p===0?'Платный вес равен нулю; эта группа не увеличивает платный вес набора.':'Не вошла в лучший найденный набор по платному весу.'));
     }
   }
-  return { numbers: [...recommendedNumbers], weight: totalW, volume: totalV, paidWeight: recommended.reduce((sum, cargo) => sum + (known(cargo.paidWeight) ? cargo.paidWeight : 0), 0),
-    excluded, missingDelivery, missingMetrics, missingPaid: recommended.filter(cargo => !known(cargo.paidWeight)).length, optimal, reasons };
+  return { numbers: recommendedCargo.map(cargo=>cargo.number), recommendedGroups:recommended.length, weight: totalW, volume: totalV, paidWeight: recommended.reduce((sum,item)=>sum+item.p,0),
+    excluded, missingDelivery, missingMetrics, missingPaid: recommendedCargo.filter(cargo => !known(cargo.paidWeight)).length, optimal, reasons };
 }
 
 export function comparePlanningRecommendations(context: RecommendationContext, maxNodes = 120000): RecommendationComparison {
