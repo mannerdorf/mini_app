@@ -46,7 +46,6 @@ function CandidateGroup({ group, selected, locked, recommended, reasons, onSelec
   useEffect(() => {
     if (checkbox.current) checkbox.current.indeterminate = included > 0 && included < group.cargo.length;
   }, [included, group.cargo.length]);
-  const allIncluded = editable.length > 0 && editable.every(cargo => selected.has(cargo.number));
   const hasMore = limit < (group.children?.length ?? group.cargo.length);
   return <details className={`sending-planning__picker-group${nested ? ' sending-planning__picker-group--nested' : ''}${suggested ? ' is-recommended' : ''}`}>
     <summary><input ref={checkbox} type="checkbox" className="sending-planning__group-checkbox"
@@ -57,10 +56,6 @@ function CandidateGroup({ group, selected, locked, recommended, reasons, onSelec
       {suggested > 0 && <span className="sending-planning__recommendation-count" role="img" tabIndex={0} aria-label={`Рекомендуется: ${suggested} из ${group.cargo.length} перевозок`} title={`Рекомендуется: ${suggested} из ${group.cargo.length} перевозок`}><Sparkles size={14} aria-hidden="true"/>{suggested} из {group.cargo.length}</span>}</span>
       {included > 0 && <small>Выбрано: {included} из {group.cargo.length}</small>}
       </span><ChevronDown size={16} /></summary>
-    <div className="sending-planning__picker-group-actions">
-      <button type="button" className="filter-button" disabled={!editable.length}
-        onClick={() => onSelect(editable.map(cargo => cargo.number), !allIncluded)}>{allIncluded ? 'Убрать группу' : 'Добавить группу'}</button>
-    </div>
     {group.children ? <div className="sending-planning__picker-children">
       {group.children.slice(0, limit).map(child => <CandidateGroup key={child.key} group={child} selected={selected} locked={locked} recommended={recommended} reasons={reasons} onSelect={onSelect} nested />)}
     </div> : group.cargo.slice(0, limit).map(cargo => <Candidate key={cargo.number} cargo={cargo} selected={selected} locked={locked} recommended={recommended} reasons={reasons} onSelect={onSelect} />)}

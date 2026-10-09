@@ -117,8 +117,6 @@
 .sending-planning__picker-group > summary small { display: block; margin-top: 4px; color: var(--color-text-secondary); font-size: 13px; }
 .sending-planning__picker-group > summary > svg { flex-shrink: 0; }
 .sending-planning__picker-group[open] > summary > svg { transform: rotate(180deg); }
-.sending-planning__picker-group-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; padding: 8px; }
-.sending-planning .sending-planning__picker-group-actions button { min-height: 36px; padding: 8px 10px; }
 .sending-planning__picker-children { padding-left: 12px; border-left: 2px solid var(--color-border); margin: 0 0 8px 4px; }
 .sending-planning__editor label.sending-planning__candidate { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; align-items: start; gap: 8px; padding: 12px 4px; border-top: 1px solid var(--color-border); cursor: pointer; }
 .sending-planning__candidate > input { margin-top: 4px; accent-color: var(--color-primary-blue); }
