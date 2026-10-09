@@ -81,7 +81,8 @@
 .sending-planning__selection-totals dt,.sending-planning__selection-totals small { color: var(--color-text-secondary); }
 .sending-planning__selection-totals dd { margin: 4px 0 0; font-weight: 700; overflow-wrap: anywhere; }
 .sending-planning__recommendation-modes { margin-bottom: 12px; color: var(--color-text-secondary); }
-.sending-planning__recommendation-modes > span { display: block; margin-bottom: 8px; }
+.sending-planning__recommendation-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.sending-planning__recommendation-heading .sending-planning__clear-selection { width: 24px; height: 24px; }
 .sending-planning__recommendation-controls { display: grid; grid-template-columns: auto 44px auto auto minmax(44px,1fr); align-items: stretch; gap: 6px; }
 :root .sending-planning .sending-planning__recommendation-controls :is(.filter-button,.button-primary) { min-width: 0; padding: 8px 6px; position: relative; }
 .sending-planning__recommendation-controls svg { flex-shrink: 0; }
@@ -249,6 +250,7 @@
 .sending-planning__sort span { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
 
 .sending-planning__selected-actions { display: flex; align-items: center; flex-shrink: 0; gap: 4px; }
+.sending-planning__clear-selection { color: var(--color-error); }
 .sending-planning__selected .sending-planning__selected-row { display: flex; justify-content: space-between; align-items: start; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--color-border); }
 .sending-planning__selected .sending-planning__selected-row > span { min-width: 0; overflow-wrap: anywhere; }
 

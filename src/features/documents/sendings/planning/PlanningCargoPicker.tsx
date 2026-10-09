@@ -4,6 +4,7 @@ import type { TmsCargo, Vehicle } from '../../../tms/model';
 import { planningNumber } from './PlanningCargoTable';
 import { groupPickerHierarchy, receiptDateLabel, type PlanningPickerView, type PlanningPickerGroup } from './planningPickerModel';
 import {PlanningCargoViews} from './PlanningCargoViews';
+import {PlanningClearSelection} from './PlanningClearSelection';
 import { recommendationPaidRanks, type RecommendationMode, type RecommendationContext, type RecommendationComparison, type RecommendationReason } from './planningRecommendations';
 
 type Selection = {
@@ -108,7 +109,7 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
   const hasMore = limit < (view === 'cargo' ? candidates.length : groups.length);
   return <section className="sending-planning__picker" aria-label="Неотправленные перевозки">
     <div className="sending-planning__recommendation-modes" role="group" aria-label="Режим подбора перевозок">
-      <span>Подбор</span>
+      <div className="sending-planning__recommendation-heading"><span>Подбор</span><PlanningClearSelection disabled={!cargoNumbers.some(number=>!locked.has(number))} onClear={()=>onSelect(cargoNumbers,false)}/></div>
       <div className="sending-planning__recommendation-controls">
         <button type="button" className={modeClass('fifo')} aria-pressed={mode === 'fifo'} onClick={() => chooseMode('fifo')} title={modeTitle('fifo','Сначала ранние поступления, с учётом свободного веса и объёма ТС')}>FIFO</button>
         <button type="button" className={`${modeClass('paid')} sending-planning__paid-mode`} aria-label="Подбор по платному весу" aria-pressed={mode === 'paid'} onClick={() => chooseMode('paid')} title={modeTitle('paid','Максимальный суммарный платный вес целых групп в пределах веса и объёма ТС')}><Scale size={18}/></button>
