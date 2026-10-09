@@ -125,6 +125,7 @@
 .sending-planning__candidate > span { color: var(--color-text-primary); }
 .sending-planning__candidate span span,.sending-planning__candidate small { display: block; margin-top: 3px; overflow-wrap: anywhere; }
 .sending-planning__candidate small { color: var(--color-text-secondary); }
+.sending-planning .sending-planning__candidate > span:not(.sending-planning__candidate-metrics) > small { font-size: 13px; }
 .sending-planning .sending-planning__candidate .sending-planning__candidate-number { display: flex; align-items: center; gap: 6px; margin-top: 0; }
 .sending-planning .sending-planning__candidate .sending-planning__recommendation-reason { display: inline-flex; align-items: center; margin: 0; color: var(--color-primary-blue); cursor: help; }
 .sending-planning__recommendation-reason:focus-visible { outline: 2px solid var(--color-primary-blue); border-radius: 4px; }
