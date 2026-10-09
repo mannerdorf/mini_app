@@ -114,7 +114,7 @@
 .sending-planning__picker-group > summary > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .sending-planning__group-checkbox { flex-shrink: 0; width: 16px; height: 16px; margin: 0; accent-color: var(--color-primary-blue); cursor: pointer; }
 .sending-planning__group-checkbox:disabled { cursor: default; }
-.sending-planning__picker-group > summary small { display: block; margin-top: 4px; color: var(--color-text-secondary); }
+.sending-planning__picker-group > summary small { display: block; margin-top: 4px; color: var(--color-text-secondary); font-size: 13px; }
 .sending-planning__picker-group > summary > svg { flex-shrink: 0; }
 .sending-planning__picker-group[open] > summary > svg { transform: rotate(180deg); }
 .sending-planning__picker-group-actions { display: flex; justify-content: flex-end; margin-bottom: 8px; padding: 8px; }
