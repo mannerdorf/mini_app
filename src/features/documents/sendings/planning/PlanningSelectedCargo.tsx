@@ -13,7 +13,16 @@ function SelectedRow({cargo,actual,readOnly,released,otherActual,onRemove}:Selec
  return <div className="sending-planning__selected-row"><span><b>{cargo.number}</b> · {cargo.customer}<small>{cargo.receiver} · {receiptDateLabel(cargo.received)}{status?` · ${status}`:''}</small>{cargo.slaDeadline&&<small>Срок по SLA: {receiptDateLabel(cargo.slaDeadline.slice(0,10))}</small>}<small>{cargo.weight==null?'Вес не указан':`${planningNumber(cargo.weight)} кг`} · {cargo.volume==null?'Объём не указан':`${planningNumber(cargo.volume,2)} м³`}</small></span>{!readOnly&&!actual.has(cargo.number)&&<button type="button" className="sending-planning__icon" aria-label={`Убрать перевозку ${cargo.number}`} onClick={()=>onRemove([cargo.number])}><Trash2 size={16}/></button>}</div>;
 }
 function SelectedGroup({group,...state}:SelectedState&{group:PlanningPickerGroup}) {
- return <details className="sending-planning__picker-group"><summary><span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume,2)} м³</small></span><ChevronDown size={16}/></summary><div className="sending-planning__picker-children">{group.children?group.children.map(child=><SelectedGroup key={child.key} group={child} {...state}/>):group.cargo.map(cargo=><SelectedRow key={cargo.number} cargo={cargo} {...state}/>)}</div></details>;
+ const removable=group.cargo.filter(cargo=>!state.actual.has(cargo.number)).map(cargo=>cargo.number);
+ return <details className="sending-planning__picker-group"><summary>
+  <span><b>{group.label}</b><small>{group.cargo.length} перев. · {planningNumber(group.weight)} кг · {planningNumber(group.volume,2)} м³</small></span>
+  {!state.readOnly&&<button type="button" className="sending-planning__icon sending-planning__group-remove"
+   aria-label={`Убрать группу ${group.label} из плана`}
+   title={removable.length?'Убрать группу из плана; уже отправленные перевозки сохранятся':'Все перевозки группы уже отправлены'}
+   disabled={!removable.length} onKeyDown={event=>event.stopPropagation()}
+   onClick={event=>{event.preventDefault();event.stopPropagation();state.onRemove(removable);}}><Trash2 size={16}/></button>}
+  <ChevronDown size={16}/>
+ </summary><div className="sending-planning__picker-children">{group.children?group.children.map(child=><SelectedGroup key={child.key} group={child} {...state}/>):group.cargo.map(cargo=><SelectedRow key={cargo.number} cargo={cargo} {...state}/>)}</div></details>;
 }
 export function PlanningSelectedCargo({draft,cargo,actual,ferryName,onRemove,readOnly=false,released=[],otherActual=[]}:{draft:PlanDraft;cargo:TmsCargo[];actual:Set<string>;ferryName:string;onRemove:(numbers:string[])=>void;readOnly?:boolean;released?:string[];otherActual?:string[]}) {
  const state={actual,readOnly,released:new Set(released),otherActual:new Set(otherActual),onRemove};
