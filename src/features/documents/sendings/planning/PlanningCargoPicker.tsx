@@ -134,7 +134,6 @@ export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoN
       </>}
     </div>}
     <PlanningCargoViews view={view} onChange={setView} label="Просмотр доступных перевозок"/>
-    <p className="sending-planning__muted">Автоподбор сохраняет вместе перевозки одного заказчика за одну дату поступления. Отдельные перевозки можно выбрать вручную.</p>
     <p className="sending-planning__muted">Доступные перевозки по маршруту: {candidates.length}</p>
     {view === 'date' && <p className="sending-planning__muted">По дате поступления на склад</p>}
     <div className="sending-planning__picker-list">
