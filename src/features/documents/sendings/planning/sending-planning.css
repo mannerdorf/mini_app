@@ -30,7 +30,6 @@
 .sending-planning__day.is-today { background: color-mix(in srgb,var(--color-primary-blue) 6%,var(--color-bg-card)); }
 .sending-planning__day.is-selected { box-shadow: inset 0 0 0 2px var(--color-primary-blue); }
 .sending-planning__date { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 7px; padding: 3px; border: 0; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; }
-.sending-planning__date svg { opacity: .4; }
 .sending-planning__weekday.is-day-off,.sending-planning__day.is-day-off .sending-planning__date > span { color: var(--color-error); }
 .sending-planning__event { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-bottom: 5px; padding: 8px; border: 0; border-left: 3px solid #2563eb; border-radius: 7px; background: #e9f0ff; color: #1e3a8a; text-align: left; font: inherit; cursor: pointer; }
 .sending-planning__draft-status { font-weight: 600; }
@@ -202,7 +201,17 @@
 .sending-planning__calendar { width: 100%; height: 100%; min-width: 0; min-height: 0; box-sizing: border-box; }
 .sending-planning__weekday { padding: 3px 0; }
 .sending-planning__day { min-width: 0; min-height: 0; padding: 3px; overflow: hidden; box-sizing: border-box; }
-.sending-planning__date { height: 20px; margin: 0 0 2px; padding: 0 2px; line-height: 20px; }
+.sending-planning__day-heading { display: flex; align-items: center; gap: 2px; height: 20px; margin-bottom: 2px; min-width: 0; }
+.sending-planning__date { flex: 1; min-width: 0; width: auto; height: 20px; margin: 0; padding: 0 2px; line-height: 20px; }
+.sending-planning__next-plan,.sending-planning__add-plan { display: inline-flex; align-items: center; justify-content: center; height: 20px; min-width: 0; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--color-text-secondary); cursor: pointer; }
+.sending-planning .sending-planning__next-plan { gap: 2px; font-size: 11px; line-height: 20px; white-space: nowrap; }
+.sending-planning__next-plan > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sending-planning__next-plan svg { flex-shrink: 0; }
+.sending-planning__add-plan { flex-shrink: 0; width: 18px; }
+.sending-planning__next-plan:hover:not(:disabled),.sending-planning__add-plan:hover:not(:disabled) { color: var(--color-primary-blue); background: var(--color-bg-hover); }
+.sending-planning__day.is-narrow .sending-planning__add-plan { position: absolute; bottom: 3px; right: 3px; background: var(--color-bg-card); }
+.sending-planning .sending-planning__day.is-narrow .sending-planning__next-plan { gap: 0; font-size: 9px; }
+.sending-planning__day.is-narrow .sending-planning__next-plan svg { width: 10px; }
 .sending-planning__calendar .sending-planning__day > .sending-planning__event { height: 24px; padding: 2px 4px; margin-bottom: 4px; min-width: 0; gap: 2px; overflow: hidden; line-height: 20px; }
 .sending-planning__calendar .sending-planning__day > .sending-planning__event > * { display: block; min-width: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
@@ -219,7 +228,6 @@
 @media(max-width:600px) {
  .sending-planning { width: calc(100vw - 16px); height: calc(100dvh - 16px); max-height: calc(100dvh - 16px) !important; padding: 10px; }
  .sending-planning__month { margin-top: 6px; justify-content: center; }
- .sending-planning__date svg { display: none; }
  .sending-planning__legend { gap: 3px 8px; }
  .sending-planning__swatch { width: 10px; height: 10px; }
 }
@@ -234,8 +242,7 @@
 .sending-planning__month > div { pointer-events: auto; }
 
 .sending-planning__day.is-compact { position: relative; }
-.sending-planning__day.is-compact .sending-planning__date { width: 22px; }
-.sending-planning__day.is-compact .sending-planning__more { position: absolute; top: 3px; left: 26px; right: 3px; width: auto; height: 20px; padding: 0; line-height: 20px; }
+.sending-planning__day.is-compact .sending-planning__more { height: 16px; padding: 0 2px; font-size: 10px; line-height: 16px; }
 
 /* Weekly cards use the available day height and show the full plan details. */
 .sending-planning__day { position: relative; }

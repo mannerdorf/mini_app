@@ -90,7 +90,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
   {error&&<p role="alert" className="sending-planning__error">{error}{!data&&!loading&&<button type="button" className="filter-button" onClick={()=>setRefresh(value=>value+1)}>Повторить</button>}</p>}
   <div ref={workspace.bodyRef} style={workspace.style} className={`sending-planning__body${editor?' sending-planning__body--editing':''}${editor&&workspace.layout.full?' sending-planning__body--editor-only':''}${workspace.resizing?' sending-planning__body--resizing':''}`}>
    <section className="sending-planning__overview" aria-label={tab==='calendar'?'Календарь планирования':'Таблица планирования'}>
-    {tab==='calendar'?<PlanningCalendar days={days} month={month} period={period} plans={data?.plans||[]} selectedDate={editor?.draft.date} loaded={!!data} busy={busy} onEdit={edit}/>:<>
+    {tab==='calendar'?<PlanningCalendar days={days} month={month} period={period} plans={data?.plans||[]} selectedDate={editor?.draft.date} selectedPlanId={editor?.plan?.id} loaded={!!data} busy={busy} onEdit={edit}/>:<>
 
      <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} selectedPlanId={editor?.plan?.id} onEdit={plan=>edit(plan.date,plan,true)} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
     </>}

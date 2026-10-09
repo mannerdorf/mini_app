@@ -1,5 +1,5 @@
-import React,{useLayoutEffect,useRef,useState} from 'react';
-import {Plus,Scale,X} from 'lucide-react';
+import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
+import {ChevronRight,Plus,Scale,X} from 'lucide-react';
 import {GuardedDialog} from '../../../../components/GuardedDialog';
 import {localDateKey,comparisonCargo,MODE_LABELS,needsFerry,planProgress,planningVehicle,vehicleName,type SendingPlan} from './planningModel';
 import {planningNumber} from './PlanningCargoTable';
@@ -49,27 +49,34 @@ function PlanButton({plan,busy,onEdit,full=false,cardHeight=84,fontSize=14}:{pla
   <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{full&&planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>
  </button>;
 }
-function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;cellWidth:number;month:Date;period:'month'|'week';selectedDate?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
- const measurement=useRef<HTMLDivElement>(null),[weekVisible,setWeekVisible]=useState(0);
+function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,selectedPlanId,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;cellWidth:number;month:Date;period:'month'|'week';selectedDate?:string;selectedPlanId?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
+ const measurement=useRef<HTMLDivElement>(null),[weekFits,setWeekFits]=useState(false),[activePlanId,setActivePlanId]=useState<string>();
+ const selectedPlan=plans.find(plan=>plan.id===selectedPlanId);
+ useEffect(()=>{if(selectedPlan)setActivePlanId(selectedPlan.id);},[selectedPlan?.id]);
+ const index=Math.max(0,plans.findIndex(plan=>plan.id===activePlanId)),plan=plans[index];
  useLayoutEffect(()=>{
   if(period!=='week'||!measurement.current)return;
-  const cards=Array.from(measurement.current.children);let used=0,count=0;
-  for(const card of cards){const size=card.getBoundingClientRect().height+4,reserve=count+1<plans.length?28:0;if(used+size+reserve>cellHeight-26)break;used+=size;count++;}
-  setWeekVisible(count);
- },[plans,cellHeight,cellWidth,period]);
- const date=localDateKey(day),cardHeight=Math.min(84,cellHeight-34);
+  const card=measurement.current.firstElementChild;
+  setWeekFits(!!card&&card.getBoundingClientRect().height+4<=cellHeight-(cellWidth<90?46:26));
+ },[plan,cellHeight,cellWidth,period]);
+ const date=localDateKey(day),cardHeight=Math.min(84,cellHeight-(cellWidth<90?52:34));
  const fontSize=Math.max(11,Math.min(cellWidth<190?12:14,Math.floor((cardHeight-4)/4/1.3)));
- const slots=cardHeight<60?0:Math.max(0,Math.floor((cellHeight-30)/(cardHeight+4)));
- const visible=period==='week'?weekVisible:plans.length>slots?Math.max(0,slots-1):slots;
+ const fits=period==='week'?weekFits:cardHeight>=60;
  const calendarDay=productionCalendarDay(day);
- return <div data-date={date} title={calendarDay.description} className={`sending-planning__day${calendarDay.isDayOff?' is-day-off':''}${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget&&loaded&&!busy&&date>=today)onEdit(date);}}>
-  <button type="button" className="sending-planning__date" aria-label={`Запланировать отправку на ${readableDate(date)}`} aria-description={calendarDay.description} title={`${calendarDay.description}${date<today?'\nНа прошедшие даты нельзя добавлять перевозки':''}`} disabled={!loaded||busy||date<today} onClick={()=>onEdit(date)}><span>{day.getDate()}</span>{date>=today&&<Plus size={13}/>}</button>
-  {period==='week'&&<div ref={measurement} className="sending-planning__event-measurement" aria-hidden="true">{plans.map(plan=><PlanButton key={plan.id} plan={plan} busy full onEdit={()=>{}}/>)}</div>}
-  {plans.slice(0,visible).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full={period==='week'} cardHeight={cardHeight} fontSize={fontSize} onEdit={onEdit}/>)}
-  {plans.length>visible&&<button type="button" className="sending-planning__more" disabled={busy} aria-label={`Все планы на ${readableDate(date)}: ${plans.length}`} onClick={()=>onShowAll(date)} title={plans.map(description).join('\n\n')}>{cellHeight<54?`${plans.length} пл.`:visible?`Ещё ${plans.length-visible}`:`Планы: ${plans.length}`}</button>}
+ const open=()=>{if(loaded&&!busy&&(plan||date>=today))onEdit(date,plan);};
+ const counter=`${index+1} из ${plans.length}`;
+ return <div data-date={date} title={calendarDay.description} className={`sending-planning__day${calendarDay.isDayOff?' is-day-off':''}${cellWidth<90?' is-narrow':''}${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget)open();}}>
+  <div className="sending-planning__day-heading">
+   <button type="button" className="sending-planning__date" aria-label={`${plan?'Открыть план':'Запланировать отправку'} на ${readableDate(date)}`} aria-description={calendarDay.description} title={`${calendarDay.description}${!plan&&date<today?'\nНа прошедшие даты нельзя добавлять перевозки':''}`} disabled={!loaded||busy||!plan&&date<today} onClick={open}><span>{day.getDate()}</span></button>
+   {plans.length>1&&<button type="button" className="sending-planning__next-plan" disabled={busy} aria-label={`Следующий план на ${readableDate(date)}`} title={`План ${counter}. Показать следующий`} onClick={()=>setActivePlanId(plans[(index+1)%plans.length].id)}><span aria-live="polite" aria-atomic="true" aria-label={`План ${counter}`}>{cellWidth<110?`${index+1}/${plans.length}`:counter}</span><ChevronRight size={13} aria-hidden="true"/></button>}
+   {date>=today&&<button type="button" className="sending-planning__add-plan" disabled={!loaded||busy} aria-label={`Добавить ${plan?'ещё ':''}план на ${readableDate(date)}`} title={plan?'Добавить ещё один план на этот день':'Добавить план на этот день'} onClick={()=>onEdit(date)}><Plus size={14} aria-hidden="true"/></button>}
+  </div>
+  {period==='week'&&<div ref={measurement} className="sending-planning__event-measurement" aria-hidden="true">{plan&&<PlanButton plan={plan} busy full onEdit={()=>{}}/>}</div>}
+  {plan&&fits&&<PlanButton plan={plan} busy={busy} full={period==='week'} cardHeight={cardHeight} fontSize={fontSize} onEdit={onEdit}/>}
+  {plan&&!fits&&<button type="button" className="sending-planning__more" disabled={busy} aria-label={`Все планы на ${readableDate(date)}: ${plans.length}`} onClick={()=>onShowAll(date)} title={description(plan)}>{cellHeight<54?'Открыть':plan.route||'Открыть план'}</button>}
  </div>;
 }
-export function PlanningCalendar({days,month,period,plans,selectedDate,loaded,busy,onEdit}:{days:Date[];month:Date;period:'month'|'week';plans:SendingPlan[];selectedDate?:string;loaded:boolean;busy:boolean;onEdit:(date:string,plan?:SendingPlan)=>void}) {
+export function PlanningCalendar({days,month,period,plans,selectedDate,selectedPlanId,loaded,busy,onEdit}:{days:Date[];month:Date;period:'month'|'week';plans:SendingPlan[];selectedDate?:string;selectedPlanId?:string;loaded:boolean;busy:boolean;onEdit:(date:string,plan?:SendingPlan)=>void}) {
  const today=usePlanningToday();
  const ref=useRef<HTMLDivElement>(null),[size,setSize]=useState({height:0,width:0}),[openDay,setOpenDay]=useState<string|null>(null);
  useLayoutEffect(()=>{
@@ -84,7 +91,7 @@ export function PlanningCalendar({days,month,period,plans,selectedDate,loaded,bu
    const calendarDay=period==='week'?productionCalendarDay(days[index]):undefined;
    return <div className={`sending-planning__weekday${(calendarDay?calendarDay.isDayOff:index>=5)?' is-day-off':''}`} title={calendarDay?.description} key={day}>{day}</div>;
   })}
-  {days.map(day=><CalendarDay key={localDateKey(day)} day={day} plans={plans.filter(plan=>plan.date===localDateKey(day))} cellHeight={cellHeight} cellWidth={cellWidth} month={month} period={period} selectedDate={selectedDate} loaded={loaded} busy={busy} today={today} onEdit={onEdit} onShowAll={setOpenDay}/>)}
+  {days.map(day=><CalendarDay key={localDateKey(day)} day={day} plans={plans.filter(plan=>plan.date===localDateKey(day))} cellHeight={cellHeight} cellWidth={cellWidth} month={month} period={period} selectedDate={selectedDate} selectedPlanId={selectedPlanId} loaded={loaded} busy={busy} today={today} onEdit={onEdit} onShowAll={setOpenDay}/>)}
   {openDay&&<GuardedDialog title={`Планы на ${readableDate(openDay)}`} className="sending-planning-day-dialog" onClose={()=>setOpenDay(null)}>
    <header><b>Планы на {readableDate(openDay)}</b><button type="button" className="sending-planning__icon" aria-label="Закрыть список планов" onClick={()=>setOpenDay(null)}><X size={20}/></button></header>
    {plans.filter(plan=>plan.date===openDay).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full onEdit={(date,value)=>{setOpenDay(null);onEdit(date,value);}}/>)}
