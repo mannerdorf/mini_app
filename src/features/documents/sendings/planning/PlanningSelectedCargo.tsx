@@ -16,7 +16,7 @@ function SelectedGroup({group,...state}:SelectedState&{group:PlanningPickerGroup
 }
 export function PlanningSelectedCargo({draft,cargo,actual,ferryName,onRemove,readOnly=false,released=[],otherActual=[]}:{draft:PlanDraft;cargo:TmsCargo[];actual:Set<string>;ferryName:string;onRemove:(numbers:string[])=>void;readOnly?:boolean;released?:string[];otherActual?:string[]}) {
  const state={actual,readOnly,released:new Set(released),otherActual:new Set(otherActual),onRemove};
- const [view,setView]=useState<PlanningPickerView>('cargo'),[exporting,setExporting]=useState(false),[error,setError]=useState('');
+ const [view,setView]=useState<PlanningPickerView>('customer'),[exporting,setExporting]=useState(false),[error,setError]=useState('');
  const groups=useMemo(()=>view==='cargo'?[]:groupPickerHierarchy(cargo,view),[cargo,view]);
  const download=async()=>{
   setExporting(true);setError('');

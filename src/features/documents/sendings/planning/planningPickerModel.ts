@@ -10,8 +10,8 @@ export type PlanningPickerGroup = {
   children?: PlanningPickerGroup[];
 };
 export const PICKER_VIEWS: { value: PlanningPickerView; label: string }[] = [
-  { value: 'customer', label: 'По заказчику' },
   { value: 'cargo', label: 'По перевозкам' },
+  { value: 'customer', label: 'По заказчику' },
   { value: 'receiver', label: 'По получателю' },
   { value: 'date', label: 'По датам' },
 ];

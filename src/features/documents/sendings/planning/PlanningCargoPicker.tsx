@@ -70,7 +70,7 @@ function CandidateGroup({ group, selected, locked, recommended, reasons, onSelec
 export function PlanningCargoPicker({ candidates, selectedCargo, vehicle, cargoNumbers, locked, initialSlaCutoff, onSelect }: {
   candidates: TmsCargo[]; selectedCargo: TmsCargo[]; vehicle?: Vehicle; cargoNumbers: string[]; locked: Set<string>; initialSlaCutoff: string; onSelect: Selection['onSelect'];
 }) {
-  const [view, setView] = useState<PlanningPickerView>('cargo');
+  const [view, setView] = useState<PlanningPickerView>('customer');
   const [limit, setLimit] = useState(100);
   const [mode, setMode] = useState<RecommendationMode | null>(null);
   const [cutoffOverride, setCutoffOverride] = useState<string | null>(null);
