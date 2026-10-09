@@ -1,10 +1,11 @@
 import React,{useLayoutEffect,useRef,useState} from 'react';
-import {Plus,X} from 'lucide-react';
+import {Plus,Scale,X} from 'lucide-react';
 import {GuardedDialog} from '../../../../components/GuardedDialog';
 import {localDateKey,comparisonCargo,MODE_LABELS,needsFerry,planProgress,planningVehicle,vehicleName,type SendingPlan} from './planningModel';
 import {planningNumber} from './PlanningCargoTable';
 import {usePlanningToday} from './usePlanningToday';
 import {productionCalendarDay} from './planningProductionCalendar';
+import {planningLoadTotals} from './PlanningLoadSummary';
 
 const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('ru-RU');
 function description(plan:SendingPlan) {
@@ -14,17 +15,23 @@ function description(plan:SendingPlan) {
 function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy:boolean;onEdit:(date:string,plan:SendingPlan)=>void;full?:boolean;lines?:number}) {
  const {planned,actual,percent}=planProgress(plan);
  const vehicle=planningVehicle(plan),cargo=comparisonCargo(plan);
- const sum=(field:'weight'|'volume'|'places'|'paidWeight')=>cargo.reduce((total,cargo)=>total+(cargo[field]??0),0);
+ const {totals,missing,count}=planningLoadTotals(cargo);
+ const sum=(field:keyof typeof totals)=>totals[field];
  const metric=(field:'weight'|'volume'|'places'|'paidWeight',unit:string,digits=1)=>{
-  const missing=cargo.filter(cargo=>cargo[field]==null).length;
-  return missing===cargo.length?'—':`${planningNumber(sum(field),digits)} ${unit}${missing?` · нет данных: ${missing}`:''}`;
+  return missing[field]===count?'—':`${planningNumber(sum(field),digits)} ${unit}${missing[field]?` · нет данных: ${missing[field]}`:''}`;
  };
+ const weightPercent=vehicle?.payload&&missing.weight<count?totals.weight/vehicle.payload*100:null;
+ const volumePercent=vehicle?.volume&&missing.volume<count?totals.volume/vehicle.volume*100:null;
+ const fill=weightPercent===null?volumePercent:volumePercent===null?weightPercent:Math.max(weightPercent,volumePercent);
+ const level=fill===null?'unknown':fill<50?'low':fill<=90?'medium':'high';
+ const paid=count>0&&missing.paidWeight===count?'—':`${planningNumber(totals.paidWeight)} кг${missing.paidWeight>0?'*':''}`;
+ const paidTitle=[`Платный вес: ${metric('paidWeight','кг')}`,fill===null?'Заполнение ТС: нет данных':`Заполнение ТС: ${planningNumber(fill)}% (большее из веса и объёма)`,weightPercent!==null&&`Вес: ${planningNumber(weightPercent)}%`,volumePercent!==null&&`Объём: ${planningNumber(volumePercent)}%`,(missing.weight>0||missing.volume>0)&&'Заполнение рассчитано по известным данным'].filter(Boolean).join('\n');
  return <button type="button" className={`sending-planning__event sending-planning__event--${plan.mode||'draft'}${full?' sending-planning__event--full':''}`} style={full?undefined:{height:24+(lines-1)*20}} disabled={busy} onClick={()=>onEdit(plan.date,plan)} aria-label={`План ${readableDate(plan.date)}, ${plan.route||'Маршрут не указан'}, ${MODE_LABELS[plan.mode]}`} title={description(plan)}>
-  <b>{plan.route||'Маршрут не указан'}{!full&&planned>0?` · ${percent}%`:''}</b>
+  <span className="sending-planning__event-heading"><b>{plan.route||'Маршрут не указан'}</b>{count>0&&<small className={`sending-planning__event-paid sending-planning__event-paid--${level}`} aria-label={paidTitle} title={paidTitle}><Scale size={13} aria-hidden="true"/><span>{paid}</span></small>}</span>
   {full?<span>{MODE_LABELS[plan.mode]} · {needsFerry(plan.mode)||!plan.mode?plan.ferryName||'Паром не выбран':plan.mode==='auto'?vehicleName(plan.vehicleId):'Авиаперевозка'}</span>:<>
-   {lines>=2&&<span>{MODE_LABELS[plan.mode]}{plan.mode&&plan.mode!=='air'?` · ${vehicleName(plan.vehicleId)}`:''}</span>}
-   {lines>=3&&<span>{plan.ferryName?`${plan.ferryName}${plan.departureDate?` · ${readableDate(plan.departureDate)}`:''}`:plan.departureDate?`Выход: ${readableDate(plan.departureDate)}`:planned?`${planned} перев. · факт ${actual}`:plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены'}</span>}
-   {lines>=4&&(planned>0||!!plan.ferryName||!!plan.departureDate||!!plan.comment)&&<span>{planned?`${planned} перев. · ${metric('weight','кг')} · ${metric('volume','м³',2)}`:plan.ferryName||plan.departureDate?plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены':`Комментарий: ${plan.comment}`}</span>}
+   {lines>=(planned?3:2)&&<span>{MODE_LABELS[plan.mode]}{plan.mode&&plan.mode!=='air'?` · ${vehicleName(plan.vehicleId)}`:''}</span>}
+   {lines>=(planned?4:3)&&<span>{plan.ferryName?`${plan.ferryName}${plan.departureDate?` · ${readableDate(plan.departureDate)}`:''}`:plan.departureDate?`Выход: ${readableDate(plan.departureDate)}`:plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены'}</span>}
+   {!planned&&lines>=4&&(!!plan.ferryName||!!plan.departureDate||!!plan.comment)&&<span>{plan.ferryName||plan.departureDate?plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены':`Комментарий: ${plan.comment}`}</span>}
   </>}
   {full&&<>
    {needsFerry(plan.mode)&&<span>ТС: {vehicleName(plan.vehicleId)}</span>}
@@ -34,13 +41,12 @@ function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy
    {cargo.length>0&&<div className="sending-planning__event-metrics">
     <span>Вес: {metric('weight','кг')}</span><span>Объём: {metric('volume','м³',2)}</span>
     <span>Количество: {cargo.length} перев. · {metric('places','мест',0)}</span>
-    <span>Платный вес: {metric('paidWeight','кг')}</span>
     {vehicle&&<span>Заполнение ТС: вес {planningNumber(sum('weight')/vehicle.payload*100,0)}% · объём {planningNumber(sum('volume')/vehicle.volume*100,0)}%</span>}
    </div>}
-   <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>
    {plan.reconciliation&&<span>Освобождено для другого дня: {plan.reconciliation.releasedCargoNumbers.length}</span>}
    {plan.comment&&<span className="sending-planning__event-comment">Комментарий: {plan.comment}</span>}
   </>}
+  {(full||planned>0&&lines>=2)&&<span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{full&&planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>}
  </button>;
 }
 function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;cellWidth:number;month:Date;period:'month'|'week';selectedDate?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
