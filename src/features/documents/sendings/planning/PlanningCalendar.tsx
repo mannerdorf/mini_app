@@ -12,7 +12,7 @@ function description(plan:SendingPlan) {
  const {planned,actual,percent}=planProgress(plan);
  return [plan.route||'Маршрут не указан',MODE_LABELS[plan.mode],vehicleName(plan.vehicleId),plan.ferryName,plan.departureDate&&`Выход: ${readableDate(plan.departureDate)}`,plan.isDraft&&'Черновик · нужно заполнить',planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены',plan.reconciliation&&`Освобождено для другого дня: ${plan.reconciliation.releasedCargoNumbers.length}`].filter(Boolean).join('\n');
 }
-function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy:boolean;onEdit:(date:string,plan:SendingPlan)=>void;full?:boolean;lines?:number}) {
+function PlanButton({plan,busy,onEdit,full=false,cardHeight=84,fontSize=14}:{plan:SendingPlan;busy:boolean;onEdit:(date:string,plan:SendingPlan)=>void;full?:boolean;cardHeight?:number;fontSize?:number}) {
  const {planned,actual,percent}=planProgress(plan);
  const vehicle=planningVehicle(plan),cargo=comparisonCargo(plan);
  const {totals,missing,count}=planningLoadTotals(cargo);
@@ -26,12 +26,12 @@ function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy
  const level=fill===null?'unknown':fill<50?'low':fill<=90?'medium':'high';
  const paid=count>0&&missing.paidWeight===count?'—':`${planningNumber(totals.paidWeight)} кг${missing.paidWeight>0?'*':''}`;
  const paidTitle=[`Платный вес: ${metric('paidWeight','кг')}`,fill===null?'Заполнение ТС: нет данных':`Заполнение ТС: ${planningNumber(fill)}% (большее из веса и объёма)`,weightPercent!==null&&`Вес: ${planningNumber(weightPercent)}%`,volumePercent!==null&&`Объём: ${planningNumber(volumePercent)}%`,(missing.weight>0||missing.volume>0)&&'Заполнение рассчитано по известным данным'].filter(Boolean).join('\n');
- return <button type="button" className={`sending-planning__event sending-planning__event--${plan.mode||'draft'}${full?' sending-planning__event--full':''}`} style={full?undefined:{height:24+(lines-1)*20}} disabled={busy} onClick={()=>onEdit(plan.date,plan)} aria-label={`План ${readableDate(plan.date)}, ${plan.route||'Маршрут не указан'}, ${MODE_LABELS[plan.mode]}`} title={description(plan)}>
+ const compactStyle={height:cardHeight,'--planning-event-font':`${fontSize}px`,'--planning-event-line-height':`${(cardHeight-4)/4}px`} as React.CSSProperties;
+ return <button type="button" className={`sending-planning__event sending-planning__event--${plan.mode||'draft'}${full?' sending-planning__event--full':''}`} style={full?undefined:compactStyle} disabled={busy} onClick={()=>onEdit(plan.date,plan)} aria-label={`План ${readableDate(plan.date)}, ${plan.route||'Маршрут не указан'}, ${MODE_LABELS[plan.mode]}`} title={description(plan)}>
   <span className="sending-planning__event-heading"><b>{plan.route||'Маршрут не указан'}</b>{count>0&&<small className={`sending-planning__event-paid sending-planning__event-paid--${level}`} aria-label={paidTitle} title={paidTitle}><Scale size={13} aria-hidden="true"/><span>{paid}</span></small>}</span>
   {full?<span>{MODE_LABELS[plan.mode]} · {needsFerry(plan.mode)||!plan.mode?plan.ferryName||'Паром не выбран':plan.mode==='auto'?vehicleName(plan.vehicleId):'Авиаперевозка'}</span>:<>
-   {lines>=(planned?3:2)&&<span>{MODE_LABELS[plan.mode]}{plan.mode&&plan.mode!=='air'?` · ${vehicleName(plan.vehicleId)}`:''}</span>}
-   {lines>=(planned?4:3)&&<span>{plan.ferryName?`${plan.ferryName}${plan.departureDate?` · ${readableDate(plan.departureDate)}`:''}`:plan.departureDate?`Выход: ${readableDate(plan.departureDate)}`:plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены'}</span>}
-   {!planned&&lines>=4&&(!!plan.ferryName||!!plan.departureDate||!!plan.comment)&&<span>{plan.ferryName||plan.departureDate?plan.isDraft?'Черновик · нужно заполнить':'Перевозки не добавлены':`Комментарий: ${plan.comment}`}</span>}
+   <span>{MODE_LABELS[plan.mode]}{plan.mode&&plan.mode!=='air'?` · ${vehicleName(plan.vehicleId)}`:''}</span>
+   <span className="sending-planning__event-departure">{plan.ferryName?`${plan.ferryName}${plan.departureDate?` · ${readableDate(plan.departureDate)}`:''}`:plan.departureDate?`Выход: ${readableDate(plan.departureDate)}`:needsFerry(plan.mode)||!plan.mode?'Паром не выбран':plan.isDraft?'Черновик · нужно заполнить':plan.comment?`Комментарий: ${plan.comment}`:'—'}</span>
   </>}
   {full&&<>
    {needsFerry(plan.mode)&&<span>ТС: {vehicleName(plan.vehicleId)}</span>}
@@ -46,7 +46,7 @@ function PlanButton({plan,busy,onEdit,full=false,lines=2}:{plan:SendingPlan;busy
    {plan.reconciliation&&<span>Освобождено для другого дня: {plan.reconciliation.releasedCargoNumbers.length}</span>}
    {plan.comment&&<span className="sending-planning__event-comment">Комментарий: {plan.comment}</span>}
   </>}
-  {(full||planned>0&&lines>=2)&&<span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{full&&planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>}
+  <span className="sending-planning__execution"><span>{planned?`${percent}% · факт ${actual} / план ${planned}`:'Перевозки не добавлены'}</span>{full&&planned>0&&<span role="progressbar" aria-label="Исполнение плана" aria-valuemin={0} aria-valuemax={planned} aria-valuenow={actual} aria-valuetext={`${percent}%, отправлено ${actual} из ${planned}`}><i style={{width:`${percent}%`}}/></span>}</span>
  </button>;
 }
 function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,loaded,busy,today,onEdit,onShowAll}:{day:Date;plans:SendingPlan[];cellHeight:number;cellWidth:number;month:Date;period:'month'|'week';selectedDate?:string;loaded:boolean;busy:boolean;today:string;onEdit:(date:string,plan?:SendingPlan)=>void;onShowAll:(date:string)=>void}) {
@@ -57,13 +57,15 @@ function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,l
   for(const card of cards){const size=card.getBoundingClientRect().height+4,reserve=count+1<plans.length?28:0;if(used+size+reserve>cellHeight-26)break;used+=size;count++;}
   setWeekVisible(count);
  },[plans,cellHeight,cellWidth,period]);
- const date=localDateKey(day),lines=Math.max(1,Math.min(4,Math.floor((cellHeight-34)/20))),slots=Math.max(0,Math.floor((cellHeight-26)/(28+(lines-1)*20)));
+ const date=localDateKey(day),cardHeight=Math.min(84,cellHeight-34);
+ const fontSize=Math.max(11,Math.min(cellWidth<190?12:14,Math.floor((cardHeight-4)/4/1.3)));
+ const slots=cardHeight<60?0:Math.max(0,Math.floor((cellHeight-30)/(cardHeight+4)));
  const visible=period==='week'?weekVisible:plans.length>slots?Math.max(0,slots-1):slots;
  const calendarDay=productionCalendarDay(day);
  return <div data-date={date} title={calendarDay.description} className={`sending-planning__day${calendarDay.isDayOff?' is-day-off':''}${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget&&loaded&&!busy&&date>=today)onEdit(date);}}>
   <button type="button" className="sending-planning__date" aria-label={`Запланировать отправку на ${readableDate(date)}`} aria-description={calendarDay.description} title={`${calendarDay.description}${date<today?'\nНа прошедшие даты нельзя добавлять перевозки':''}`} disabled={!loaded||busy||date<today} onClick={()=>onEdit(date)}><span>{day.getDate()}</span>{date>=today&&<Plus size={13}/>}</button>
   {period==='week'&&<div ref={measurement} className="sending-planning__event-measurement" aria-hidden="true">{plans.map(plan=><PlanButton key={plan.id} plan={plan} busy full onEdit={()=>{}}/>)}</div>}
-  {plans.slice(0,visible).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full={period==='week'} lines={lines} onEdit={onEdit}/>)}
+  {plans.slice(0,visible).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full={period==='week'} cardHeight={cardHeight} fontSize={fontSize} onEdit={onEdit}/>)}
   {plans.length>visible&&<button type="button" className="sending-planning__more" disabled={busy} aria-label={`Все планы на ${readableDate(date)}: ${plans.length}`} onClick={()=>onShowAll(date)} title={plans.map(description).join('\n\n')}>{cellHeight<54?`${plans.length} пл.`:visible?`Ещё ${plans.length-visible}`:`Планы: ${plans.length}`}</button>}
  </div>;
 }

@@ -248,7 +248,7 @@
 .sending-planning__event-measurement { position: absolute; top: 0; left: 3px; right: 3px; height: 0; overflow: hidden; visibility: hidden; pointer-events: none; }
 .sending-planning__event-measurement .sending-planning__event--full { overflow-wrap: anywhere; }
 
-.sending-planning__calendar--month .sending-planning__day > .sending-planning__event { gap: 0; }
+.sending-planning__calendar--month .sending-planning__day > .sending-planning__event { gap: 0; box-sizing: border-box; font-size: var(--planning-event-font,14px); line-height: var(--planning-event-line-height,20px); }
 
 .sending-planning__event .sending-planning__event-heading { display: flex !important; align-items: center; gap: 5px; flex-shrink: 0; }
 .sending-planning__event-heading > b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -262,6 +262,8 @@
 .light-mode .sending-planning__event-paid--medium { color: #a16207; }
 .light-mode .sending-planning__event-paid--high { color: #b91c1c; }
 .sending-planning__event .sending-planning__execution { display: flex !important; flex-shrink: 0; margin-top: auto; font-size: 12px; }
+.sending-planning__calendar--month .sending-planning__event .sending-planning__event-paid { font-size: min(12px,calc(var(--planning-event-font,14px) - 1px)); }
+.sending-planning__calendar--month .sending-planning__event .sending-planning__execution { font-size: min(12px,var(--planning-event-font,14px)); line-height: inherit; }
 .sending-planning__calendar--month .sending-planning__execution > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .sending-planning__sort { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; font-weight: inherit; text-align: left; cursor: pointer; }
