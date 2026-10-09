@@ -24,11 +24,14 @@
 .sending-planning__day { min-height: 130px; padding: 7px; border-top: 1px solid var(--color-border); border-right: 1px solid var(--color-border); background: var(--color-bg-card); cursor: pointer; }
 .sending-planning__day:nth-child(7n) { border-right: 0; }
 .sending-planning__day.is-outside { background: var(--color-bg-hover); }
+.sending-planning__day.is-day-off { background: color-mix(in srgb,var(--color-error) 5%,var(--color-bg-card)); }
+.sending-planning__day.is-day-off.is-outside { background: color-mix(in srgb,var(--color-error) 5%,var(--color-bg-hover)); }
 .sending-planning__day.is-outside .sending-planning__date { opacity: .5; }
 .sending-planning__day.is-today { background: color-mix(in srgb,var(--color-primary-blue) 6%,var(--color-bg-card)); }
 .sending-planning__day.is-selected { box-shadow: inset 0 0 0 2px var(--color-primary-blue); }
 .sending-planning__date { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: 7px; padding: 3px; border: 0; background: transparent; color: var(--color-text-primary); cursor: pointer; font: inherit; }
 .sending-planning__date svg { opacity: .4; }
+.sending-planning__weekday.is-day-off,.sending-planning__day.is-day-off .sending-planning__date > span { color: var(--color-error); }
 .sending-planning__event { display: flex; flex-direction: column; gap: 3px; width: 100%; margin-bottom: 5px; padding: 8px; border: 0; border-left: 3px solid #2563eb; border-radius: 7px; background: #e9f0ff; color: #1e3a8a; text-align: left; font: inherit; cursor: pointer; }
 .sending-planning__draft-status { font-weight: 600; }
 .sending-planning__event span,.sending-planning__event small { overflow-wrap: anywhere; }

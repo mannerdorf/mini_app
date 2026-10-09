@@ -4,6 +4,7 @@ import {GuardedDialog} from '../../../../components/GuardedDialog';
 import {localDateKey,comparisonCargo,MODE_LABELS,needsFerry,planProgress,planningVehicle,vehicleName,type SendingPlan} from './planningModel';
 import {planningNumber} from './PlanningCargoTable';
 import {usePlanningToday} from './usePlanningToday';
+import {productionCalendarDay} from './planningProductionCalendar';
 
 const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateString('ru-RU');
 function description(plan:SendingPlan) {
@@ -52,8 +53,9 @@ function CalendarDay({day,plans,cellHeight,cellWidth,month,period,selectedDate,l
  },[plans,cellHeight,cellWidth,period]);
  const date=localDateKey(day),lines=Math.max(1,Math.min(4,Math.floor((cellHeight-34)/20))),slots=Math.max(0,Math.floor((cellHeight-26)/(28+(lines-1)*20)));
  const visible=period==='week'?weekVisible:plans.length>slots?Math.max(0,slots-1):slots;
- return <div className={`sending-planning__day${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget&&loaded&&!busy&&date>=today)onEdit(date);}}>
-  <button type="button" className="sending-planning__date" aria-label={`Запланировать отправку на ${readableDate(date)}`} title={date<today?'На прошедшие даты нельзя добавлять перевозки':undefined} disabled={!loaded||busy||date<today} onClick={()=>onEdit(date)}><span>{day.getDate()}</span>{date>=today&&<Plus size={13}/>}</button>
+ const calendarDay=productionCalendarDay(day);
+ return <div data-date={date} title={calendarDay.description} className={`sending-planning__day${calendarDay.isDayOff?' is-day-off':''}${cellHeight<54?' is-compact':''}${period==='month'&&day.getMonth()!==month.getMonth()?' is-outside':''}${date===today?' is-today':''}${date===selectedDate?' is-selected':''}`} onClick={event=>{if(event.target===event.currentTarget&&loaded&&!busy&&date>=today)onEdit(date);}}>
+  <button type="button" className="sending-planning__date" aria-label={`Запланировать отправку на ${readableDate(date)}`} aria-description={calendarDay.description} title={`${calendarDay.description}${date<today?'\nНа прошедшие даты нельзя добавлять перевозки':''}`} disabled={!loaded||busy||date<today} onClick={()=>onEdit(date)}><span>{day.getDate()}</span>{date>=today&&<Plus size={13}/>}</button>
   {period==='week'&&<div ref={measurement} className="sending-planning__event-measurement" aria-hidden="true">{plans.map(plan=><PlanButton key={plan.id} plan={plan} busy full onEdit={()=>{}}/>)}</div>}
   {plans.slice(0,visible).map(plan=><PlanButton key={plan.id} plan={plan} busy={busy} full={period==='week'} lines={lines} onEdit={onEdit}/>)}
   {plans.length>visible&&<button type="button" className="sending-planning__more" disabled={busy} aria-label={`Все планы на ${readableDate(date)}: ${plans.length}`} onClick={()=>onShowAll(date)} title={plans.map(description).join('\n\n')}>{cellHeight<54?`${plans.length} пл.`:visible?`Ещё ${plans.length-visible}`:`Планы: ${plans.length}`}</button>}
@@ -70,7 +72,10 @@ export function PlanningCalendar({days,month,period,plans,selectedDate,loaded,bu
  },[]);
  const rows=days.length/7,cellHeight=(size.height-29)/rows,cellWidth=size.width/7;
  return <div ref={ref} className={`sending-planning__calendar sending-planning__calendar--${period}`} style={{gridTemplateRows:`28px repeat(${rows},minmax(0,1fr))`}}>
-  {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(day=><div className="sending-planning__weekday" key={day}>{day}</div>)}
+  {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((day,index)=>{
+   const calendarDay=period==='week'?productionCalendarDay(days[index]):undefined;
+   return <div className={`sending-planning__weekday${(calendarDay?calendarDay.isDayOff:index>=5)?' is-day-off':''}`} title={calendarDay?.description} key={day}>{day}</div>;
+  })}
   {days.map(day=><CalendarDay key={localDateKey(day)} day={day} plans={plans.filter(plan=>plan.date===localDateKey(day))} cellHeight={cellHeight} cellWidth={cellWidth} month={month} period={period} selectedDate={selectedDate} loaded={loaded} busy={busy} today={today} onEdit={onEdit} onShowAll={setOpenDay}/>)}
   {openDay&&<GuardedDialog title={`Планы на ${readableDate(openDay)}`} className="sending-planning-day-dialog" onClose={()=>setOpenDay(null)}>
    <header><b>Планы на {readableDate(openDay)}</b><button type="button" className="sending-planning__icon" aria-label="Закрыть список планов" onClick={()=>setOpenDay(null)}><X size={20}/></button></header>
