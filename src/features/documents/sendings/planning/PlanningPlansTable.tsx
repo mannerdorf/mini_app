@@ -9,8 +9,8 @@ const readableDate=(value:string)=>new Date(`${value}T12:00:00`).toLocaleDateStr
 function Cell({children,title}:{children:React.ReactNode;title?:string}) {
  return <div className="sending-planning__table-cell" title={title}>{children}</div>;
 }
-export function PlanningPlansTable({plans,view,busy,expanded,onEdit,onExpand,renderExecution}:{
- plans:SendingPlan[];view:PlanningView;busy:boolean;expanded:Set<string>;
+export function PlanningPlansTable({plans,view,busy,expanded,selectedPlanId,onEdit,onExpand,renderExecution}:{
+ plans:SendingPlan[];view:PlanningView;busy:boolean;expanded:Set<string>;selectedPlanId?:string;
  onEdit:(plan:SendingPlan)=>void;onExpand:(id:string)=>void;renderExecution:(plan:SendingPlan)=>React.ReactNode;
 }) {
  const [sort,setSort]=useState<PlanningSort<Column>>({key:'date',direction:'asc'});
@@ -27,14 +27,16 @@ export function PlanningPlansTable({plans,view,busy,expanded,onEdit,onExpand,ren
   <thead><tr>{([['date','Дата'],['route','Маршрут'],['vehicle','Тип / ТС'],['ferry','Паром / выход'],['execution','Исполнение'],['comment','Комментарий']] as const).map(([column,label])=><PlanningSortHeader key={column} column={column} label={label} sort={sort} onSort={onSort}/>)}<th/></tr></thead>
   <tbody>{rows.map(({plan,group})=><React.Fragment key={plan.id}>
    {group&&<tr className="sending-planning__vehicle-group"><th colSpan={7}><Cell title={group.label}>{group.label} · {group.plans.length} план.</Cell></th></tr>}
-   <tr className="sending-planning__plan-row">
+   <tr className={`sending-planning__plan-row${selectedPlanId===plan.id?' is-selected':''}`} aria-selected={selectedPlanId===plan.id} aria-disabled={busy||undefined} tabIndex={busy?-1:0}
+    onClick={event=>{if(!busy&&!(event.target as Element).closest('button,a,input,select,textarea'))onEdit(plan);}}
+    onKeyDown={event=>{if(!busy&&event.target===event.currentTarget&&(event.key==='Enter'||event.key===' ')){event.preventDefault();onEdit(plan);}}}>
     <td><Cell><button type="button" className="sending-planning__link" disabled={busy} onClick={()=>onEdit(plan)}>{readableDate(plan.date)}</button></Cell></td>
     <td><Cell title={plan.route||'Маршрут не указан'}>{plan.route||'Маршрут не указан'}{plan.isDraft&&<small className="sending-planning__draft-status">Черновик · нужно заполнить</small>}</Cell></td>
     <td><Cell title={`${MODE_LABELS[plan.mode]} · ${vehicleName(plan.vehicleId)}`}>{MODE_LABELS[plan.mode]}{plan.mode!=='air'&&<small>{vehicleName(plan.vehicleId)}</small>}</Cell></td>
     <td><Cell title={`${plan.ferryName||'—'}${plan.departureDate?' · '+readableDate(plan.departureDate):''}`}>{plan.ferryName||'—'}{plan.departureDate&&<small>{readableDate(plan.departureDate)}</small>}</Cell></td>
     <td><Cell>{renderExecution(plan)}</Cell></td>
     <td className="sending-planning__comment"><Cell title={plan.comment||undefined}>{plan.comment||'—'}</Cell></td>
-    <td><button type="button" className="sending-planning__icon" aria-label={`Состав плана на ${readableDate(plan.date)}`} aria-expanded={expanded.has(plan.id)} onClick={()=>onExpand(plan.id)}>{expanded.has(plan.id)?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</button></td>
+    <td><button type="button" className="sending-planning__icon" disabled={busy} aria-label={`Состав плана на ${readableDate(plan.date)}`} aria-expanded={expanded.has(plan.id)} onClick={()=>onExpand(plan.id)}>{expanded.has(plan.id)?<ChevronUp size={18}/>:<ChevronDown size={18}/>}</button></td>
    </tr>
    {expanded.has(plan.id)&&<tr className="sending-planning__plan-details"><td colSpan={7}><PlanningCargoTable plan={plan} view={view==='vehicle'?'cargo':view}/></td></tr>}
   </React.Fragment>)}</tbody>

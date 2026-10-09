@@ -89,7 +89,7 @@ export function SendingsPlanningDialog({auth,onClose}:{auth:DocumentsAuth;onClos
    <section className="sending-planning__overview" aria-label={tab==='calendar'?'Календарь планирования':'Таблица планирования'}>
     {tab==='calendar'?<PlanningCalendar days={days} month={month} period={period} plans={data?.plans||[]} selectedDate={editor?.draft.date} loaded={!!data} busy={busy} onEdit={edit}/>:<>
 
-     <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} onEdit={plan=>edit(plan.date,plan)} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
+     <PlanningPlansTable plans={data?.plans||[]} view="cargo" busy={busy} expanded={expanded} selectedPlanId={editor?.plan?.id} onEdit={plan=>{if(editor?.plan?.id!==plan.id)edit(plan.date,plan);}} onExpand={id=>setExpanded(previous=>{const next=new Set(previous);if(next.has(id))next.delete(id);else next.add(id);return next;})} renderExecution={plan=><Execution plan={plan}/>}/>
     </>}
    </section>
    {editor&&<><div className="sending-planning__resizer" {...workspace.separatorProps}><span aria-hidden="true"/></div><PlanningEditor key={editor.plan?.id||'new'} draft={editor.draft} plan={editor.plan} available={data?.available||[]} ferries={data?.ferries||[]} routes={routes} busy={busy} dirty={dirty} onChange={draft=>setEditor(previous=>previous?{...previous,draft:{...draft,isDraft:!!previous.plan?.isDraft&&missingPlanFields(draft).length>0}}:null)} onSave={()=>void save()} onCancel={dismissEditor} onDelete={editor.plan?()=>void remove():undefined} onReconcile={key=>void reconcile(key)}/></>}
