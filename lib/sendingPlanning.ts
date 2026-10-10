@@ -1,3 +1,4 @@
+import {readAccumulationData} from './sendingPlanningForecast.js';
 import {randomUUID} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {VEHICLES,type TmsCargo} from '../src/features/tms/model.js';
@@ -30,7 +31,7 @@ function validateDraft(value:unknown):PlanDraft {
  const cleaned={...draft,title,route:draft.route.trim(),comment:draft.comment.trim(),vehicleId:draft.mode==='air'||!draft.mode?'':draft.vehicleId,ferryId:needsFerry(draft.mode)||partial&&!draft.mode?draft.ferryId:null,departureDate:needsFerry(draft.mode)||partial&&!draft.mode?draft.departureDate:'',vehicleDimensions:draft.mode&&draft.mode!=='air'&&draft.vehicleId?draft.vehicleDimensions:null,cargoNumbers:[...new Set(draft.cargoNumbers.map(cleanNumber))]};
  return {...cleaned,isDraft:partial&&missingPlanFields(cleaned).length>0};
 }
-export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<PlanningData> {
+export async function readSendingPlans(pool:Pool,from:string,to:string,includeForecast=false):Promise<PlanningData> {
  if(!validPlanDate(from)||!validPlanDate(to)||from>to||Date.parse(to)-Date.parse(from)>62*86400000)throw new PlanningError('Выберите период не более двух месяцев');
  await reconcileSendingPlans(pool,{from,to});
  const [planResult,backlog,reservations,ferries]=await Promise.all([
@@ -61,7 +62,8 @@ export async function readSendingPlans(pool:Pool,from:string,to:string):Promise<
  const actual=await actualNumbers(pool,cargo.map(item=>item.cargo_number));
  const reserved=new Set(reservations.rows.map(row=>row.cargo_number));
  const plans:SendingPlan[]=planResult.rows.map(plan=>({id:plan.id,revision:plan.revision,title:plan.title||'',isDraft:!!plan.is_draft,departureDate:plan.departure_date||'',vehicleDimensions:plan.vehicle_dimensions||null,date:plan.planned_date,route:plan.route,mode:plan.mode,vehicleId:plan.vehicle_id,ferryId:plan.ferry_id?Number(plan.ferry_id):null,ferryName:plan.resolved_ferry_name,comment:plan.comment,cargo:cargo.filter(item=>item.plan_id===plan.id).map(item=>item.snapshot),actualCargoNumbers:reconciliations.get(plan.id)?.actualCargoNumbers??cargo.filter(item=>item.plan_id===plan.id&&actual.has(item.cargo_number)).map(item=>item.cargo_number),reconciliation:reconciliations.get(plan.id),factCandidates:plan.fact_candidates||[]}));
- return {plans,available:backlog.rows.map(row=>normalizeCargo(row.payload,new Date(row.updated_at).toISOString())).filter(item=>!reserved.has(item.number)),ferries:ferries.rows.map(ferry=>({id:Number(ferry.id),name:ferry.name})),checkedAt:new Date().toISOString()};
+ const forecast=includeForecast?await readAccumulationData(pool,backlog):undefined;
+ return {forecast,plans,available:backlog.rows.map(row=>normalizeCargo(row.payload,new Date(row.updated_at).toISOString())).filter(item=>!reserved.has(item.number)),ferries:ferries.rows.map(ferry=>({id:Number(ferry.id),name:ferry.name})),checkedAt:new Date().toISOString()};
 }
 export async function saveSendingPlan(pool:Pool,value:unknown,actor:string):Promise<string> {
  const draft=validateDraft(value),id=draft.id||randomUUID(),db=await pool.connect();

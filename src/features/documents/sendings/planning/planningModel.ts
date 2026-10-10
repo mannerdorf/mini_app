@@ -1,3 +1,4 @@
+import type {AccumulationData} from './accumulationModel.js';
 import {VEHICLES,type TmsCargo,type Vehicle} from '../../../tms/model.js';
 
 export type PlanningMode='roro'|'ferry'|'auto'|'air'|'';
@@ -7,7 +8,7 @@ export type PlanDraft={id?:string;revision?:number;title?:string;isDraft?:boolea
 export type PlanningFactCandidate={key:string;number:string;date:string;vehicle:string;matched:number;cargoCount:number;fresh:boolean};
 export type PlanningReconciliation={checkedAt:string;sending:PlanningFactCandidate;originalCargo:TmsCargo[];actualCargoNumbers:string[];releasedCargoNumbers:string[];otherActualCargoNumbers:string[]};
 export type SendingPlan=Omit<PlanDraft,'cargoNumbers'|'id'|'revision'> & {id:string;revision:number;ferryName:string;cargo:TmsCargo[];actualCargoNumbers:string[];reconciliation?:PlanningReconciliation;factCandidates?:PlanningFactCandidate[]};
-export type PlanningData={plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
+export type PlanningData={forecast?:AccumulationData;plans:SendingPlan[];available:TmsCargo[];ferries:{id:number;name:string}[];checkedAt:string};
 // Keep the persisted ferry value for existing container plans.
 export const MODE_LABELS:Record<PlanningMode,string>={roro:'RoRo',ferry:'Контейнер',auto:'Авто',air:'Авиа','':'Тип не указан'};
 export const needsFerry=(mode:PlanningMode)=>mode==='ferry'||mode==='roro';

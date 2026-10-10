@@ -31,3 +31,10 @@ it('validates requests and reports missing deployment without disclosing private
  state.read.mockRejectedValue({code:'42P01'});expect((await call({action:'list'})).status).toBe(503);
  state.read.mockRejectedValue(new Error('private credentials'));const result=await call({action:'list'});expect(result.status).toBe(500);expect(JSON.stringify(result.body)).not.toContain('private credentials');
 });
+
+it('loads aggregate history only when forecasting is explicitly enabled',async()=>{
+ await call({action:'list',from:'2026-10-01',to:'2026-11-01'});
+ expect(state.read).toHaveBeenLastCalledWith(expect.anything(),'2026-10-01','2026-11-01',false);
+ await call({action:'list',from:'2026-10-01',to:'2026-11-01',forecast:true});
+ expect(state.read).toHaveBeenLastCalledWith(expect.anything(),'2026-10-01','2026-11-01',true);
+});

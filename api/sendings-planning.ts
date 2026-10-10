@@ -21,7 +21,7 @@ export default async function handler(req:VercelRequest,res:VercelResponse) {
    const permissions=(await pool.query('SELECT permissions FROM registered_users WHERE lower(trim(login))=$1 AND active=true',[login])).rows[0]?.permissions;
    if(permissions?.haulz!==true&&permissions?.eor!==true&&permissions?.supervisor!==true)return res.status(403).json({error:'Планирование доступно сотрудникам с правом HAULZ, EOR или руководителя'});
   }
-  if(body.action==='list')return res.status(200).json(await readSendingPlans(pool,body.from,body.to));
+  if(body.action==='list')return res.status(200).json(await readSendingPlans(pool,body.from,body.to,body.forecast===true));
   if(body.action==='save')return res.status(200).json({id:await saveSendingPlan(pool,body.plan,login||'superadmin')});
   if(body.action==='reconcile')return res.status(200).json(await chooseSendingPlanFact(pool,body.id,body.revision,body.sendingKey,login||'superadmin'));
   if(body.action==='delete'){await deleteSendingPlan(pool,body.id,body.revision);return res.status(200).json({ok:true});}
