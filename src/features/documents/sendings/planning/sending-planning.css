@@ -322,3 +322,13 @@
 @container planning-toolbar-totals (max-width: 330px) { .sending-planning__toolbar-weight { display: none; } }
 @container planning-toolbar-totals (max-width: 220px) { .sending-planning__toolbar-volume { display: none; } }
 @media(max-width:600px) { .sending-planning__period-row { padding-right: 0; } }
+
+.sending-planning__forecast-toggle { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--color-bg-card); color: var(--color-text-primary); cursor: pointer; }
+.sending-planning__forecast-toggle:focus-visible { outline: 2px solid var(--color-primary-blue); outline-offset: 3px; }
+.sending-planning__forecast-toggle strong { min-width: 38px; font-size: 12px; color: var(--color-text-secondary); }
+.sending-planning__forecast-track { display: inline-flex; align-items: center; width: 38px; height: 22px; padding: 3px; box-sizing: border-box; border-radius: 999px; background: var(--color-text-secondary); }
+.sending-planning__forecast-track > span { width: 16px; height: 16px; flex-shrink: 0; border-radius: 50%; background: #fff; transform: translateX(0); }
+.sending-planning__forecast-toggle[aria-checked="true"] .sending-planning__forecast-track { background: var(--color-primary-blue); }
+.sending-planning__forecast-toggle[aria-checked="true"] .sending-planning__forecast-track > span { transform: translateX(16px); }
+.sending-planning__forecast-toggle[aria-checked="true"] strong { color: var(--color-primary-blue); }
+.sending-planning__forecast-settings { flex-basis: 100%; padding: 10px 12px; border: 1px dashed var(--color-border); border-radius: 12px; background: var(--color-bg-hover); }
