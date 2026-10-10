@@ -332,3 +332,23 @@
 .sending-planning__forecast-toggle[aria-checked="true"] .sending-planning__forecast-track > span { transform: translateX(16px); }
 .sending-planning__forecast-toggle[aria-checked="true"] strong { color: var(--color-primary-blue); }
 .sending-planning__forecast-settings { flex-basis: 100%; padding: 10px 12px; border: 1px dashed var(--color-border); border-radius: 12px; background: var(--color-bg-hover); }
+
+/* Forecast overlays preserve the transport's base colour. */
+.sending-planning__forecast-plan,
+.sending-planning__forecast-mini { border: 2px solid var(--forecast-accent, var(--color-primary-blue)); }
+.sending-planning .is-forecast-ready { --forecast-accent: #229653; }
+.sending-planning .is-forecast-low { --forecast-accent: #c78313; }
+.sending-planning .is-forecast-risk { --forecast-accent: #df3546; }
+.sending-planning .is-forecast-unknown { --forecast-accent: #718096; }
+.sending-planning__forecast-plan .sending-planning__event-heading b { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.sending-planning__forecast-plan .sending-planning__event-heading b svg { flex-shrink: 0; }
+.sending-planning__forecast-mini { width: 100%; padding: 2px 4px; border-radius: 7px; text-align: left; font-size: 11px; line-height: 12px; color: var(--color-text-primary); }
+.sending-planning__forecast-mini > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sending-planning__forecast-mini svg { vertical-align: middle; }
+.sending-planning__day > .sending-planning__forecast-gap { position: relative; z-index: 1; }
+.sending-planning__forecast-gap { display: block; width: 100%; margin-top: 2px; padding: 2px 4px; overflow: hidden; border: 1px dashed #df3546; border-radius: 6px; color: var(--color-text-primary); background: color-mix(in srgb, #df3546 9%, var(--color-bg-card)); text-align: left; font-size: 11px; line-height: 16px; }
+.sending-planning__forecast-gap > span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sending-planning__forecast-gap svg { vertical-align: middle; color: #df3546; }
+.sending-planning__gap-detail { padding: 12px; border: 1px dashed #df3546; border-radius: 12px; overflow-wrap: anywhere; }
+.sending-planning__gap-detail h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; }
+.sending-planning__gap-detail p { margin: 6px 0; }
